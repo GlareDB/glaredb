@@ -1,4 +1,4 @@
-use glaredb_error::{Result, not_implemented};
+use glaredb_error::{OptionExt, Result, not_implemented};
 
 use super::sort_layout::SortLayout;
 use super::sorted_segment::SortedSegment;
@@ -116,15 +116,13 @@ impl<'a> BinaryMerger<'a> {
             //
             // TODO: We should align the states returned from this with the ones
             // returned from the real merges so that we can assert equality.
-            let (interleave_count, _unused_l1, _unused_r1) = self.find_merge_side(
+            let (_unused_l1, _unused_r1) = self.find_merge_side(
                 &left,
                 &right,
                 state.left_scan.clone(),
                 state.right_scan.clone(),
                 &mut state.scan_sides,
             )?;
-
-            let scan_sides = &state.scan_sides[0..interleave_count];
 
             // Merge the key blocks.
             //
@@ -135,8 +133,7 @@ impl<'a> BinaryMerger<'a> {
                 &right,
                 state.left_scan.clone(),
                 state.right_scan.clone(),
-                scan_count,
-                scan_sides,
+                &state.scan_sides,
             )?;
             // TODO: Uncomment when they're actually equal
             // debug_assert_eq!(_unused_l1, _unused_l2);
@@ -150,11 +147,10 @@ impl<'a> BinaryMerger<'a> {
                     &right,
                     state.left_scan.clone(),
                     state.right_scan.clone(),
-                    scan_count,
-                    scan_sides,
+                    &state.scan_sides,
                 )?;
-                debug_assert_eq!(_unused_l2, _unused_l3);
-                debug_assert_eq!(_unused_r2, _unused_r3);
+                assert_eq!(_unused_l2, _unused_l3);
+                assert_eq!(_unused_r2, _unused_r3);
                 merged_heap_keys.push(heap_key_block);
             }
 
@@ -165,11 +161,10 @@ impl<'a> BinaryMerger<'a> {
                 &right,
                 state.left_scan.clone(),
                 state.right_scan.clone(),
-                scan_count,
-                scan_sides,
+                &state.scan_sides,
             )?;
-            debug_assert_eq!(_unused_l2, new_left_scan);
-            debug_assert_eq!(_unused_r2, new_right_scan);
+            assert_eq!(_unused_l2, new_left_scan);
+            assert_eq!(_unused_r2, new_right_scan);
             merged_data.push(data_block);
 
             // All updated left/right scans returned from the above `merge`
@@ -199,10 +194,6 @@ impl<'a> BinaryMerger<'a> {
     }
 
     /// Fills `source_sides` with which side to copy from for each row.
-    ///
-    /// Returns the number of elements filled in `scan_sides`. If this is less
-    /// than the len of `scan_sides`, then that indicates either the left or
-    /// right were exhausted.
     fn find_merge_side(
         &self,
         left: &SortedSegment,
@@ -210,50 +201,41 @@ impl<'a> BinaryMerger<'a> {
         mut left_scan: ScanState,
         mut right_scan: ScanState,
         scan_sides: &mut [ScanSide],
-    ) -> Result<(usize, ScanState, ScanState)> {
+    ) -> Result<(ScanState, ScanState)> {
         let mut curr_count = 0;
 
         while curr_count < scan_sides.len() {
             // Move to next block if needed.
-            let left_num_rows = left.keys[left_scan.block_idx].num_rows(self.key_layout.row_width);
-            let right_num_rows =
-                right.keys[right_scan.block_idx].num_rows(self.key_layout.row_width);
+            let left_block = match left.keys.get(left_scan.block_idx) {
+                Some(block) => block,
+                None => {
+                    // Left segment exhausted.
+                    debug_assert_eq!(0, left_scan.remaining);
+                    break;
+                }
+            };
+            let right_block = match right.keys.get(right_scan.block_idx) {
+                Some(block) => block,
+                None => {
+                    // Right segment exhausted.
+                    debug_assert_eq!(0, right_scan.remaining);
+                    break;
+                }
+            };
+
+            // Move to next block if needed.
+            let left_num_rows = left_block.num_rows(self.key_layout.row_width);
+            let right_num_rows = right_block.num_rows(self.key_layout.row_width);
 
             if left_scan.row_idx == left_num_rows {
                 left_scan.block_idx += 1;
                 left_scan.row_idx = 0;
+                continue;
             }
             if right_scan.row_idx == right_num_rows {
                 right_scan.block_idx += 1;
                 right_scan.row_idx = 0;
-            }
-
-            let left_exhausted = left_scan.block_idx == left.keys.len();
-            let right_exhausted = right_scan.block_idx == right.keys.len();
-
-            if left_exhausted || right_exhausted {
-                // We've reached either the end of the left or right runs, skip
-                // comparing the rest.
-                //
-                // Still need to update left or right state to update the true
-                // number of remaining rows.
-                //
-                // Note it shouldn't be possible for both sides to be exhausted
-                // as `scan_sides` should have taking the total row count from
-                // sides into account.
-                debug_assert_ne!(left_exhausted, right_exhausted);
-                let row_diff = scan_sides.len() - curr_count;
-                if left_exhausted {
-                    // Left exhausted, we're scanning `row_diff` additional
-                    // rows from right.
-                    right_scan.remaining -= row_diff;
-                }
-                if right_exhausted {
-                    // Same but sides flipped.
-                    left_scan.remaining -= row_diff;
-                }
-
-                break;
+                continue;
             }
 
             let left_block_ptr = left.keys[left_scan.block_idx].as_ptr();
@@ -295,7 +277,39 @@ impl<'a> BinaryMerger<'a> {
             }
         }
 
-        Ok((curr_count, left_scan, right_scan))
+        // If curr count is less than scan sides, we know we've reached the end
+        // of of one segment.
+        if curr_count < scan_sides.len() {
+            let left_exhausted = left_scan.remaining == 0;
+            let right_exhausted = right_scan.remaining == 0;
+
+            assert!(left_exhausted || right_exhausted); // One side should have been exhuasted...
+            assert_ne!(left_exhausted, right_exhausted); // And only one side.
+
+            // We've reached either the end of the left or right runs, skip
+            // comparing the rest.
+            //
+            // Still need to update left or right state to update the true
+            // number of remaining rows.
+            //
+            // Note it shouldn't be possible for both sides to be exhausted
+            // as `scan_sides` should have taking the total row count from
+            // sides into account.
+            let row_diff = scan_sides.len() - curr_count;
+            if left_exhausted {
+                // Left exhausted, we're scanning `row_diff` additional
+                // rows from right.
+                right_scan.remaining -= row_diff;
+                scan_sides[curr_count..].fill(ScanSide::Right);
+            }
+            if right_exhausted {
+                // Same but sides flipped.
+                left_scan.remaining -= row_diff;
+                scan_sides[curr_count..].fill(ScanSide::Left);
+            }
+        }
+
+        Ok((left_scan, right_scan))
     }
 
     fn merge_keys(
@@ -304,11 +318,10 @@ impl<'a> BinaryMerger<'a> {
         right: &SortedSegment,
         left_scan: ScanState,
         right_scan: ScanState,
-        scan_count: usize,
         scan_sides: &[ScanSide],
     ) -> Result<(Block, ScanState, ScanState)> {
-        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> &Block {
-            &sorted_run.keys[block_idx]
+        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> Option<&Block> {
+            sorted_run.keys.get(block_idx)
         }
 
         Self::merge_fixed_size_blocks(
@@ -319,7 +332,6 @@ impl<'a> BinaryMerger<'a> {
             block_fn,
             left_scan,
             right_scan,
-            scan_count,
             scan_sides,
         )
     }
@@ -330,11 +342,10 @@ impl<'a> BinaryMerger<'a> {
         right: &SortedSegment,
         left_scan: ScanState,
         right_scan: ScanState,
-        scan_count: usize,
         scan_sides: &[ScanSide],
     ) -> Result<(Block, ScanState, ScanState)> {
-        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> &Block {
-            &sorted_run.heap_keys[block_idx]
+        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> Option<&Block> {
+            sorted_run.heap_keys.get(block_idx)
         }
 
         Self::merge_fixed_size_blocks(
@@ -345,7 +356,6 @@ impl<'a> BinaryMerger<'a> {
             block_fn,
             left_scan,
             right_scan,
-            scan_count,
             scan_sides,
         )
     }
@@ -356,11 +366,10 @@ impl<'a> BinaryMerger<'a> {
         right: &SortedSegment,
         left_scan: ScanState,
         right_scan: ScanState,
-        scan_count: usize,
         scan_sides: &[ScanSide],
     ) -> Result<(Block, ScanState, ScanState)> {
-        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> &Block {
-            &sorted_run.data[block_idx]
+        fn block_fn(sorted_run: &SortedSegment, block_idx: usize) -> Option<&Block> {
+            sorted_run.data.get(block_idx)
         }
 
         Self::merge_fixed_size_blocks(
@@ -371,7 +380,6 @@ impl<'a> BinaryMerger<'a> {
             block_fn,
             left_scan,
             right_scan,
-            scan_count,
             scan_sides,
         )
     }
@@ -387,21 +395,34 @@ impl<'a> BinaryMerger<'a> {
         row_width: usize,
         left: &SortedSegment,
         right: &SortedSegment,
-        block_fn: impl Fn(&SortedSegment, usize) -> &Block,
+        block_fn: impl Fn(&SortedSegment, usize) -> Option<&Block>,
         mut left_scan: ScanState,
         mut right_scan: ScanState,
-        scan_count: usize,
         scan_sides: &[ScanSide],
     ) -> Result<(Block, ScanState, ScanState)> {
-        debug_assert!(left_scan.remaining + right_scan.remaining >= scan_sides.len());
+        assert!(left_scan.remaining + right_scan.remaining >= scan_sides.len());
 
         // Output is exact size for holding the merge.
-        let mut out = Block::try_new_reserve_all(manager, row_width * scan_count)?;
+        let mut out = Block::try_new_reserve_all(manager, row_width * scan_sides.len())?;
         let mut curr_count = 0;
 
         while curr_count < scan_sides.len() {
-            let left_block = block_fn(left, left_scan.block_idx);
-            let right_block = block_fn(right, right_scan.block_idx);
+            let left_block = match block_fn(left, left_scan.block_idx) {
+                Some(block) => block,
+                None => {
+                    // Left segment exhausted.
+                    debug_assert_eq!(0, left_scan.remaining);
+                    break;
+                }
+            };
+            let right_block = match block_fn(right, right_scan.block_idx) {
+                Some(block) => block,
+                None => {
+                    // Right segment exhausted.
+                    debug_assert_eq!(0, right_scan.remaining);
+                    break;
+                }
+            };
 
             // Move to next block if needed.
             let left_num_rows = left_block.num_rows(row_width);
@@ -448,22 +469,34 @@ impl<'a> BinaryMerger<'a> {
                         right_scan.remaining -= 1;
                     },
                 }
-
-                unsafe {
-                    out_ptr = out_ptr.byte_add(row_width);
-                }
+                unsafe { out_ptr = out_ptr.byte_add(row_width) };
                 curr_count += 1;
             }
+            // Move to next iteration of the loop, we'll move to the next block
+            // as needed.
         }
 
-        if scan_count > scan_sides.len() {
+        if curr_count < scan_sides.len() {
             // One side is exhausted, need to copy in bulk from the non-exausted
             // side.
             let left_exhausted = left_scan.remaining == 0;
             let right_exhausted = right_scan.remaining == 0;
-            debug_assert_ne!(left_exhausted, right_exhausted); // Only one side should be exhausted.
+            assert!(left_exhausted || right_exhausted); // One side should have been exhuasted...
+            assert_ne!(left_exhausted, right_exhausted); // And only one side.
 
-            let rem_rows = scan_count - scan_sides.len();
+            // If one side is exhausted, then the remainder of scan_sides should
+            // indicate scanning from the other side.
+            debug_assert!(if left_exhausted {
+                scan_sides[curr_count..]
+                    .iter()
+                    .all(|&s| s == ScanSide::Right)
+            } else {
+                scan_sides[curr_count..]
+                    .iter()
+                    .all(|&s| s == ScanSide::Left)
+            });
+
+            let rem_rows = scan_sides.len() - curr_count;
 
             if left_exhausted {
                 // Bulk copy rows from the right.
@@ -485,7 +518,7 @@ impl<'a> BinaryMerger<'a> {
         row_width: usize,
         src: &SortedSegment,
         mut src_scan: ScanState,
-        block_fn: impl Fn(&SortedSegment, usize) -> &Block,
+        block_fn: impl Fn(&SortedSegment, usize) -> Option<&Block>,
         out: &mut Block,
         curr_count: usize,
         mut rem_rows: usize,
@@ -496,7 +529,8 @@ impl<'a> BinaryMerger<'a> {
         let mut out_ptr = unsafe { out_block_ptr.byte_add(row_width * curr_count) };
 
         while rem_rows > 0 {
-            let block = block_fn(src, src_scan.block_idx);
+            let block = block_fn(src, src_scan.block_idx)
+                .required("Block must exist for bulk copying remaining rows")?;
 
             // Move to next block if needed.
             let num_rows = block.num_rows(row_width);
@@ -571,6 +605,26 @@ mod tests {
     }
 
     #[test]
+    fn binary_merge_odd() {
+        let left = generate_batch!([2], ["b"]);
+        let right = generate_batch!([1, 3], ["a", "c"]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_odd_flipped() {
+        let left = generate_batch!([1, 3], ["a", "c"]);
+        let right = generate_batch!([2], ["b"]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3], ["a", "b", "c"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
     fn binary_merge_interleave() {
         let left = generate_batch!([1, 3, 5], ["a", "c", "e"]);
         let right = generate_batch!([2, 4, 6], ["b", "d", "f"]);
@@ -587,6 +641,16 @@ mod tests {
 
         let left = generate_batch!([2, 4, 6], ["b", "d", "f"]);
         let right = generate_batch!([1, 3, 5], ["a", "c", "e"]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_interleave_2() {
+        let left = generate_batch!([1, 4, 5], ["a", "d", "e"]);
+        let right = generate_batch!([2, 3, 6], ["b", "c", "f"]);
         let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
@@ -615,6 +679,16 @@ mod tests {
         let out = binary_merge_exact_cap(&left, [0], &right, [0]);
 
         let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "c", "d", "e", "f"]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn binary_merge_almost_sorted() {
+        let left = generate_batch!([1, 2, 6], ["a", "b", "c"]);
+        let right = generate_batch!([3, 4, 5], ["d", "e", "f"]);
+        let out = binary_merge_exact_cap(&left, [0], &right, [0]);
+
+        let expected = generate_batch!([1, 2, 3, 4, 5, 6], ["a", "b", "d", "e", "f", "c"]);
         assert_batches_eq(&expected, &out);
     }
 
@@ -733,5 +807,175 @@ mod tests {
         assert_scan(generate_batch!([5, 6]));
         // Fourth
         assert_scan(generate_batch!([7, 8]));
+    }
+
+    #[test]
+    fn binary_merge_fewer_blocks_on_left() {
+        let left = generate_batch!([1, 9]);
+        let left_block = TestSortedRowBlock::from_batch(&left, [0]);
+
+        let left_run = SortedSegment::from_sorted_block(left_block.sorted_block);
+
+        let merger = BinaryMerger::new(
+            &DefaultBufferManager,
+            &left_block.key_layout,
+            &left_block.data_layout,
+            2,
+        );
+
+        let right1 = generate_batch!([5, 7]);
+        let right2 = generate_batch!([6, 8]);
+
+        let right_block1 = TestSortedRowBlock::from_batch(&right1, [0]);
+        let right_block2 = TestSortedRowBlock::from_batch(&right2, [0]);
+
+        let right_run1 = SortedSegment::from_sorted_block(right_block1.sorted_block);
+        let right_run2 = SortedSegment::from_sorted_block(right_block2.sorted_block);
+
+        let mut state = merger.init_merge_state();
+        let right_out = merger.merge(&mut state, right_run1, right_run2).unwrap();
+        assert_eq!(2, right_out.keys.len());
+
+        let final_out = merger.merge(&mut state, left_run, right_out).unwrap();
+        assert_eq!(3, final_out.keys.len());
+
+        let mut scan = final_out.init_scan_state();
+        let mut out_batch = Batch::new([DataType::Int32], 2).unwrap();
+        let mut assert_scan = |expected: Batch| {
+            final_out
+                .scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
+                .unwrap();
+
+            assert_batches_eq(&expected, &out_batch);
+        };
+
+        assert_scan(generate_batch!([1, 5]));
+        assert_scan(generate_batch!([6, 7]));
+        assert_scan(generate_batch!([8, 9]));
+    }
+
+    #[test]
+    fn binary_merge_interleave_multiple_blocks() {
+        // Batches merged for the first sorted run.
+        let left1 = generate_batch!([1, 2]);
+        let left2 = generate_batch!([4, 5]);
+
+        let left_block1 = TestSortedRowBlock::from_batch(&left1, [0]);
+        let left_block2 = TestSortedRowBlock::from_batch(&left2, [0]);
+
+        let merger = BinaryMerger::new(
+            &DefaultBufferManager,
+            &left_block1.key_layout,
+            &left_block1.data_layout,
+            2,
+        );
+
+        let left_run1 = SortedSegment::from_sorted_block(left_block1.sorted_block);
+        let left_run2 = SortedSegment::from_sorted_block(left_block2.sorted_block);
+
+        let mut state = merger.init_merge_state();
+        let left_out = merger.merge(&mut state, left_run1, left_run2).unwrap();
+        assert_eq!(2, left_out.keys.len());
+
+        let right1 = generate_batch!([3, 6]);
+        let right2 = generate_batch!([7, 8]);
+
+        let right_block1 = TestSortedRowBlock::from_batch(&right1, [0]);
+        let right_block2 = TestSortedRowBlock::from_batch(&right2, [0]);
+
+        let right_run1 = SortedSegment::from_sorted_block(right_block1.sorted_block);
+        let right_run2 = SortedSegment::from_sorted_block(right_block2.sorted_block);
+
+        let mut state = merger.init_merge_state();
+        let right_out = merger.merge(&mut state, right_run1, right_run2).unwrap();
+        assert_eq!(2, right_out.keys.len());
+
+        let final_out = merger.merge(&mut state, left_out, right_out).unwrap();
+        assert_eq!(4, final_out.keys.len());
+
+        let mut scan = final_out.init_scan_state();
+        let mut out_batch = Batch::new([DataType::Int32], 2).unwrap();
+        let mut assert_scan = |expected: Batch| {
+            final_out
+                .scan_data(&mut scan, &left_block1.data_layout, &mut out_batch)
+                .unwrap();
+
+            assert_batches_eq(&expected, &out_batch);
+        };
+
+        assert_scan(generate_batch!([1, 2]));
+        assert_scan(generate_batch!([3, 4]));
+        assert_scan(generate_batch!([5, 6]));
+        assert_scan(generate_batch!([7, 8]));
+    }
+
+    #[test]
+    fn binary_merge_blocks_should_not_exceed_capacity() {
+        let left = generate_batch!([8, 4, 5, 2, 10, 11]);
+        let right = generate_batch!([9, 6, 5, 3]);
+
+        let left_block = TestSortedRowBlock::from_batch(&left, [0]);
+        let right_block = TestSortedRowBlock::from_batch(&right, [0]);
+
+        let left_run = SortedSegment::from_sorted_block(left_block.sorted_block);
+        let right_run = SortedSegment::from_sorted_block(right_block.sorted_block);
+
+        let merger = BinaryMerger::new(
+            &DefaultBufferManager,
+            &left_block.key_layout,
+            &left_block.data_layout,
+            4,
+        );
+
+        let mut state = merger.init_merge_state();
+        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        assert_eq!(3, out.keys.len());
+
+        assert_eq!(4, out.keys[0].num_rows(left_block.key_layout.row_width));
+        assert_eq!(4, out.keys[1].num_rows(left_block.key_layout.row_width));
+        assert_eq!(2, out.keys[2].num_rows(left_block.key_layout.row_width));
+    }
+
+    #[test]
+    fn binary_merge_multiple_left_blocks_larger_than_cap_right_block() {
+        let left_batch = generate_batch!(0..2048);
+        let left_block = TestSortedRowBlock::from_batch(&left_batch, [0]);
+        let mut left_run = SortedSegment::from_sorted_block(left_block.sorted_block);
+
+        let merger = BinaryMerger::new(
+            &DefaultBufferManager,
+            &left_block.key_layout,
+            &left_block.data_layout,
+            2048,
+        );
+
+        // Add additional blocks.
+        for _ in 0..5 {
+            let append_batch = generate_batch!(0..2048);
+            let append_block = TestSortedRowBlock::from_batch(&append_batch, [0]);
+            let append_run = SortedSegment::from_sorted_block(append_block.sorted_block);
+
+            let mut state = merger.init_merge_state();
+            left_run = merger.merge(&mut state, left_run, append_run).unwrap();
+        }
+
+        // Now create a larger than normal right block/run
+        let right_batch = generate_batch!(0..2117);
+        let right_block = TestSortedRowBlock::from_batch(&right_batch, [0]);
+        let right_run = SortedSegment::from_sorted_block(right_block.sorted_block);
+
+        // Merge them.
+        let mut state = merger.init_merge_state();
+        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        assert_eq!(8, out.keys.len());
+
+        assert_eq!(2048, out.keys[0].num_rows(left_block.key_layout.row_width));
+        assert_eq!(2048, out.keys[1].num_rows(left_block.key_layout.row_width));
+        assert_eq!(2048, out.keys[2].num_rows(left_block.key_layout.row_width));
+        assert_eq!(2048, out.keys[3].num_rows(left_block.key_layout.row_width));
+        assert_eq!(2048, out.keys[4].num_rows(left_block.key_layout.row_width));
+        assert_eq!(2048, out.keys[5].num_rows(left_block.key_layout.row_width));
+        assert_eq!(2048, out.keys[6].num_rows(left_block.key_layout.row_width));
+        assert_eq!(69, out.keys[7].num_rows(left_block.key_layout.row_width));
     }
 }
