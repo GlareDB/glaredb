@@ -294,7 +294,8 @@ impl<'a> BinaryMerger<'a> {
                         let col_width = self.key_layout.column_widths[col_idx];
                         let col_left =
                             unsafe { std::slice::from_raw_parts(col_left_ptr, col_width) };
-                        let col_right = unsafe { std::slice::from_raw_parts(right_ptr, col_width) };
+                        let col_right =
+                            unsafe { std::slice::from_raw_parts(col_right_ptr, col_width) };
 
                         col_cmp = col_left.cmp(col_right);
                         if col_cmp == Ordering::Equal
@@ -669,7 +670,7 @@ impl<'a> BinaryMerger<'a> {
         match layout.heap_layout.types[heap_key_column].physical_type() {
             PhysicalType::Utf8 => {
                 // Compare strings.
-                let col_offset = layout.offsets[heap_key_column];
+                let col_offset = layout.heap_layout.offsets[heap_key_column];
                 let left_col_ptr = unsafe { left_row_ptr.byte_add(col_offset) };
                 let right_col_ptr = unsafe { right_row_ptr.byte_add(col_offset) };
 
