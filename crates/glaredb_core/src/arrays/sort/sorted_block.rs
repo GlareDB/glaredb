@@ -6,6 +6,7 @@ use crate::arrays::bitmap::view::BitmapView;
 use crate::arrays::row::block::Block;
 use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::row::row_layout::RowLayout;
+use crate::arrays::sort::heap_compare::{compare_heap_value_supported, compare_heap_values};
 use crate::arrays::string::StringPtr;
 use crate::buffer::buffer_manager::AsRawBufferManager;
 use crate::util::iter::IntoExactSizeIterator;
@@ -192,6 +193,15 @@ impl SortedBlock {
             Ok(())
         }
     }
+}
+
+/// Reads the u32 row index value at the beginning of a row, and casts it to a
+/// usize for convenience.
+///
+/// The pointer should be pointing to the start of a row located in a block with
+/// a sort layout.
+unsafe fn read_inline_idx(ptr: *const u8) -> usize {
+    unsafe { ptr.cast::<u32>().read_unaligned() as usize }
 }
 
 /// Compares subsequent rows for tied values and writes the result to `ties`.
@@ -420,10 +430,10 @@ unsafe fn sort_heap_keys(
     // Relative to row offset.
     let mut sort_indices: Vec<_> = (0..row_count).collect();
     let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
-    if !matches!(phys_type, PhysicalType::Utf8) {
-        // TODO: Structs and lists
+    if !compare_heap_value_supported(phys_type) {
         not_implemented!("Heap key compare for type {phys_type} (sorted block)")
     }
+
     sort_indices.sort_unstable_by(|&a, &b| {
         // TODO: Some of this is duplicated with the binary merge stuff.
         let ord = match phys_type {
@@ -432,18 +442,10 @@ unsafe fn sort_heap_keys(
                 // in-progress sorting, while fixed-len key blocks are. We need
                 // to read the key block to get the original row for the heap
                 // key block.
-                let a_row_idx = unsafe {
-                    key_block_ptr
-                        .byte_add(a * layout.row_width)
-                        .cast::<u32>()
-                        .read_unaligned()
-                } as usize;
-                let b_row_idx = unsafe {
-                    key_block_ptr
-                        .byte_add(b * layout.row_width)
-                        .cast::<u32>()
-                        .read_unaligned()
-                } as usize;
+                let a_row_idx =
+                    unsafe { read_inline_idx(key_block_ptr.byte_add(a * layout.row_width)) };
+                let b_row_idx =
+                    unsafe { read_inline_idx(key_block_ptr.byte_add(b * layout.row_width)) };
 
                 // Use row indices to compute the pointers into heap key blocks.
                 let a_ptr = unsafe {
@@ -455,10 +457,9 @@ unsafe fn sort_heap_keys(
                         .byte_add(b_row_idx * layout.heap_layout.row_width + heap_col_offset)
                 };
 
-                let left_str = unsafe { a_ptr.cast::<StringPtr>().read_unaligned() };
-                let right_str = unsafe { b_ptr.cast::<StringPtr>().read_unaligned() };
-
-                left_str.as_bytes().cmp(right_str.as_bytes())
+                unsafe {
+                    compare_heap_values(a_ptr, b_ptr, phys_type).expect("supported phys type")
+                }
             }
             _ => {
                 unreachable!("allowed variants checked before the sort")
@@ -497,7 +498,32 @@ unsafe fn sort_heap_keys(
         key_block_copy_start_ptr.copy_from_nonoverlapping(temp_ptr, layout.row_width * row_count);
     }
 
-    unimplemented!()
+    // Now... Iterate throught he rows we just sorted to see if there's still
+    // ties.
+    let heap_curr_row_idx =
+        unsafe { read_inline_idx(keys.as_ptr().byte_add(row_offset * layout.row_width)) };
+    let mut curr_heap_ptr = unsafe {
+        heap_key_block_ptr
+            .byte_add(heap_curr_row_idx * layout.heap_layout.row_width + heap_col_offset)
+    };
+    for next_row_idx in (row_offset + 1)..(row_offset + row_count) {
+        let heap_next_row_idx =
+            unsafe { read_inline_idx(keys.as_ptr().byte_add(next_row_idx * layout.row_width)) };
+        let next_heap_ptr = unsafe {
+            heap_key_block_ptr
+                .byte_add(heap_next_row_idx * layout.heap_layout.row_width + heap_col_offset)
+        };
+
+        // Compare curr with next.
+        let cmp = unsafe { compare_heap_values(curr_heap_ptr, next_heap_ptr, phys_type)? };
+
+        // Update ties for curr.
+        ties[next_row_idx - 1] = cmp.is_eq();
+
+        curr_heap_ptr = next_heap_ptr;
+    }
+
+    Ok(())
 }
 
 fn apply_sort_indices(

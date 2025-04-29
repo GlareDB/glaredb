@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use glaredb_error::{OptionExt, Result, not_implemented};
 
+use super::heap_compare::compare_heap_values;
 use super::sort_layout::SortLayout;
 use super::sorted_segment::SortedSegment;
 use crate::arrays::array::physical_type::PhysicalType;
@@ -667,23 +668,12 @@ impl<'a> BinaryMerger<'a> {
             return Ok(Ordering::Equal);
         }
 
-        let ord = match layout.heap_layout.types[heap_key_column].physical_type() {
-            PhysicalType::Utf8 => {
-                // Compare strings.
-                let col_offset = layout.heap_layout.offsets[heap_key_column];
-                let left_col_ptr = unsafe { left_row_ptr.byte_add(col_offset) };
-                let right_col_ptr = unsafe { right_row_ptr.byte_add(col_offset) };
+        let col_offset = layout.heap_layout.offsets[heap_key_column];
+        let left_col_ptr = unsafe { left_row_ptr.byte_add(col_offset) };
+        let right_col_ptr = unsafe { right_row_ptr.byte_add(col_offset) };
 
-                let left_str = unsafe { left_col_ptr.cast::<StringPtr>().read_unaligned() };
-                let right_str = unsafe { right_col_ptr.cast::<StringPtr>().read_unaligned() };
-
-                left_str.as_bytes().cmp(right_str.as_bytes())
-            }
-            other => {
-                // TODO: Structs and lists
-                not_implemented!("Heap key compare for type {other} (binary merge)")
-            }
-        };
+        let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
+        let ord = unsafe { compare_heap_values(left_col_ptr, right_col_ptr, phys_type)? };
 
         // Note we're using the original key column index.
         if layout.columns[key_column].desc {
