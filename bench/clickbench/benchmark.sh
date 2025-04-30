@@ -19,7 +19,9 @@ fi
 # Get the data.
 mkdir -p "${script_dir}/data"
 pushd "${script_dir}/data"
-case "$1" in
+
+mode="${1:-single}" # Default to 'single' if no arg given.
+case "${mode}" in
     single)
         wget --continue https://clickhouse-public-datasets.s3.eu-central-1.amazonaws.com/hits_compatible/athena/hits.parquet
         ;;
@@ -37,4 +39,4 @@ popd
 # relative path.
 pushd "${script_dir}"
 
-./run.sh "$@"
+./run.sh "${mode}"
