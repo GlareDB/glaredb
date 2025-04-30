@@ -44,22 +44,49 @@ pub struct Aggregates {
 
 #[derive(Debug)]
 pub enum HashAggregatePartitionState {
+    /// Partition is inserting values into its local tables.
     Aggregating(HashAggregateAggregatingPartitionState),
+    /// Partition is merging a subset of the distinct tables.
+    MergingDistinct(HashAggregateMergingDistinctPartitionState),
+    /// Partition is scanning from the global distinct tables and writing values
+    /// to its local aggregate hash tables.
     AggregatingDistinct(HashAggregateAggregatingDistinctPartitionState),
+    /// Partition is merg a subset of the global aggregate tables.
+    Merging(HashAggregateMergingPartitionState),
+    /// Partition is scanning.
     Scanning(HashAggregateScanningPartitionState),
 }
 
 #[derive(Debug)]
 pub struct HashAggregateAggregatingPartitionState {
-    partition_idx: usize,
-    /// Partition state per grouping set table.
-    states: Vec<GroupingSetPartitionState>,
-    /// Distinct states per grouping set.
-    distinct_states: Vec<DistinctCollectionPartitionState>,
+    inner: AggregatingPartitionState,
+}
+
+#[derive(Debug)]
+pub struct HashAggregateMergingDistinctPartitionState {
+    inner: AggregatingPartitionState,
+    /// Queue of distinct tables that this partition is responsible for merging.
+    ///
+    /// Values corresponds to the grouping set index.
+    distinct_tables_queue: Vec<usize>,
 }
 
 #[derive(Debug)]
 pub struct HashAggregateAggregatingDistinctPartitionState {
+    inner: AggregatingPartitionState,
+}
+
+#[derive(Debug)]
+pub struct HashAggregateMergingPartitionState {
+    inner: AggregatingPartitionState,
+    /// Queue of tables that this partition is responsible for merging.
+    ///
+    /// Values corresponds to the grouping set index.
+    tables_queue: Vec<usize>,
+}
+
+#[derive(Debug)]
+struct AggregatingPartitionState {
     partition_idx: usize,
     /// Partition state per grouping set table.
     states: Vec<GroupingSetPartitionState>,
@@ -103,11 +130,16 @@ pub struct HashAggregateOperatorState {
 struct HashAggregateOperatoreStateInner {
     /// Remaining partitions working on normal aggregates.
     remaining_normal: DelayedPartitionCount,
+    /// Remaining partitions working on merging the distinct tables.
+    remaining_distinct_mergers: DelayedPartitionCount,
     /// Remaining partitions working on distinct aggregates.
-    remaining_distinct: DelayedPartitionCount,
-    /// Wakers waiting for normal aggregates to finish so we can compute the
-    /// distinct aggregates.
-    pending_distinct: PartitionWakers,
+    remaining_distinct_aggregators: DelayedPartitionCount,
+    /// Partitions waiting for normal aggregates to finish so we can merge the final
+    /// distinct tables.
+    pending_distinct_mergers: PartitionWakers,
+    /// Partitions waiting on the distinct merges to complete before scanning
+    /// the the distinct tables.
+    pending_distinct_aggregators: PartitionWakers,
     /// Wakers waiting to scan the final aggregate tables.
     pending_drain: PartitionWakers,
 }
@@ -196,8 +228,10 @@ impl BaseOperator for PhysicalHashAggregate {
 
         let inner = HashAggregateOperatoreStateInner {
             remaining_normal: DelayedPartitionCount::uninit(),
-            remaining_distinct: DelayedPartitionCount::uninit(),
-            pending_distinct: PartitionWakers::empty(),
+            remaining_distinct_mergers: DelayedPartitionCount::uninit(),
+            remaining_distinct_aggregators: DelayedPartitionCount::uninit(),
+            pending_distinct_mergers: PartitionWakers::empty(),
+            pending_distinct_aggregators: PartitionWakers::empty(),
             pending_drain: PartitionWakers::empty(),
         };
 
@@ -228,18 +262,26 @@ impl ExecuteOperator for PhysicalHashAggregate {
         let mut partition_states: Vec<_> = (0..partitions)
             .map(|idx| {
                 HashAggregateAggregatingPartitionState {
-                    partition_idx: idx,
-                    distinct_states: Vec::with_capacity(operator_state.tables.len()), // Populated below
-                    states: Vec::with_capacity(operator_state.tables.len()), // Populated below
+                    inner: AggregatingPartitionState {
+                        partition_idx: idx,
+                        distinct_states: Vec::with_capacity(operator_state.tables.len()), // Populated below
+                        states: Vec::with_capacity(operator_state.tables.len()), // Populated below
+                    },
                 }
             })
             .collect();
 
         let inner = &mut operator_state.inner.lock();
         inner.pending_drain.init_for_partitions(partitions);
-        inner.pending_distinct.init_for_partitions(partitions);
+        inner
+            .pending_distinct_mergers
+            .init_for_partitions(partitions);
+        inner
+            .pending_distinct_aggregators
+            .init_for_partitions(partitions);
         inner.remaining_normal.set(partitions)?;
-        inner.remaining_distinct.set(partitions)?;
+        inner.remaining_distinct_mergers.set(partitions)?;
+        inner.remaining_distinct_aggregators.set(partitions)?;
 
         debug_assert_eq!(
             operator_state.table_states.len(),
@@ -258,7 +300,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
             for (partition_state, table_state) in
                 partition_states.iter_mut().zip(table_partition_states)
             {
-                partition_state.states.push(table_state);
+                partition_state.inner.states.push(table_state);
             }
         }
 
@@ -280,7 +322,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
             for (partition_state, distinct_state) in
                 partition_states.iter_mut().zip(distinct_partition_states)
             {
-                partition_state.distinct_states.push(distinct_state);
+                partition_state.inner.distinct_states.push(distinct_state);
             }
         }
 
@@ -302,35 +344,91 @@ impl ExecuteOperator for PhysicalHashAggregate {
     ) -> Result<PollExecute> {
         match state {
             HashAggregatePartitionState::Aggregating(aggregating) => {
-                debug_assert_eq!(aggregating.states.len(), operator_state.tables.len());
+                debug_assert_eq!(aggregating.inner.states.len(), operator_state.tables.len());
 
                 // Update distinct states.
                 for (distinct, state) in operator_state
                     .distinct_collections
                     .iter()
-                    .zip(&mut aggregating.distinct_states)
+                    .zip(&mut aggregating.inner.distinct_states)
                 {
                     distinct.insert(state, input)?;
                 }
 
                 // Insert input into each grouping set table.
-                for (table, state) in operator_state.tables.iter().zip(&mut aggregating.states) {
+                for (table, state) in operator_state
+                    .tables
+                    .iter()
+                    .zip(&mut aggregating.inner.states)
+                {
                     table.insert_input_loca(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)
             }
-            HashAggregatePartitionState::AggregatingDistinct(aggregating) => {
-                debug_assert_eq!(aggregating.states.len(), operator_state.tables.len());
-                debug_assert_eq!(aggregating.distinct_states.len(), aggregating.states.len());
-
+            HashAggregatePartitionState::MergingDistinct(merging) => {
                 let mut shared = operator_state.inner.lock();
                 if shared.remaining_normal.current()? != 0 {
-                    // Normal aggregates still happening, we don't have all
-                    // distinct inputs yet, come back later.
+                    // Normal aggregates still going, we don't have all distinct
+                    // inputs yet. Come back later.
                     shared
-                        .pending_distinct
-                        .store(cx.waker(), aggregating.partition_idx);
+                        .pending_distinct_mergers
+                        .store(cx.waker(), merging.inner.partition_idx);
+                    return Ok(PollExecute::Pending);
+                }
+                std::mem::drop(shared);
+
+                debug_assert_eq!(
+                    operator_state.distinct_collections.len(),
+                    operator_state.distinct_states.len()
+                );
+
+                // We have all inputs. Go ahead and merge the distinct tables
+                // this partition is responsible for.
+                while let Some(idx) = merging.distinct_tables_queue.pop() {
+                    operator_state.distinct_collections[idx]
+                        .merge_flushed(&operator_state.distinct_states[idx])?;
+                }
+
+                // Update our state to scan the distinct values.
+                let states = std::mem::take(&mut merging.inner.states);
+                let distinct_states = std::mem::take(&mut merging.inner.distinct_states);
+                *state = HashAggregatePartitionState::AggregatingDistinct(
+                    HashAggregateAggregatingDistinctPartitionState {
+                        inner: AggregatingPartitionState {
+                            partition_idx: merging.inner.partition_idx,
+                            states,
+                            distinct_states,
+                        },
+                    },
+                );
+
+                let mut shared = operator_state.inner.lock();
+                let remaining = shared.remaining_distinct_mergers.dec_by_one()?;
+                if remaining == 0 {
+                    // We were the last partition to complete merging, wake
+                    // everyone else up.
+                    shared.pending_distinct_aggregators.wake_all();
+                }
+
+                // Trigger re-poll
+                output.set_num_rows(0)?;
+                Ok(PollExecute::HasMore)
+            }
+            HashAggregatePartitionState::AggregatingDistinct(aggregating) => {
+                debug_assert_eq!(aggregating.inner.states.len(), operator_state.tables.len());
+                debug_assert_eq!(
+                    aggregating.inner.distinct_states.len(),
+                    aggregating.inner.states.len()
+                );
+
+                let mut shared = operator_state.inner.lock();
+                if shared.remaining_distinct_mergers.current()? != 0 {
+                    // Distinct mergers still happening, come back later when
+                    // the merges are done.
+                    shared
+                        .pending_distinct_aggregators
+                        .store(cx.waker(), aggregating.inner.partition_idx);
                     return Ok(PollExecute::Pending);
                 }
                 std::mem::drop(shared);
@@ -343,7 +441,8 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     operator_state.distinct_collections.iter().enumerate()
                 {
                     let distinct_op_state = &operator_state.distinct_states[grouping_set_idx];
-                    let distinct_part_state = &mut aggregating.distinct_states[grouping_set_idx];
+                    let distinct_part_state =
+                        &mut aggregating.inner.distinct_states[grouping_set_idx];
 
                     for table_idx in 0..distinct.num_distinct_tables() {
                         let mut batch = Batch::new(
@@ -377,9 +476,9 @@ impl ExecuteOperator for PhysicalHashAggregate {
                                 break;
                             }
 
-                            // Now insert into the normal agg table.
+                            // Now insert into our local tables.
                             operator_state.tables[grouping_set_idx].insert_for_distinct_local(
-                                &mut aggregating.states[grouping_set_idx],
+                                &mut aggregating.inner.states[grouping_set_idx],
                                 &agg_sel,
                                 &mut batch,
                             )?;
@@ -391,12 +490,12 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 for (table_idx, table) in operator_state.tables.iter().enumerate() {
                     let _ = table.flush(
                         &operator_state.table_states[table_idx],
-                        &mut aggregating.states[table_idx],
+                        &mut aggregating.inner.states[table_idx],
                     )?;
                 }
 
                 let mut shared = operator_state.inner.lock();
-                let remaining = shared.remaining_distinct.dec_by_one()?;
+                let remaining = shared.remaining_distinct_aggregators.dec_by_one()?;
 
                 if remaining == 0 {
                     // Wake up any pending drainers.
@@ -404,11 +503,11 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 }
 
                 // See finalize.
-                let table_states: Vec<_> = aggregating.states.drain(..).enumerate().collect();
+                let table_states: Vec<_> = aggregating.inner.states.drain(..).enumerate().collect();
                 // Set self to begin draining.
                 *state =
                     HashAggregatePartitionState::Scanning(HashAggregateScanningPartitionState {
-                        partition_idx: aggregating.partition_idx,
+                        partition_idx: aggregating.inner.partition_idx,
                         scan_ready: false,
                         states: table_states,
                     });
@@ -416,6 +515,9 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 output.set_num_rows(0)?;
                 // Call us again.
                 Ok(PollExecute::HasMore)
+            }
+            HashAggregatePartitionState::Merging(merging) => {
+                unimplemented!()
             }
             HashAggregatePartitionState::Scanning(scanning) => {
                 if !scanning.scan_ready {
@@ -425,7 +527,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     // 'remaining_distinct' always updated even when we don't
                     // have distinct aggregates.
                     let scan_ready = shared_state.remaining_normal.current()? == 0
-                        && shared_state.remaining_distinct.current()? == 0;
+                        && shared_state.remaining_distinct_aggregators.current()? == 0;
                     if !scan_ready {
                         // Come back later.
                         shared_state
@@ -483,7 +585,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // Flush the distinct collections.
                 for (idx, distinct) in operator_state.distinct_collections.iter().enumerate() {
                     let op_state = &operator_state.distinct_states[idx];
-                    let part_state = &mut building.distinct_states[idx];
+                    let part_state = &mut building.inner.distinct_states[idx];
                     distinct.flush(op_state, part_state)?;
                 }
 
@@ -495,17 +597,18 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     for (table_idx, table) in operator_state.tables.iter().enumerate() {
                         let _ = table.flush(
                             &operator_state.table_states[table_idx],
-                            &mut building.states[table_idx],
+                            &mut building.inner.states[table_idx],
                         )?;
                     }
 
                     // Attach table indices to the states. We're going to drain the
                     // states as a queue during draining, so we need to preserve the
                     // table index the state is for.
-                    let table_states: Vec<_> = building.states.drain(..).enumerate().collect();
+                    let table_states: Vec<_> =
+                        building.inner.states.drain(..).enumerate().collect();
                     *state = HashAggregatePartitionState::Scanning(
                         HashAggregateScanningPartitionState {
-                            partition_idx: building.partition_idx,
+                            partition_idx: building.inner.partition_idx,
                             scan_ready: false,
                             states: table_states,
                         },
@@ -515,7 +618,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     let remaining = shared_state.remaining_normal.dec_by_one()?;
                     // Decremtn the the pending distinct count too so we can
                     // simplify the check in drain.
-                    let _ = shared_state.remaining_distinct.dec_by_one()?;
+                    let _ = shared_state.remaining_distinct_aggregators.dec_by_one()?;
 
                     if remaining == 0 {
                         // Wake up all partitions, we're ready to produce results.
@@ -532,14 +635,17 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     // only merge the table once. We do that once we complete
                     // computing the distinct aggs.
 
-                    let states = std::mem::take(&mut building.states);
-                    let distinct_states = std::mem::take(&mut building.distinct_states);
+                    let states = std::mem::take(&mut building.inner.states);
+                    let distinct_states = std::mem::take(&mut building.inner.distinct_states);
 
                     *state = HashAggregatePartitionState::AggregatingDistinct(
                         HashAggregateAggregatingDistinctPartitionState {
-                            partition_idx: building.partition_idx,
-                            states,
-                            distinct_states,
+                            // TODO: Ugh
+                            inner: AggregatingPartitionState {
+                                partition_idx: building.inner.partition_idx,
+                                states,
+                                distinct_states,
+                            },
                         },
                     );
 
@@ -548,7 +654,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                     if remaining == 0 {
                         // Wake up any partition waiting on all distinct inputs.
-                        shared_state.pending_distinct.wake_all();
+                        shared_state.pending_distinct_mergers.wake_all();
                     }
 
                     Ok(PollFinalize::NeedsDrain)
