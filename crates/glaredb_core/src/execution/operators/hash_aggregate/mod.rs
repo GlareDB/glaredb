@@ -534,7 +534,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 if remaining == 0 {
                     // Wake up any pending mergers.
-                    shared.pending_drainers.wake_all();
+                    shared.pending_mergers.wake_all();
                 }
 
                 // Call us again.
@@ -667,7 +667,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 let mut shared = operator_state.inner.lock();
                 // Decrement the normal aggregate count.
-                let _ = shared.remaining_normal.dec_by_one()?;
+                let remaining = shared.remaining_normal.dec_by_one()?;
 
                 let num_partitions = shared.partition_count.required("partition count")?;
 
@@ -699,6 +699,10 @@ impl ExecuteOperator for PhysicalHashAggregate {
                                 .filter(|idx| idx % num_partitions == building.inner.partition_idx)
                                 .collect(),
                         });
+
+                    if remaining == 0 {
+                        shared.pending_mergers.wake_all();
+                    }
 
                     // Now try draining.
                     //
@@ -739,6 +743,10 @@ impl ExecuteOperator for PhysicalHashAggregate {
                                 .collect(),
                         },
                     );
+
+                    if remaining == 0 {
+                        shared.pending_distinct_mergers.wake_all();
+                    }
 
                     // Now draing.
                     //
