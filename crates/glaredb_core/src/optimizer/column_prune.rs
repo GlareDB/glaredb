@@ -132,8 +132,6 @@ impl PruneState {
             })
             .expect("extract to not fail");
 
-        println!("PARENT REFS: {}, {current_references:?}", parent.name());
-
         PruneState {
             implicit_reference,
             current_references,
@@ -309,8 +307,13 @@ impl PruneState {
                     .copied()
                     .collect();
 
-                // Special case for if this projection is just a pass through.
-                if !self.implicit_reference && projection_is_passthrough(project, bind_context)? {
+                // Allow removal of this node if it's just projecting its inputs
+                // without changes, or it's not actually projecting anything.
+                let can_remove =
+                    proj_references.is_empty() || projection_is_passthrough(project, bind_context)?;
+
+                // Special case for if we can remove this projection.
+                if !self.implicit_reference && can_remove {
                     // New reference set we'll pass to child.
                     let mut child_references = HashSet::new();
                     let mut old_references = HashMap::new();
@@ -381,8 +384,6 @@ impl PruneState {
                     // And we're done, project no longer part of plan.
                     return Ok(());
                 }
-
-                println!("PROJ REFS: {proj_references:?}");
 
                 // Only create an updated projection if we're actually pruning
                 // columns.
