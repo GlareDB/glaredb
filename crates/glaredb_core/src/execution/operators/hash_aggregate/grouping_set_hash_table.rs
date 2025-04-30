@@ -80,7 +80,6 @@ pub struct GroupingSetOperatorState {
 enum OperatorState {
     Building(HashTableBuildingOperatorState),
     Scanning(HashTableScanningOperatorState),
-    Uninit,
 }
 
 #[derive(Debug)]
