@@ -378,7 +378,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     .iter()
                     .zip(&mut aggregating.inner.states)
                 {
-                    table.insert_input_loca(state, &self.agg_selection.non_distinct, input)?;
+                    table.insert_input_local(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)

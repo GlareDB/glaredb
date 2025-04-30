@@ -290,7 +290,7 @@ impl GroupingSetHashTable {
     /// This will pull out the grouping columns according to this table's
     /// grouping set using physical column expressions, and insert into the hash
     /// table using those values.
-    pub fn insert_input_loca(
+    pub fn insert_input_local(
         &self,
         state: &mut GroupingSetPartitionState,
         agg_selection: &[usize],
@@ -586,7 +586,7 @@ mod tests {
 
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
         table
-            .insert_input_loca(&mut part_states[0], &[0], &mut input)
+            .insert_input_local(&mut part_states[0], &[0], &mut input)
             .unwrap();
 
         let merge_ready = table.flush(&op_state, &mut part_states[0]).unwrap();
@@ -637,7 +637,7 @@ mod tests {
             ["gg", "ff", "gg", "ff"]
         );
         table
-            .insert_input_loca(&mut part_states[0], &[0], &mut input)
+            .insert_input_local(&mut part_states[0], &[0], &mut input)
             .unwrap();
 
         let merge_ready = table.flush(&op_state, &mut part_states[0]).unwrap();
