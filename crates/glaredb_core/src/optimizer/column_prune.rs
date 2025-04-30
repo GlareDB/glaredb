@@ -132,6 +132,8 @@ impl PruneState {
             })
             .expect("extract to not fail");
 
+        println!("PARENT REFS: {}, {current_references:?}", parent.name());
+
         PruneState {
             implicit_reference,
             current_references,
@@ -380,6 +382,8 @@ impl PruneState {
                     return Ok(());
                 }
 
+                println!("PROJ REFS: {proj_references:?}");
+
                 // Only create an updated projection if we're actually pruning
                 // columns.
                 //
@@ -387,7 +391,6 @@ impl PruneState {
                 // Just skip for now.
                 if !self.implicit_reference
                     && proj_references.len() != project.node.projections.len()
-                    && !proj_references.is_empty()
                 {
                     let mut new_proj_mapping: Vec<(ColumnReference, Expression)> =
                         Vec::with_capacity(proj_references.len());

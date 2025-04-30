@@ -1,0 +1,27 @@
+# Aggregates that don't reference any columns.
+#
+# Ensures we're not too eager during column pruning.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE t1 (a TEXT, b INT);
+
+statement ok
+INSERT INTO t1 SELECT * FROM (values ('a'), ('b'), ('c')) v(a), generate_series(50, 55) g(b);
+
+# query I
+# SELECT count(*) FROM t1;
+# ----
+# 18
+
+# query I
+# SELECT sum(2) FROM t1;
+# ----
+# 36
+
+query I
+SELECT sum(2) FROM (SELECT * REPLACE (b + 8 AS b) FROM t1);
+----
+36
