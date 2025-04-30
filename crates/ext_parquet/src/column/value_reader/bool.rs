@@ -4,7 +4,7 @@ use glaredb_core::arrays::array::physical_type::{
     PhysicalBool,
 };
 
-use super::ValueReader;
+use super::{ReaderErrorState, ValueReader};
 use crate::column::read_buffer::ReadCursor;
 
 /// Bit-packed bool reader (LSB).
@@ -22,6 +22,7 @@ impl ValueReader for BoolValueReader {
         data: &mut ReadCursor,
         out_idx: usize,
         out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
+        _error_state: &mut ReaderErrorState,
     ) {
         let v = unsafe { data.peek_next_unchecked::<u8>() };
         let b = ((v >> self.pos) & 1) != 0;
@@ -34,7 +35,11 @@ impl ValueReader for BoolValueReader {
         out.put(out_idx, &b);
     }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
+    unsafe fn skip_unchecked(
+        &mut self,
+        data: &mut ReadCursor,
+        _error_state: &mut ReaderErrorState,
+    ) {
         self.pos += 1;
         if self.pos == 8 {
             unsafe { data.skip_bytes_unchecked(1) };

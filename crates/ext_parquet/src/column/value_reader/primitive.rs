@@ -18,7 +18,7 @@ use glaredb_core::arrays::array::physical_type::{
 use glaredb_core::util::marker::PhantomCovariant;
 use num::cast::AsPrimitive;
 
-use super::ValueReader;
+use super::{ReaderErrorState, ValueReader};
 use crate::column::read_buffer::ReadCursor;
 
 pub type PlainInt32ValueReader = PrimitiveValueReader<PhysicalI32>;
@@ -52,12 +52,17 @@ where
         data: &mut ReadCursor,
         out_idx: usize,
         out: &mut S::AddressableMut<'_>,
+        _error_state: &mut ReaderErrorState,
     ) {
         let v = unsafe { data.read_next_unchecked::<S::StorageType>() };
         out.put(out_idx, &v);
     }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
+    unsafe fn skip_unchecked(
+        &mut self,
+        data: &mut ReadCursor,
+        _error_state: &mut ReaderErrorState,
+    ) {
         unsafe { data.skip_bytes_unchecked(std::mem::size_of::<S::StorageType>()) };
     }
 }
@@ -110,13 +115,18 @@ where
         data: &mut ReadCursor,
         out_idx: usize,
         out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
+        _error_state: &mut ReaderErrorState,
     ) {
         let v = unsafe { data.read_next_unchecked::<T>() };
         let v: S::StorageType = v.as_();
         out.put(out_idx, &v);
     }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
+    unsafe fn skip_unchecked(
+        &mut self,
+        data: &mut ReadCursor,
+        _error_state: &mut ReaderErrorState,
+    ) {
         unsafe { data.skip_bytes_unchecked(std::mem::size_of::<T>()) };
     }
 }

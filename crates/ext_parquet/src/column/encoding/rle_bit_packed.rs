@@ -14,7 +14,7 @@ use super::Definitions;
 use crate::column::bitutil::{BitPackEncodeable, BitUnpackState, bit_unpack, read_unsigned_vlq};
 use crate::column::encoding::plain::PlainDecoder;
 use crate::column::read_buffer::ReadCursor;
-use crate::column::value_reader::ValueReader;
+use crate::column::value_reader::{ReaderErrorState, ValueReader};
 
 /// Decoder for reading bool values using RLE.
 #[derive(Debug)]
@@ -85,12 +85,17 @@ impl ValueReader for RealSizedBoolReader {
         data: &mut ReadCursor,
         out_idx: usize,
         out: &mut <Self::Storage as MutableScalarStorage>::AddressableMut<'_>,
+        _error_state: &mut ReaderErrorState,
     ) {
         let v = unsafe { data.read_next_unchecked::<bool>() };
         out.put(out_idx, &v);
     }
 
-    unsafe fn skip_unchecked(&mut self, data: &mut ReadCursor) {
+    unsafe fn skip_unchecked(
+        &mut self,
+        data: &mut ReadCursor,
+        _error_state: &mut ReaderErrorState,
+    ) {
         unsafe { data.skip_bytes_unchecked(std::mem::size_of::<bool>()) };
     }
 }
