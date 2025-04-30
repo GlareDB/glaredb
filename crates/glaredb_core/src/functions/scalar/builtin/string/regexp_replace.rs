@@ -1,5 +1,5 @@
 use glaredb_error::{Result, ResultExt};
-use regex::Regex;
+use regex::{Captures, Regex, Replacer};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::PhysicalUtf8;
@@ -39,7 +39,7 @@ pub const FUNCTION_SET_REGEXP_REPLACE: ScalarFunctionSet = ScalarFunctionSet {
 #[derive(Debug)]
 pub struct RegexpReplaceState {
     pattern: Option<Regex>,
-    replacement: Option<String>,
+    replacement: Option<PostgresReplacement<String>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -65,7 +65,7 @@ impl ScalarFunction for RegexpReplace {
                 .try_into_scalar()?
                 .try_into_string()?;
 
-            Some(replacement)
+            Some(PostgresReplacement(replacement))
         } else {
             None
         };
@@ -104,7 +104,7 @@ impl ScalarFunction for RegexpReplace {
                     sel,
                     OutBuffer::from_array(output)?,
                     |s, replacement, buf| {
-                        let out = pattern.replace(s, replacement);
+                        let out = pattern.replace(s, &PostgresReplacement(replacement));
                         buf.put(out.as_ref());
                     },
                 )
@@ -148,11 +148,86 @@ impl ScalarFunction for RegexpReplace {
                             }
                         };
 
-                        let out = pattern.replace(s, replacement);
+                        let out = pattern.replace(s, &PostgresReplacement(replacement));
                         buf.put(out.as_ref());
                     },
                 )
             }
+        }
+    }
+}
+
+/// Replacement implementation that matches postgres semantics for string
+/// replacement.
+///
+/// We walk the replacement string by hand such that:
+//
+/// - \1 => the text of capture group 1
+/// - \2 => group 2, etc.
+/// - \\ => a literal backslash.
+/// - any other \x => literal x
+#[derive(Debug)]
+struct PostgresReplacement<S: AsRef<str> + ?Sized>(S);
+
+impl<S> Replacer for &PostgresReplacement<S>
+where
+    S: AsRef<str>,
+{
+    fn replace_append(&mut self, caps: &Captures<'_>, dst: &mut String) {
+        let mut chars = self.0.as_ref().chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.peek() {
+                    // \ followed by digit => group capture
+                    Some(d) if d.is_ascii_digit() => {
+                        let idx = chars.next().unwrap().to_digit(10).unwrap() as usize;
+                        if let Some(m) = caps.get(idx) {
+                            dst.push_str(m.as_str());
+                        }
+                    }
+                    // \\ => literal backslash
+                    Some('\\') => {
+                        chars.next();
+                        dst.push('\\');
+                    }
+                    // \x where x not digit or backslash => literal x
+                    Some(other) => {
+                        dst.push(*other);
+                        chars.next();
+                    }
+                    None => {
+                        // trailing backslash => literal
+                        dst.push('\\');
+                    }
+                }
+            } else {
+                dst.push(c);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn postgres_replacement_tests() {
+        // (haystack, pattern, replace, expected)
+        let cases = [
+            ("foobarbaz", "b..", "X", "fooXbaz"),
+            ("alphabet", "[ae]", "DOG", "DOGlphabet"),
+            ("foobarbaz", "b(..)", r#"X\1Y"#, "fooXarYbaz"), // Capture group
+            ("foobarbaz", "b(..)", r#"X\1Y\1"#, "fooXarYarbaz"), // Capture group multiple times
+            ("foobarbaz", "b(..)", r#"X\2Y"#, "fooXYbaz"),   // Capture group doesn't exist
+            ("foobarbaz", "b(..).*a(.)", r#"\1X\2Y"#, "fooarXzY"), // Multiple capture groups
+            ("foobarbaz", "b(..).*a(.)", r#"\\1X\2Y"#, r#"foo\1XzY"#), // Literal slash
+        ];
+
+        for case in cases {
+            let regex = Regex::new(case.1).unwrap();
+            let out = regex.replace(case.0, &PostgresReplacement(case.2));
+            assert_eq!(case.3, out);
         }
     }
 }

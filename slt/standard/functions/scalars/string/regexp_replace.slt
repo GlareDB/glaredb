@@ -28,3 +28,33 @@ SELECT id, regexp_replace(val, regex, replacement) FROM t1 ORDER BY id;
 1  cat
 2  dog
 3  cat
+
+query T
+select regexp_replace('foobarbaz', 'b(..)', 'X\1Y');
+----
+fooXarYbaz
+
+query T
+SELECT regexp_replace('foobarbaz', 'b(..)', 'X\1Y\1');
+----
+fooXarYarbaz
+
+query T
+select regexp_replace('foobarbaz', 'b(..)', 'X\2Y');
+----
+fooXYbaz
+
+query T
+select regexp_replace('foobarbaz', 'b(..).*a(.)', 'X\2Y');
+----
+fooXzY
+
+query T
+select regexp_replace('foobarbaz', 'b(..).*a(.)', '\1X\2Y');
+----
+fooarXzY
+
+query T
+select regexp_replace('foobarbaz', 'b(..).*a(.)', '\\1X\2Y')
+----
+foo\1XzY
