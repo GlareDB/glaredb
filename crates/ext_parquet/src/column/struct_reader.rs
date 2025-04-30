@@ -22,7 +22,7 @@ use super::value_reader::primitive::{
     PlainInt64ValueReader,
     PlainTsNsValueReader,
 };
-use super::value_reader::varlen::VarlenByteValueReader;
+use super::value_reader::varlen::{BinaryValueReader, Utf8ValueReader};
 use crate::basic;
 use crate::schema::types::{ColumnDescriptor, SchemaDescriptor};
 
@@ -123,10 +123,10 @@ pub(crate) fn new_column_reader(
             }
             other => not_implemented!("timestamp reader for physical type: {other:?}"),
         },
-        DataType::Utf8 => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
+        DataType::Utf8 => Box::new(ValueColumnReader::<Utf8ValueReader>::try_new(
             manager, datatype, descr,
         )?),
-        DataType::Binary => Box::new(ValueColumnReader::<VarlenByteValueReader>::try_new(
+        DataType::Binary => Box::new(ValueColumnReader::<BinaryValueReader>::try_new(
             manager, datatype, descr,
         )?),
         other => not_implemented!("create parquet column reader for data type: {other}"),

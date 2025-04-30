@@ -186,6 +186,21 @@ impl ReadCursor {
         }
     }
 
+    /// Skips some number of bytes.
+    ///
+    /// This will only skip if the buffer contains at least the number of bytes
+    /// we're requesting to skip. If the buffer contains fewer bytes, no bytes
+    /// are skipped.
+    ///
+    /// Returns true if the bytes were skipped, false otherwise.
+    pub fn skip_bytes(&mut self, num_bytes: usize) -> bool {
+        if self.remaining < num_bytes {
+            return false;
+        }
+        unsafe { self.skip_bytes_unchecked(num_bytes) };
+        true
+    }
+
     /// Takes `num_bytes` from this cursor, returning a new cursor contain those
     /// bytes.
     ///
@@ -224,6 +239,13 @@ impl ReadCursor {
         }
     }
 
+    pub fn read_next<T>(&mut self) -> Option<T> {
+        if self.remaining < std::mem::size_of::<T>() {
+            return None;
+        }
+        Some(unsafe { self.read_next_unchecked() })
+    }
+
     /// Reads the next `len` number of bytes, returning the byte slice.
     ///
     /// # Safety
@@ -239,6 +261,13 @@ impl ReadCursor {
 
             bs
         }
+    }
+
+    pub fn read_bytes(&mut self, len: usize) -> Option<&[u8]> {
+        if self.remaining < len {
+            return None;
+        }
+        Some(unsafe { self.read_bytes_unchecked(len) })
     }
 
     /// Copies bytes from this buffer into the output slice. The output slice

@@ -6,7 +6,7 @@ use glaredb_error::Result;
 
 use super::Definitions;
 use crate::column::read_buffer::ReadCursor;
-use crate::column::value_reader::ValueReader;
+use crate::column::value_reader::{ReaderErrorState, ValueReader};
 
 /// Decodes plain-encoded values into an output array.
 #[derive(Debug)]
@@ -46,6 +46,7 @@ where
 
         match definitions {
             Definitions::HasDefinitions { levels, max } => {
+                let mut error_state = ReaderErrorState::default();
                 for (idx, &level) in levels.iter().enumerate().skip(offset).take(count) {
                     if level < max {
                         // Value is null.
@@ -55,23 +56,32 @@ where
 
                     // Value is valid, read it and put into output.
                     unsafe {
-                        self.value_reader
-                            .read_next_unchecked(&mut self.buffer, idx, &mut data)
+                        self.value_reader.read_next_unchecked(
+                            &mut self.buffer,
+                            idx,
+                            &mut data,
+                            &mut error_state,
+                        )
                     };
                 }
 
-                Ok(())
+                error_state.into_result()
             }
             Definitions::NoDefinitions => {
+                let mut error_state = ReaderErrorState::default();
                 for idx in offset..(offset + count) {
                     // Value is valid, read it and put into output.
                     unsafe {
-                        self.value_reader
-                            .read_next_unchecked(&mut self.buffer, idx, &mut data)
+                        self.value_reader.read_next_unchecked(
+                            &mut self.buffer,
+                            idx,
+                            &mut data,
+                            &mut error_state,
+                        )
                     };
                 }
 
-                Ok(())
+                error_state.into_result()
             }
         }
     }
