@@ -387,9 +387,6 @@ impl PruneState {
 
                 // Only create an updated projection if we're actually pruning
                 // columns.
-                //
-                // If projection references is empty, then I'm not really sure.
-                // Just skip for now.
                 if !self.implicit_reference
                     && proj_references.len() != project.node.projections.len()
                 {
