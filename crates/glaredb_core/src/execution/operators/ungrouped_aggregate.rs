@@ -418,10 +418,10 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 distinct_state,
                 ..
             } => {
-                // Merge distinct tables.
+                // Flush distinct tables.
                 operator_state
                     .distinct_collection
-                    .merge(&operator_state.distinct_collection_op_state, distinct_state)?;
+                    .flush(&operator_state.distinct_collection_op_state, distinct_state)?;
 
                 let mut op_state = operator_state.inner.lock();
 

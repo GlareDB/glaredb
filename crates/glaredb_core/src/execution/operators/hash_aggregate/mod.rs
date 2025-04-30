@@ -315,7 +315,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 // Insert input into each grouping set table.
                 for (table, state) in operator_state.tables.iter().zip(&mut aggregating.states) {
-                    table.insert_input(state, &self.agg_selection.non_distinct, input)?;
+                    table.insert_input_loca(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)
@@ -378,7 +378,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                             }
 
                             // Now insert into the normal agg table.
-                            operator_state.tables[grouping_set_idx].insert_for_distinct(
+                            operator_state.tables[grouping_set_idx].insert_for_distinct_local(
                                 &mut aggregating.states[grouping_set_idx],
                                 &agg_sel,
                                 &mut batch,
@@ -387,9 +387,9 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     }
                 }
 
-                // Now merge into the global table.
+                // Now flush into the global table.
                 for (table_idx, table) in operator_state.tables.iter().enumerate() {
-                    let _ = table.merge(
+                    let _ = table.flush(
                         &operator_state.table_states[table_idx],
                         &mut aggregating.states[table_idx],
                     )?;
@@ -480,20 +480,20 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // Finalize the building for this partition by merging all
                 // partition-local tables into the operator tables.
 
-                // Merge the distinct collections.
+                // Flush the distinct collections.
                 for (idx, distinct) in operator_state.distinct_collections.iter().enumerate() {
                     let op_state = &operator_state.distinct_states[idx];
                     let part_state = &mut building.distinct_states[idx];
-                    distinct.merge(op_state, part_state)?;
+                    distinct.flush(op_state, part_state)?;
                 }
 
                 if self.agg_selection.distinct.is_empty() {
                     // We only have normal aggregates. We can merge our tables
                     // and jump straight to scan.
 
-                    // Merge non-distinct aggs to global table.
+                    // Flush non-distinct aggs to global table.
                     for (table_idx, table) in operator_state.tables.iter().enumerate() {
-                        let _ = table.merge(
+                        let _ = table.flush(
                             &operator_state.table_states[table_idx],
                             &mut building.states[table_idx],
                         )?;
