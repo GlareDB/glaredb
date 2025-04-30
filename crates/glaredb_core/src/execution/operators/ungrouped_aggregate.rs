@@ -34,6 +34,11 @@ pub enum UngroupedAggregatePartitionState {
         agg_inputs: Batch,
         inner: AggregatingPartitionState,
     },
+    /// Partition is merging all distinct tables.
+    ///
+    /// Only the last partition to complete flushing the tables should be the
+    /// one to merge.
+    MergingDistinct { inner: AggregatingPartitionState },
     /// Partition is scanning the distinct collection and writing them to the
     /// global aggregate state.
     AggregatingDistinct { inner: AggregatingPartitionState },
@@ -87,8 +92,10 @@ struct OperatorStateInner {
     ///
     /// Aligned to the base alignment of the aggregate layout.
     values: DbVec<u8>,
-    /// Wakers for partitions waiting on normal aggregating to complete before
-    /// starting on distinct aggregates.
+    /// If the merging of the distinct tables is complete.
+    distinct_merge_complete: bool,
+    /// Wakers for partitions waiting on the distinct merge to complete before
+    /// scanning.
     pending_distinct: PartitionWakers,
 }
 
@@ -171,6 +178,7 @@ impl BaseOperator for PhysicalUngroupedAggregate {
                 remaining_normal: DelayedPartitionCount::uninit(),
                 remaining_distinct: DelayedPartitionCount::uninit(),
                 values: self.try_init_buffer()?,
+                distinct_merge_complete: false,
                 pending_distinct: PartitionWakers::empty(),
             }),
         })
@@ -281,11 +289,39 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
                 Ok(PollExecute::NeedsMore)
             }
+            UngroupedAggregatePartitionState::MergingDistinct { .. } => {
+                // If we're in this state, we are guaranteed to the be last
+                // partition to insert into the tables.
+                //
+                // Do the final merging of the distinct tables.
+                operator_state
+                    .distinct_collection
+                    .merge_flushed(&operator_state.distinct_collection_op_state)?;
+
+                // Update our own state to AggregatingDistinct.
+                //
+                // TODO: I hate this pattern.
+                match std::mem::replace(state, UngroupedAggregatePartitionState::Finished) {
+                    UngroupedAggregatePartitionState::MergingDistinct { inner } => {
+                        *state = UngroupedAggregatePartitionState::AggregatingDistinct { inner }
+                    }
+                    _ => unreachable!(),
+                }
+
+                // Now let all other partitions know the distinct table can be
+                // scanned now.
+                let mut op_state = operator_state.inner.lock();
+                op_state.distinct_merge_complete = true;
+                op_state.pending_distinct.wake_all();
+
+                // We also want to scan, trigger a re-poll.
+                output.set_num_rows(0)?;
+                Ok(PollExecute::HasMore)
+            }
             UngroupedAggregatePartitionState::AggregatingDistinct { inner } => {
                 let mut op_state_inner = operator_state.inner.lock();
-                if op_state_inner.remaining_normal.current()? != 0 {
-                    // Normal aggregating still happening, and thus still
-                    // filling the distinct tables. Come back later.
+                if !op_state_inner.distinct_merge_complete {
+                    // Distinct merging not complete. Come back later.
                     op_state_inner
                         .pending_distinct
                         .store(cx.waker(), inner.partition_idx);
@@ -352,9 +388,9 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 }
 
                 // Merge our local state with the global state now.
-                let mut inner = operator_state.inner.lock();
+                let mut op_state_inner = operator_state.inner.lock();
                 let src_ptr = inner.values.as_mut_ptr();
-                let dest_ptr = inner.values.as_mut_ptr();
+                let dest_ptr = op_state_inner.values.as_mut_ptr();
 
                 unsafe {
                     self.layout.combine_states(
@@ -364,9 +400,9 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                     )?
                 }
 
-                inner.remaining_distinct.dec_by_one()?;
+                op_state_inner.remaining_distinct.dec_by_one()?;
 
-                if inner.remaining_distinct.current()? == 0 {
+                if op_state_inner.remaining_distinct.current()? == 0 {
                     // We're the last partition to finish, we'll be responsible
                     // for draining.
                     *state = UngroupedAggregatePartitionState::Draining;
@@ -461,23 +497,34 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 } else {
                     // We do have distinct aggregates. All partitions will take
                     // part in draining the distinct hash tables.
+                    //
+                    // Only the last partition to complete normal aggregating
+                    // will do the merge though.
 
                     let aggregating_state =
                         std::mem::replace(state, UngroupedAggregatePartitionState::Finished);
                     match aggregating_state {
                         UngroupedAggregatePartitionState::Aggregating { inner, .. } => {
-                            *state = UngroupedAggregatePartitionState::AggregatingDistinct { inner }
+                            if remaining == 0 {
+                                // We're the last, we'll do the drain.
+                                *state = UngroupedAggregatePartitionState::MergingDistinct { inner }
+                            } else {
+                                // We're not the last. Just jump to the
+                                // aggregating distinct state so we can register
+                                // a waker.
+                                *state =
+                                    UngroupedAggregatePartitionState::AggregatingDistinct { inner }
+                            }
                         }
                         _ => unreachable!(),
                     }
 
-                    // Other partitions may already be waiting, wake them up if
-                    // we're the last one to complete the normal aggregate
-                    // phase.
-                    if remaining == 0 {
-                        op_state.pending_distinct.wake_all();
-                    }
-
+                    // Both state will try to drain.
+                    //
+                    // MergingDistinct will begin the merge.
+                    //
+                    // AggregatingDistinct will register a waker since the
+                    // merged table isn't ready yet.
                     Ok(PollFinalize::NeedsDrain)
                 }
             }
