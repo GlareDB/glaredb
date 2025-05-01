@@ -1,8 +1,17 @@
+use std::sync::Arc;
+
 use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
 
 use super::base::{BaseHashTable, BaseHashTableInsertState};
+use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64};
 use crate::arrays::batch::Batch;
+use crate::arrays::compute::hash::hash_many_arrays;
+use crate::arrays::datatype::DataType;
+use crate::arrays::row::aggregate_layout::AggregateLayout;
+use crate::buffer::buffer_manager::DefaultBufferManager;
+use crate::execution::operators::hash_aggregate::hash_table::base::NO_GROUPS_HASH_VALUE;
 
 /// Compute the partition to use for a given hash value.
 pub const fn partition(hash: u64, partitions: usize) -> usize {
@@ -10,9 +19,18 @@ pub const fn partition(hash: u64, partitions: usize) -> usize {
 }
 
 #[derive(Debug)]
-pub struct PartitionedHashTablePartitionState {
-    /// Reusable hashes buffer.
-    hashes: Vec<u64>,
+pub enum PartitionedHashTablePartitionState {
+    /// Partition is building its local hash tables.
+    Building(LocalBuildingState),
+    /// Partition has flushed its local hash tables to the operator state.
+    MergeReady { partition_idx: usize },
+    /// Partition has merged its tables.
+    ScanReady { partition_idx: usize },
+}
+
+#[derive(Debug)]
+pub struct LocalBuildingState {
+    partition_idx: usize,
     /// Reusable partition selector state.
     partition_selector: PartitionSelector,
     /// Hash tables partitioned by hash values.
@@ -24,7 +42,15 @@ pub struct PartitionedHashTablePartitionState {
 #[derive(Debug)]
 pub struct PartitionedHashTableOperatorState {
     /// Tables that have been flushed per partition.
+    ///
+    /// When partitions are merging, the flushed tables get drained into a final
+    /// global table.
     flushed: Vec<Mutex<FlushedTables>>,
+    /// The final aggregate tables.
+    ///
+    /// None until a partition builds the final table for a given partition
+    /// index.
+    final_tables: Vec<Mutex<Option<Arc<BaseHashTable>>>>,
 }
 
 #[derive(Debug)]
@@ -35,7 +61,9 @@ struct FlushedTables {
 
 /// Hash table that partitions based on a row's hash.
 #[derive(Debug)]
-pub struct PartitionedHashTable {}
+pub struct PartitionedHashTable {
+    layout: AggregateLayout,
+}
 
 impl PartitionedHashTable {
     /// Inserts a batch into this partition's local hash tables.
@@ -48,7 +76,61 @@ impl PartitionedHashTable {
         groups: &Batch,
         inputs: &Batch,
     ) -> Result<()> {
-        unimplemented!()
+        debug_assert_eq!(groups.num_rows, inputs.num_rows);
+
+        let state = match state {
+            PartitionedHashTablePartitionState::Building(building) => building,
+            _ => {
+                return Err(DbError::new(
+                    "Invalid partition state, cannot insert into local tables",
+                ));
+            }
+        };
+
+        // Hash the groups.
+        // TODO: Avoid allocating here.
+        let mut hashes_arr = Array::new(&DefaultBufferManager, DataType::UInt64, groups.num_rows)?;
+        let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
+        hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
+
+        if groups.arrays.is_empty() {
+            // We didn't actually hash anything...
+            //
+            // But we still want to insert these inputs. Since we treat the hash
+            // values as part of the group, we just fill the hash slice with the
+            // same value to produce a single group. The value we use is
+            // non-zero to aid in debuggability.
+            //
+            // No group arrays will happen when dealing with rollups, since the
+            // final rollup will be with no groups.
+            hashes.fill(NO_GROUPS_HASH_VALUE);
+        }
+
+        // Compute partitions for each row.
+        let selector = &mut state.partition_selector;
+        selector.reset_using_hashes(&hashes);
+
+        debug_assert_eq!(state.tables.len(), state.states.len());
+
+        // Now insert into each partition table.
+        for (partition_idx, (table, table_state)) in
+            state.tables.iter_mut().zip(&mut state.states).enumerate()
+        {
+            let row_sel = state
+                .partition_selector
+                .row_indices_for_partition(partition_idx);
+
+            table.insert_with_hashes(
+                table_state,
+                agg_selection,
+                row_sel,
+                groups,
+                inputs,
+                &hashes_arr,
+            )?;
+        }
+
+        Ok(())
     }
 
     /// Flushes the local tables to the operator state.
@@ -59,16 +141,75 @@ impl PartitionedHashTable {
         op_state: &PartitionedHashTableOperatorState,
         state: &mut PartitionedHashTablePartitionState,
     ) -> Result<()> {
-        unimplemented!()
+        let building = match state {
+            PartitionedHashTablePartitionState::Building(building) => building,
+            _ => {
+                return Err(DbError::new(
+                    "Partition in invalid state, cannot flush tables",
+                ));
+            }
+        };
+
+        debug_assert_eq!(building.tables.len(), op_state.flushed.len());
+
+        for (partition_idx, table) in building.tables.drain(..).enumerate() {
+            let mut flushed = op_state.flushed[partition_idx].lock();
+            flushed.tables.push(table);
+        }
+
+        *state = PartitionedHashTablePartitionState::MergeReady {
+            partition_idx: building.partition_idx,
+        };
+
+        Ok(())
     }
 
     /// Merges the global hash tables.
     pub fn merge_global(
         &self,
         op_state: &PartitionedHashTableOperatorState,
-        state: &PartitionedHashTablePartitionState,
+        state: &mut PartitionedHashTablePartitionState,
     ) -> Result<()> {
-        unimplemented!()
+        let partition_idx = match state {
+            PartitionedHashTablePartitionState::MergeReady { partition_idx } => *partition_idx,
+            _ => {
+                return Err(DbError::new(
+                    "Partition in invalid state, cannot merge tables",
+                ));
+            }
+        };
+
+        // Merge only the tables for this partition index.
+        //
+        // All partitions should be merge an independ set of tables.
+        let mut flushed = op_state.flushed[partition_idx].lock();
+        if flushed.tables.len() != op_state.flushed.len() {
+            // Means not all partitions flushed.
+            return Err(DbError::new(
+                "Attempted to merge into final table, but some tables missing",
+            ));
+        }
+
+        // Pick arbitrary table to be the global table we merge into.
+        let mut global = flushed.tables.pop().expect("at least one table");
+        let mut insert_state = global.init_insert_state();
+
+        for mut table in flushed.tables.drain(..) {
+            global.merge_from(
+                &mut insert_state,
+                0..self.layout.aggregates.len(),
+                &mut table,
+            )?;
+        }
+
+        // Now put it in the global state.
+        let mut final_table = op_state.final_tables[partition_idx].lock();
+        debug_assert!(final_table.is_none());
+        *final_table = Some(Arc::new(global));
+
+        *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
+
+        Ok(())
     }
 }
 

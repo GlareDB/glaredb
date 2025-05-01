@@ -278,7 +278,6 @@ impl GroupingSetHashTable {
         state.hash_table.insert(
             &mut state.insert_state,
             agg_selection,
-            0..state.groups.num_rows,
             &state.groups,
             &state.inputs,
         )?;
@@ -335,7 +334,6 @@ impl GroupingSetHashTable {
         state.hash_table.insert(
             &mut state.insert_state,
             agg_selection,
-            0..state.groups.num_rows,
             &state.groups,
             &state.inputs,
         )?;

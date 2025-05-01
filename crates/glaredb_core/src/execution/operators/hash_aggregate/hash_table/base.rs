@@ -24,7 +24,7 @@ use crate::util::iter::IntoExactSizeIterator;
 /// Hash value to use when not provided with any groups.
 ///
 /// Non-zero for debuggability.
-const NO_GROUPS_HASH_VALUE: u64 = 49820;
+pub const NO_GROUPS_HASH_VALUE: u64 = 49820;
 
 #[derive(Debug)]
 pub struct BaseHashTableInsertState {
@@ -120,7 +120,6 @@ impl BaseHashTable {
         &mut self,
         state: &mut BaseHashTableInsertState,
         agg_selection: &[usize],
-        row_selection: impl IntoExactSizeIterator<Item = usize>,
         groups: &Batch,
         inputs: &Batch,
     ) -> Result<()> {
@@ -146,7 +145,7 @@ impl BaseHashTable {
         self.insert_with_hashes(
             state,
             agg_selection,
-            row_selection,
+            0..groups.num_rows,
             groups,
             inputs,
             &hashes_arr,
@@ -607,9 +606,7 @@ mod tests {
         let groups = Batch::empty_with_num_rows(4);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
 
-        table
-            .insert(&mut state, &[0], 0..4, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -646,9 +643,7 @@ mod tests {
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
 
-        table
-            .insert(&mut state, &[0], 0..4, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -694,9 +689,7 @@ mod tests {
         // All inputs just have the same value.
         let inputs = generate_batch!(std::iter::repeat(4_i64).take(num_unique_groups));
 
-        table
-            .insert(&mut state, &[0], 0..num_unique_groups, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -730,15 +723,11 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        table
-            .insert(&mut state, &[0], 0..4, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let groups = generate_batch!(["group_c", "group_d", "group_a", "group_a"]);
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
-        table
-            .insert(&mut state, &[0], 0..4, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -775,15 +764,11 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        table
-            .insert(&mut state, &[0], 0..4, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let groups = generate_batch!(["group_c", "group_d"]);
         let inputs = generate_batch!([5_i64, 6]);
-        table
-            .insert(&mut state, &[0], 0..2, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -820,15 +805,11 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        table
-            .insert(&mut state, &[0], 0..4, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let groups = generate_batch!(["group_d", "group_d", "group_e", "group_f"]);
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
-        table
-            .insert(&mut state, &[0], 0..4, &groups, &inputs)
-            .unwrap();
+        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -902,14 +883,14 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        t1.insert(&mut s1, &[0], 0..4, &groups, &inputs).unwrap();
+        t1.insert(&mut s1, &[0], &groups, &inputs).unwrap();
 
         let mut t2 = BaseHashTable::try_new(layout.clone(), 16).unwrap();
         let mut s2 = t2.init_insert_state();
 
         let groups = generate_batch!(["group_c", "group_d", "group_a", "group_a"]);
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
-        t2.insert(&mut s2, &[0], 0..4, &groups, &inputs).unwrap();
+        t2.insert(&mut s2, &[0], &groups, &inputs).unwrap();
 
         t1.merge_from(&mut s2, [0], &mut t2).unwrap();
         assert_eq!(1, t1.data.num_row_blocks());
