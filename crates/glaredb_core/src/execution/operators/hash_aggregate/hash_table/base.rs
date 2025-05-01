@@ -31,8 +31,6 @@ pub struct BaseHashTableInsertState {
     row_ptrs: Vec<*mut u8>,
     /// State for appending to the aggregate collection.
     append_state: AggregateAppendState,
-    /// Reusable row selection buffer.
-    row_selection: Vec<usize>,
 }
 
 // SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers to row
@@ -95,7 +93,6 @@ impl BaseHashTable {
         BaseHashTableInsertState {
             row_ptrs: Vec::new(),
             append_state: self.data.init_append_state(),
-            row_selection: Vec::new(),
         }
     }
 
@@ -168,8 +165,11 @@ impl BaseHashTable {
         }
 
         debug_assert_eq!(num_rows, out_ptrs.len());
-        let hashes = PhysicalU64::get_addressable(&hashes_arr.data)?.slice;
-        let hashes = &hashes[0..num_rows];
+        // TODO: Slow?
+        let hashes_exec =
+            PhysicalU64::downcast_execution_format(&hashes_arr.data)?.into_selection_format()?;
+        let hashes_buf = hashes_exec.buffer.buffer.as_slice();
+        let hashes_sel = hashes_exec.selection;
 
         if self.directory.needs_resize(num_rows) {
             let new_cap = usize::max(self.directory.capacity() * 2, num_rows);
@@ -179,7 +179,8 @@ impl BaseHashTable {
         // Precompute offsets into the table.
         let mut offsets = vec![0; num_rows];
         let cap = self.directory.capacity() as u64;
-        for (idx, &hash) in hashes.iter().enumerate() {
+        for idx in 0..num_rows {
+            let hash = hashes_buf[hashes_sel.get(idx).unwrap()];
             offsets[idx] = compute_offset_from_hash(hash, cap) as usize;
         }
 
@@ -211,7 +212,7 @@ impl BaseHashTable {
 
             for &row_idx in needs_insert.iter() {
                 let offset = &mut offsets[row_idx];
-                let hash = hashes[row_idx];
+                let hash = hashes_buf[hashes_sel.get(row_idx).unwrap()];
 
                 // Probe.
                 //

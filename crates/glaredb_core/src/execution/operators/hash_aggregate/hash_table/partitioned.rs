@@ -393,7 +393,10 @@ impl PartitionedHashTable {
             groups.select(row_sel.clone())?;
 
             let mut inputs = inputs.clone()?;
-            inputs.select(row_sel)?;
+            inputs.select(row_sel.clone())?;
+
+            let mut hashes_arr = hashes_arr.clone()?;
+            hashes_arr.select(&DefaultBufferManager, row_sel)?;
 
             table.insert_with_hashes(table_state, agg_selection, &groups, &inputs, &hashes_arr)?;
         }
