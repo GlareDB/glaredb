@@ -65,6 +65,8 @@ pub struct AggregatingPartitionState {
     values: DbVec<u8>,
     /// Reusable buffer for storing pointers to an aggregate state.
     ptr_buf: Vec<*mut u8>,
+    /// Reusable buffer for computing the row selection.
+    row_selection: Vec<usize>,
     /// State for distinct aggregates.
     distinct_state: DistinctCollectionPartitionState,
 }
@@ -224,6 +226,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                         partition_idx,
                         values: self.try_init_buffer()?,
                         ptr_buf: Vec::with_capacity(props.batch_size),
+                        row_selection: Vec::with_capacity(props.batch_size),
                         distinct_state,
                     },
                     agg_inputs: Batch::new(agg_input_types.clone(), 0)?,
@@ -275,6 +278,8 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 //
                 // SAFETY: The aggregate values buffer should have been
                 // allocated according to this layout.
+                inner.row_selection.clear();
+                inner.row_selection.extend(0..input.num_rows);
                 unsafe {
                     self.layout.update_states(
                         inner.ptr_buf.as_mut_slice(),
@@ -283,7 +288,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                             &self.agg_selection.non_distinct,
                             &agg_inputs.arrays,
                         ),
-                        input.num_rows,
+                        &inner.row_selection,
                     )?;
                 }
 
@@ -377,11 +382,13 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                                 }
                             });
 
+                        inner.row_selection.clear();
+                        inner.row_selection.extend(0..batch.num_rows);
                         unsafe {
                             self.layout.update_states(
                                 &mut inner.ptr_buf,
                                 agg_iter,
-                                batch.num_rows,
+                                &inner.row_selection,
                             )?;
                         }
                     }

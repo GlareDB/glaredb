@@ -16,6 +16,7 @@ use crate::arrays::executor::aggregate::{
 };
 use crate::expr::Expression;
 use crate::functions::bind_state::BindState;
+use crate::util::iter::IntoExactSizeIterator;
 
 pub trait UnaryAggregate: Debug + Copy + Sync + Send + Sized + 'static {
     type Input: ScalarStorage;
@@ -62,15 +63,18 @@ where
         U::new_aggregate_state(state)
     }
 
-    fn update(
+    fn update<S>(
         bind_state: &Self::BindState,
         inputs: &[Array],
-        num_rows: usize,
+        row_selection: S,
         states: &mut [*mut Self::GroupState],
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        S: IntoExactSizeIterator<Item = usize> + Clone,
+    {
         UnaryNonNullUpdater::update::<U::Input, _, _, _>(
             &inputs[0],
-            0..num_rows,
+            row_selection,
             bind_state,
             states,
         )
@@ -161,16 +165,19 @@ where
         B::new_aggregate_state(state)
     }
 
-    fn update(
+    fn update<S>(
         bind_state: &Self::BindState,
         inputs: &[Array],
-        num_rows: usize,
+        row_selection: S,
         states: &mut [*mut Self::GroupState],
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        S: IntoExactSizeIterator<Item = usize> + Clone,
+    {
         BinaryNonNullUpdater::update::<B::Input1, B::Input2, _, _, _>(
             &inputs[0],
             &inputs[1],
-            0..num_rows,
+            row_selection,
             bind_state,
             states,
         )

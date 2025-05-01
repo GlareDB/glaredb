@@ -122,7 +122,7 @@ impl AggregateLayout {
     /// groups. The iterator must provide aggregates in order, and the number of
     /// inputs must be exact.
     ///
-    /// The length of `group_ptrs` must equal `num_rows`.
+    /// The length of `group_ptrs` must equal the length of `row_selection`.
     ///
     /// Note that we can't genericize `inputs` be either `&Array` or `Array`
     /// since the layout contains only function pointers (which don't accept
@@ -138,11 +138,11 @@ impl AggregateLayout {
         &self,
         group_ptrs: &mut [*mut u8],
         agg_updates: impl IntoExactSizeIterator<Item = AggregateUpdateSelector<'a>>,
-        num_rows: usize,
+        row_selection: &[usize],
     ) -> Result<()> {
         // TODO: Where are the unit tests?
 
-        debug_assert_eq!(num_rows, group_ptrs.len());
+        debug_assert_eq!(row_selection.len(), group_ptrs.len());
 
         let mut prev_offset = 0;
 
@@ -169,7 +169,7 @@ impl AggregateLayout {
             // Update states.
             unsafe {
                 agg.function
-                    .call_update(selector.inputs, num_rows, group_ptrs)?
+                    .call_update(selector.inputs, row_selection, group_ptrs)?
             };
         }
 
