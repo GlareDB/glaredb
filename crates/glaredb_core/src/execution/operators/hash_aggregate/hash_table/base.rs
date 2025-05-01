@@ -5,15 +5,13 @@ use glaredb_error::{DbError, Result};
 
 use super::directory::Directory;
 use crate::arrays::array::Array;
-use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
+use crate::arrays::array::physical_type::{PhysicalU64, ScalarStorage};
 use crate::arrays::batch::Batch;
-use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_collection::{AggregateAppendState, AggregateCollection};
 use crate::arrays::row::aggregate_layout::{AggregateLayout, CompleteInputSelector};
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
-use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::execution::operators::hash_aggregate::hash_table::directory::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
@@ -108,66 +106,17 @@ impl BaseHashTable {
         self.data.num_groups()
     }
 
-    /// Insert groups and aggregate inputs into the hash table.
-    ///
-    /// `inputs` should be ordered inputs to the aggregates in this table.
-    ///
-    /// See `AggregateLayout::update_states` for specifics.
-    // TODO: Probably just make this accept a slice of arrays to avoid the batch
-    // stuff.
-    //
-    // TODO: Remove, require hashes be provided.
-    pub fn insert(
-        &mut self,
-        state: &mut BaseHashTableInsertState,
-        agg_selection: &[usize],
-        groups: &Batch,
-        inputs: &Batch,
-    ) -> Result<()> {
-        // Hash the groups.
-        // TODO: Avoid allocating here.
-        let mut hashes_arr = Array::new(&DefaultBufferManager, DataType::UInt64, groups.num_rows)?;
-        let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
-        hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
-
-        if groups.arrays.is_empty() {
-            // We didn't actually hash anything...
-            //
-            // But we still want to insert these inputs. Since we treat the hash
-            // values as part of the group, we just fill the hash slice with the
-            // same value to produce a single group. The value we use is
-            // non-zero to aid in debuggability.
-            //
-            // No group arrays will happen when dealing with rollups, since the
-            // final rollup will be with no groups.
-            hashes.fill(NO_GROUPS_HASH_VALUE);
-        }
-
-        self.insert_with_hashes(
-            state,
-            agg_selection,
-            0..groups.num_rows,
-            groups,
-            inputs,
-            &hashes_arr,
-        )
-    }
-
     /// Insert groups into the table with precomputed hash values.
     pub fn insert_with_hashes(
         &mut self,
         state: &mut BaseHashTableInsertState,
         agg_selection: &[usize],
-        row_selection: impl IntoExactSizeIterator<Item = usize>,
         groups: &Batch,
         inputs: &Batch,
         hashes: &Array,
     ) -> Result<()> {
         debug_assert!(hashes.logical_len() >= groups.num_rows);
         debug_assert_eq!(groups.num_rows, inputs.num_rows);
-
-        state.row_selection.clear();
-        state.row_selection.extend(row_selection);
 
         state.row_ptrs.clear();
         state
@@ -192,7 +141,7 @@ impl BaseHashTable {
             self.layout.update_states(
                 state.row_ptrs.as_mut_slice(),
                 CompleteInputSelector::with_selection(&self.layout, agg_selection, &inputs.arrays),
-                &state.row_selection,
+                groups.num_rows,
             )?;
         }
 
@@ -540,12 +489,41 @@ impl GroupMatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arrays::array::physical_type::MutableScalarStorage;
+    use crate::arrays::compute::hash::hash_many_arrays;
+    use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::expr::physical::PhysicalAggregateExpression;
     use crate::expr::{self, bind_aggregate_function};
     use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
     use crate::generate_array;
     use crate::testutil::arrays::{assert_arrays_eq, assert_batches_eq, generate_batch};
     use crate::util::iter::TryFromExactSizeIterator;
+
+    /// Helper for hashing groups before inserting.
+    ///
+    /// This will automatically select all rows for aggregating.
+    fn hash_and_insert(
+        table: &mut BaseHashTable,
+        state: &mut BaseHashTableInsertState,
+        agg_selection: &[usize],
+        groups: &Batch,
+        inputs: &Batch,
+    ) {
+        let mut hashes_arr =
+            Array::new(&DefaultBufferManager, DataType::UInt64, groups.num_rows).unwrap();
+        let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)
+            .unwrap()
+            .slice;
+        hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes).unwrap();
+
+        if groups.arrays.is_empty() {
+            hashes.fill(NO_GROUPS_HASH_VALUE);
+        }
+
+        table
+            .insert_with_hashes(state, agg_selection, groups, inputs, &hashes_arr)
+            .unwrap();
+    }
 
     /// Helper to get the groups and results from a hash table.
     fn get_groups_and_results(table: &BaseHashTable) -> (Batch, Batch) {
@@ -607,7 +585,7 @@ mod tests {
         let groups = Batch::empty_with_num_rows(4);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
 
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -644,7 +622,7 @@ mod tests {
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
 
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -690,7 +668,7 @@ mod tests {
         // All inputs just have the same value.
         let inputs = generate_batch!(std::iter::repeat(4_i64).take(num_unique_groups));
 
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -724,11 +702,11 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let groups = generate_batch!(["group_c", "group_d", "group_a", "group_a"]);
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -765,11 +743,11 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let groups = generate_batch!(["group_c", "group_d"]);
         let inputs = generate_batch!([5_i64, 6]);
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -806,11 +784,11 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let groups = generate_batch!(["group_d", "group_d", "group_e", "group_f"]);
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
-        table.insert(&mut state, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
         let (out_groups, out_results) = get_groups_and_results(&table);
 
@@ -849,7 +827,7 @@ mod tests {
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
         let hashes = Array::try_from_iter([1_u64, 1, 1, 1]).unwrap(); // All groups hashing to the same value
         table
-            .insert_with_hashes(&mut state, &[0], 0..4, &groups, &inputs, &hashes)
+            .insert_with_hashes(&mut state, &[0], &groups, &inputs, &hashes)
             .unwrap();
 
         let (out_groups, out_results) = get_groups_and_results(&table);
@@ -884,14 +862,14 @@ mod tests {
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
-        t1.insert(&mut s1, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut t1, &mut s1, &[0], &groups, &inputs);
 
         let mut t2 = BaseHashTable::try_new(layout.clone(), 16).unwrap();
         let mut s2 = t2.init_insert_state();
 
         let groups = generate_batch!(["group_c", "group_d", "group_a", "group_a"]);
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
-        t2.insert(&mut s2, &[0], &groups, &inputs).unwrap();
+        hash_and_insert(&mut t2, &mut s2, &[0], &groups, &inputs);
 
         t1.merge_from(&mut s2, [0], &mut t2).unwrap();
         assert_eq!(1, t1.data.num_row_blocks());

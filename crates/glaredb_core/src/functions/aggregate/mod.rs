@@ -12,7 +12,6 @@ use super::Signature;
 use super::bind_state::{BindState, RawBindState};
 use crate::arrays::array::Array;
 use crate::expr::Expression;
-use crate::util::iter::IntoExactSizeIterator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AggregateStateInfo {
@@ -46,16 +45,11 @@ impl PlannedAggregateFunction {
     pub(crate) unsafe fn call_update(
         &self,
         inputs: &[Array],
-        row_selection: &[usize],
+        num_rows: usize,
         agg_states: &mut [*mut u8],
     ) -> Result<()> {
         unsafe {
-            (self.raw.vtable.update_fn)(
-                self.state.state_as_any(),
-                inputs,
-                row_selection,
-                agg_states,
-            )
+            (self.raw.vtable.update_fn)(self.state.state_as_any(), inputs, num_rows, agg_states)
         }
     }
 
@@ -150,7 +144,7 @@ pub struct RawAggregateFunctionVTable {
     update_fn: unsafe fn(
         state: &dyn Any,
         inputs: &[Array],
-        row_selection: &[usize],
+        num_rows: usize,
         states: &mut [*mut u8],
     ) -> Result<()>,
     combine_fn: unsafe fn(state: &dyn Any, src: &mut [*mut u8], dest: &mut [*mut u8]) -> Result<()>,
@@ -183,14 +177,12 @@ pub trait AggregateFunction: Debug + Copy + Sync + Send + Sized + 'static {
     ///
     /// Implementations must ensure there only exists a single reference per
     /// state at a time.
-    fn update<S>(
+    fn update(
         state: &Self::BindState,
         inputs: &[Array],
-        row_selection: S,
+        num_rows: usize,
         states: &mut [*mut Self::GroupState],
-    ) -> Result<()>
-    where
-        S: IntoExactSizeIterator<Item = usize> + Clone;
+    ) -> Result<()>;
 
     /// Combine states from `src` into `dest`.
     fn combine(
@@ -227,7 +219,7 @@ trait AggregateFunctionVTable: AggregateFunction {
             let agg_state = Self::new_aggregate_state(state);
             unsafe { out_ptr.cast::<Self::GroupState>().write(agg_state) };
         },
-        update_fn: |state, inputs, row_selection, states| {
+        update_fn: |state, inputs, num_rows, states| {
             let state = state.downcast_ref::<Self::BindState>().unwrap();
             let agg_states: &mut [*mut Self::GroupState] = unsafe {
                 std::slice::from_raw_parts_mut(
@@ -235,7 +227,7 @@ trait AggregateFunctionVTable: AggregateFunction {
                     states.len(),
                 )
             };
-            Self::update(state, inputs, row_selection.iter().copied(), agg_states)
+            Self::update(state, inputs, num_rows, agg_states)
         },
         combine_fn: |state, src_ptrs, dest_ptrs| {
             let state = state.downcast_ref::<Self::BindState>().unwrap();

@@ -300,7 +300,7 @@ mod tests {
                         aggregate_idx: 0,
                         inputs: &[values],
                     }],
-                    &[0, 1, 2, 3],
+                    4,
                 )
                 .unwrap();
         }

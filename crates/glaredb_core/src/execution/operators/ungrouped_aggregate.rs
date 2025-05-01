@@ -278,8 +278,6 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 //
                 // SAFETY: The aggregate values buffer should have been
                 // allocated according to this layout.
-                inner.row_selection.clear();
-                inner.row_selection.extend(0..input.num_rows);
                 unsafe {
                     self.layout.update_states(
                         inner.ptr_buf.as_mut_slice(),
@@ -288,7 +286,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                             &self.agg_selection.non_distinct,
                             &agg_inputs.arrays,
                         ),
-                        &inner.row_selection,
+                        input.num_rows,
                     )?;
                 }
 
@@ -383,13 +381,11 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                                 }
                             });
 
-                        inner.row_selection.clear();
-                        inner.row_selection.extend(0..batch.num_rows);
                         unsafe {
                             self.layout.update_states(
                                 &mut inner.ptr_buf,
                                 agg_iter,
-                                &inner.row_selection,
+                                batch.num_rows,
                             )?;
                         }
                     }

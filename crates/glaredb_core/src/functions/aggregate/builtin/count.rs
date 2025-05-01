@@ -13,7 +13,6 @@ use crate::functions::aggregate::{AggregateFunction, RawAggregateFunction};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
-use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_COUNT: AggregateFunctionSet = AggregateFunctionSet {
     name: "count",
@@ -49,23 +48,19 @@ impl AggregateFunction for Count {
         CountNonNullState::default()
     }
 
-    fn update<S>(
+    fn update(
         _state: &Self::BindState,
         inputs: &[Array],
-        row_selection: S,
+        num_rows: usize,
         states: &mut [*mut Self::GroupState],
-    ) -> Result<()>
-    where
-        S: IntoExactSizeIterator<Item = usize> + Clone,
-    {
+    ) -> Result<()> {
         let input = &inputs[0];
 
-        let row_selection = row_selection.into_exact_size_iter();
-        if row_selection.len() != states.len() {
+        if num_rows != states.len() {
             return Err(DbError::new(
                 "Invalid number of states for selection in count agggregate executor",
             )
-            .with_field("num_rows", row_selection.len())
+            .with_field("num_rows", num_rows)
             .with_field("states_len", states.len()));
         }
 
@@ -172,7 +167,7 @@ mod tests {
 
         let array = Array::try_from_iter(["a", "b", "c", "d"]).unwrap();
 
-        Count::update(&(), &[array], 0..4, &mut states).unwrap();
+        Count::update(&(), &[array], 4, &mut states).unwrap();
 
         assert_eq!(4, state.count);
     }
@@ -187,7 +182,7 @@ mod tests {
         let mut states = vec![state_ptr1, state_ptr1, state_ptr2, state_ptr1];
 
         let array = Array::try_from_iter(["a", "b", "c", "d"]).unwrap();
-        Count::update(&(), &[array], 0..4, &mut states).unwrap();
+        Count::update(&(), &[array], 4, &mut states).unwrap();
 
         assert_eq!(3, state1.count);
         assert_eq!(1, state2.count);
@@ -203,7 +198,7 @@ mod tests {
         let mut states = vec![state_ptr1, state_ptr1, state_ptr2, state_ptr1];
 
         let array = Array::new_constant(&DefaultBufferManager, &"a".into(), 4).unwrap();
-        Count::update(&(), &[array], 0..4, &mut states).unwrap();
+        Count::update(&(), &[array], 4, &mut states).unwrap();
 
         assert_eq!(3, state1.count);
         assert_eq!(1, state2.count);

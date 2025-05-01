@@ -63,18 +63,15 @@ where
         U::new_aggregate_state(state)
     }
 
-    fn update<S>(
+    fn update(
         bind_state: &Self::BindState,
         inputs: &[Array],
-        row_selection: S,
+        num_rows: usize,
         states: &mut [*mut Self::GroupState],
-    ) -> Result<()>
-    where
-        S: IntoExactSizeIterator<Item = usize> + Clone,
-    {
+    ) -> Result<()> {
         UnaryNonNullUpdater::update::<U::Input, _, _, _>(
             &inputs[0],
-            row_selection,
+            0..num_rows,
             bind_state,
             states,
         )
@@ -165,19 +162,16 @@ where
         B::new_aggregate_state(state)
     }
 
-    fn update<S>(
+    fn update(
         bind_state: &Self::BindState,
         inputs: &[Array],
-        row_selection: S,
+        num_rows: usize,
         states: &mut [*mut Self::GroupState],
-    ) -> Result<()>
-    where
-        S: IntoExactSizeIterator<Item = usize> + Clone,
-    {
+    ) -> Result<()> {
         BinaryNonNullUpdater::update::<B::Input1, B::Input2, _, _, _>(
             &inputs[0],
             &inputs[1],
-            row_selection,
+            0..num_rows,
             bind_state,
             states,
         )

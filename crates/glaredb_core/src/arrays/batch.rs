@@ -129,6 +129,20 @@ impl Batch {
         })
     }
 
+    pub fn clone(&mut self) -> Result<Self> {
+        let mut arrays = Vec::with_capacity(self.arrays.len());
+        for arr in &mut self.arrays {
+            let array = arr.clone()?;
+            arrays.push(array);
+        }
+
+        Ok(Batch {
+            arrays,
+            num_rows: self.num_rows,
+            cache: None,
+        })
+    }
+
     /// Try to clone arrays from another batch into self.
     ///
     /// If we have a cache configured for this batch, we'll attempt to cache the

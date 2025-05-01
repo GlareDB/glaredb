@@ -351,8 +351,8 @@ impl PartitionedHashTable {
     ///
     /// Internally partitions the input.
     fn insert_local(&self, state: &mut LocalBuildingState, agg_selection: &[usize]) -> Result<()> {
-        let groups = &state.groups;
-        let inputs = &state.inputs;
+        let groups = &mut state.groups;
+        let inputs = &mut state.inputs;
 
         debug_assert_eq!(groups.num_rows, inputs.num_rows);
 
@@ -389,14 +389,13 @@ impl PartitionedHashTable {
                 .partition_selector
                 .row_indices_for_partition(partition_idx);
 
-            table.insert_with_hashes(
-                table_state,
-                agg_selection,
-                row_sel,
-                groups,
-                inputs,
-                &hashes_arr,
-            )?;
+            let mut groups = groups.clone()?;
+            groups.select(row_sel.clone())?;
+
+            let mut inputs = inputs.clone()?;
+            inputs.select(row_sel)?;
+
+            table.insert_with_hashes(table_state, agg_selection, &groups, &inputs, &hashes_arr)?;
         }
 
         Ok(())
@@ -697,7 +696,7 @@ impl PartitionSelector {
 }
 
 /// Iterator for emitting row indices for a given partition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RowIndexIter<'a> {
     partition: usize,
     rem_count: usize,
@@ -733,7 +732,6 @@ impl ExactSizeIterator for RowIndexIter<'_> {}
 #[cfg(test)]
 mod tests {
     use ahash::RandomState;
-    use rand::rngs::SmallRng;
     use rand::{Rng, SeedableRng};
 
     use super::*;
