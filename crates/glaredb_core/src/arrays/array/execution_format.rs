@@ -1,6 +1,6 @@
 use glaredb_error::Result;
 
-use super::array_buffer::{ArrayBuffer, ScalarBuffer};
+use super::array_buffer::ArrayBuffer;
 use super::selection::Selection;
 
 /// Describes how we should iterate over the buffer during execution.

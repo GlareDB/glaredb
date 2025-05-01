@@ -16,7 +16,6 @@ use crate::arrays::executor::aggregate::{
 };
 use crate::expr::Expression;
 use crate::functions::bind_state::BindState;
-use crate::util::iter::IntoExactSizeIterator;
 
 pub trait UnaryAggregate: Debug + Copy + Sync + Send + Sized + 'static {
     type Input: ScalarStorage;

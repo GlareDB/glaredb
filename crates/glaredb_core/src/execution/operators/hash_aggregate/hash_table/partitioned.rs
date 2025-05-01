@@ -736,7 +736,6 @@ impl ExactSizeIterator for RowIndexIter<'_> {}
 
 #[cfg(test)]
 mod tests {
-    use ahash::RandomState;
     use rand::{Rng, SeedableRng};
 
     use super::*;

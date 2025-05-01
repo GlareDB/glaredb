@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn cell_is_sync_send() {
-        fn check_sync_send(s: impl Sync + Send) {
+        fn check_sync_send(_s: impl Sync + Send) {
             // Nothing, just ensure that it compiles.
         }
 
