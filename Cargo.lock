@@ -1095,6 +1095,7 @@ dependencies = [
  "num_cpus",
  "parking_lot",
  "rand",
+ "rand_chacha",
  "rayon",
  "regex",
  "scc",

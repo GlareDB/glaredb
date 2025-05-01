@@ -758,7 +758,7 @@ mod tests {
 
         const HASH_RAND_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
 
-        let mut rng = SmallRng::seed_from_u64(84);
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(84);
         let hashes: Vec<u64> = (0..10)
             .map(|_| {
                 let v: u64 = rng.random();
@@ -776,10 +776,10 @@ mod tests {
         let rows2: Vec<_> = selector.row_indices_for_partition(2).collect();
         let rows3: Vec<_> = selector.row_indices_for_partition(3).collect();
 
-        assert_eq!(vec![5], rows0);
-        assert_eq!(vec![2, 3, 9], rows1);
-        assert_eq!(vec![6, 7, 8], rows2);
-        assert_eq!(vec![0, 1, 4], rows3);
+        assert_eq!(vec![3, 8, 9], rows0);
+        assert_eq!(vec![7], rows1);
+        assert_eq!(vec![0, 2, 4, 5], rows2);
+        assert_eq!(vec![1, 6], rows3);
     }
 
     #[test]

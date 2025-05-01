@@ -29,3 +29,6 @@ scc = { workspace = true }
 indexmap = "2.9.0"
 half = { workspace = true }
 textwrap = { version = "0.16.1", default-features = false, features = ["unicode-width"] }
+
+[dev-dependencies]
+rand_chacha = "0.9.0"
