@@ -403,8 +403,10 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // We have all inputs. Go ahead and merge the distinct tables
                 // this partition is responsible for.
                 while let Some(idx) = merging.distinct_tables_queue.pop() {
-                    operator_state.distinct_collections[idx]
-                        .merge_flushed(&operator_state.distinct_states[idx])?;
+                    operator_state.distinct_collections[idx].merge_flushed(
+                        &operator_state.distinct_states[idx],
+                        &mut merging.inner.distinct_states[idx],
+                    )?;
                 }
 
                 // Update our state to scan the distinct values.

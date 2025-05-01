@@ -433,7 +433,9 @@ impl PartitionedHashTable {
         Ok(())
     }
 
-    /// Merges the global hash tables.
+    /// Merges the global hash tables that this partition is responsible for.
+    ///
+    /// Should be called once per partition.
     pub fn merge_global(
         &self,
         op_state: &PartitionedHashTableOperatorState,

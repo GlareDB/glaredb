@@ -294,14 +294,15 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
                 Ok(PollExecute::NeedsMore)
             }
-            UngroupedAggregatePartitionState::MergingDistinct { .. } => {
+            UngroupedAggregatePartitionState::MergingDistinct { inner } => {
                 // If we're in this state, we are guaranteed to the be last
                 // partition to insert into the tables.
                 //
                 // Do the final merging of the distinct tables.
-                operator_state
-                    .distinct_collection
-                    .merge_flushed(&operator_state.distinct_collection_op_state)?;
+                operator_state.distinct_collection.merge_flushed(
+                    &operator_state.distinct_collection_op_state,
+                    &mut inner.distinct_state,
+                )?;
 
                 // Update our own state to AggregatingDistinct.
                 //

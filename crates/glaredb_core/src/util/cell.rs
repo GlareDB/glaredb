@@ -48,3 +48,18 @@ impl<T> Default for UnsafeSyncOnceCell<T> {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cell_is_sync_send() {
+        fn check_sync_send(s: impl Sync + Send) {
+            // Nothing, just ensure that it compiles.
+        }
+
+        let cell = UnsafeSyncOnceCell::<i32>::new();
+        check_sync_send(cell);
+    }
+}
