@@ -497,7 +497,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                 // Now flush into the global table.
                 for (table_idx, table) in operator_state.tables.iter().enumerate() {
-                    let _ = table.flush(
+                    table.flush(
                         &operator_state.table_states[table_idx],
                         &mut aggregating.inner.states[table_idx],
                     )?;
@@ -663,7 +663,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 
                     // Flush non-distinct aggs to global table.
                     for (table_idx, table) in operator_state.tables.iter().enumerate() {
-                        let _ = table.flush(
+                        table.flush(
                             &operator_state.table_states[table_idx],
                             &mut building.inner.states[table_idx],
                         )?;

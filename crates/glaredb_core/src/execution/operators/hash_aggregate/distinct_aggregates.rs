@@ -228,7 +228,7 @@ impl DistinctCollection {
         let state_iter = op_state.states.iter().zip(&mut state.states);
 
         for (table, (op_state, part_state)) in self.tables.iter().zip(state_iter) {
-            let _ = table.table.flush(op_state, part_state)?;
+            table.table.flush(op_state, part_state)?;
         }
 
         Ok(())

@@ -377,7 +377,7 @@ impl PartitionedHashTable {
 
         // Compute partitions for each row.
         let selector = &mut state.partition_selector;
-        selector.reset_using_hashes(&hashes);
+        selector.reset_using_hashes(hashes);
 
         debug_assert_eq!(state.tables.len(), state.states.len());
 
