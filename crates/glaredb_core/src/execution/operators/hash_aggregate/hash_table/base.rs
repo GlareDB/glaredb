@@ -112,7 +112,7 @@ impl BaseHashTable {
         inputs: &Batch,
         hashes: &Array,
     ) -> Result<()> {
-        debug_assert!(hashes.logical_len() >= groups.num_rows);
+        debug_assert_eq!(hashes.logical_len(), groups.num_rows);
         debug_assert_eq!(groups.num_rows, inputs.num_rows);
 
         state.row_ptrs.clear();
@@ -172,8 +172,16 @@ impl BaseHashTable {
         let hashes_sel = hashes_exec.selection;
 
         if self.directory.needs_resize(num_rows) {
-            let new_cap = usize::max(self.directory.capacity() * 2, num_rows);
+            let new_cap = usize::max(
+                self.directory.capacity() * 2,
+                num_rows + self.directory.capacity(), // Ensure we can at least fit these additional rows.
+            );
             self.directory.resize(new_cap)?;
+
+            debug_assert!({
+                let rem_cap = self.directory.capacity() - self.directory.num_occupied;
+                rem_cap >= num_rows
+            })
         }
 
         // Precompute offsets into the table.
@@ -205,10 +213,9 @@ impl BaseHashTable {
         let ent_ptrs = self.directory.ptrs.as_slice_mut();
         let ent_hashes = self.directory.hashes.as_slice_mut();
 
-        let dangling_occupied = Some(NonNull::dangling());
-
         while !needs_insert.is_empty() {
             new_groups.clear();
+            needs_compare.clear();
 
             for &row_idx in needs_insert.iter() {
                 let offset = &mut offsets[row_idx];
@@ -219,7 +226,8 @@ impl BaseHashTable {
                 // This will update `offsets` as needed. `offsets` then can be
                 // used to index directly into entries to point to the correct
                 // entry for a row.
-                for iter_count in 0..cap {
+                let mut iter_count = 0;
+                while iter_count < cap {
                     let ent_ptr = &mut ent_ptrs[*offset];
                     let ent_hash = &mut ent_hashes[*offset];
 
@@ -232,7 +240,7 @@ impl BaseHashTable {
                         //
                         // This does store the hash so that we can compare rows
                         // if needed.
-                        *ent_ptr = dangling_occupied;
+                        *ent_ptr = Some(NonNull::dangling());
                         *ent_hash = hash;
                         new_groups.push(row_idx);
 
@@ -246,15 +254,15 @@ impl BaseHashTable {
 
                     // Otherwise need to increment.
                     *offset = inc_and_wrap_offset(*offset, cap);
-
-                    if iter_count == cap {
-                        // We wrapped. This shouldn't happen during normal
-                        // execution as the hash table should've been resized to
-                        // fit everything.
-                        //
-                        // But Sean writes bugs, so just in case...
-                        return Err(DbError::new("Hash table completely full"));
-                    }
+                    iter_count += 1;
+                }
+                if iter_count == cap {
+                    // We wrapped. This shouldn't happen during normal
+                    // execution as the hash table should've been resized to
+                    // fit everything.
+                    //
+                    // But Sean writes bugs, so just in case...
+                    return Err(DbError::new("Hash table completely full").with_field("cap", cap));
                 }
             }
 
@@ -268,7 +276,7 @@ impl BaseHashTable {
                 )?;
 
                 let row_ptrs = append_state.row_pointers();
-                debug_assert!(!row_ptrs.iter().any(|p| p.is_null()));
+                debug_assert!(row_ptrs.iter().all(|p| !p.is_null()));
                 debug_assert_eq!(new_groups.len(), row_ptrs.len());
 
                 // Update the entries with the new row pointers. Hashes should
@@ -298,6 +306,11 @@ impl BaseHashTable {
                 }
 
                 needs_insert.clear();
+                // Matcher updates `needs_insert` with values from
+                // `needs_compare` don't match.
+                //
+                // `needs_insert` should be preserved for the next iteration of
+                // the loop, `needs_compare` should be cleared.
                 let _ = self.matcher.find_matches(
                     &self.layout,
                     out_ptrs,

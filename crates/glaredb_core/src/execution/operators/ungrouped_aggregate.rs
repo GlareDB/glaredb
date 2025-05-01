@@ -310,6 +310,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                     op_state_inner
                         .pending_distinct_mergers
                         .store(cx.waker(), inner.partition_idx);
+                    return Ok(PollExecute::Pending);
                 }
                 std::mem::drop(op_state_inner);
 

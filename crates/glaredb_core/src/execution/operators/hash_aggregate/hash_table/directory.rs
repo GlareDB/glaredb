@@ -51,8 +51,10 @@ impl Directory {
     ///
     /// This will ensure the new capacity of the directory is a power of two.
     pub fn resize(&mut self, mut new_capacity: usize) -> Result<()> {
-        if !is_power_of_2(new_capacity) {
-            new_capacity = new_capacity.next_power_of_two();
+        if !is_power_of_two(new_capacity) {
+            new_capacity = new_capacity
+                .checked_next_power_of_two()
+                .ok_or_else(|| DbError::new("Requested capacity for directory to high"))?;
         }
         if new_capacity < self.ptrs.len() {
             return Err(DbError::new("Cannot reduce capacity of hash table")
@@ -116,6 +118,20 @@ pub const fn compute_offset_from_hash(hash: u64, cap: u64) -> u64 {
 }
 
 /// Returns if `v` is a power of two.
-pub const fn is_power_of_2(v: usize) -> bool {
+pub const fn is_power_of_two(v: usize) -> bool {
     (v & (v - 1)) == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn needs_resize() {
+        let mut dir = Directory::try_with_capacity(512).unwrap();
+        dir.num_occupied = 253;
+
+        let needs_resize = dir.needs_resize(267);
+        assert!(needs_resize);
+    }
 }

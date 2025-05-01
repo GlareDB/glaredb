@@ -218,49 +218,44 @@ where
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
-        // TODO: Scope the unsafe
-        unsafe {
-            let rhs_buffer =
-                S::downcast_execution_format(&rhs_column.data)?.into_selection_format()?;
-            let rhs_data = S::addressable(rhs_buffer.buffer);
+        let rhs_buffer = S::downcast_execution_format(&rhs_column.data)?.into_selection_format()?;
+        let rhs_data = S::addressable(rhs_buffer.buffer);
 
-            let mut matches = 0;
-            for idx in 0..selection.len() {
-                let sel_idx = selection[idx];
+        let mut matches = 0;
+        for idx in 0..selection.len() {
+            let sel_idx = selection[idx];
 
-                let lhs_row_ptr = lhs_rows[sel_idx];
+            let lhs_row_ptr = lhs_rows[sel_idx];
 
-                let validity_buf = layout.validity_buffer(lhs_row_ptr);
-                let lhs_valid =
-                    BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
-                let lhs_val = if lhs_valid {
-                    let lhs_ptr = lhs_row_ptr.byte_add(layout.offsets[lhs_column]);
-                    let lhs_ptr = lhs_ptr.cast::<S::StorageType>();
-                    Some(lhs_ptr.read_unaligned())
-                } else {
-                    None
-                };
+            let validity_buf = unsafe { layout.validity_buffer(lhs_row_ptr) };
+            let lhs_valid = BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
+            let lhs_val = if lhs_valid {
+                let lhs_ptr = unsafe { lhs_row_ptr.byte_add(layout.offsets[lhs_column]) };
+                let lhs_ptr = lhs_ptr.cast::<S::StorageType>();
+                Some(unsafe { lhs_ptr.read_unaligned() })
+            } else {
+                None
+            };
 
-                let rhs_valid = rhs_column.validity.is_valid(sel_idx);
-                let rhs_val = if rhs_valid {
-                    let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
-                    Some(*rhs_data.get(rhs_sel).unwrap())
-                } else {
-                    None
-                };
+            let rhs_valid = rhs_column.validity.is_valid(sel_idx);
+            let rhs_val = if rhs_valid {
+                let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
+                Some(*rhs_data.get(rhs_sel).unwrap())
+            } else {
+                None
+            };
 
-                if C::compare_nullable(lhs_val, rhs_val) {
-                    selection[matches] = sel_idx;
-                    matches += 1;
-                } else {
-                    not_matches.push(sel_idx);
-                }
+            if C::compare_nullable(lhs_val, rhs_val) {
+                selection[matches] = sel_idx;
+                matches += 1;
+            } else {
+                not_matches.push(sel_idx);
             }
-
-            selection.truncate(matches);
-
-            Ok(())
         }
+
+        selection.truncate(matches);
+
+        Ok(())
     }
 }
 
@@ -291,55 +286,52 @@ where
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()> {
-        unsafe {
-            let rhs_buffer = PhysicalBinary::downcast_execution_format(&rhs_column.data)?
-                .into_selection_format()?;
-            let rhs_data = PhysicalBinary::addressable(rhs_buffer.buffer);
+        let rhs_buffer =
+            PhysicalBinary::downcast_execution_format(&rhs_column.data)?.into_selection_format()?;
+        let rhs_data = PhysicalBinary::addressable(rhs_buffer.buffer);
 
-            let mut matches = 0;
-            for idx in 0..selection.len() {
-                let sel_idx = selection[idx];
+        let mut matches = 0;
+        for idx in 0..selection.len() {
+            let sel_idx = selection[idx];
 
-                let lhs_row_ptr = lhs_rows[sel_idx];
+            let lhs_row_ptr = lhs_rows[sel_idx];
 
-                let validity_buf = layout.validity_buffer(lhs_row_ptr);
-                let lhs_valid =
-                    BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
+            let validity_buf = unsafe { layout.validity_buffer(lhs_row_ptr) };
+            let lhs_valid = BitmapView::new(validity_buf, layout.num_columns()).value(lhs_column);
 
-                // Reading the ptr even if invalid is fine, just as long as
-                // we don't try to read the bytes unless it really is valid.
-                //
-                // Getting the pointer outisde the `if` is done to satisfy the
-                // lifetime of the return slice.
-                let lhs_ptr = lhs_row_ptr.byte_add(layout.offsets[lhs_column]);
-                let lhs_ptr = lhs_ptr.cast::<StringPtr>();
-                let string_ptr = lhs_ptr.read_unaligned();
-                let lhs_val = if lhs_valid {
-                    Some(string_ptr.as_bytes())
-                } else {
-                    None
-                };
+            // Reading the ptr even if invalid is fine, just as long as
+            // we don't try to read the bytes unless it really is valid.
+            //
+            // Getting the pointer outisde the `if` is done to satisfy the
+            // lifetime of the return slice.
+            let lhs_ptr = unsafe { lhs_row_ptr.byte_add(layout.offsets[lhs_column]) };
+            let lhs_ptr = lhs_ptr.cast::<StringPtr>();
+            let string_ptr = unsafe { lhs_ptr.read_unaligned() };
+            let lhs_val = if lhs_valid {
+                Some(string_ptr.as_bytes())
+            } else {
+                None
+            };
 
-                let rhs_valid = rhs_column.validity.is_valid(sel_idx);
-                let rhs_val = if rhs_valid {
-                    let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
-                    Some(rhs_data.get(rhs_sel).unwrap())
-                } else {
-                    None
-                };
+            let rhs_valid = rhs_column.validity.is_valid(sel_idx);
+            let rhs_val = if rhs_valid {
+                let rhs_sel = rhs_buffer.selection.get(sel_idx).unwrap();
+                Some(rhs_data.get(rhs_sel).unwrap())
+            } else {
+                None
+            };
 
-                if C::compare_nullable(lhs_val, rhs_val) {
-                    selection[matches] = sel_idx;
-                    matches += 1;
-                } else {
-                    not_matches.push(sel_idx);
-                }
+            if C::compare_nullable(lhs_val, rhs_val) {
+                selection[matches] = sel_idx;
+                matches += 1;
+            } else {
+                not_matches.push(sel_idx);
             }
-
-            selection.truncate(matches);
-
-            Ok(())
         }
+
+        selection.truncate(matches);
+
+        Ok(())
     }
 }
 

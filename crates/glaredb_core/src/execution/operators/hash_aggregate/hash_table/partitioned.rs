@@ -460,7 +460,9 @@ impl PartitionedHashTable {
             // Means not all partitions flushed.
             return Err(DbError::new(
                 "Attempted to merge into final table, but some tables missing",
-            ));
+            )
+            .with_field("expected", op_state.get().flushed.len())
+            .with_field("got", flushed.tables.len()));
         }
 
         // Pick arbitrary table to be the global table we merge into.
@@ -756,16 +758,8 @@ mod tests {
     #[test]
     fn partition_selector_multiple_partitions() {
         // Sanity check to ensure we're distributing over available partitions.
-
-        const HASH_RAND_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
-
         let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(84);
-        let hashes: Vec<u64> = (0..10)
-            .map(|_| {
-                let v: u64 = rng.random();
-                HASH_RAND_STATE.hash_one(v)
-            })
-            .collect();
+        let hashes: Vec<u64> = (0..10).map(|_| rng.random()).collect();
 
         println!("hashes: {hashes:?}");
 
@@ -777,10 +771,10 @@ mod tests {
         let rows2: Vec<_> = selector.row_indices_for_partition(2).collect();
         let rows3: Vec<_> = selector.row_indices_for_partition(3).collect();
 
-        assert_eq!(vec![3, 8, 9], rows0);
-        assert_eq!(vec![7], rows1);
-        assert_eq!(vec![0, 2, 4, 5], rows2);
-        assert_eq!(vec![1, 6], rows3);
+        assert_eq!(vec![3, 6, 8, 9], rows0);
+        assert_eq!(Vec::<usize>::new(), rows1);
+        assert_eq!(vec![0, 2, 4], rows2);
+        assert_eq!(vec![1, 5, 7], rows3);
     }
 
     #[test]
