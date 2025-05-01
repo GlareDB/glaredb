@@ -299,7 +299,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
                 // partition to insert into the tables.
                 //
                 // Do the final merging of the distinct tables.
-                operator_state.distinct_collection.merge_flushed(
+                operator_state.distinct_collection.merge_global(
                     &operator_state.distinct_collection_op_state,
                     &mut inner.distinct_state,
                 )?;

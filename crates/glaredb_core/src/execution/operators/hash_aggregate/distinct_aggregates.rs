@@ -234,11 +234,11 @@ impl DistinctCollection {
         Ok(())
     }
 
-    /// Merges all flushed tables.
+    /// Merges all flushed tables for this partition.
     ///
-    /// Should only be called onces from one partition, and not concurrently
-    /// with scans.
-    pub fn merge_flushed(
+    /// Should only be called once per partition, and not concurrently with
+    /// scans.
+    pub fn merge_global(
         &self,
         op_state: &DistinctCollectionOperatorState,
         state: &mut DistinctCollectionPartitionState,
@@ -302,7 +302,7 @@ mod tests {
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
-            .merge_flushed(&op_state, &mut part_states[0])
+            .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
         let mut out = Batch::new([DataType::Int32], 16).unwrap();
@@ -333,7 +333,7 @@ mod tests {
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
-            .merge_flushed(&op_state, &mut part_states[0])
+            .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
         let mut out = Batch::new([DataType::Utf8], 16).unwrap();
@@ -364,7 +364,7 @@ mod tests {
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
-            .merge_flushed(&op_state, &mut part_states[0])
+            .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
         let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
@@ -403,7 +403,7 @@ mod tests {
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
-            .merge_flushed(&op_state, &mut part_states[0])
+            .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
         let mut out_agg1 = Batch::new([DataType::Int32], 16).unwrap();
@@ -449,7 +449,7 @@ mod tests {
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
-            .merge_flushed(&op_state, &mut part_states[0])
+            .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
         let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();

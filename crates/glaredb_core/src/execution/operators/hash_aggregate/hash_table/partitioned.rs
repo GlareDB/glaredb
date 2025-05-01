@@ -732,20 +732,145 @@ impl ExactSizeIterator for RowIndexIter<'_> {}
 
 #[cfg(test)]
 mod tests {
+    use ahash::RandomState;
+    use rand::rngs::SmallRng;
+    use rand::{Rng, SeedableRng};
+
     use super::*;
+    use crate::expr::physical::PhysicalAggregateExpression;
+    use crate::expr::{self, bind_aggregate_function};
+    use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
+    use crate::testutil::arrays::{assert_batches_eq, generate_batch};
 
     #[test]
-    fn operator_state_is_sync_send() {
-        fn check_sync_send(s: impl Sync + Send) {
-            // Nothing, just make sure it compiles.
-        }
+    fn partition_selector_single_partition() {
+        let mut selector = PartitionSelector::new(1);
+        selector.reset_using_hashes(&[55, 66, 77, 88, 99]);
 
-        let state = PartitionedHashTableOperatorState {
-            result_types: Vec::new(),
-            batch_size: 128,
-            state: UnsafeSyncOnceCell::new(),
+        let rows: Vec<_> = selector.row_indices_for_partition(0).collect();
+        let expected = vec![0, 1, 2, 3, 4];
+        assert_eq!(expected, rows);
+    }
+
+    #[test]
+    fn partition_selector_multiple_partitions() {
+        // Sanity check to ensure we're distributing over available partitions.
+
+        const HASH_RAND_STATE: RandomState = RandomState::with_seeds(0, 0, 0, 0);
+
+        let mut rng = SmallRng::seed_from_u64(84);
+        let hashes: Vec<u64> = (0..10)
+            .map(|_| {
+                let v: u64 = rng.random();
+                HASH_RAND_STATE.hash_one(v)
+            })
+            .collect();
+
+        println!("hashes: {hashes:?}");
+
+        let mut selector = PartitionSelector::new(4);
+        selector.reset_using_hashes(&hashes);
+
+        let rows0: Vec<_> = selector.row_indices_for_partition(0).collect();
+        let rows1: Vec<_> = selector.row_indices_for_partition(1).collect();
+        let rows2: Vec<_> = selector.row_indices_for_partition(2).collect();
+        let rows3: Vec<_> = selector.row_indices_for_partition(3).collect();
+
+        assert_eq!(vec![5], rows0);
+        assert_eq!(vec![2, 3, 9], rows1);
+        assert_eq!(vec![6, 7, 8], rows2);
+        assert_eq!(vec![0, 1, 4], rows3);
+    }
+
+    #[test]
+    fn single_insert_merge_scan() {
+        // GROUP     (col0): Utf8
+        // AGG_INPUT (col1): Int64
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+
+        let aggs = Aggregates {
+            groups: vec![(0, DataType::Utf8).into()],
+            grouping_functions: Vec::new(),
+            aggregates: vec![PhysicalAggregateExpression::new(
+                sum_agg,
+                [(1, DataType::Int64)],
+            )],
         };
 
-        check_sync_send(state);
+        let grouping_set: BTreeSet<usize> = [0].into();
+        let table = PartitionedHashTable::new(&aggs, grouping_set);
+        let op_state = table.create_operator_state(16).unwrap();
+        let mut part_states = table.create_partition_states(&op_state, 1).unwrap();
+        assert_eq!(1, part_states.len());
+
+        let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
+        table
+            .insert_partition_local(&mut part_states[0], &[0], &mut input)
+            .unwrap();
+
+        table.flush(&op_state, &mut part_states[0]).unwrap();
+        table.merge_global(&op_state, &mut part_states[0]).unwrap();
+
+        let mut out = Batch::new([DataType::Utf8, DataType::Int64], 16).unwrap();
+        table
+            .scan(&op_state, &mut part_states[0], &mut out)
+            .unwrap();
+
+        let expected = generate_batch!(["a", "b", "c"], [5_i64, 2, 3]);
+        assert_batches_eq(&expected, &out);
+    }
+
+    #[test]
+    fn single_insert_merge_scan_grouping_set() {
+        // Two grouping columns, but hash table has grouping set only
+        // referencing the last grouping column.
+
+        // GROUP_0     (col0): Utf8
+        // AGG_INPUT   (col1): Int64
+        // GROUP_1     (col2): Utf8
+        let sum_agg = bind_aggregate_function(
+            &FUNCTION_SET_SUM,
+            vec![expr::column((0, 1), DataType::Int64).into()],
+        )
+        .unwrap();
+
+        let aggs = Aggregates {
+            groups: vec![(0, DataType::Utf8).into(), (2, DataType::Utf8).into()],
+            grouping_functions: Vec::new(),
+            aggregates: vec![PhysicalAggregateExpression::new(
+                sum_agg,
+                [(1, DataType::Int64)],
+            )],
+        };
+
+        let grouping_set: BTreeSet<usize> = [1].into(); // '1' relative to groups (real column index of 2)
+        let table = PartitionedHashTable::new(&aggs, grouping_set);
+        let mut op_state = table.create_operator_state(16).unwrap();
+        let mut part_states = table.create_partition_states(&mut op_state, 1).unwrap();
+        assert_eq!(1, part_states.len());
+
+        let mut input = generate_batch!(
+            ["a", "b", "c", "a"],
+            [1_i64, 2, 3, 4],
+            ["gg", "ff", "gg", "ff"]
+        );
+        table
+            .insert_partition_local(&mut part_states[0], &[0], &mut input)
+            .unwrap();
+
+        table.flush(&op_state, &mut part_states[0]).unwrap();
+        table.merge_global(&op_state, &mut part_states[0]).unwrap();
+
+        let mut out = Batch::new([DataType::Utf8, DataType::Utf8, DataType::Int64], 16).unwrap();
+        table
+            .scan(&op_state, &mut part_states[0], &mut out)
+            .unwrap();
+
+        let expected = generate_batch!([None as Option<&str>, None], ["gg", "ff"], [4_i64, 6]);
+        assert_batches_eq(&expected, &out);
     }
 }
