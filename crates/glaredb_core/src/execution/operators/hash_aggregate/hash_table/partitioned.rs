@@ -1,3 +1,4 @@
+use std::cell::OnceCell;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -15,6 +16,8 @@ use crate::arrays::row::aggregate_layout::AggregateLayout;
 use crate::arrays::row::row_scan::RowScanState;
 use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::DefaultBufferManager;
+use crate::execution::operators::hash_aggregate::Aggregates;
+use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
 use crate::execution::operators::hash_aggregate::hash_table::base::NO_GROUPS_HASH_VALUE;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::util::iter::IntoExactSizeIterator;
@@ -61,6 +64,18 @@ pub struct LocalScanningState {
 
 #[derive(Debug)]
 pub struct PartitionedHashTableOperatorState {
+    /// Output types of the tables.
+    ///
+    /// Here for convenience.
+    result_types: Vec<DataType>,
+    /// Batch size to use when scanning.
+    batch_size: usize,
+    /// State initialized when we create the partition states.
+    state: OnceCell<InitializedOperatorState>,
+}
+
+#[derive(Debug)]
+struct InitializedOperatorState {
     /// Tables that have been flushed per partition.
     ///
     /// When partitions are merging, the flushed tables get drained into a final
@@ -71,12 +86,12 @@ pub struct PartitionedHashTableOperatorState {
     /// None until a partition builds the final table for a given partition
     /// index.
     final_tables: Vec<Mutex<Option<Arc<BaseHashTable>>>>,
-    /// Output types of the tables.
-    ///
-    /// Here for convenience.
-    result_types: Vec<DataType>,
-    /// Batch size to use when scanning.
-    batch_size: usize,
+}
+
+impl PartitionedHashTableOperatorState {
+    fn get(&self) -> &InitializedOperatorState {
+        self.state.get().expect("state to have been initialized")
+    }
 }
 
 #[derive(Debug)]
@@ -88,9 +103,14 @@ struct FlushedTables {
 /// Hash table that partitions based on a row's hash.
 #[derive(Debug)]
 pub struct PartitionedHashTable {
+    /// Layout of the aggregates.
     layout: AggregateLayout,
     /// The grouping set for this table.
     grouping_set: BTreeSet<usize>,
+    /// Complete set of groups, even if the group is not used in the grouping
+    /// set.
+    ///
+    /// Used to output NULLs for groups not in this grouping set.
     groups: Vec<PhysicalColumnExpr>,
     /// Computed group values representing the null bitmask for eaching GROUPING
     /// function.
@@ -98,6 +118,108 @@ pub struct PartitionedHashTable {
 }
 
 impl PartitionedHashTable {
+    pub fn new(aggs: &Aggregates, grouping_set: BTreeSet<usize>) -> Self {
+        let grouping_values: Vec<_> = aggs
+            .grouping_functions
+            .iter()
+            .map(|func| compute_grouping_value(func, &grouping_set))
+            .collect();
+
+        // Get group types corresponding to this grouping set, append an
+        // additional u64 column for the hash
+        let group_types = grouping_set
+            .iter()
+            .map(|&idx| aggs.groups[idx].datatype())
+            .chain([DataType::UInt64]);
+
+        let layout = AggregateLayout::new(group_types, aggs.aggregates.clone());
+
+        PartitionedHashTable {
+            layout,
+            grouping_set,
+            groups: aggs.groups.clone(),
+            grouping_values,
+        }
+    }
+
+    /// Create the global operator state.
+    pub fn create_operator_state(
+        &self,
+        batch_size: usize,
+    ) -> Result<PartitionedHashTableOperatorState> {
+        let result_types: Vec<_> = self
+            .layout
+            .aggregates
+            .iter()
+            .map(|agg| agg.function.state.return_type.clone())
+            .collect();
+
+        Ok(PartitionedHashTableOperatorState {
+            result_types,
+            batch_size,
+            state: OnceCell::new(), // Initialized when we create the partition states.
+        })
+    }
+
+    /// Creates the partition states for the table.
+    ///
+    /// The partitions states will be initialized to a building state.
+    pub fn create_partition_states(
+        &self,
+        op_state: &PartitionedHashTableOperatorState,
+        partitions: usize,
+    ) -> Result<Vec<PartitionedHashTablePartitionState>> {
+        // Update operator state.
+        op_state
+            .state
+            .set(InitializedOperatorState {
+                flushed: (0..partitions)
+                    .map(|_| {
+                        Mutex::new(FlushedTables {
+                            tables: Vec::with_capacity(partitions),
+                        })
+                    })
+                    .collect(),
+                final_tables: (0..partitions).map(|_| Mutex::new(None)).collect(),
+            })
+            .expect("op state to only be initialized once");
+
+        let states = (0..partitions)
+            .map(|partition_idx| {
+                // Note that this includes only the groups in the grouping set.
+                //
+                // In certain cases, this may result in an empty batch, e.g.
+                // when dealing with rollups. The hash table has special logic
+                // for when no group arrays are provided to ensure that all rows
+                // still have a valid (and the same) hash.
+                let groups = Batch::new(self.group_types_no_hash_iter(), op_state.batch_size)?;
+
+                let agg_input_types: Vec<_> = self
+                    .layout
+                    .aggregates
+                    .iter()
+                    .flat_map(|agg| agg.columns.iter().map(|col| col.datatype.clone()))
+                    .collect();
+
+                let tables = (0..partitions)
+                    .map(|_| BaseHashTable::try_new(self.layout.clone(), op_state.batch_size))
+                    .collect::<Result<Vec<_>>>()?;
+                let states = tables.iter().map(|t| t.init_insert_state()).collect();
+
+                Ok(PartitionedHashTablePartitionState::Building(
+                    LocalBuildingState {
+                        partition_idx,
+                        partition_selector: PartitionSelector::new(partitions),
+                        tables,
+                        states,
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(states)
+    }
+
     /// Returns an iterator of all group types except for the hash column.
     ///
     /// Used when creating batches for buffering user-provided group columns.
@@ -190,10 +312,10 @@ impl PartitionedHashTable {
             }
         };
 
-        debug_assert_eq!(building.tables.len(), op_state.flushed.len());
+        debug_assert_eq!(building.tables.len(), op_state.get().flushed.len());
 
         for (partition_idx, table) in building.tables.drain(..).enumerate() {
-            let mut flushed = op_state.flushed[partition_idx].lock();
+            let mut flushed = op_state.get().flushed[partition_idx].lock();
             flushed.tables.push(table);
         }
 
@@ -222,8 +344,8 @@ impl PartitionedHashTable {
         // Merge only the tables for this partition index.
         //
         // All partitions should be merge an independ set of tables.
-        let mut flushed = op_state.flushed[partition_idx].lock();
-        if flushed.tables.len() != op_state.flushed.len() {
+        let mut flushed = op_state.get().flushed[partition_idx].lock();
+        if flushed.tables.len() != op_state.get().flushed.len() {
             // Means not all partitions flushed.
             return Err(DbError::new(
                 "Attempted to merge into final table, but some tables missing",
@@ -243,7 +365,7 @@ impl PartitionedHashTable {
         }
 
         // Now put it in the global state.
-        let mut final_table = op_state.final_tables[partition_idx].lock();
+        let mut final_table = op_state.get().final_tables[partition_idx].lock();
         debug_assert!(final_table.is_none());
         *final_table = Some(Arc::new(global));
 
@@ -386,8 +508,8 @@ impl PartitionedHashTable {
         };
 
         // Get a reference to all the global tables.
-        let mut tables = Vec::with_capacity(op_state.final_tables.len());
-        for final_table in &op_state.final_tables {
+        let mut tables = Vec::with_capacity(op_state.get().final_tables.len());
+        for final_table in &op_state.get().final_tables {
             let final_table = final_table.lock();
             match final_table.as_ref() {
                 Some(table) => tables.push(table.clone()),
