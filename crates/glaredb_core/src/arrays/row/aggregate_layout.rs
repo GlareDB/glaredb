@@ -246,29 +246,29 @@ impl AggregateLayout {
     where
         A: BorrowMut<Array>,
     {
-        unsafe {
-            debug_assert_eq!(outputs.len(), self.aggregates.len());
+        debug_assert_eq!(outputs.len(), self.aggregates.len());
 
-            let mut prev_offset = 0;
+        let mut prev_offset = 0;
 
-            for ((offset, agg), output) in self.iter_offsets_and_aggregates().zip(outputs) {
-                let rel_offset = offset - prev_offset;
-                for row_ptr in group_ptrs.iter_mut() {
-                    *row_ptr = row_ptr.byte_add(rel_offset);
-                    debug_assert_eq!(
-                        0,
-                        row_ptr.addr() % agg.function.aggregate_state_info().align
-                    );
-                }
-                prev_offset = offset;
+        for ((offset, agg), output) in self.iter_offsets_and_aggregates().zip(outputs) {
+            let rel_offset = offset - prev_offset;
+            for row_ptr in group_ptrs.iter_mut() {
+                *row_ptr = unsafe { row_ptr.byte_add(rel_offset) };
+                debug_assert_eq!(
+                    0,
+                    row_ptr.addr() % agg.function.aggregate_state_info().align
+                );
+            }
+            prev_offset = offset;
 
-                // Finalize states.
+            // Finalize states.
+            unsafe {
                 agg.function
                     .call_finalize(group_ptrs, output.borrow_mut())?;
             }
-
-            Ok(())
         }
+
+        Ok(())
     }
 }
 
