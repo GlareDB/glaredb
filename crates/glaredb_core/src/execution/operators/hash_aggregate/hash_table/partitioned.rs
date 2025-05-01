@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use glaredb_error::{DbError, Result};
@@ -6,12 +7,17 @@ use parking_lot::Mutex;
 use super::base::{BaseHashTable, BaseHashTableInsertState};
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64};
+use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::hash::hash_many_arrays;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::AggregateLayout;
+use crate::arrays::row::row_scan::RowScanState;
+use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::execution::operators::hash_aggregate::hash_table::base::NO_GROUPS_HASH_VALUE;
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
+use crate::util::iter::IntoExactSizeIterator;
 
 /// Compute the partition to use for a given hash value.
 pub const fn partition(hash: u64, partitions: usize) -> usize {
@@ -26,6 +32,8 @@ pub enum PartitionedHashTablePartitionState {
     MergeReady { partition_idx: usize },
     /// Partition has merged its tables.
     ScanReady { partition_idx: usize },
+    /// Partition is scanning.
+    Scanning(LocalScanningState),
 }
 
 #[derive(Debug)]
@@ -40,6 +48,18 @@ pub struct LocalBuildingState {
 }
 
 #[derive(Debug)]
+pub struct LocalScanningState {
+    /// References to the final hash tables.
+    tables: Vec<Arc<BaseHashTable>>,
+    /// Scan states for each of the tables.
+    scan_states: Vec<RowScanState>,
+    /// Batch for reading groups from the hash table.
+    groups: Batch,
+    /// Batch for reading the aggregate states from the hash table.
+    results: Batch,
+}
+
+#[derive(Debug)]
 pub struct PartitionedHashTableOperatorState {
     /// Tables that have been flushed per partition.
     ///
@@ -51,6 +71,12 @@ pub struct PartitionedHashTableOperatorState {
     /// None until a partition builds the final table for a given partition
     /// index.
     final_tables: Vec<Mutex<Option<Arc<BaseHashTable>>>>,
+    /// Output types of the tables.
+    ///
+    /// Here for convenience.
+    result_types: Vec<DataType>,
+    /// Batch size to use when scanning.
+    batch_size: usize,
 }
 
 #[derive(Debug)]
@@ -63,9 +89,23 @@ struct FlushedTables {
 #[derive(Debug)]
 pub struct PartitionedHashTable {
     layout: AggregateLayout,
+    /// The grouping set for this table.
+    grouping_set: BTreeSet<usize>,
+    groups: Vec<PhysicalColumnExpr>,
+    /// Computed group values representing the null bitmask for eaching GROUPING
+    /// function.
+    grouping_values: Vec<i64>,
 }
 
 impl PartitionedHashTable {
+    /// Returns an iterator of all group types except for the hash column.
+    ///
+    /// Used when creating batches for buffering user-provided group columns.
+    fn group_types_no_hash_iter(&self) -> impl IntoExactSizeIterator<Item = DataType> + '_ {
+        let types = &self.layout.groups.types;
+        types.iter().take(types.len() - 1).cloned()
+    }
+
     /// Inserts a batch into this partition's local hash tables.
     ///
     /// Internally partitions the input.
@@ -208,6 +248,177 @@ impl PartitionedHashTable {
         *final_table = Some(Arc::new(global));
 
         *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
+
+        Ok(())
+    }
+
+    pub fn scan(
+        &self,
+        op_state: &PartitionedHashTableOperatorState,
+        state: &mut PartitionedHashTablePartitionState,
+        output: &mut Batch,
+    ) -> Result<()> {
+        let state = match state {
+            PartitionedHashTablePartitionState::ScanReady { .. } => {
+                self.prepare_scan(op_state, state)?;
+                match state {
+                    PartitionedHashTablePartitionState::Scanning(scanning) => scanning,
+                    _ => panic!("Expected prepare to update state"),
+                }
+            }
+            PartitionedHashTablePartitionState::Scanning(scanning) => scanning,
+            _ => return Err(DbError::new("Partition in invalid state, cannot scan")),
+        };
+
+        // We have multiple tables to scan. If a scan returns 0 rows, move to
+        // the next table
+        loop {
+            let (table, scan_state) = match state.tables.last() {
+                Some(table) => (
+                    table,
+                    state
+                        .scan_states
+                        .last_mut()
+                        .expect("tables and states to be the same length"),
+                ),
+                None => {
+                    // No more tables.
+                    output.set_num_rows(0)?;
+                    return Ok(());
+                }
+            };
+
+            // Scan just the groups from this hash table. This fills the pointers to
+            // use for scanning and finalizing the aggregate states.
+            //
+            // We also scan a subset of the columns to trim off the hash column.
+            // That column is accounted for in the layout, but omitted from the
+            // grouping set.
+            let num_groups_scan = self.grouping_set.len();
+            state.groups.reset_for_write()?;
+            let capacity = state.groups.write_capacity()?;
+            let group_row_count = table.data.scan_groups_subset(
+                scan_state,
+                0..num_groups_scan,
+                &mut state.groups.arrays,
+                capacity,
+            )?;
+
+            if group_row_count == 0 {
+                // No more groups, remove this table+state and try to move to
+                // the next one.
+                state.tables.pop().unwrap();
+                state.scan_states.pop().unwrap();
+                continue;
+            }
+
+            debug_assert_eq!(capacity, state.results.write_capacity()?);
+            debug_assert!(group_row_count <= capacity);
+
+            // Finalize aggregate states.
+            state.results.reset_for_write()?;
+            // SAFETY: All partitions should be scanning a disjoint set of
+            // blocks across all aggregate tables. This partition should be the
+            // only partition to compute the scanned pointers here.
+            unsafe {
+                self.layout.finalize_states(
+                    scan_state.scanned_row_pointers_mut(),
+                    &mut state.results.arrays,
+                )?;
+            }
+
+            // Write groups to the output. This will write in the order of the
+            // groups, but have them densely packed on the left.
+            //
+            // Groups not in the grouping set will have the output array modified to
+            // be all nulls.
+            let num_groups = self.groups.len();
+            let mut group_idx = 0;
+            for output_idx in 0..num_groups {
+                if self.grouping_set.contains(&output_idx) {
+                    // Swapping arrays is fine since each group is only written once to
+                    // the output.
+                    state.groups.swap_arrays(group_idx, (output, output_idx))?;
+                    group_idx += 1;
+                } else {
+                    let arr = &mut output.arrays[output_idx];
+                    arr.put_validity(Validity::new_all_invalid(arr.logical_len()))?;
+                }
+            }
+
+            // Write out the aggregate results.
+            let num_aggs = self.layout.aggregates.len();
+            for (src_idx, dest_idx) in (num_groups..(num_groups + num_aggs)).enumerate() {
+                // Swapping should be fine here as well.
+                state.results.swap_arrays(src_idx, (output, dest_idx))?;
+            }
+
+            // Append grouping values.
+            for (idx, &grouping_val) in self.grouping_values.iter().enumerate() {
+                let output_idx = num_groups + num_aggs + idx;
+                let mut const_arr = Array::new_constant(
+                    &DefaultBufferManager,
+                    &ScalarValue::Int64(grouping_val),
+                    group_row_count,
+                )?;
+                output.arrays[output_idx].swap(&mut const_arr)?;
+            }
+
+            output.set_num_rows(group_row_count)?;
+
+            // We have results, get out of the loop.
+            return Ok(());
+        }
+    }
+
+    fn prepare_scan(
+        &self,
+        op_state: &PartitionedHashTableOperatorState,
+        state: &mut PartitionedHashTablePartitionState,
+    ) -> Result<()> {
+        let partition_idx = match state {
+            PartitionedHashTablePartitionState::ScanReady { partition_idx } => *partition_idx, // Continue.
+            _ => {
+                return Err(DbError::new(
+                    "Partition in invalid state, cannot prepare scan",
+                ));
+            }
+        };
+
+        // Get a reference to all the global tables.
+        let mut tables = Vec::with_capacity(op_state.final_tables.len());
+        for final_table in &op_state.final_tables {
+            let final_table = final_table.lock();
+            match final_table.as_ref() {
+                Some(table) => tables.push(table.clone()),
+                None => return Err(DbError::new("Missing final table")),
+            }
+        }
+
+        let num_partitions = tables.len();
+
+        // Now initialize the scan states. All partitions will be scanning from
+        // all tables, so we need to make sure we're scanning disjoint blocks.
+        let row_scan_states: Vec<_> = tables
+            .iter()
+            .map(|table| {
+                let block_indices = (0..table.data.num_row_blocks())
+                    .filter(|block_idx| block_idx % num_partitions == partition_idx);
+
+                RowScanState::new_partial_scan(block_indices)
+            })
+            .collect();
+
+        // Batch buffers for scanning.
+        let groups = Batch::new(self.group_types_no_hash_iter(), op_state.batch_size)?;
+        let results = Batch::new(op_state.result_types.clone(), op_state.batch_size)?;
+
+        *state = PartitionedHashTablePartitionState::Scanning(LocalScanningState {
+            tables,
+            scan_states: row_scan_states,
+            groups,
+            results,
+        });
 
         Ok(())
     }

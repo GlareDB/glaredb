@@ -37,7 +37,8 @@ pub struct BaseHashTableInsertState {
     row_selection: Vec<usize>,
 }
 
-// SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
+// SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers to row
+// blocks.
 unsafe impl Send for BaseHashTableInsertState {}
 unsafe impl Sync for BaseHashTableInsertState {}
 
