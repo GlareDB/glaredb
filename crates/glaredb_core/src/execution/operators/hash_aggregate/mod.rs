@@ -1,8 +1,8 @@
 pub mod distinct_aggregates;
 
-mod aggregate_hash_table;
 mod grouping_set_hash_table;
 mod grouping_value;
+mod hash_table;
 
 use std::collections::BTreeSet;
 use std::task::Context;

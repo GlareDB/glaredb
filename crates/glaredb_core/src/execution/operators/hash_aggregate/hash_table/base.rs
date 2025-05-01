@@ -3,6 +3,7 @@ use std::ptr::NonNull;
 
 use glaredb_error::{DbError, Result};
 
+use super::directory::Directory;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::batch::Batch;
@@ -13,11 +14,9 @@ use crate::arrays::row::aggregate_layout::{AggregateLayout, CompleteInputSelecto
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
 use crate::buffer::buffer_manager::DefaultBufferManager;
-use crate::buffer::db_vec::DbVec;
-use crate::execution::operators::util::power_of_two::{
+use crate::execution::operators::hash_aggregate::hash_table::directory::{
     compute_offset_from_hash,
     inc_and_wrap_offset,
-    is_power_of_2,
 };
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::util::iter::IntoExactSizeIterator;
@@ -28,7 +27,7 @@ use crate::util::iter::IntoExactSizeIterator;
 const NO_GROUPS_HASH_VALUE: u64 = 49820;
 
 #[derive(Debug)]
-pub struct AggregateHashTableInsertState {
+pub struct BaseHashTableInsertState {
     /// Reusable buffer containing pointers to the beginning of rows that we
     /// should update.
     row_ptrs: Vec<*mut u8>,
@@ -37,8 +36,8 @@ pub struct AggregateHashTableInsertState {
 }
 
 // SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
-unsafe impl Send for AggregateHashTableInsertState {}
-unsafe impl Sync for AggregateHashTableInsertState {}
+unsafe impl Send for BaseHashTableInsertState {}
+unsafe impl Sync for BaseHashTableInsertState {}
 
 /// Linear probing hash table for aggregates.
 ///
@@ -48,7 +47,7 @@ unsafe impl Sync for AggregateHashTableInsertState {}
 /// - `groups_hash`: Hash of the grouping columns.
 /// - `agg_states`: Aggregate states (aligned).
 #[derive(Debug)]
-pub struct AggregateHashTable {
+pub struct BaseHashTable {
     /// Layout to use for storing the aggregate states and group values.
     pub(crate) layout: AggregateLayout,
     /// Hash table directory.
@@ -60,7 +59,7 @@ pub struct AggregateHashTable {
     pub(crate) row_capacity: usize,
 }
 
-impl AggregateHashTable {
+impl BaseHashTable {
     /// Create a new hash table with the given layout.
     ///
     /// It's expected that the last group column is u64 for storing the hash
@@ -82,7 +81,7 @@ impl AggregateHashTable {
         let directory = Directory::try_with_capacity(Directory::DEFAULT_CAPACITY)?;
         let matcher = GroupMatcher::new(&layout);
 
-        Ok(AggregateHashTable {
+        Ok(BaseHashTable {
             layout,
             directory,
             data,
@@ -91,8 +90,8 @@ impl AggregateHashTable {
         })
     }
 
-    pub fn init_insert_state(&self) -> AggregateHashTableInsertState {
-        AggregateHashTableInsertState {
+    pub fn init_insert_state(&self) -> BaseHashTableInsertState {
+        BaseHashTableInsertState {
             row_ptrs: Vec::new(),
             append_state: self.data.init_append_state(),
         }
@@ -114,7 +113,7 @@ impl AggregateHashTable {
     // stuff.
     pub fn insert(
         &mut self,
-        state: &mut AggregateHashTableInsertState,
+        state: &mut BaseHashTableInsertState,
         agg_selection: &[usize],
         groups: &Batch,
         inputs: &Batch,
@@ -144,7 +143,7 @@ impl AggregateHashTable {
     /// Insert groups into the table with precomputed hash values.
     pub fn insert_with_hashes(
         &mut self,
-        state: &mut AggregateHashTableInsertState,
+        state: &mut BaseHashTableInsertState,
         agg_selection: &[usize],
         groups: &Batch,
         inputs: &Batch,
@@ -362,7 +361,7 @@ impl AggregateHashTable {
 
     pub fn merge_from(
         &mut self,
-        state: &mut AggregateHashTableInsertState,
+        state: &mut BaseHashTableInsertState,
         agg_selection: impl IntoExactSizeIterator<Item = usize> + Clone,
         other: &mut Self,
     ) -> Result<()> {
@@ -521,102 +520,6 @@ impl GroupMatcher {
     }
 }
 
-/// Hash table directory containing pointers to rows.
-///
-/// The number of entries in the directory indicates the number of groups.
-#[derive(Debug)]
-pub(crate) struct Directory {
-    /// Number of non-null pointers in entries.
-    num_occupied: usize,
-    /// Row pointers.
-    ///
-    /// None if this slot isn't occupied.
-    ptrs: DbVec<Option<NonNull<u8>>>,
-    /// Hashes for each slot in the directory.
-    hashes: DbVec<u64>,
-}
-
-// Pointers point to heap blocks.
-unsafe impl Send for Directory {}
-unsafe impl Sync for Directory {}
-
-impl Directory {
-    const LOAD_NUM: usize = 7;
-    const LOAD_DEN: usize = 10;
-
-    const DEFAULT_CAPACITY: usize = 128;
-
-    fn try_with_capacity(capacity: usize) -> Result<Self> {
-        let capacity = capacity.next_power_of_two();
-
-        let ptrs = DbVec::with_value(&DefaultBufferManager, capacity, None)?;
-        let hashes = DbVec::with_value(&DefaultBufferManager, capacity, 0)?;
-
-        Ok(Directory {
-            num_occupied: 0,
-            ptrs,
-            hashes,
-        })
-    }
-
-    fn capacity(&self) -> usize {
-        self.ptrs.len()
-    }
-
-    /// Resizes the directory to at least `new_capacity`.
-    ///
-    /// This will ensure the new capacity of the directory is a power of two.
-    fn resize(&mut self, mut new_capacity: usize) -> Result<()> {
-        if !is_power_of_2(new_capacity) {
-            new_capacity = new_capacity.next_power_of_two();
-        }
-        if new_capacity < self.ptrs.len() {
-            return Err(DbError::new("Cannot reduce capacity of hash table")
-                .with_field("current", self.ptrs.len())
-                .with_field("new", new_capacity));
-        }
-
-        let old_ptrs = std::mem::replace(
-            &mut self.ptrs,
-            DbVec::with_value(&DefaultBufferManager, new_capacity, None)?,
-        );
-        let old_hashes = std::mem::replace(
-            &mut self.hashes,
-            DbVec::with_value(&DefaultBufferManager, new_capacity, 0)?,
-        );
-
-        let hashes = self.hashes.as_slice_mut();
-        let ptrs = self.ptrs.as_slice_mut();
-
-        for (&hash, &ptr) in old_hashes.as_slice().iter().zip(old_ptrs.as_slice()) {
-            if ptr.is_none() {
-                continue;
-            }
-
-            let mut offset = compute_offset_from_hash(hash, new_capacity as u64) as usize;
-            // Continue to try to insert until we find an empty slot.
-            loop {
-                if ptrs[offset].is_none() {
-                    // Empty slot, insert entry.
-                    ptrs[offset] = ptr;
-                    hashes[offset] = hash;
-                    break;
-                }
-
-                // Keep probing.
-                offset = inc_and_wrap_offset(offset, new_capacity);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn needs_resize(&self, num_inputs: usize) -> bool {
-        // (num_occupied + num_inputs) / capacity > 7/10
-        (self.num_occupied + num_inputs) * Self::LOAD_DEN > self.capacity() * Self::LOAD_NUM
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -628,7 +531,7 @@ mod tests {
     use crate::util::iter::TryFromExactSizeIterator;
 
     /// Helper to get the groups and results from a hash table.
-    fn get_groups_and_results(table: &AggregateHashTable) -> (Batch, Batch) {
+    fn get_groups_and_results(table: &BaseHashTable) -> (Batch, Batch) {
         let num_groups = table.num_groups();
         let mut out_groups = Batch::new(table.layout.groups.types.clone(), num_groups).unwrap();
         let mut out_results = Batch::new(
@@ -681,7 +584,7 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::UInt64], aggs);
 
-        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
 
         let groups = Batch::empty_with_num_rows(4);
@@ -718,7 +621,7 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
-        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
@@ -761,7 +664,7 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::Int32, DataType::UInt64], aggs);
 
-        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
 
         let num_unique_groups = Directory::DEFAULT_CAPACITY * 2 + 1;
@@ -799,7 +702,7 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
-        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
@@ -840,7 +743,7 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
-        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
@@ -881,7 +784,7 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
-        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
@@ -922,7 +825,7 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
-        let mut table = AggregateHashTable::try_new(layout, 16).unwrap();
+        let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
@@ -959,14 +862,14 @@ mod tests {
 
         let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
 
-        let mut t1 = AggregateHashTable::try_new(layout.clone(), 16).unwrap();
+        let mut t1 = BaseHashTable::try_new(layout.clone(), 16).unwrap();
         let mut s1 = t1.init_insert_state();
 
         let groups = generate_batch!(["group_a", "group_b", "group_a", "group_c"]);
         let inputs = generate_batch!([1_i64, 2, 3, 4]);
         t1.insert(&mut s1, &[0], &groups, &inputs).unwrap();
 
-        let mut t2 = AggregateHashTable::try_new(layout.clone(), 16).unwrap();
+        let mut t2 = BaseHashTable::try_new(layout.clone(), 16).unwrap();
         let mut s2 = t2.init_insert_state();
 
         let groups = generate_batch!(["group_c", "group_d", "group_a", "group_a"]);

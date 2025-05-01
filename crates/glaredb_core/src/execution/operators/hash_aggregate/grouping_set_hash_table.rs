@@ -5,7 +5,7 @@ use glaredb_error::{DbError, OptionExt, Result};
 use parking_lot::Mutex;
 
 use super::Aggregates;
-use super::aggregate_hash_table::{AggregateHashTable, AggregateHashTableInsertState};
+use super::hash_table::base::{BaseHashTable, BaseHashTableInsertState};
 use crate::arrays::array::Array;
 use crate::arrays::array::validity::Validity;
 use crate::arrays::batch::Batch;
@@ -43,9 +43,9 @@ enum PartitionState {
 #[derive(Debug)]
 pub struct GroupingSetBuildPartitionState {
     /// Insert state into the local hash table.
-    insert_state: AggregateHashTableInsertState,
+    insert_state: BaseHashTableInsertState,
     /// The actual hash table.
-    hash_table: Box<AggregateHashTable>,
+    hash_table: Box<BaseHashTable>,
     /// Batch for holding the grouping columns we're inserting into the table.
     /// Only stores columns for the grouping set.
     groups: Batch,
@@ -56,7 +56,7 @@ pub struct GroupingSetBuildPartitionState {
 #[derive(Debug)]
 pub struct GroupingSetScanPartitionState {
     /// The final hash table.
-    hash_table: Arc<AggregateHashTable>,
+    hash_table: Arc<BaseHashTable>,
     /// Scan state for scanning the hash table.
     ///
     /// Initialized to scan only a subset of blocks that only this partition will
@@ -95,7 +95,7 @@ pub struct HashTableBuildingOperatorState {
     /// Hash tables from each partition.
     ///
     /// Once we have all hash tables, we can merge them into the global table.
-    flushed: Vec<AggregateHashTable>,
+    flushed: Vec<BaseHashTable>,
 }
 
 #[derive(Debug)]
@@ -103,7 +103,7 @@ pub struct HashTableScanningOperatorState {
     /// Number of partitions that are scanning.
     partitions: usize,
     /// The final hash table.
-    hash_table: Arc<AggregateHashTable>,
+    hash_table: Arc<BaseHashTable>,
     /// Output types of the table.
     ///
     /// Here for convenience.
@@ -199,7 +199,7 @@ impl GroupingSetHashTable {
                     .collect();
                 let inputs = Batch::new(agg_input_types, op_state.batch_size)?;
 
-                let table = AggregateHashTable::try_new(self.layout.clone(), op_state.batch_size)?;
+                let table = BaseHashTable::try_new(self.layout.clone(), op_state.batch_size)?;
                 let insert_state = table.init_insert_state();
 
                 Ok(GroupingSetPartitionState {
