@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::ptr::NonNull;
 
 use glaredb_error::{DbError, Result};
 
@@ -78,7 +79,7 @@ impl AggregateHashTable {
         }
 
         let data = AggregateCollection::new(layout.clone(), row_capacity);
-        let directory = Directory::try_new(Directory::DEFAULT_CAPACITY)?;
+        let directory = Directory::try_with_capacity(Directory::DEFAULT_CAPACITY)?;
         let matcher = GroupMatcher::new(&layout);
 
         Ok(AggregateHashTable {
@@ -235,7 +236,10 @@ impl AggregateHashTable {
         groups_and_hashes.push(hashes_arr);
 
         let cap = self.directory.capacity();
-        let entries = self.directory.entries.as_slice_mut();
+        let ent_ptrs = self.directory.ptrs.as_slice_mut();
+        let ent_hashes = self.directory.hashes.as_slice_mut();
+
+        let dangling_occupied = Some(NonNull::dangling());
 
         while !needs_insert.is_empty() {
             new_groups.clear();
@@ -250,9 +254,10 @@ impl AggregateHashTable {
                 // used to index directly into entries to point to the correct
                 // entry for a row.
                 for iter_count in 0..cap {
-                    let ent = &mut entries[*offset];
+                    let ent_ptr = &mut ent_ptrs[*offset];
+                    let ent_hash = &mut ent_hashes[*offset];
 
-                    if !ent.is_occupied() {
+                    if ent_ptr.is_none() {
                         // Empty entry, claim it.
                         //
                         // Note that a real row pointer will be added to the
@@ -261,13 +266,14 @@ impl AggregateHashTable {
                         //
                         // This does store the hash so that we can compare rows
                         // if needed.
-                        *ent = Entry::new_claimed(hash);
+                        *ent_ptr = dangling_occupied;
+                        *ent_hash = hash;
                         new_groups.push(row_idx);
 
                         break;
                     }
 
-                    if ent.hash == hash {
+                    if *ent_hash == hash {
                         needs_compare.push(row_idx);
                         break;
                     }
@@ -299,12 +305,12 @@ impl AggregateHashTable {
                 debug_assert!(!row_ptrs.iter().any(|p| p.is_null()));
                 debug_assert_eq!(new_groups.len(), row_ptrs.len());
 
-                // Update the entries with the new row pointers.
+                // Update the entries with the new row pointers. Hashes should
+                // already be set.
                 for (&row_idx, &row_ptr) in new_groups.iter().zip(row_ptrs) {
                     // Offsets updated during probing...
                     let offset = offsets[row_idx];
-                    let ent = &mut entries[offset];
-                    ent.row_ptr = row_ptr;
+                    ent_ptrs[offset] = NonNull::new(row_ptr);
 
                     // Update output pointers.
                     out_ptrs[row_idx] = row_ptr;
@@ -318,11 +324,11 @@ impl AggregateHashTable {
                 for &row_idx in &needs_compare {
                     // Offset updated during probing...
                     let offset = offsets[row_idx];
-                    let row_ptr = entries[offset].row_ptr;
+                    let row_ptr = ent_ptrs[offset];
                     // Set output pointer assuming it will match. If it doesn't,
                     // the following loop iteration(s) will overwrite it,
                     // eventually setting it the correct pointer.
-                    out_ptrs[row_idx] = row_ptr;
+                    out_ptrs[row_idx] = row_ptr.expect("ptr to be Some").as_ptr();
                 }
 
                 needs_insert.clear();
@@ -515,44 +521,6 @@ impl GroupMatcher {
     }
 }
 
-/// An entry in the hash table.
-#[derive(Debug, Clone, Copy)]
-struct Entry {
-    /// The hash associated with the entry.
-    hash: u64,
-    /// Pointer to the start of the row.
-    row_ptr: *mut u8,
-}
-
-// `*mut u8` is a pointer to a heap block.
-unsafe impl Send for Entry {}
-unsafe impl Sync for Entry {}
-
-impl Entry {
-    const EMPTY: Entry = Entry {
-        hash: 0,
-        row_ptr: std::ptr::null_mut(),
-    };
-
-    const fn is_occupied(&self) -> bool {
-        !self.row_ptr.is_null()
-    }
-
-    /// Create a new entry that "claims" a slot.
-    ///
-    /// This will be initialized with a dangling pointer (non-null) such that
-    /// further linear probes will see this as occupied.
-    ///
-    /// The row pointer is expected to be set to the appropriate row after all
-    /// probing is done for a new set of rows.
-    const fn new_claimed(hash: u64) -> Self {
-        Entry {
-            hash,
-            row_ptr: std::ptr::dangling_mut(),
-        }
-    }
-}
-
 /// Hash table directory containing pointers to rows.
 ///
 /// The number of entries in the directory indicates the number of groups.
@@ -561,26 +529,38 @@ pub(crate) struct Directory {
     /// Number of non-null pointers in entries.
     num_occupied: usize,
     /// Row pointers.
-    entries: DbVec<Entry>,
+    ///
+    /// None if this slot isn't occupied.
+    ptrs: DbVec<Option<NonNull<u8>>>,
+    /// Hashes for each slot in the directory.
+    hashes: DbVec<u64>,
 }
 
+// Pointers point to heap blocks.
+unsafe impl Send for Directory {}
+unsafe impl Sync for Directory {}
+
 impl Directory {
-    const LOAD_FACTOR: f64 = 0.7;
+    const LOAD_NUM: usize = 7;
+    const LOAD_DEN: usize = 10;
+
     const DEFAULT_CAPACITY: usize = 128;
 
-    fn try_new(capacity: usize) -> Result<Self> {
+    fn try_with_capacity(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();
 
-        let entries = DbVec::with_value(&DefaultBufferManager, capacity, Entry::EMPTY)?;
+        let ptrs = DbVec::with_value(&DefaultBufferManager, capacity, None)?;
+        let hashes = DbVec::with_value(&DefaultBufferManager, capacity, 0)?;
 
         Ok(Directory {
             num_occupied: 0,
-            entries,
+            ptrs,
+            hashes,
         })
     }
 
     fn capacity(&self) -> usize {
-        self.entries.len()
+        self.ptrs.len()
     }
 
     /// Resizes the directory to at least `new_capacity`.
@@ -590,31 +570,36 @@ impl Directory {
         if !is_power_of_2(new_capacity) {
             new_capacity = new_capacity.next_power_of_two();
         }
-        if new_capacity < self.entries.len() {
+        if new_capacity < self.ptrs.len() {
             return Err(DbError::new("Cannot reduce capacity of hash table")
-                .with_field("current", self.entries.len())
+                .with_field("current", self.ptrs.len())
                 .with_field("new", new_capacity));
         }
 
-        let old_entries = std::mem::replace(
-            &mut self.entries,
-            DbVec::with_value(&DefaultBufferManager, new_capacity, Entry::EMPTY)?,
+        let old_ptrs = std::mem::replace(
+            &mut self.ptrs,
+            DbVec::with_value(&DefaultBufferManager, new_capacity, None)?,
+        );
+        let old_hashes = std::mem::replace(
+            &mut self.hashes,
+            DbVec::with_value(&DefaultBufferManager, new_capacity, 0)?,
         );
 
-        let entries = self.entries.as_slice_mut();
+        let hashes = self.hashes.as_slice_mut();
+        let ptrs = self.ptrs.as_slice_mut();
 
-        for old_ent in old_entries.as_slice() {
-            if !old_ent.is_occupied() {
+        for (&hash, &ptr) in old_hashes.as_slice().iter().zip(old_ptrs.as_slice()) {
+            if ptr.is_none() {
                 continue;
             }
 
-            let mut offset = compute_offset_from_hash(old_ent.hash, new_capacity as u64) as usize;
-
+            let mut offset = compute_offset_from_hash(hash, new_capacity as u64) as usize;
             // Continue to try to insert until we find an empty slot.
             loop {
-                if !entries[offset].is_occupied() {
+                if ptrs[offset].is_none() {
                     // Empty slot, insert entry.
-                    entries[offset] = *old_ent;
+                    ptrs[offset] = ptr;
+                    hashes[offset] = hash;
                     break;
                 }
 
@@ -626,13 +611,9 @@ impl Directory {
         Ok(())
     }
 
-    /// Returns if the directory needs to be resized to accomadate new inputs.
     fn needs_resize(&self, num_inputs: usize) -> bool {
-        (num_inputs + self.num_occupied) >= self.resize_threshold()
-    }
-
-    fn resize_threshold(&self) -> usize {
-        (self.capacity() as f64 * Self::LOAD_FACTOR) as usize
+        // (num_occupied + num_inputs) / capacity > 7/10
+        (self.num_occupied + num_inputs) * Self::LOAD_DEN > self.capacity() * Self::LOAD_NUM
     }
 }
 
