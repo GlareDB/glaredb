@@ -15,10 +15,10 @@ use distinct_aggregates::{
     DistinctCollectionPartitionState,
 };
 use glaredb_error::{DbError, OptionExt, Result};
-use grouping_set_hash_table::{
-    GroupingSetHashTable,
-    GroupingSetOperatorState,
-    GroupingSetPartitionState,
+use hash_table::partitioned::{
+    PartitionedHashTable,
+    PartitionedHashTableOperatorState,
+    PartitionedHashTablePartitionState,
 };
 use parking_lot::Mutex;
 
@@ -89,7 +89,7 @@ pub struct HashAggregateMergingPartitionState {
 struct AggregatingPartitionState {
     partition_idx: usize,
     /// Partition state per grouping set table.
-    states: Vec<GroupingSetPartitionState>,
+    states: Vec<PartitionedHashTablePartitionState>,
     /// Distinct states per grouping set.
     distinct_states: Vec<DistinctCollectionPartitionState>,
 }
@@ -108,7 +108,7 @@ pub struct HashAggregateScanningPartitionState {
     ///
     /// This should be treated as a queue, each scan state should be exhausted
     /// (and removed) until we have no scan states left.
-    states: Vec<(usize, GroupingSetPartitionState)>,
+    states: Vec<(usize, PartitionedHashTablePartitionState)>,
 }
 
 #[derive(Debug)]
@@ -116,9 +116,9 @@ pub struct HashAggregateOperatorState {
     /// Batch size used when draining the distinct tables.
     batch_size: usize,
     /// Hash table per grouping set.
-    tables: Vec<GroupingSetHashTable>,
+    tables: Vec<PartitionedHashTable>,
     /// State for each grouping set hash table.
-    table_states: Vec<GroupingSetOperatorState>,
+    table_states: Vec<PartitionedHashTableOperatorState>,
     /// Distinct collections for each grouping set.
     distinct_collections: Vec<DistinctCollection>,
     /// Distinct state for each grouping set.
@@ -200,7 +200,7 @@ impl BaseOperator for PhysicalHashAggregate {
         let tables: Vec<_> = self
             .grouping_sets
             .iter()
-            .map(|grouping_set| GroupingSetHashTable::new(&self.aggregates, grouping_set.clone()))
+            .map(|grouping_set| PartitionedHashTable::new(&self.aggregates, grouping_set.clone()))
             .collect();
 
         let table_states = tables
@@ -378,7 +378,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                     .iter()
                     .zip(&mut aggregating.inner.states)
                 {
-                    table.insert_input_local(state, &self.agg_selection.non_distinct, input)?;
+                    table.insert_partition_local(state, &self.agg_selection.non_distinct, input)?;
                 }
 
                 Ok(PollExecute::NeedsMore)
@@ -494,11 +494,12 @@ impl ExecuteOperator for PhysicalHashAggregate {
                             }
 
                             // Now insert into our local tables.
-                            operator_state.tables[grouping_set_idx].insert_for_distinct_local(
-                                &mut aggregating.inner.states[grouping_set_idx],
-                                &agg_sel,
-                                &mut batch,
-                            )?;
+                            operator_state.tables[grouping_set_idx]
+                                .insert_partition_local_distinct_values(
+                                    &mut aggregating.inner.states[grouping_set_idx],
+                                    &agg_sel,
+                                    &mut batch,
+                                )?;
                         }
                     }
                 }
@@ -570,7 +571,10 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 // We have all inputs. Go ahead and merge the tables this
                 // partition is responsible for.
                 while let Some(idx) = merging.tables_queue.pop() {
-                    operator_state.tables[idx].merge_flushed(&operator_state.table_states[idx])?;
+                    operator_state.tables[idx].merge_global(
+                        &operator_state.table_states[idx],
+                        &mut merging.inner.states[idx],
+                    )?;
                 }
 
                 // Update our state for draining from the tables now.

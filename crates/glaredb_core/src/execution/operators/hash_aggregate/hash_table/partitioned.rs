@@ -1,4 +1,3 @@
-use std::cell::OnceCell;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -20,6 +19,7 @@ use crate::execution::operators::hash_aggregate::Aggregates;
 use crate::execution::operators::hash_aggregate::grouping_value::compute_grouping_value;
 use crate::execution::operators::hash_aggregate::hash_table::base::NO_GROUPS_HASH_VALUE;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
+use crate::util::cell::UnsafeSyncOnceCell;
 use crate::util::iter::IntoExactSizeIterator;
 
 /// Compute the partition to use for a given hash value.
@@ -48,6 +48,11 @@ pub struct LocalBuildingState {
     tables: Vec<BaseHashTable>,
     /// Insert for the hash tables.
     states: Vec<BaseHashTableInsertState>,
+    /// Batch for holding the grouping columns we're inserting into the table.
+    /// Only stores columns for the grouping set.
+    groups: Batch,
+    /// Batch for holding aggregate inputs.
+    inputs: Batch,
 }
 
 #[derive(Debug)]
@@ -71,7 +76,7 @@ pub struct PartitionedHashTableOperatorState {
     /// Batch size to use when scanning.
     batch_size: usize,
     /// State initialized when we create the partition states.
-    state: OnceCell<InitializedOperatorState>,
+    state: UnsafeSyncOnceCell<InitializedOperatorState>,
 }
 
 #[derive(Debug)]
@@ -90,7 +95,7 @@ struct InitializedOperatorState {
 
 impl PartitionedHashTableOperatorState {
     fn get(&self) -> &InitializedOperatorState {
-        self.state.get().expect("state to have been initialized")
+        unsafe { self.state.get().expect("state to have been initialized") }
     }
 }
 
@@ -157,7 +162,7 @@ impl PartitionedHashTable {
         Ok(PartitionedHashTableOperatorState {
             result_types,
             batch_size,
-            state: OnceCell::new(), // Initialized when we create the partition states.
+            state: UnsafeSyncOnceCell::new(), // Initialized when we create the partition states.
         })
     }
 
@@ -170,19 +175,22 @@ impl PartitionedHashTable {
         partitions: usize,
     ) -> Result<Vec<PartitionedHashTablePartitionState>> {
         // Update operator state.
-        op_state
-            .state
-            .set(InitializedOperatorState {
-                flushed: (0..partitions)
-                    .map(|_| {
-                        Mutex::new(FlushedTables {
-                            tables: Vec::with_capacity(partitions),
-                        })
+        let init_state = InitializedOperatorState {
+            flushed: (0..partitions)
+                .map(|_| {
+                    Mutex::new(FlushedTables {
+                        tables: Vec::with_capacity(partitions),
                     })
-                    .collect(),
-                final_tables: (0..partitions).map(|_| Mutex::new(None)).collect(),
-            })
-            .expect("op state to only be initialized once");
+                })
+                .collect(),
+            final_tables: (0..partitions).map(|_| Mutex::new(None)).collect(),
+        };
+        unsafe {
+            op_state
+                .state
+                .set(init_state)
+                .expect("op state to only be initialized once")
+        };
 
         let states = (0..partitions)
             .map(|partition_idx| {
@@ -200,6 +208,7 @@ impl PartitionedHashTable {
                     .iter()
                     .flat_map(|agg| agg.columns.iter().map(|col| col.datatype.clone()))
                     .collect();
+                let inputs = Batch::new(agg_input_types, op_state.batch_size)?;
 
                 let tables = (0..partitions)
                     .map(|_| BaseHashTable::try_new(self.layout.clone(), op_state.batch_size))
@@ -212,6 +221,8 @@ impl PartitionedHashTable {
                         partition_selector: PartitionSelector::new(partitions),
                         tables,
                         states,
+                        groups,
+                        inputs,
                     },
                 ))
             })
@@ -228,26 +239,122 @@ impl PartitionedHashTable {
         types.iter().take(types.len() - 1).cloned()
     }
 
-    /// Inserts a batch into this partition's local hash tables.
+    /// Similar to `insert_partition_local`, but with the input batches already
+    /// containing the groups and inputs in the right order.
     ///
-    /// Internally partitions the input.
-    pub fn insert_local(
+    /// Groups come first, followed by the aggregate inputs.
+    ///
+    /// The physical column expressions for the grouping set are not consulted.
+    pub fn insert_partition_local_distinct_values(
         &self,
         state: &mut PartitionedHashTablePartitionState,
         agg_selection: &[usize],
-        groups: &Batch,
-        inputs: &Batch,
+        distinct_input: &mut Batch,
     ) -> Result<()> {
-        debug_assert_eq!(groups.num_rows, inputs.num_rows);
-
         let state = match state {
             PartitionedHashTablePartitionState::Building(building) => building,
             _ => {
                 return Err(DbError::new(
-                    "Invalid partition state, cannot insert into local tables",
+                    "Partition in invalid state, cannot insert distinct",
                 ));
             }
         };
+
+        if agg_selection.is_empty() {
+            return Ok(());
+        }
+
+        // Clone the group arrays.
+        for idx in 0..self.grouping_set.len() {
+            state.groups.clone_array_from(idx, (distinct_input, idx))?;
+        }
+
+        // Clone input arrays.
+
+        let mut prev_sel = 0;
+        let mut state_input_idx = 0;
+
+        let mut input_idx = self.grouping_set.len();
+
+        for &sel in agg_selection {
+            while prev_sel != sel {
+                state_input_idx += self.layout.aggregates[prev_sel].columns.len();
+                prev_sel += 1;
+            }
+
+            for idx in 0..self.layout.aggregates[sel].columns.len() {
+                state
+                    .inputs
+                    .clone_array_from(state_input_idx + idx, (distinct_input, input_idx))?;
+                input_idx += 1;
+            }
+        }
+
+        state.groups.set_num_rows(distinct_input.num_rows())?;
+        state.inputs.set_num_rows(distinct_input.num_rows())?;
+
+        self.insert_local(state, agg_selection)
+    }
+
+    /// Insert a batch into the local hash table.
+    ///
+    /// This will pull out the grouping columns according to this table's
+    /// grouping set using physical column expressions, and insert into the hash
+    /// table using those values.
+    pub fn insert_partition_local(
+        &self,
+        state: &mut PartitionedHashTablePartitionState,
+        agg_selection: &[usize],
+        input: &mut Batch,
+    ) -> Result<()> {
+        let state = match state {
+            PartitionedHashTablePartitionState::Building(building) => building,
+            _ => return Err(DbError::new("Partition in invalid state, cannot insert")),
+        };
+
+        // Get both the group arrays, and the inputs to the aggregates.
+        for (dest_idx, &src_idx) in self.grouping_set.iter().enumerate() {
+            // Grouping set is relative to the groups, get the actual column
+            // index from the group expression.
+            let src_idx = self.groups[src_idx].idx;
+            // Can't swap as other hash tables with different grouping sets
+            // might have overlap with our grouping set.
+            //
+            // TODO: Since we insert into each table sequentially, we might be
+            // able to get away with a swap, that revert the swap after the
+            // insert. Need to determine if it's worth it.
+            state.groups.clone_array_from(dest_idx, (input, src_idx))?;
+        }
+
+        for (dest_idx, src_idx) in self
+            .layout
+            .aggregates
+            .iter()
+            .flat_map(|agg| agg.columns.iter().map(|col| col.idx))
+            .enumerate()
+        {
+            // Can't swap, multiple aggregates may be referencing the same
+            // column.
+            state.inputs.clone_array_from(dest_idx, (input, src_idx))?;
+        }
+
+        state.groups.set_num_rows(input.num_rows())?;
+        state.inputs.set_num_rows(input.num_rows())?;
+
+        self.insert_local(state, agg_selection)
+    }
+
+    /// Inserts a batch into this partition's local hash tables.
+    ///
+    /// This requires that `groups` and `inputs` have been populated on the
+    /// local build state from the aggregate input.
+    ///
+    /// Internally partitions the input.
+    fn insert_local(&self, state: &mut LocalBuildingState, agg_selection: &[usize]) -> Result<()> {
+        let groups = &state.groups;
+        let inputs = &state.inputs;
+
+        debug_assert_eq!(groups.num_rows, inputs.num_rows);
 
         // Hash the groups.
         // TODO: Avoid allocating here.
@@ -620,3 +727,23 @@ impl Iterator for RowIndexIter<'_> {
 }
 
 impl ExactSizeIterator for RowIndexIter<'_> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn operator_state_is_sync_send() {
+        fn check_sync_send(s: impl Sync + Send) {
+            // Nothing, just make sure it compiles.
+        }
+
+        let state = PartitionedHashTableOperatorState {
+            result_types: Vec::new(),
+            batch_size: 128,
+            state: UnsafeSyncOnceCell::new(),
+        };
+
+        check_sync_send(state);
+    }
+}
