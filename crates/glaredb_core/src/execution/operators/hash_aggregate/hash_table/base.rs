@@ -196,13 +196,13 @@ impl BaseHashTable {
         let mut needs_insert: Vec<_> = (0..num_rows).collect();
 
         // Track rows that require allocating new rows for.
-        let mut new_groups = Vec::new();
+        let mut new_groups = Vec::with_capacity(num_rows);
 
         // Total number of new groups we created.
         let mut total_new_groups = 0;
 
         // Track rows that need to be compared to rows already in the table.
-        let mut needs_compare = Vec::new();
+        let mut needs_compare = Vec::with_capacity(num_rows);
 
         // Groups + hashes used when appending new groups to the collection.
         let mut groups_and_hashes = Vec::with_capacity(groups.len() + 1);

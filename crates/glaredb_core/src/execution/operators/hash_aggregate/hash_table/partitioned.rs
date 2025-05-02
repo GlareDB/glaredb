@@ -264,6 +264,18 @@ impl PartitionedHashTable {
             return Ok(());
         }
 
+        // TODO: Avoid doing this.
+        //
+        // Distinct inputs only affect a subset of aggregates, so the full batch
+        // isn't needed. However the selection during the partitioning isn't as
+        // robust as it needs to be, and tried to apply a selection on all
+        // arrays.
+        //
+        // These resets are a temp workaround to ensure the selection has
+        // something it can easily work with.
+        state.groups.reset_for_write()?;
+        state.inputs.reset_for_write()?;
+
         // Clone the group arrays.
         for idx in 0..self.grouping_set.len() {
             state.groups.clone_array_from(idx, (distinct_input, idx))?;
@@ -388,6 +400,11 @@ impl PartitionedHashTable {
             let row_sel = state
                 .partition_selector
                 .row_indices_for_partition(partition_idx);
+
+            if row_sel.len() == 0 {
+                // Nothing to input for this partition.
+                continue;
+            }
 
             let mut groups = groups.clone()?;
             groups.select(row_sel.clone())?;
