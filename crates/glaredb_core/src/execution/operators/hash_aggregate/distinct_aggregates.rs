@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 
 use glaredb_error::Result;
 
-use super::grouping_set_hash_table::{
-    GroupingSetHashTable,
-    GroupingSetOperatorState,
-    GroupingSetPartitionState,
+use super::hash_table::partitioned::{
+    PartitionedHashTable,
+    PartitionedHashTableOperatorState,
+    PartitionedHashTablePartitionState,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
@@ -52,19 +52,19 @@ pub struct DistinctAggregateInfo<'a> {
 #[derive(Debug)]
 pub struct DistinctCollectionOperatorState {
     /// Operator states for all distinct tables.
-    states: Vec<GroupingSetOperatorState>,
+    states: Vec<PartitionedHashTableOperatorState>,
 }
 
 #[derive(Debug)]
 pub struct DistinctCollectionPartitionState {
     /// Partition state per distinct table.
-    states: Vec<GroupingSetPartitionState>,
+    states: Vec<PartitionedHashTablePartitionState>,
 }
 
 #[derive(Debug)]
 struct DistinctTable {
     /// The table holding the inputs.
-    table: GroupingSetHashTable,
+    table: PartitionedHashTable,
     /// Inputs we're distincting on.
     inputs: Vec<PhysicalColumnExpr>,
     /// Aggregate indices that this table corresponds to.
@@ -126,7 +126,7 @@ impl DistinctCollection {
                         aggregates: Vec::new(),
                     };
                     let grouping_set: BTreeSet<_> = (0..inputs.len()).collect();
-                    let table = GroupingSetHashTable::new(&aggregates, grouping_set);
+                    let table = PartitionedHashTable::new(&aggregates, grouping_set);
 
                     tables.push(DistinctTable {
                         table,
@@ -210,7 +210,7 @@ impl DistinctCollection {
         for (table, state) in self.tables.iter().zip(&mut state.states) {
             // No agg selection since we don't have any aggs in the hash table.
             // It's just a big GROUP BY.
-            table.table.insert_input_local(state, &[], input)?;
+            table.table.insert_partition_local(state, &[], input)?;
         }
 
         Ok(())
@@ -228,21 +228,30 @@ impl DistinctCollection {
         let state_iter = op_state.states.iter().zip(&mut state.states);
 
         for (table, (op_state, part_state)) in self.tables.iter().zip(state_iter) {
-            let _ = table.table.flush(op_state, part_state)?;
+            table.table.flush(op_state, part_state)?;
         }
 
         Ok(())
     }
 
-    /// Merges all flushed tables.
+    /// Merges all flushed tables for this partition.
     ///
-    /// Should only be called onces from one partition, and not concurrently
-    /// with scans.
-    pub fn merge_flushed(&self, op_state: &DistinctCollectionOperatorState) -> Result<()> {
+    /// Should only be called once per partition, and not concurrently with
+    /// scans.
+    pub fn merge_global(
+        &self,
+        op_state: &DistinctCollectionOperatorState,
+        state: &mut DistinctCollectionPartitionState,
+    ) -> Result<()> {
         debug_assert_eq!(self.tables.len(), op_state.states.len());
+        debug_assert_eq!(self.tables.len(), state.states.len());
 
-        for (table, op_state) in self.tables.iter().zip(&op_state.states) {
-            table.table.merge_flushed(op_state)?;
+        for (table, (op_state, part_state)) in self
+            .tables
+            .iter()
+            .zip(op_state.states.iter().zip(&mut state.states))
+        {
+            table.table.merge_global(op_state, part_state)?;
         }
 
         Ok(())
@@ -292,7 +301,9 @@ mod tests {
         let mut b = generate_batch!([1, 2, 3, 3, 4], ["a", "b", "c", "d", "e"]);
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
-        collection.merge_flushed(&op_state).unwrap();
+        collection
+            .merge_global(&op_state, &mut part_states[0])
+            .unwrap();
 
         let mut out = Batch::new([DataType::Int32], 16).unwrap();
         collection
@@ -321,7 +332,9 @@ mod tests {
         let mut b = generate_batch!([1, 2, 3, 3, 4], ["a", "b", "b", "a", "a"]);
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
-        collection.merge_flushed(&op_state).unwrap();
+        collection
+            .merge_global(&op_state, &mut part_states[0])
+            .unwrap();
 
         let mut out = Batch::new([DataType::Utf8], 16).unwrap();
         collection
@@ -350,7 +363,9 @@ mod tests {
         let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "a"]);
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
-        collection.merge_flushed(&op_state).unwrap();
+        collection
+            .merge_global(&op_state, &mut part_states[0])
+            .unwrap();
 
         let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
         collection
@@ -387,7 +402,9 @@ mod tests {
         let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "c"]);
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
-        collection.merge_flushed(&op_state).unwrap();
+        collection
+            .merge_global(&op_state, &mut part_states[0])
+            .unwrap();
 
         let mut out_agg1 = Batch::new([DataType::Int32], 16).unwrap();
         collection
@@ -431,7 +448,9 @@ mod tests {
         let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "c"]);
         collection.insert(&mut part_states[0], &mut b).unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
-        collection.merge_flushed(&op_state).unwrap();
+        collection
+            .merge_global(&op_state, &mut part_states[0])
+            .unwrap();
 
         let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
         collection

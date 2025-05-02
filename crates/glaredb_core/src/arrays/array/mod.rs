@@ -168,6 +168,17 @@ impl Array {
         Ok(())
     }
 
+    pub fn clone(&mut self) -> Result<Self> {
+        let cloned = make_array_buffer_shared_and_clone(&mut self.data)?;
+        let validity = self.validity.clone();
+
+        Ok(Array {
+            datatype: self.datatype.clone(),
+            validity,
+            data: cloned,
+        })
+    }
+
     /// Try to clone the data from the other array into this one, possibly
     /// caching the existing buffers.
     ///

@@ -8,8 +8,9 @@ DESCRIBE SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC 
 URL       Utf8
 c         Int64
 
+# Extra ORDER BY since two rows have the same count of 43 (the 11th row, not shown)
 query ???
-SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
+SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC, URL LIMIT 10;
 ----
 1  https://produkty%2Fproduct                                                                                              225
 1  https://produkty%2Fpulove.ru/album/login                                                                                140
@@ -21,4 +22,3 @@ SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
 1  https://produkty/full&qset=159508&s_yers                                                                                60
 1  https://produkty%2Fproduct_id                                                                                           50
 1  https://produkty%2Fpulove.ru/moscow                                                                                     43
-
