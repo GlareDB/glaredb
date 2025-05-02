@@ -473,15 +473,15 @@ impl PruneState {
                 // If we have an empty column list, then we're likely just
                 // checking for the existence of rows. So just always include at
                 // least one to make things easy for us.
-                if cols.is_empty() {
-                    cols.insert(
-                        scan.node
-                            .projection
-                            .first()
-                            .copied()
-                            .ok_or_else(|| DbError::new("Scan references no columns"))?,
-                    );
-                }
+                // if cols.is_empty() {
+                //     cols.insert(
+                //         scan.node
+                //             .projection
+                //             .first()
+                //             .copied()
+                //             .ok_or_else(|| DbError::new("Scan references no columns"))?,
+                //     );
+                // }
 
                 // Check if we're not referencing all columns. If so, we should
                 // prune.

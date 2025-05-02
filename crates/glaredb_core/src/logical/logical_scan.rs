@@ -70,6 +70,9 @@ pub struct LogicalScan {
     /// Positional column projections.
     ///
     /// Ascending order.
+    ///
+    /// An empty projection list is valid. In such cases, we should emit batches
+    /// containing no columns but the correct number of rows.
     pub projection: Vec<usize>,
     /// Scan filters that have been pushed down.
     ///
