@@ -65,10 +65,6 @@ impl ExpressionEvaluator {
         self.expressions.len()
     }
 
-    pub(crate) fn expressions(&self) -> &[PhysicalScalarExpression] {
-        &self.expressions
-    }
-
     /// Returns the parts needed for expression eval.
     ///
     /// Used for selection short-circuiting.
