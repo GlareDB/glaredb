@@ -61,9 +61,7 @@ impl SelectionEvaluator {
         let (exprs, states) = self.evaluator.eval_parts_mut();
 
         match &exprs[0] {
-            PhysicalScalarExpression::Conjunction(conj)
-                if conj.op == ConjunctionOperator::And && false =>
-            {
+            PhysicalScalarExpression::Conjunction(conj) if conj.op == ConjunctionOperator::And => {
                 // AND short circuiting.
                 self.selection.clear();
                 self.selection_sec.clear();

@@ -4,6 +4,7 @@ pub mod filter_pushdown;
 pub mod join_reorder;
 pub mod limit_pushdown;
 pub mod location;
+pub mod selection_reorder;
 
 #[allow(dead_code)] // Until it's more robust
 pub mod redundant_groups;
@@ -14,6 +15,7 @@ use filter_pushdown::FilterPushdown;
 use glaredb_error::Result;
 use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
+use selection_reorder::SelectionReorder;
 use tracing::debug;
 
 use crate::catalog::profile::OptimizerProfile;
@@ -100,20 +102,13 @@ impl Optimizer {
             .timings
             .push(("join_reorder", timer.stop()));
 
-        // DO THE OTHER RULES
-
-        // Second filter pushdown.
-        //
-        // Join order currently has a chance of producing a comparison join
-        // followed by a filter with the comparison not being an equality.
-        // Pushing down again gives us the best chance to get equalities into
-        // the condition (for now, we can probably work on the join order more).
-        // let timer = Timer::<I>::start();
-        // let mut rule = FilterPushdown::default();
-        // let plan = rule.optimize(bind_context, plan)?;
-        // self.profile_data
-        //     .timings
-        //     .push(("filter_pushdown_2", timer.stop()));
+        // Selection reorder.
+        let timer = Timer::<I>::start();
+        let mut rule = SelectionReorder;
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("selection_reorder", timer.stop()));
 
         // TODO: Location clustering once the rest is done.
         // let rule = LocationRule {};
