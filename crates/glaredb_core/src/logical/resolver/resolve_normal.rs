@@ -129,7 +129,7 @@ where
         };
 
         match schema_ent.get_table_function(&name)? {
-            Some(entry) => Ok(Some(entry.try_as_table_function_entry()?.function)),
+            Some(entry) => Ok(Some(*entry.try_as_table_function_entry()?.function)),
             _ => Ok(None),
         }
     }
@@ -208,7 +208,7 @@ where
                         database_context: self.context,
                     };
                     let planned =
-                        expr::bind_table_scan_function(&table_ent.function, scan_context, inputs)
+                        expr::bind_table_scan_function(table_ent.function, scan_context, inputs)
                             .await?;
 
                     return Ok(MaybeResolvedTable::Resolved(
@@ -271,7 +271,7 @@ where
 
         let func = ent.try_as_table_function_entry()?.function;
 
-        Ok(func)
+        Ok(*func)
     }
 
     fn resolve_from_memory_catalog(

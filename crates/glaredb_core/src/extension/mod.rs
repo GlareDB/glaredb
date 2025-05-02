@@ -13,11 +13,11 @@ pub trait Extension {
     /// If None, functions will be placed in the default schema.
     const FUNCTION_NAMESPACE: Option<&str>;
 
-    fn scalar_functions(&self) -> &[ScalarFunctionSet] {
+    fn scalar_functions(&self) -> &[&'static ScalarFunctionSet] {
         &[]
     }
 
-    fn aggregate_functions(&self) -> &[AggregateFunctionSet] {
+    fn aggregate_functions(&self) -> &[&'static AggregateFunctionSet] {
         &[]
     }
 
@@ -26,16 +26,14 @@ pub trait Extension {
     }
 }
 
-// TODO: Should this just hold static references instead? That'd mean we'd be
-// able to just hold static references in the catalog.
 #[derive(Debug, Clone, Copy)]
 pub struct ExtensionTableFunction {
     pub infer_scan: Option<FileInferScan>,
-    pub function: TableFunctionSet,
+    pub function: &'static TableFunctionSet,
 }
 
 impl ExtensionTableFunction {
-    pub const fn new(function: TableFunctionSet) -> Self {
+    pub const fn new(function: &'static TableFunctionSet) -> Self {
         ExtensionTableFunction {
             infer_scan: None,
             function,

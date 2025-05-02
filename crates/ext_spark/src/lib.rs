@@ -12,7 +12,7 @@ impl Extension for SparkExtension {
     const NAME: &str = "spark";
     const FUNCTION_NAMESPACE: Option<&str> = Some("spark");
 
-    fn scalar_functions(&self) -> &[ScalarFunctionSet] {
-        &[FUNCTION_SET_CSC, FUNCTION_SET_EXPM1]
+    fn scalar_functions(&self) -> &[&'static ScalarFunctionSet] {
+        &[&FUNCTION_SET_CSC, &FUNCTION_SET_EXPM1]
     }
 }

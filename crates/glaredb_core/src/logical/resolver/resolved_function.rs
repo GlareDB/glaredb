@@ -46,8 +46,8 @@ impl SpecialBuiltinFunction {
 /// A resolved aggregate or scalar function.
 #[derive(Debug, Clone)]
 pub enum ResolvedFunction {
-    Scalar(ScalarFunctionSet),
-    Aggregate(AggregateFunctionSet),
+    Scalar(&'static ScalarFunctionSet),
+    Aggregate(&'static AggregateFunctionSet),
     Special(SpecialBuiltinFunction),
 }
 

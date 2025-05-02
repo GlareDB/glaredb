@@ -55,18 +55,18 @@ pub enum CatalogEntryInner {
 
 #[derive(Debug)]
 pub struct ScalarFunctionEntry {
-    pub function: ScalarFunctionSet,
+    pub function: &'static ScalarFunctionSet,
 }
 
 #[derive(Debug)]
 pub struct AggregateFunctionEntry {
-    pub function: AggregateFunctionSet,
+    pub function: &'static AggregateFunctionSet,
 }
 
 #[derive(Debug)]
 pub struct TableFunctionEntry {
     /// The table function.
-    pub function: TableFunctionSet,
+    pub function: &'static TableFunctionSet,
     pub infer_scan: Option<FileInferScan>,
 }
 
@@ -78,7 +78,7 @@ pub struct TableEntry {
     ///
     /// This should currently expect to accept 'catalog', 'schema', and 'table'
     /// as string arguments.
-    pub function: TableFunctionSet,
+    pub function: &'static TableFunctionSet,
     /// Identifier for getting the data table from the storage manager.
     // TODO: This should be opaque. Different storage managers should be able to
     // different identifiers here.

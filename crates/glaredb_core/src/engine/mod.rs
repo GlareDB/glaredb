@@ -72,7 +72,7 @@ where
     /// Register a new extension for this engine.
     pub fn register_extension<E>(&self, ext: E) -> Result<()>
     where
-        E: Extension,
+        E: Extension + 'static,
     {
         let schema = match E::FUNCTION_NAMESPACE {
             Some(namespace) => {
@@ -97,14 +97,14 @@ where
         for scalar in ext.scalar_functions() {
             schema.create_scalar_function(&CreateScalarFunctionInfo {
                 name: scalar.name.to_string(),
-                implementation: *scalar,
+                implementation: scalar,
                 on_conflict: OnConflict::Error,
             })?;
 
             for alias in scalar.aliases {
                 schema.create_scalar_function(&CreateScalarFunctionInfo {
                     name: alias.to_string(),
-                    implementation: *scalar,
+                    implementation: scalar,
                     on_conflict: OnConflict::Error,
                 })?;
             }
@@ -114,14 +114,14 @@ where
         for agg in ext.aggregate_functions() {
             schema.create_aggregate_function(&CreateAggregateFunctionInfo {
                 name: agg.name.to_string(),
-                implementation: *agg,
+                implementation: agg,
                 on_conflict: OnConflict::Error,
             })?;
 
             for alias in agg.aliases {
                 schema.create_aggregate_function(&CreateAggregateFunctionInfo {
                     name: alias.to_string(),
-                    implementation: *agg,
+                    implementation: agg,
                     on_conflict: OnConflict::Error,
                 })?;
             }

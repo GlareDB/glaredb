@@ -17,14 +17,14 @@ impl Extension for ParquetExtension {
     fn table_functions(&self) -> &[ExtensionTableFunction] {
         const FUNCTIONS: &[ExtensionTableFunction] = &[
             // Metadata functions
-            ExtensionTableFunction::new(FUNCTION_SET_PARQUET_FILE_METADATA),
-            ExtensionTableFunction::new(FUNCTION_SET_PARQUET_ROWGROUP_METADATA),
+            ExtensionTableFunction::new(&FUNCTION_SET_PARQUET_FILE_METADATA),
+            ExtensionTableFunction::new(&FUNCTION_SET_PARQUET_ROWGROUP_METADATA),
             // Scan functions
             ExtensionTableFunction {
                 infer_scan: Some(FileInferScan {
                     can_handle: |path| path.ends_with(".parquet"), // TODO: Not sure what we want to do with compression extensions yet.
                 }),
-                function: FUNCTION_SET_READ_PARQUET,
+                function: &FUNCTION_SET_READ_PARQUET,
             },
         ];
 
