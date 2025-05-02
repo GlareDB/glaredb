@@ -180,6 +180,13 @@ impl Reader {
         loop {
             match &mut self.fetch_state {
                 FetchState::NeedsFetch { column_idx } => {
+                    if self.root.readers.is_empty() {
+                        // We're not actually trying to read any columns.
+                        // Indicate the we've successfully "fetched" no columns.
+                        self.fetch_state = FetchState::Fetched;
+                        continue;
+                    }
+
                     let real_idx = self.projections.data_indices()[*column_idx];
                     let col = &row_group.columns[real_idx];
 
