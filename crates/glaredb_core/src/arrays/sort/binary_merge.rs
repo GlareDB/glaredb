@@ -607,7 +607,8 @@ impl<'a> BinaryMerger<'a> {
 
             let src_ptr = unsafe { block.as_ptr().byte_add(row_width * src_scan.row_idx) };
 
-            let copy_count = usize::min(num_rows, rem_rows);
+            let rem_in_block = num_rows - src_scan.row_idx;
+            let copy_count = usize::min(rem_in_block, rem_rows);
             unsafe {
                 out_ptr.copy_from_nonoverlapping(src_ptr, row_width * copy_count);
                 out_ptr = out_ptr.byte_add(row_width * copy_count);
