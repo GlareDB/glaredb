@@ -2,33 +2,43 @@ use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
-use crate::functions::scalar::{BindState, ScalarFunction};
+use crate::functions::Signature;
+use crate::functions::documentation::{Category, Documentation};
+use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
-/// A function implementation that errors during bind and execute indicating
-/// something is not implemented.
+pub const FUNCTION_SET_DEBUG_ERROR_ON_EXECUTE: ScalarFunctionSet = ScalarFunctionSet {
+    name: "debug_error_on_execute",
+    aliases: &[],
+    doc: &[&Documentation {
+        category: Category::Debug,
+        description: "Return an error when this function gets executed.",
+        arguments: &[],
+        example: None,
+    }],
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[], DataTypeId::Int32),
+        &DebugErrorOnExecute,
+    )],
+};
+
 #[derive(Debug, Clone, Copy)]
-pub struct ScalarNotImplemented {
-    name: &'static str,
-}
+pub struct DebugErrorOnExecute;
 
-impl ScalarNotImplemented {
-    pub const fn new(name: &'static str) -> Self {
-        ScalarNotImplemented { name }
-    }
-}
-
-impl ScalarFunction for ScalarNotImplemented {
+impl ScalarFunction for DebugErrorOnExecute {
     type State = ();
 
-    fn bind(&self, _inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
-        Err(DbError::new(format!(
-            "Scalar function '{}' not yet implemnted",
-            self.name
-        )))
+    fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
+        Ok(BindState {
+            state: (),
+            return_type: DataType::Int32,
+            inputs,
+        })
     }
 
     fn execute(_state: &Self::State, _input: &Batch, _output: &mut Array) -> Result<()> {
-        Err(DbError::new("Scalar function not implemented"))
+        Err(DbError::new("Debug error on execute"))
     }
 }

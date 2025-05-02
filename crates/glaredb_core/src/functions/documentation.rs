@@ -11,6 +11,7 @@ pub enum Category {
     Binary,
     Table,
     System,
+    Debug,
 }
 
 impl Category {
@@ -26,6 +27,7 @@ impl Category {
             Self::Binary => "binary",
             Self::Table => "table",
             Self::System => "system",
+            Self::Debug => "debug",
         }
     }
 }

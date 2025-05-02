@@ -65,6 +65,19 @@ impl ExpressionEvaluator {
         self.expressions.len()
     }
 
+    pub(crate) fn expressions(&self) -> &[PhysicalScalarExpression] {
+        &self.expressions
+    }
+
+    /// Returns the parts needed for expression eval.
+    ///
+    /// Used for selection short-circuiting.
+    pub(crate) fn eval_parts_mut(
+        &mut self,
+    ) -> (&[PhysicalScalarExpression], &mut [ExpressionState]) {
+        (&self.expressions, &mut self.states)
+    }
+
     /// Try to evaluate a single expression into a constant value.
     pub fn try_eval_constant(&mut self) -> Result<ScalarValue> {
         if self.expressions.len() != 1 {

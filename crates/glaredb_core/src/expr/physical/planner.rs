@@ -4,6 +4,7 @@ use super::PhysicalSortExpression;
 use super::case_expr::PhysicalCaseExpr;
 use super::cast_expr::PhysicalCastExpr;
 use super::column_expr::PhysicalColumnExpr;
+use super::conjunction_expr::PhysicalConjunctionExpr;
 use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
 use crate::expr::physical::PhysicalScalarExpression;
@@ -110,22 +111,33 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 expr: Box::new(self.plan_scalar(table_refs, &expr.expr)?),
                 cast_function: expr.cast_function.clone(),
             })),
-            Expression::Comparison(expr) => self.plan_as_scalar_function(
-                table_refs,
-                expr.op,
-                vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
-            ),
-            Expression::Arith(expr) => self.plan_as_scalar_function(
-                table_refs,
-                expr.op,
-                vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
-            ),
+            Expression::Comparison(expr) => self
+                .plan_as_scalar_function(
+                    table_refs,
+                    expr.op,
+                    vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
+                )
+                .map(|expr| expr.into()),
+            Expression::Arith(expr) => self
+                .plan_as_scalar_function(
+                    table_refs,
+                    expr.op,
+                    vec![expr.left.as_ref().clone(), expr.right.as_ref().clone()],
+                )
+                .map(|expr| expr.into()),
             Expression::Conjunction(expr) => {
-                self.plan_as_scalar_function(table_refs, expr.op, expr.expressions.clone())
+                let fn_expr =
+                    self.plan_as_scalar_function(table_refs, expr.op, expr.expressions.clone())?;
+                Ok(PhysicalScalarExpression::Conjunction(
+                    PhysicalConjunctionExpr {
+                        op: expr.op,
+                        expr: fn_expr,
+                    },
+                ))
             }
-            Expression::Negate(expr) => {
-                self.plan_as_scalar_function(table_refs, expr.op, vec![expr.expr.as_ref().clone()])
-            }
+            Expression::Negate(expr) => self
+                .plan_as_scalar_function(table_refs, expr.op, vec![expr.expr.as_ref().clone()])
+                .map(|expr| expr.into()),
             Expression::Case(expr) => {
                 let datatype = &expr.datatype;
 
@@ -158,7 +170,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         table_refs: &[TableRef],
         op: impl AsScalarFunctionSet,
         inputs: Vec<Expression>,
-    ) -> Result<PhysicalScalarExpression> {
+    ) -> Result<PhysicalScalarFunctionExpr> {
         let datatypes = inputs
             .iter()
             .map(|input| input.datatype())
@@ -177,12 +189,10 @@ impl<'a> PhysicalExpressionPlanner<'a> {
 
         let physical_inputs = self.plan_scalars(table_refs, &planned.state.inputs)?;
 
-        Ok(PhysicalScalarExpression::ScalarFunction(
-            PhysicalScalarFunctionExpr {
-                function: planned,
-                inputs: physical_inputs,
-            },
-        ))
+        Ok(PhysicalScalarFunctionExpr {
+            function: planned,
+            inputs: physical_inputs,
+        })
     }
 
     pub fn plan_sorts(
