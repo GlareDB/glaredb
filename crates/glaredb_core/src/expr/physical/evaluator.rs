@@ -129,6 +129,7 @@ impl ExpressionEvaluator {
             PhysicalScalarExpression::Column(expr) => expr.eval(input, state, sel, output),
             PhysicalScalarExpression::Case(expr) => expr.eval(input, state, sel, output),
             PhysicalScalarExpression::Cast(expr) => expr.eval(input, state, sel, output),
+            PhysicalScalarExpression::Conjunction(expr) => expr.eval(input, state, sel, output),
             PhysicalScalarExpression::Literal(expr) => expr.eval(input, state, sel, output),
             PhysicalScalarExpression::ScalarFunction(expr) => expr.eval(input, state, sel, output),
         }
