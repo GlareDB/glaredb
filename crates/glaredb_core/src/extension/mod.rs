@@ -26,8 +26,6 @@ pub trait Extension {
     }
 }
 
-// TODO: Should this just hold static references instead? That'd mean we'd be
-// able to just hold static references in the catalog.
 #[derive(Debug, Clone, Copy)]
 pub struct ExtensionTableFunction {
     pub infer_scan: Option<FileInferScan>,
