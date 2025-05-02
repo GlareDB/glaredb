@@ -25,6 +25,16 @@ SELECT count(*) FROM read_parquet('../testdata/parquet/userdata0.parquet');
 ----
 1000
 
+query I
+SELECT count(DISTINCT title) FROM read_parquet('../testdata/parquet/userdata0.parquet');
+----
+182
+
+query I
+SELECT count(*) FROM read_parquet('../testdata/parquet/userdata0.parquet') WHERE title = '';
+----
+197
+
 # Min/max on timestamp
 query ??
 SELECT min(registration_dttm), max(registration_dttm) FROM read_parquet('../testdata/parquet/userdata0.parquet');
@@ -36,3 +46,4 @@ query I
 SELECT count(*) FROM read_parquet('../testdata/parquet/userdata0.parquet') WHERE salary IS NULL;
 ----
 68
+

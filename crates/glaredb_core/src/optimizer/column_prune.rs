@@ -458,7 +458,10 @@ impl PruneState {
             LogicalOperator::Scan(scan) => {
                 // BTree since we make the guarantee projections are ordered in
                 // the scan.
-                let mut cols: BTreeSet<_> = self
+                //
+                // Note that an empty set is valid. Scans should be able to
+                // handle empty projection lists.
+                let cols: BTreeSet<_> = self
                     .current_references
                     .iter()
                     .filter_map(|col_expr| {
@@ -469,19 +472,6 @@ impl PruneState {
                         }
                     })
                     .collect();
-
-                // If we have an empty column list, then we're likely just
-                // checking for the existence of rows. So just always include at
-                // least one to make things easy for us.
-                if cols.is_empty() {
-                    cols.insert(
-                        scan.node
-                            .projection
-                            .first()
-                            .copied()
-                            .ok_or_else(|| DbError::new("Scan references no columns"))?,
-                    );
-                }
 
                 // Check if we're not referencing all columns. If so, we should
                 // prune.
