@@ -330,6 +330,7 @@ impl LogicalOperator {
         std::mem::replace(self, Box::new(Self::SINGLE_ROW))
     }
 
+    // TODO: Remove?
     pub fn for_each_child_mut<F>(&mut self, _f: &mut F) -> Result<()>
     where
         F: FnMut(&mut LogicalOperator) -> Result<()>,

@@ -13,6 +13,8 @@ pub mod similarity;
 pub mod string;
 pub mod struct_funcs;
 
+mod not_implemented;
+
 use arith::{
     FUNCTION_SET_ADD,
     FUNCTION_SET_DIV,
@@ -37,6 +39,7 @@ use datetime::{
     FUNCTION_SET_EPOCH,
     FUNCTION_SET_EPOCH_MS,
 };
+use debug::FUNCTION_SET_DEBUG_ERROR_ON_EXECUTE;
 use is::{
     FUNCTION_SET_IS_FALSE,
     FUNCTION_SET_IS_NOT_FALSE,
@@ -223,4 +226,6 @@ pub const BUILTIN_SCALAR_FUNCTION_SETS: &[ScalarFunctionSet] = &[
     FUNCTION_SET_IS_NOT_FALSE,
     // Distance
     FUNCTION_SET_L2_DISTANCE,
+    // Debug
+    FUNCTION_SET_DEBUG_ERROR_ON_EXECUTE,
 ];

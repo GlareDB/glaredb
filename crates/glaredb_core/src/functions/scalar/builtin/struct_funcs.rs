@@ -1,4 +1,4 @@
-use super::debug::ScalarNotImplemented;
+use super::not_implemented::ScalarNotImplemented;
 use crate::arrays::datatype::DataTypeId;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};

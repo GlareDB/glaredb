@@ -5,6 +5,7 @@ pub mod selection_evaluator;
 pub mod case_expr;
 pub mod cast_expr;
 pub mod column_expr;
+pub mod conjunction_expr;
 pub mod literal_expr;
 pub mod scalar_function_expr;
 
@@ -13,6 +14,7 @@ use std::fmt;
 use case_expr::PhysicalCaseExpr;
 use cast_expr::PhysicalCastExpr;
 use column_expr::PhysicalColumnExpr;
+use conjunction_expr::PhysicalConjunctionExpr;
 use evaluator::ExpressionState;
 use glaredb_error::Result;
 use literal_expr::PhysicalLiteralExpr;
@@ -26,6 +28,7 @@ pub enum PhysicalScalarExpression {
     Case(PhysicalCaseExpr),
     Cast(PhysicalCastExpr),
     Column(PhysicalColumnExpr),
+    Conjunction(PhysicalConjunctionExpr),
     Literal(PhysicalLiteralExpr),
     ScalarFunction(PhysicalScalarFunctionExpr),
 }
@@ -48,6 +51,12 @@ impl From<PhysicalColumnExpr> for PhysicalScalarExpression {
     }
 }
 
+impl From<PhysicalConjunctionExpr> for PhysicalScalarExpression {
+    fn from(value: PhysicalConjunctionExpr) -> Self {
+        PhysicalScalarExpression::Conjunction(value)
+    }
+}
+
 impl From<PhysicalLiteralExpr> for PhysicalScalarExpression {
     fn from(value: PhysicalLiteralExpr) -> Self {
         PhysicalScalarExpression::Literal(value)
@@ -66,6 +75,7 @@ impl PhysicalScalarExpression {
             Self::Case(expr) => expr.create_state(batch_size),
             Self::Cast(expr) => expr.create_state(batch_size),
             Self::Column(expr) => expr.create_state(batch_size),
+            Self::Conjunction(expr) => expr.create_state(batch_size),
             Self::Literal(expr) => expr.create_state(batch_size),
             Self::ScalarFunction(expr) => expr.create_state(batch_size),
         }
@@ -76,6 +86,7 @@ impl PhysicalScalarExpression {
             Self::Case(expr) => expr.datatype(),
             Self::Cast(expr) => expr.datatype(),
             Self::Column(expr) => expr.datatype(),
+            Self::Conjunction(expr) => expr.datatype(),
             Self::Literal(expr) => expr.datatype(),
             Self::ScalarFunction(expr) => expr.datatype(),
         }
@@ -88,6 +99,7 @@ impl fmt::Display for PhysicalScalarExpression {
             Self::Case(expr) => expr.fmt(f),
             Self::Cast(expr) => expr.fmt(f),
             Self::Column(expr) => expr.fmt(f),
+            Self::Conjunction(expr) => expr.fmt(f),
             Self::Literal(expr) => expr.fmt(f),
             Self::ScalarFunction(expr) => expr.fmt(f),
         }
