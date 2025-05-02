@@ -42,7 +42,7 @@ where
 
     pub fn register_extension<E>(&self, ext: E) -> Result<()>
     where
-        E: Extension,
+        E: Extension + 'static,
     {
         self.engine.register_extension(ext)
     }

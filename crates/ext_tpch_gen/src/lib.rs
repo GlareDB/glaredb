@@ -21,14 +21,14 @@ impl Extension for TpchGenExtension {
 
     fn table_functions(&self) -> &[ExtensionTableFunction] {
         const FUNCTIONS: &[ExtensionTableFunction] = &[
-            ExtensionTableFunction::new(FUNCTION_SET_REGION),
-            ExtensionTableFunction::new(FUNCTION_SET_PART),
-            ExtensionTableFunction::new(FUNCTION_SET_SUPPLIER),
-            ExtensionTableFunction::new(FUNCTION_SET_CUSTOMER),
-            ExtensionTableFunction::new(FUNCTION_SET_PARTSUPP),
-            ExtensionTableFunction::new(FUNCTION_SET_ORDERS),
-            ExtensionTableFunction::new(FUNCTION_SET_LINEITEM),
-            ExtensionTableFunction::new(FUNCTION_SET_NATION),
+            ExtensionTableFunction::new(&FUNCTION_SET_REGION),
+            ExtensionTableFunction::new(&FUNCTION_SET_PART),
+            ExtensionTableFunction::new(&FUNCTION_SET_SUPPLIER),
+            ExtensionTableFunction::new(&FUNCTION_SET_CUSTOMER),
+            ExtensionTableFunction::new(&FUNCTION_SET_PARTSUPP),
+            ExtensionTableFunction::new(&FUNCTION_SET_ORDERS),
+            ExtensionTableFunction::new(&FUNCTION_SET_LINEITEM),
+            ExtensionTableFunction::new(&FUNCTION_SET_NATION),
         ];
 
         FUNCTIONS

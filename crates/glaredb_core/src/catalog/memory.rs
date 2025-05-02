@@ -255,7 +255,7 @@ impl Schema for MemorySchema {
             name: create.name.clone(),
             entry: CatalogEntryInner::Table(TableEntry {
                 columns: create.columns.clone(),
-                function: FUNCTION_SET_MEMORY_SCAN,
+                function: &FUNCTION_SET_MEMORY_SCAN,
                 storage_id,
             }),
             child: None,
@@ -638,7 +638,7 @@ mod tests {
         schema
             .create_aggregate_function(&CreateAggregateFunctionInfo {
                 name: "sum".to_string(),
-                implementation: FUNCTION_SET_SUM,
+                implementation: &FUNCTION_SET_SUM,
                 on_conflict: OnConflict::Error,
             })
             .unwrap();

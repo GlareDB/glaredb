@@ -47,14 +47,14 @@ pub struct CreateViewInfo {
 #[derive(Debug)]
 pub struct CreateScalarFunctionInfo {
     pub name: String,
-    pub implementation: ScalarFunctionSet,
+    pub implementation: &'static ScalarFunctionSet,
     pub on_conflict: OnConflict,
 }
 
 #[derive(Debug)]
 pub struct CreateAggregateFunctionInfo {
     pub name: String,
-    pub implementation: AggregateFunctionSet,
+    pub implementation: &'static AggregateFunctionSet,
     pub on_conflict: OnConflict,
 }
 
@@ -62,7 +62,7 @@ pub struct CreateAggregateFunctionInfo {
 #[derive(Debug)]
 pub struct CreateTableFunctionInfo {
     pub name: String,
-    pub implementation: TableFunctionSet,
+    pub implementation: &'static TableFunctionSet,
     pub infer_scan: Option<FileInferScan>,
     pub on_conflict: OnConflict,
 }

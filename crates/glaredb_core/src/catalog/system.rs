@@ -42,14 +42,14 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
     for func in BUILTIN_SCALAR_FUNCTION_SETS.iter() {
         builtin.create_scalar_function(&CreateScalarFunctionInfo {
             name: func.name.to_string(),
-            implementation: *func,
+            implementation: func,
             on_conflict: OnConflict::Error,
         })?;
 
         for alias in func.aliases {
             builtin.create_scalar_function(&CreateScalarFunctionInfo {
                 name: alias.to_string(),
-                implementation: *func,
+                implementation: func,
                 on_conflict: OnConflict::Error,
             })?;
         }
@@ -59,14 +59,14 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
     for func in BUILTIN_AGGREGATE_FUNCTION_SETS.iter() {
         builtin.create_aggregate_function(&CreateAggregateFunctionInfo {
             name: func.name.to_string(),
-            implementation: *func,
+            implementation: func,
             on_conflict: OnConflict::Error,
         })?;
 
         for alias in func.aliases {
             builtin.create_aggregate_function(&CreateAggregateFunctionInfo {
                 name: alias.to_string(),
-                implementation: *func,
+                implementation: func,
                 on_conflict: OnConflict::Error,
             })?;
         }
@@ -76,7 +76,7 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
     for func in BUILTIN_TABLE_FUNCTION_SETS.iter() {
         builtin.create_table_function(&CreateTableFunctionInfo {
             name: func.name.to_string(),
-            implementation: *func,
+            implementation: func,
             infer_scan: None,
             on_conflict: OnConflict::Error,
         })?;
@@ -84,7 +84,7 @@ pub fn new_system_catalog() -> Result<MemoryCatalog> {
         for alias in func.aliases {
             builtin.create_table_function(&CreateTableFunctionInfo {
                 name: alias.to_string(),
-                implementation: *func,
+                implementation: func,
                 infer_scan: None,
                 on_conflict: OnConflict::Error,
             })?;
