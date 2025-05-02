@@ -15,6 +15,6 @@ parking_lot = { workspace = true }
 chrono = { version = "0.4.39", features = ["serde"] }
 futures = { workspace = true }
 hmac = "0.12.1"
-sha2 = "0.10.8"
+sha2 = "0.10.9"
 percent-encoding = "2.3.1"
 quick-xml = { version = "0.37.4", default-features = false, features = ["serialize"] }
