@@ -1,0 +1,24 @@
+# Bitwise operator tests.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query III
+SELECT 4 | 3, 0 | 0, 1 | 1;
+----
+7  0  1
+
+query III
+SELECT 4 & 3, 0 & 0, 1 & 1;
+----
+0  0  1
+
+query I
+SELECT 4 | NULL;
+----
+NULL
+
+query I
+SELECT 4 & NULL;
+----
+NULL
