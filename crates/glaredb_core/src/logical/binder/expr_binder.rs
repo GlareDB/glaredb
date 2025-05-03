@@ -40,6 +40,7 @@ use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_TRUE,
 };
 use crate::functions::scalar::builtin::list::{FUNCTION_SET_LIST_EXTRACT, FUNCTION_SET_LIST_VALUE};
+use crate::functions::scalar::builtin::numeric::FUNCTION_SET_POWER;
 use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_CONCAT,
     FUNCTION_SET_LIKE,
@@ -303,6 +304,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::Modulo => {
                         let op = ArithOperator::Mod;
                         expr::arith(op, left, right)?.into()
+                    }
+                    ast::BinaryOperator::Exponent => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_POWER, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
                     }
                     ast::BinaryOperator::BitShiftLeft => {
                         let function =

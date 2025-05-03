@@ -42,6 +42,8 @@ pub enum BinaryOperator {
     IntDiv,
     /// Modulo, e.g. `a % b`
     Modulo,
+    /// `a ^ b`
+    Exponent,
     /// String/Array Concat operator, e.g. `a || b`
     StringConcat,
     /// String starts with operator, e.g. `a ^@ b`
@@ -72,9 +74,9 @@ pub enum BinaryOperator {
     BitwiseAnd,
     /// Bitwise XOR, e.g. `a ^ b`
     BitwiseXor,
-    /// `<<`
+    /// `a << b`
     BitShiftLeft,
-    /// `>>`
+    /// `a >> b`
     BitShiftRight,
     /// IS DISTINCT FROM
     IsDistinctFrom,
@@ -323,7 +325,7 @@ impl Expr<Raw> {
     const PREC_EVERYTHING_ELSE: u8 = 70; // Anything without a specific precedence.
     const PREC_ADD_SUB: u8 = 80;
     const PREC_MUL_DIV_MOD: u8 = 90;
-    const _PREC_EXPONENTIATION: u8 = 100;
+    const PREC_EXPONENTIATION: u8 = 100;
     const PREC_UNARY_MINUS: u8 = 105;
     const _PREC_AT: u8 = 110; // AT TIME ZONE
     const _PREC_COLLATE: u8 = 120;
@@ -579,6 +581,7 @@ impl Expr<Raw> {
             Token::Div => Some(BinaryOperator::Divide),
             Token::IntDiv => Some(BinaryOperator::IntDiv),
             Token::Mod => Some(BinaryOperator::Modulo),
+            Token::Caret | Token::Exponent => Some(BinaryOperator::Exponent),
             Token::BitShiftLeft => Some(BinaryOperator::BitShiftLeft),
             Token::BitShiftRight => Some(BinaryOperator::BitShiftRight),
             Token::Concat => Some(BinaryOperator::StringConcat),
@@ -876,6 +879,7 @@ impl Expr<Raw> {
             // Numeric operators
             Token::Plus | Token::Minus => Ok(Self::PREC_ADD_SUB),
             Token::Mul | Token::Div | Token::IntDiv | Token::Mod => Ok(Self::PREC_MUL_DIV_MOD),
+            Token::Caret | Token::Exponent => Ok(Self::PREC_EXPONENTIATION),
 
             // Bit shifts
             Token::BitShiftLeft | Token::BitShiftRight => Ok(Self::PREC_EVERYTHING_ELSE),
