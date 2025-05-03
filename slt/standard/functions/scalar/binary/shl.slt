@@ -1,0 +1,69 @@
+# Test shl (shift left) function
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Test with Int8 values
+query I
+SELECT shl(CAST(1 AS TINYINT), 2) AS result;
+----
+4
+
+# Test with Int8 values (note: shifting 1 left by 7 bits in a TINYINT causes overflow)
+query I
+SELECT shl(CAST(1 AS TINYINT), 7) AS result;
+----
+-128
+
+# Test with Int8 values (shifting beyond type size)
+query I
+SELECT shl(CAST(1 AS TINYINT), 8) AS result;
+----
+0
+
+# Test with Int16 values
+query I
+SELECT shl(CAST(2 AS SMALLINT), 3) AS result;
+----
+16
+
+# Test with Int16 values
+query I
+SELECT shl(CAST(1 AS SMALLINT), 8) AS result;
+----
+256
+
+# Test with Int32 values
+query I
+SELECT shl(4, 1) AS result;
+----
+8
+
+# Test with Int32 values
+query I
+SELECT shl(1, 16) AS result;
+----
+65536
+
+# Test with Int64 values
+query I
+SELECT shl(CAST(8 AS BIGINT), 3) AS result;
+----
+64
+
+# Test with Int64 values
+query I
+SELECT shl(CAST(1 AS BIGINT), 32) AS result;
+----
+4294967296
+
+# Test with NULL values
+query I
+SELECT shl(NULL, 1) AS result;
+----
+NULL
+
+query I
+SELECT shl(1, NULL) AS result;
+----
+NULL
