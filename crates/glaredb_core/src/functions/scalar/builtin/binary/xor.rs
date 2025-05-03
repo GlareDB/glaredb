@@ -27,17 +27,15 @@ use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
-// Note this should not be part of default function list to avoid potential
-// conflict with the aggregate function.
-pub const FUNCTION_SET_BITXOR: ScalarFunctionSet = ScalarFunctionSet {
-    name: "bitxor",
+pub const FUNCTION_SET_XOR: ScalarFunctionSet = ScalarFunctionSet {
+    name: "xor",
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
         description: "Performs a bitwise XOR operation on two integers.",
         arguments: &["value1", "value2"],
         example: Some(Example {
-            example: "bitxor(5, 3)",
+            example: "xor(5, 3)",
             output: "6",
         }),
     }],

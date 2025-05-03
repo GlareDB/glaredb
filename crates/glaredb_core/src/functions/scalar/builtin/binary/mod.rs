@@ -1,13 +1,13 @@
 mod bitand;
 mod bitor;
-mod bitxor;
 mod hex;
 mod shl;
 mod shr;
+mod xor;
 
 pub use bitand::*;
 pub use bitor::*;
-pub use bitxor::*;
 pub use hex::*;
 pub use shl::*;
 pub use shr::*;
+pub use xor::*;

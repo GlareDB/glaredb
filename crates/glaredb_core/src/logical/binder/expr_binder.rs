@@ -34,6 +34,7 @@ use crate::functions::scalar::builtin::binary::{
     FUNCTION_SET_BITOR,
     FUNCTION_SET_SHL,
     FUNCTION_SET_SHR,
+    FUNCTION_SET_XOR,
 };
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
@@ -333,6 +334,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::BitwiseAnd => {
                         let function =
                             expr::bind_scalar_function(&FUNCTION_SET_BITAND, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
+                    }
+                    ast::BinaryOperator::Xor => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_XOR, vec![left, right])?;
                         Expression::ScalarFunction(ScalarFunctionExpr { function })
                     }
                     ast::BinaryOperator::And => {

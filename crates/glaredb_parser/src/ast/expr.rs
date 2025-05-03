@@ -72,8 +72,6 @@ pub enum BinaryOperator {
     BitwiseOr,
     /// Bitwise and, e.g. `a & b`
     BitwiseAnd,
-    /// Bitwise XOR, e.g. `a XOR b`
-    BitwiseXor,
     /// `a << b`
     BitShiftLeft,
     /// `a >> b`
@@ -584,6 +582,7 @@ impl Expr<Raw> {
             Token::Caret | Token::Exponent => Some(BinaryOperator::Exponent),
             Token::BitShiftLeft => Some(BinaryOperator::BitShiftLeft),
             Token::BitShiftRight => Some(BinaryOperator::BitShiftRight),
+            Token::Hash => Some(BinaryOperator::Xor),
             Token::Pipe => Some(BinaryOperator::BitwiseOr),
             Token::Ampersand => Some(BinaryOperator::BitwiseAnd),
             Token::Concat => Some(BinaryOperator::StringConcat),
@@ -591,6 +590,7 @@ impl Expr<Raw> {
             Token::Word(w) => match w.keyword {
                 Some(Keyword::AND) => Some(BinaryOperator::And),
                 Some(Keyword::OR) => Some(BinaryOperator::Or),
+                Some(Keyword::XOR) => Some(BinaryOperator::Xor),
                 _ => None,
             },
             _ => None,
@@ -884,9 +884,12 @@ impl Expr<Raw> {
             Token::Caret | Token::Exponent => Ok(Self::PREC_EXPONENTIATION),
 
             // Bit operators
-            Token::BitShiftLeft | Token::BitShiftRight | Token::Pipe | Token::Ampersand => {
-                Ok(Self::PREC_EVERYTHING_ELSE)
-            }
+            Token::BitShiftLeft
+            | Token::BitShiftRight
+            | Token::Pipe
+            | Token::Ampersand
+            | Token::Hash => Ok(Self::PREC_EVERYTHING_ELSE),
+            Token::Word(w) if w.keyword == Some(Keyword::XOR) => Ok(Self::PREC_EVERYTHING_ELSE),
 
             // Cast
             Token::DoubleColon => Ok(Self::PREC_CAST),
