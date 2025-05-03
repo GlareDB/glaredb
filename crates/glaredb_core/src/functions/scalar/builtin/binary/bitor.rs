@@ -58,7 +58,10 @@ pub const FUNCTION_SET_BITOR: ScalarFunctionSet = ScalarFunctionSet {
             &BitOr_::<PhysicalI64>::new(&DataType::Int64),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Int128, DataTypeId::Int128], DataTypeId::Int128),
+            &Signature::new(
+                &[DataTypeId::Int128, DataTypeId::Int128],
+                DataTypeId::Int128,
+            ),
             &BitOr_::<PhysicalI128>::new(&DataType::Int128),
         ),
         RawScalarFunction::new(
@@ -66,15 +69,24 @@ pub const FUNCTION_SET_BITOR: ScalarFunctionSet = ScalarFunctionSet {
             &BitOr_::<PhysicalU8>::new(&DataType::UInt8),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt16, DataTypeId::UInt16], DataTypeId::UInt16),
+            &Signature::new(
+                &[DataTypeId::UInt16, DataTypeId::UInt16],
+                DataTypeId::UInt16,
+            ),
             &BitOr_::<PhysicalU16>::new(&DataType::UInt16),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt32, DataTypeId::UInt32], DataTypeId::UInt32),
+            &Signature::new(
+                &[DataTypeId::UInt32, DataTypeId::UInt32],
+                DataTypeId::UInt32,
+            ),
             &BitOr_::<PhysicalU32>::new(&DataType::UInt32),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt64, DataTypeId::UInt64], DataTypeId::UInt64),
+            &Signature::new(
+                &[DataTypeId::UInt64, DataTypeId::UInt64],
+                DataTypeId::UInt64,
+            ),
             &BitOr_::<PhysicalU64>::new(&DataType::UInt64),
         ),
         RawScalarFunction::new(
@@ -105,8 +117,7 @@ impl<S> BitOr_<S> {
 impl<S> ScalarFunction for BitOr_<S>
 where
     S: MutableScalarStorage,
-    S::StorageType:
-        BitOr<Output = S::StorageType> + Default + Sized + Copy,
+    S::StorageType: BitOr<Output = S::StorageType> + Default + Sized + Copy,
 {
     type State = ();
 

@@ -58,7 +58,10 @@ pub const FUNCTION_SET_BITAND: ScalarFunctionSet = ScalarFunctionSet {
             &BitAnd_::<PhysicalI64>::new(&DataType::Int64),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Int128, DataTypeId::Int128], DataTypeId::Int128),
+            &Signature::new(
+                &[DataTypeId::Int128, DataTypeId::Int128],
+                DataTypeId::Int128,
+            ),
             &BitAnd_::<PhysicalI128>::new(&DataType::Int128),
         ),
         RawScalarFunction::new(
@@ -66,15 +69,24 @@ pub const FUNCTION_SET_BITAND: ScalarFunctionSet = ScalarFunctionSet {
             &BitAnd_::<PhysicalU8>::new(&DataType::UInt8),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt16, DataTypeId::UInt16], DataTypeId::UInt16),
+            &Signature::new(
+                &[DataTypeId::UInt16, DataTypeId::UInt16],
+                DataTypeId::UInt16,
+            ),
             &BitAnd_::<PhysicalU16>::new(&DataType::UInt16),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt32, DataTypeId::UInt32], DataTypeId::UInt32),
+            &Signature::new(
+                &[DataTypeId::UInt32, DataTypeId::UInt32],
+                DataTypeId::UInt32,
+            ),
             &BitAnd_::<PhysicalU32>::new(&DataType::UInt32),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt64, DataTypeId::UInt64], DataTypeId::UInt64),
+            &Signature::new(
+                &[DataTypeId::UInt64, DataTypeId::UInt64],
+                DataTypeId::UInt64,
+            ),
             &BitAnd_::<PhysicalU64>::new(&DataType::UInt64),
         ),
         RawScalarFunction::new(
@@ -105,8 +117,7 @@ impl<S> BitAnd_<S> {
 impl<S> ScalarFunction for BitAnd_<S>
 where
     S: MutableScalarStorage,
-    S::StorageType:
-        BitAnd<Output = S::StorageType> + Default + Sized + Copy,
+    S::StorageType: BitAnd<Output = S::StorageType> + Default + Sized + Copy,
 {
     type State = ();
 
