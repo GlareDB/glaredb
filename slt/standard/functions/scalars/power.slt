@@ -1,18 +1,19 @@
 # POWER function tests
+
 statement ok
 SET verify_optimized_plan TO true;
 
-query I
+query R
 SELECT power(2, 3);
 ----
 8
 
-query I
+query R
 SELECT power(2, 0);
 ----
 1
 
-query I
+query R
 SELECT power(0, 0);
 ----
 1
@@ -32,23 +33,59 @@ SELECT power(27, 1.0/3.0);
 ----
 3
 
-query T
+query R
 SELECT power(NULL, 2);
 ----
 NULL
 
-query T
+query R
 SELECT power(2, NULL);
 ----
 NULL
 
-query T
+# Alias tests
+
+query R
 SELECT pow(2, 3);
 ----
 8
 
-# Alias tests
 query T
 SELECT pow(4, 0.5);
 ----
 2
+
+# As the exponent operator.
+
+query R
+SELECT 2 ^ 3
+----
+8
+
+# Left associative
+query R
+SELECT 2 ^ 3 ^ 3;
+----
+512
+
+query R
+SELECT 2 ^ (3 ^ 3);
+----
+134217728
+
+# Alternative operator (**)
+
+query R
+SELECT 2 ** 3
+----
+8
+
+query R
+SELECT 2 ** 3 ** 3;
+----
+512
+
+query R
+SELECT 2 ** (3 ** 3);
+----
+134217728

@@ -44,6 +44,8 @@ pub enum Token {
     IntDiv,
     /// '%'
     Mod,
+    /// '**'
+    Exponent,
     /// '<<'
     BitShiftLeft,
     /// '>>'
@@ -291,7 +293,13 @@ impl<'a> Tokenizer<'a> {
             }
             '*' => {
                 self.state.next();
-                Token::Mul
+                match self.state.peek() {
+                    Some('*') => {
+                        self.state.next();
+                        Token::Exponent
+                    }
+                    _ => Token::Mul,
+                }
             }
             '+' => {
                 self.state.next();
