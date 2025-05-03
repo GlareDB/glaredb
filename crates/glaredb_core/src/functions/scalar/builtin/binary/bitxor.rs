@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::BitXor;
 
 use glaredb_error::Result;
+
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
@@ -43,81 +43,81 @@ pub const FUNCTION_SET_BITXOR: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            &BitXor_::<PhysicalI8>::new(&DataType::Int8),
+            &BitXor::<PhysicalI8>::new(&DataType::Int8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            &BitXor_::<PhysicalI16>::new(&DataType::Int16),
+            &BitXor::<PhysicalI16>::new(&DataType::Int16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            &BitXor_::<PhysicalI32>::new(&DataType::Int32),
+            &BitXor::<PhysicalI32>::new(&DataType::Int32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            &BitXor_::<PhysicalI64>::new(&DataType::Int64),
+            &BitXor::<PhysicalI64>::new(&DataType::Int64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
-            &BitXor_::<PhysicalI128>::new(&DataType::Int128),
+            &BitXor::<PhysicalI128>::new(&DataType::Int128),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            &BitXor_::<PhysicalU8>::new(&DataType::UInt8),
+            &BitXor::<PhysicalU8>::new(&DataType::UInt8),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            &BitXor_::<PhysicalU16>::new(&DataType::UInt16),
+            &BitXor::<PhysicalU16>::new(&DataType::UInt16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            &BitXor_::<PhysicalU32>::new(&DataType::UInt32),
+            &BitXor::<PhysicalU32>::new(&DataType::UInt32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            &BitXor_::<PhysicalU64>::new(&DataType::UInt64),
+            &BitXor::<PhysicalU64>::new(&DataType::UInt64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::UInt128],
                 DataTypeId::UInt128,
             ),
-            &BitXor_::<PhysicalU128>::new(&DataType::UInt128),
+            &BitXor::<PhysicalU128>::new(&DataType::UInt128),
         ),
     ],
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct BitXor_<S> {
+pub struct BitXor<S> {
     return_type: &'static DataType,
     _s: PhantomData<S>,
 }
 
-impl<S> BitXor_<S> {
+impl<S> BitXor<S> {
     pub const fn new(return_type: &'static DataType) -> Self {
-        BitXor_ {
+        BitXor {
             return_type,
             _s: PhantomData,
         }
     }
 }
 
-impl<S> ScalarFunction for BitXor_<S>
+impl<S> ScalarFunction for BitXor<S>
 where
     S: MutableScalarStorage,
-    S::StorageType: BitXor<Output = S::StorageType> + Default + Sized + Copy,
+    S::StorageType: std::ops::BitXor<Output = S::StorageType> + Default + Sized + Copy,
 {
     type State = ();
 
