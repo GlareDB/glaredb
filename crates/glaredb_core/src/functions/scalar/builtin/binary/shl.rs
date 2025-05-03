@@ -41,11 +41,11 @@ pub const FUNCTION_SET_SHL: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
+            &Signature::new(&[DataTypeId::Int8, DataTypeId::Int32], DataTypeId::Int8),
             &Shl::<PhysicalI8>::new(&DataType::Int8),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
+            &Signature::new(&[DataTypeId::Int16, DataTypeId::Int32], DataTypeId::Int16),
             &Shl::<PhysicalI16>::new(&DataType::Int16),
         ),
         RawScalarFunction::new(
@@ -53,44 +53,44 @@ pub const FUNCTION_SET_SHL: ScalarFunctionSet = ScalarFunctionSet {
             &Shl::<PhysicalI32>::new(&DataType::Int32),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
+            &Signature::new(&[DataTypeId::Int64, DataTypeId::Int32], DataTypeId::Int64),
             &Shl::<PhysicalI64>::new(&DataType::Int64),
         ),
         RawScalarFunction::new(
             &Signature::new(
-                &[DataTypeId::Int128, DataTypeId::Int128],
+                &[DataTypeId::Int128, DataTypeId::Int32],
                 DataTypeId::Int128,
             ),
             &Shl::<PhysicalI128>::new(&DataType::Int128),
         ),
         RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
+            &Signature::new(&[DataTypeId::UInt8, DataTypeId::Int32], DataTypeId::UInt8),
             &Shl::<PhysicalU8>::new(&DataType::UInt8),
         ),
         RawScalarFunction::new(
             &Signature::new(
-                &[DataTypeId::UInt16, DataTypeId::UInt16],
+                &[DataTypeId::UInt16, DataTypeId::Int32],
                 DataTypeId::UInt16,
             ),
             &Shl::<PhysicalU16>::new(&DataType::UInt16),
         ),
         RawScalarFunction::new(
             &Signature::new(
-                &[DataTypeId::UInt32, DataTypeId::UInt32],
+                &[DataTypeId::UInt32, DataTypeId::Int32],
                 DataTypeId::UInt32,
             ),
             &Shl::<PhysicalU32>::new(&DataType::UInt32),
         ),
         RawScalarFunction::new(
             &Signature::new(
-                &[DataTypeId::UInt64, DataTypeId::UInt64],
+                &[DataTypeId::UInt64, DataTypeId::Int32],
                 DataTypeId::UInt64,
             ),
             &Shl::<PhysicalU64>::new(&DataType::UInt64),
         ),
         RawScalarFunction::new(
             &Signature::new(
-                &[DataTypeId::UInt128, DataTypeId::UInt128],
+                &[DataTypeId::UInt128, DataTypeId::Int32],
                 DataTypeId::UInt128,
             ),
             &Shl::<PhysicalU128>::new(&DataType::UInt128),
@@ -116,7 +116,7 @@ impl<S> Shl<S> {
 impl<S> ScalarFunction for Shl<S>
 where
     S: MutableScalarStorage,
-    S::StorageType: std::ops::Shl<Output = S::StorageType> + Sized + Copy,
+    S::StorageType: std::ops::Shl<i32, Output = S::StorageType> + Sized + Copy,
 {
     type State = ();
 
@@ -133,7 +133,7 @@ where
         let a = &input.arrays()[0];
         let b = &input.arrays()[1];
 
-        BinaryExecutor::execute::<S, S, S, _>(
+        BinaryExecutor::execute::<S, PhysicalI32, S, _>(
             a,
             sel,
             b,

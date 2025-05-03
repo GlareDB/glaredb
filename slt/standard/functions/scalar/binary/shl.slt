@@ -5,13 +5,13 @@ SET verify_optimized_plan TO true;
 
 # Test with Int8 values
 query I
-SELECT shl(CAST(1 AS TINYINT), CAST(2 AS TINYINT)) AS result;
+SELECT shl(CAST(1 AS TINYINT), 2) AS result;
 ----
 4
 
 # Test with Int16 values
 query I
-SELECT shl(CAST(2 AS SMALLINT), CAST(3 AS SMALLINT)) AS result;
+SELECT shl(CAST(2 AS SMALLINT), 3) AS result;
 ----
 16
 
@@ -23,19 +23,19 @@ SELECT shl(4, 1) AS result;
 
 # Test with Int64 values
 query I
-SELECT shl(CAST(8 AS BIGINT), CAST(3 AS BIGINT)) AS result;
+SELECT shl(CAST(8 AS BIGINT), 3) AS result;
 ----
 64
 
 # Test with UInt8 values (note: shifting 1 left by 7 bits in a TINYINT causes overflow)
 query I
-SELECT shl(CAST(1 AS TINYINT), CAST(7 AS TINYINT)) AS result;
+SELECT shl(CAST(1 AS TINYINT), 7) AS result;
 ----
 -128
 
 # Test with UInt16 values
 query I
-SELECT shl(CAST(1 AS SMALLINT), CAST(8 AS SMALLINT)) AS result;
+SELECT shl(CAST(1 AS SMALLINT), 8) AS result;
 ----
 256
 
@@ -47,7 +47,7 @@ SELECT shl(1, 16) AS result;
 
 # Test with UInt64 values
 query I
-SELECT shl(CAST(1 AS BIGINT), CAST(32 AS BIGINT)) AS result;
+SELECT shl(CAST(1 AS BIGINT), 32) AS result;
 ----
 4294967296
 
