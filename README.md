@@ -10,6 +10,13 @@ analyze everything using familiar SQL.
 
 Refer to our [Docs] to learn how to get started with GlareDB.
 
+## Versions
+
+GlareDB uses calendar versioning following the format
+`<year>.<month>.<release>`.
+
+Version `25.5.0` indicates the first release in May 2025.
+
 ## Development
 
 See [Development Overview].
