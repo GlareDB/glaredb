@@ -44,6 +44,10 @@ pub enum Token {
     IntDiv,
     /// '%'
     Mod,
+    /// '<<'
+    BitShiftLeft,
+    /// '>>'
+    BitShiftRight,
     /// '|'
     Pipe,
     /// '||'
@@ -337,6 +341,10 @@ impl<'a> Tokenizer<'a> {
                         self.state.next();
                         Token::GtEq
                     }
+                    Some('>') => {
+                        self.state.next();
+                        Token::BitShiftRight
+                    }
                     _ => Token::Gt,
                 }
             }
@@ -350,6 +358,10 @@ impl<'a> Tokenizer<'a> {
                     Some('>') => {
                         self.state.next();
                         Token::Neq
+                    }
+                    Some('<') => {
+                        self.state.next();
+                        Token::BitShiftLeft
                     }
                     _ => Token::Lt,
                 }

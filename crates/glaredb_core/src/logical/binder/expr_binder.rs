@@ -29,6 +29,7 @@ use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusio
 use crate::expr::{self, Expression, bind_aggregate_function};
 use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
 use crate::functions::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
+use crate::functions::scalar::builtin::binary::{FUNCTION_SET_SHL, FUNCTION_SET_SHR};
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_FALSE,
@@ -302,6 +303,16 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::Modulo => {
                         let op = ArithOperator::Mod;
                         expr::arith(op, left, right)?.into()
+                    }
+                    ast::BinaryOperator::BitShiftLeft => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_SHL, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
+                    }
+                    ast::BinaryOperator::BitShiftRight => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_SHR, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
                     }
                     ast::BinaryOperator::And => {
                         let op = ConjunctionOperator::And;
