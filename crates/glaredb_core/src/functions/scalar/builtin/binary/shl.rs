@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use glaredb_error::Result;
+use num_traits::CheckedShl;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
@@ -104,7 +105,7 @@ impl<S> Shl<S> {
 impl<S> ScalarFunction for Shl<S>
 where
     S: MutableScalarStorage,
-    S::StorageType: std::ops::Shl<i32, Output = S::StorageType> + Sized + Copy,
+    S::StorageType: std::ops::Shl<i32, Output = S::StorageType> + CheckedShl + Default + Sized + Copy,
 {
     type State = ();
 
@@ -127,15 +128,7 @@ where
             b,
             sel,
             OutBuffer::from_array(output)?,
-            |&a, &b, buf| {
-                let type_bits = std::mem::size_of::<S::StorageType>() * 8;
-                if b >= 0 && (b as usize) < type_bits {
-                    buf.put(&(a << b))
-                } else {
-                    let zero = unsafe { std::mem::zeroed::<S::StorageType>() };
-                    buf.put(&zero)
-                }
-            },
+            |&a, &b, buf| buf.put(&(a.checked_shl(b as u32).unwrap_or_default())),
         )
     }
 }
