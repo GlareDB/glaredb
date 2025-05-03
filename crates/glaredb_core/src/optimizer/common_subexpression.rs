@@ -197,14 +197,14 @@ fn extract_expressions<'a>(
     }
 
     match expr {
-        Expression::Column(_) | Expression::Literal(_) => return Ok(()), // Trivial.
+        Expression::Column(_) | Expression::Literal(_) => Ok(()), // Trivial.
         Expression::Aggregate(_) | Expression::Window(_) => {
             // Don't try to move the aggregate itself, just handle its children.
             expr.for_each_child(|child| extract_expressions(child, extracted))
         }
-        Expression::Case(_) => return Ok(()), // Short circuit eval, just avoid for now.
-        Expression::Conjunction(_) => return Ok(()), // Short circuit eval, just avoid for now.
-        Expression::Subquery(_) => return Ok(()), // Shouldn't be reachable by this point.
+        Expression::Case(_) => Ok(()), // Short circuit eval, just avoid for now.
+        Expression::Conjunction(_) => Ok(()), // Short circuit eval, just avoid for now.
+        Expression::Subquery(_) => Ok(()), // Shouldn't be reachable by this point.
         Expression::Arith(_)
         | Expression::Between(_)
         | Expression::Cast(_)

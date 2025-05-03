@@ -120,7 +120,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         Ok(())
                     }
                 }
-                other => other.for_each_child_mut(|child| inner(child)),
+                other => other.for_each_child_mut(inner),
             }
         }
 
