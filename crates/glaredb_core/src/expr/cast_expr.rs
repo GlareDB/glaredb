@@ -108,21 +108,13 @@ impl ContextDisplay for CastExpr {
 }
 
 fn find_cast_function_set(target: DataTypeId) -> Option<&'static CastFunctionSet> {
-    for cast_set in BUILTIN_CAST_FUNCTION_SETS {
-        if cast_set.target == target {
-            return Some(cast_set);
-        }
-    }
-    None
+    BUILTIN_CAST_FUNCTION_SETS
+        .iter()
+        .find(|&cast_set| cast_set.target == target)
 }
 
 fn find_cast_function(set: &CastFunctionSet, src: DataTypeId) -> Option<&RawCastFunction> {
-    for cast_fn in set.functions {
-        if cast_fn.src == src {
-            return Some(cast_fn);
-        }
-    }
-    None
+    set.functions.iter().find(|&cast_fn| cast_fn.src == src)
 }
 
 #[cfg(test)]
