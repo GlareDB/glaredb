@@ -127,7 +127,15 @@ where
             b,
             sel,
             OutBuffer::from_array(output)?,
-            |&a, &b, buf| buf.put(&(a.checked_shl(b as u32).unwrap_or_default())),
+            |&a, &b, buf| {
+                let type_bits = std::mem::size_of::<S::StorageType>() * 8;
+                if b >= 0 && (b as usize) < type_bits {
+                    buf.put(&(a << b))
+                } else {
+                    let zero = unsafe { std::mem::zeroed::<S::StorageType>() };
+                    buf.put(&zero)
+                }
+            },
         )
     }
 }
