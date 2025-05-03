@@ -247,6 +247,7 @@ define_keywords!(
     WHERE,
     WINDOW,
     WITH,
+    XOR,
     YEAR,
     YEARS,
 );

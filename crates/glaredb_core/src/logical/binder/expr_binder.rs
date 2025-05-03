@@ -29,7 +29,13 @@ use crate::expr::window_expr::{WindowExpr, WindowFrameBound, WindowFrameExclusio
 use crate::expr::{self, Expression, bind_aggregate_function};
 use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
 use crate::functions::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
-use crate::functions::scalar::builtin::binary::{FUNCTION_SET_SHL, FUNCTION_SET_SHR};
+use crate::functions::scalar::builtin::binary::{
+    FUNCTION_SET_BITAND,
+    FUNCTION_SET_BITOR,
+    FUNCTION_SET_SHL,
+    FUNCTION_SET_SHR,
+    FUNCTION_SET_XOR,
+};
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
     FUNCTION_SET_IS_FALSE,
@@ -318,6 +324,21 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::BinaryOperator::BitShiftRight => {
                         let function =
                             expr::bind_scalar_function(&FUNCTION_SET_SHR, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
+                    }
+                    ast::BinaryOperator::BitwiseOr => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_BITOR, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
+                    }
+                    ast::BinaryOperator::BitwiseAnd => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_BITAND, vec![left, right])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
+                    }
+                    ast::BinaryOperator::Xor => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_XOR, vec![left, right])?;
                         Expression::ScalarFunction(ScalarFunctionExpr { function })
                     }
                     ast::BinaryOperator::And => {

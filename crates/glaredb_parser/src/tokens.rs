@@ -52,6 +52,10 @@ pub enum Token {
     BitShiftRight,
     /// '|'
     Pipe,
+    /// `&`
+    Ampersand,
+    /// `#`
+    Hash,
     /// '||'
     Concat,
     /// ','
@@ -332,6 +336,10 @@ impl<'a> Tokenizer<'a> {
                 self.state.next();
                 Token::Mod
             }
+            '#' => {
+                self.state.next();
+                Token::Hash
+            }
             '^' => {
                 self.state.next();
                 match self.state.peek() {
@@ -393,6 +401,10 @@ impl<'a> Tokenizer<'a> {
                     }
                     _ => Token::Pipe,
                 }
+            }
+            '&' => {
+                self.state.next();
+                Token::Ampersand
             }
             ':' => {
                 self.state.next();

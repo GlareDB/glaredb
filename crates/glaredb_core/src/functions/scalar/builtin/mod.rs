@@ -22,7 +22,7 @@ use arith::{
     FUNCTION_SET_REM,
     FUNCTION_SET_SUB,
 };
-use binary::{FUNCTION_SET_SHL, FUNCTION_SET_SHR};
+use binary::{FUNCTION_SET_SHL, FUNCTION_SET_SHR, FUNCTION_SET_XOR};
 use boolean::{FUNCTION_SET_AND, FUNCTION_SET_OR};
 use comparison::{
     FUNCTION_SET_EQ,
@@ -129,6 +129,8 @@ pub const BUILTIN_SCALAR_FUNCTION_SETS: &[ScalarFunctionSet] = &[
     FUNCTION_SET_MUL,
     FUNCTION_SET_REM,
     FUNCTION_SET_LCM,
+    // Bit operations
+    FUNCTION_SET_XOR,
     FUNCTION_SET_SHL,
     FUNCTION_SET_SHR,
     // Boolean
