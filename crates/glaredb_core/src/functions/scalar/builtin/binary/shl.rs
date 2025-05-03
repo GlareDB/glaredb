@@ -105,7 +105,8 @@ impl<S> Shl<S> {
 impl<S> ScalarFunction for Shl<S>
 where
     S: MutableScalarStorage,
-    S::StorageType: std::ops::Shl<i32, Output = S::StorageType> + CheckedShl + Default + Sized + Copy,
+    S::StorageType:
+        std::ops::Shl<i32, Output = S::StorageType> + CheckedShl + Default + Sized + Copy,
 {
     type State = ();
 
