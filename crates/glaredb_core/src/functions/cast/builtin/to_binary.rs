@@ -22,7 +22,7 @@ pub const FUNCTION_SET_TO_BINARY: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, CastRule::Explicit, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, CastRule::Explicit, CastFlatten::Safe),
         // String
         RawCastFunction::new(DataTypeId::Utf8, &StringToBinary, CastRule::Explicit, CastFlatten::Unsafe),
     ],

@@ -52,7 +52,7 @@ pub const FUNCTION_SET_TO_DECIMAL64: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null -> Decimal64
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL64_CAST_RULE, CastFlatten::Safe),
         // Utf8 -> Decimal64
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
         // Int_ -> Decimal64
@@ -83,7 +83,7 @@ pub const FUNCTION_SET_TO_DECIMAL128: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null -> Decimal128
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL128_CAST_RULE, CastFlatten::Safe),
         // Utf8 -> Decimal128
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
         // Int_ -> Decimal128

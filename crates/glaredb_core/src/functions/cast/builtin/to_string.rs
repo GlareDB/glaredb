@@ -57,7 +57,7 @@ pub const FUNCTION_SET_TO_STRING: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_STRING_CAST_RULE, CastFlatten::Safe),
         // Primitives
         RawCastFunction::new(DataTypeId::Int8, &PrimToString::<PhysicalI8>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::Int16, &PrimToString::<PhysicalI16>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),

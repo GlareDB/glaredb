@@ -23,7 +23,7 @@ pub const FUNCTION_SET_TO_BOOLEAN: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null -> Bool
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_BOOL_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_BOOL_CAST_RULE, CastFlatten::Safe),
         // Utf8 -> Bool
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToBool, TO_BOOL_CAST_RULE, CastFlatten::Unsafe),
     ],

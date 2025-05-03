@@ -23,7 +23,7 @@ pub const FUNCTION_SET_TO_INTERVAL: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null -> Interval
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INTERVAL_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INTERVAL_CAST_RULE, CastFlatten::Safe),
         // Utf8 -> Interval
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToInterval, TO_INTERVAL_CAST_RULE, CastFlatten::Unsafe),
     ],
