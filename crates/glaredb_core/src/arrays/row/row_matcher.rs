@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
@@ -167,11 +167,16 @@ where
         PhysicalType::Float64 => Box::new(ScalarMatcher::<C, PhysicalF64>::new()),
         PhysicalType::Interval => Box::new(ScalarMatcher::<C, PhysicalInterval>::new()),
         PhysicalType::Utf8 | PhysicalType::Binary => Box::new(BinaryMatcher::<C>::new()),
-        PhysicalType::List => unimplemented!(),
-        PhysicalType::Struct => unimplemented!(),
+        PhysicalType::List => Box::new(UnsupportedMatcher::new(
+            "Matching list rows not yet supported",
+        )),
+        PhysicalType::Struct => Box::new(UnsupportedMatcher::new(
+            "Matching struct rows not yet supported",
+        )),
     }
 }
 
+// TODO: Why is this generic on buffer manager?
 trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
     unsafe fn compute_matches(
         &self,
@@ -182,6 +187,32 @@ trait Matcher<B: BufferManager>: Debug + Sync + Send + 'static {
         selection: &mut Vec<usize>,
         not_matches: &mut Vec<usize>,
     ) -> Result<()>;
+}
+
+/// Matcher that just errors on trying to compute matches.
+#[derive(Debug, Clone, Copy)]
+struct UnsupportedMatcher {
+    msg: &'static str,
+}
+
+impl UnsupportedMatcher {
+    const fn new(msg: &'static str) -> Self {
+        UnsupportedMatcher { msg }
+    }
+}
+
+impl Matcher<DefaultBufferManager> for UnsupportedMatcher {
+    unsafe fn compute_matches(
+        &self,
+        _layout: &RowLayout,
+        _lhs_rows: &[*const u8],
+        _lhs_column: usize,
+        _rhs_column: &Array,
+        _selection: &mut Vec<usize>,
+        _not_matches: &mut Vec<usize>,
+    ) -> Result<()> {
+        not_implemented!("{}", self.msg)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
