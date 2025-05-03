@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 
 use glaredb_error::Result;
 
-
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
