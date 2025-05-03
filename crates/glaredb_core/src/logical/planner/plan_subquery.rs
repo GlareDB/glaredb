@@ -128,7 +128,7 @@ impl SubqueryPlanner {
                     *expr = self.plan_uncorrelated(bind_context, subquery, plan)?
                 }
             }
-            other => other.for_each_child_mut(&mut |expr| {
+            other => other.for_each_child_mut(|expr| {
                 self.plan_expression_inner(bind_context, expr, plan)?;
                 Ok(())
             })?,
@@ -1112,7 +1112,7 @@ impl DependentJoinPushdown {
             other => {
                 let mut has_correlation = false;
                 other
-                    .for_each_child(&mut |child| {
+                    .for_each_child(|child| {
                         if has_correlation {
                             return Ok(());
                         }
@@ -1160,9 +1160,7 @@ impl DependentJoinPushdown {
                 // Column we're not concerned about. Remains unchanged.
                 Ok(())
             }
-            other => {
-                other.for_each_child_mut(&mut |child| self.rewrite_expression(bind_context, child))
-            }
+            other => other.for_each_child_mut(|child| self.rewrite_expression(bind_context, child)),
         }
     }
 }

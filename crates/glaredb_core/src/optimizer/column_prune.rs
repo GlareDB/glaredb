@@ -691,7 +691,7 @@ fn replace_column_reference(expr: &mut Expression, mapping: &HashMap<ColumnRefer
             }
         }
         other => other
-            .for_each_child_mut(&mut |child| {
+            .for_each_child_mut(|child| {
                 replace_column_reference(child, mapping);
                 Ok(())
             })
@@ -705,7 +705,7 @@ fn extract_column_refs(expr: &Expression, refs: &mut HashSet<ColumnReference>) {
             refs.insert(col.reference);
         }
         other => other
-            .for_each_child(&mut |child| {
+            .for_each_child(|child| {
                 extract_column_refs(child, refs);
                 Ok(())
             })

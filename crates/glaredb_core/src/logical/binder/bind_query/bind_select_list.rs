@@ -221,7 +221,7 @@ impl<'a> SelectListBinder<'a> {
                 groupings.push(grouping);
                 Ok(())
             }
-            other => other.for_each_child_mut(&mut |expr| {
+            other => other.for_each_child_mut(|expr| {
                 Self::extract_aggregates(
                     aggregates_table,
                     groupings_table,
@@ -265,7 +265,7 @@ impl<'a> SelectListBinder<'a> {
             return Ok(());
         }
 
-        expression.for_each_child_mut(&mut |expr| {
+        expression.for_each_child_mut(|expr| {
             Self::extract_windows(windows_table, bind_context, expr, windows)
         })?;
 

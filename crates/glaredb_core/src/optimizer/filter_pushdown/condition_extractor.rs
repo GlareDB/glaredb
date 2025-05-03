@@ -118,7 +118,7 @@ impl ExprJoinSide {
                 Expression::Subquery(_) => not_implemented!("subquery in join condition"),
                 other => {
                     let mut side = side;
-                    other.for_each_child(&mut |expr| {
+                    other.for_each_child(|expr| {
                         let new_side = inner(expr, left_tables, right_tables, side)?;
                         side = new_side.combine(side);
                         Ok(())

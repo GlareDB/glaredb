@@ -27,14 +27,14 @@ impl ExpressionRewriteRule for UnnestConjunctionRewrite {
 
                     // Recurse into the children too.
                     expression
-                        .for_each_child_mut(&mut |child| {
+                        .for_each_child_mut(|child| {
                             inner(child);
                             Ok(())
                         })
                         .expect("unnest to not fail")
                 }
                 other => other
-                    .for_each_child_mut(&mut |child| {
+                    .for_each_child_mut(|child| {
                         inner(child);
                         Ok(())
                     })

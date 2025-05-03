@@ -116,13 +116,13 @@ pub trait LogicalNode {
     /// operator.
     fn get_output_table_refs(&self, bind_context: &BindContext) -> Vec<TableRef>;
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>;
+        F: FnMut(&'a Expression) -> Result<()>;
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>;
+        F: FnMut(&'a mut Expression) -> Result<()>;
 }
 
 /// Wrapper around nodes in the logical plan to holds additional metadata for
@@ -570,9 +570,9 @@ impl LogicalNode for LogicalOperator {
         }
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         match self {
             Self::Invalid => panic!("attempted to get exprs for invalid operator"),
@@ -612,9 +612,9 @@ impl LogicalNode for LogicalOperator {
         }
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         match self {
             Self::Invalid => panic!("attempted to get exprs for invalid operator"),

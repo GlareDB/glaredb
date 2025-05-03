@@ -113,9 +113,9 @@ impl LogicalNode for Node<LogicalComparisonJoin> {
         self.node.join_type.output_refs(self, bind_context)
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         for condition in &self.node.conditions {
             func(&condition.left)?;
@@ -124,9 +124,9 @@ impl LogicalNode for Node<LogicalComparisonJoin> {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, mut func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         for condition in &mut self.node.conditions {
             func(&mut condition.left)?;
@@ -181,9 +181,9 @@ impl LogicalNode for Node<LogicalMagicJoin> {
         self.node.join_type.output_refs(self, bind_context)
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         for condition in &self.node.conditions {
             func(&condition.left)?;
@@ -192,9 +192,9 @@ impl LogicalNode for Node<LogicalMagicJoin> {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, mut func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         for condition in &mut self.node.conditions {
             func(&mut condition.left)?;
@@ -228,16 +228,16 @@ impl LogicalNode for Node<LogicalArbitraryJoin> {
         self.node.join_type.output_refs(self, bind_context)
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         func(&self.node.condition)
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, mut func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         func(&mut self.node.condition)
     }
@@ -261,16 +261,16 @@ impl LogicalNode for Node<LogicalCrossJoin> {
         self.get_children_table_refs(bind_context)
     }
 
-    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, _func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, _func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         Ok(())
     }

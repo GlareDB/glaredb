@@ -1,4 +1,5 @@
 pub mod column_prune;
+pub mod common_subexpression;
 pub mod expr_rewrite;
 pub mod filter_pushdown;
 pub mod join_reorder;
@@ -10,6 +11,7 @@ pub mod selection_reorder;
 pub mod redundant_groups;
 
 use column_prune::ColumnPrune;
+use common_subexpression::CommonSubExpression;
 use expr_rewrite::ExpressionRewriter;
 use filter_pushdown::FilterPushdown;
 use glaredb_error::Result;
@@ -94,7 +96,13 @@ impl Optimizer {
         //     .timings
         //     .push(("remove_redundant_groups", timer.stop()));
 
-        // // Join reordering.
+        // Common sub-expression eliminations.
+        let timer = Timer::<I>::start();
+        let mut rule = CommonSubExpression;
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data.timings.push(("cse", timer.stop()));
+
+        // Join reordering.
         let timer = Timer::<I>::start();
         let mut rule = JoinReorder::default();
         let plan = rule.optimize(bind_context, plan)?;
