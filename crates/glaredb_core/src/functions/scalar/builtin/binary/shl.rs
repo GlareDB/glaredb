@@ -127,7 +127,14 @@ where
             b,
             sel,
             OutBuffer::from_array(output)?,
-            |&a, &b, buf| buf.put(&(a << b)),
+            |&a, &b, buf| {
+                let type_bits = std::mem::size_of::<S::StorageType>() * 8;
+                if b >= type_bits as i32 {
+                    buf.put(&(S::StorageType::default()))
+                } else {
+                    buf.put(&(a << b))
+                }
+            },
         )
     }
 }
