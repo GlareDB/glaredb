@@ -7,7 +7,13 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
-use crate::functions::cast::{CastFunction, CastFunctionSet, CastRule, RawCastFunction};
+use crate::functions::cast::{
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    CastRule,
+    RawCastFunction,
+};
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_TO_BINARY: CastFunctionSet = CastFunctionSet {
@@ -16,9 +22,9 @@ pub const FUNCTION_SET_TO_BINARY: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, CastRule::Explicit, CastFlatten::Unsafe),
         // String
-        RawCastFunction::new(DataTypeId::Utf8, &StringToBinary, CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Utf8, &StringToBinary, CastRule::Explicit, CastFlatten::Unsafe),
     ],
 };
 

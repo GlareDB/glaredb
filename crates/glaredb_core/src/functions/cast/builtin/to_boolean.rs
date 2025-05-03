@@ -8,17 +8,24 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{BoolParser, Parser};
-use crate::functions::cast::{CastFunction, CastFunctionSet, RawCastFunction, TO_BOOL_CAST_RULE};
+use crate::functions::cast::{
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    RawCastFunction,
+    TO_BOOL_CAST_RULE,
+};
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_TO_BOOLEAN: CastFunctionSet = CastFunctionSet {
     name: "to_boolean",
     target: DataTypeId::Boolean,
+    #[rustfmt::skip]
     functions: &[
         // Null -> Bool
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_BOOL_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_BOOL_CAST_RULE, CastFlatten::Unsafe),
         // Utf8 -> Bool
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToBool, TO_BOOL_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToBool, TO_BOOL_CAST_RULE, CastFlatten::Unsafe),
     ],
 };
 

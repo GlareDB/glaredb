@@ -42,7 +42,13 @@ use crate::functions::cast::format::{
     TimestampNanosecondsFormatter,
     TimestampSecondsFormatter,
 };
-use crate::functions::cast::{CastFunction, CastFunctionSet, RawCastFunction, TO_STRING_CAST_RULE};
+use crate::functions::cast::{
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    RawCastFunction,
+    TO_STRING_CAST_RULE,
+};
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_TO_STRING: CastFunctionSet = CastFunctionSet {
@@ -51,29 +57,29 @@ pub const FUNCTION_SET_TO_STRING: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_STRING_CAST_RULE, CastFlatten::Unsafe),
         // Primitives
-        RawCastFunction::new(DataTypeId::Int8, &PrimToString::<PhysicalI8>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int16, &PrimToString::<PhysicalI16>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int32, &PrimToString::<PhysicalI32>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int64, &PrimToString::<PhysicalI64>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int128, &PrimToString::<PhysicalI128>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt8, &PrimToString::<PhysicalU8>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt16, &PrimToString::<PhysicalU16>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt32, &PrimToString::<PhysicalU32>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt64, &PrimToString::<PhysicalU64>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt128, &PrimToString::<PhysicalU128>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Float16, &PrimToString::<PhysicalF16>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Float32, &PrimToString::<PhysicalF32>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Float64, &PrimToString::<PhysicalF64>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Interval, &PrimToString::<PhysicalInterval>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Int8, &PrimToString::<PhysicalI8>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int16, &PrimToString::<PhysicalI16>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int32, &PrimToString::<PhysicalI32>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int64, &PrimToString::<PhysicalI64>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int128, &PrimToString::<PhysicalI128>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt8, &PrimToString::<PhysicalU8>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt16, &PrimToString::<PhysicalU16>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt32, &PrimToString::<PhysicalU32>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt64, &PrimToString::<PhysicalU64>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt128, &PrimToString::<PhysicalU128>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Float16, &PrimToString::<PhysicalF16>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Float32, &PrimToString::<PhysicalF32>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Float64, &PrimToString::<PhysicalF64>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Interval, &PrimToString::<PhysicalInterval>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
         // Decimals
-        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToString::<Decimal64Type>::new(), TO_STRING_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToString::<Decimal128Type>::new(), TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToString::<Decimal64Type>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToString::<Decimal128Type>::new(), TO_STRING_CAST_RULE, CastFlatten::Unsafe),
         // Timestamp
-        RawCastFunction::new(DataTypeId::Timestamp, &TimestampToString, TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Timestamp, &TimestampToString, TO_STRING_CAST_RULE, CastFlatten::Unsafe),
         // Binary
-        RawCastFunction::new(DataTypeId::Binary, &BinaryToString, TO_STRING_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Binary, &BinaryToString, TO_STRING_CAST_RULE, CastFlatten::Unsafe),
     ],
 };
 
