@@ -129,8 +129,9 @@ where
             OutBuffer::from_array(output)?,
             |&a, &b, buf| {
                 let type_bits = std::mem::size_of::<S::StorageType>() * 8;
-                if b >= type_bits as i32 {
-                    buf.put(&(S::StorageType::default()))
+                if b >= type_bits as i32 || b < 0 {
+                    let zero = unsafe { std::mem::zeroed::<S::StorageType>() };
+                    buf.put(&zero)
                 } else {
                     buf.put(&(a << b))
                 }
