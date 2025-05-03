@@ -29,9 +29,9 @@ impl LogicalNode for Node<LogicalOrder> {
         self.get_children_table_refs(bind_context)
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         for order_expr in &self.node.exprs {
             func(&order_expr.expr)?;
@@ -39,9 +39,9 @@ impl LogicalNode for Node<LogicalOrder> {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, mut func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         for order_expr in &mut self.node.exprs {
             func(&mut order_expr.expr)?;

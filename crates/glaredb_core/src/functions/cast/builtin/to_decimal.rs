@@ -36,6 +36,7 @@ use crate::arrays::scalar::decimal::{
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{DecimalParser, Parser};
 use crate::functions::cast::{
+    CastFlatten,
     CastFunction,
     CastFunctionSet,
     CastRule,
@@ -51,28 +52,28 @@ pub const FUNCTION_SET_TO_DECIMAL64: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null -> Decimal64
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL64_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL64_CAST_RULE, CastFlatten::Safe),
         // Utf8 -> Decimal64
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
         // Int_ -> Decimal64
-        RawCastFunction::new(DataTypeId::Int8, &IntToDecimal::<PhysicalI8, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int16, &IntToDecimal::<PhysicalI16, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int32, &IntToDecimal::<PhysicalI32, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int64, &IntToDecimal::<PhysicalI64, Decimal64Type>::new(), CastRule::Explicit),
-        RawCastFunction::new(DataTypeId::Int128, &IntToDecimal::<PhysicalI128, Decimal64Type>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Int8, &IntToDecimal::<PhysicalI8, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int16, &IntToDecimal::<PhysicalI16, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int32, &IntToDecimal::<PhysicalI32, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int64, &IntToDecimal::<PhysicalI64, Decimal64Type>::new(), CastRule::Explicit, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int128, &IntToDecimal::<PhysicalI128, Decimal64Type>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         // UInt_ -> Decimal64
-        RawCastFunction::new(DataTypeId::UInt8, &IntToDecimal::<PhysicalU8, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt16, &IntToDecimal::<PhysicalU16, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt32, &IntToDecimal::<PhysicalU32, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt64, &IntToDecimal::<PhysicalU64, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt128, &IntToDecimal::<PhysicalU128, Decimal64Type>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::UInt8, &IntToDecimal::<PhysicalU8, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt16, &IntToDecimal::<PhysicalU16, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt32, &IntToDecimal::<PhysicalU32, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt64, &IntToDecimal::<PhysicalU64, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt128, &IntToDecimal::<PhysicalU128, Decimal64Type>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         // Float_ -> Decimal64
-        RawCastFunction::new(DataTypeId::Float16, &FloatToDecimal::<PhysicalF16, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Float32, &FloatToDecimal::<PhysicalF32, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Float64, &FloatToDecimal::<PhysicalF64, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Float16, &FloatToDecimal::<PhysicalF16, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Float32, &FloatToDecimal::<PhysicalF32, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Float64, &FloatToDecimal::<PhysicalF64, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
         // Decimal_ -> Decimal64 (rescale)
-        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToDecimal::<Decimal64Type, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToDecimal::<Decimal128Type, Decimal64Type>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToDecimal::<Decimal64Type, Decimal64Type>::new(), TO_DECIMAL64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToDecimal::<Decimal128Type, Decimal64Type>::new(), CastRule::Explicit, CastFlatten::Unsafe),
     ],
 };
 
@@ -82,28 +83,28 @@ pub const FUNCTION_SET_TO_DECIMAL128: CastFunctionSet = CastFunctionSet {
     #[rustfmt::skip]
     functions: &[
         // Null -> Decimal128
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL128_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_DECIMAL128_CAST_RULE, CastFlatten::Safe),
         // Utf8 -> Decimal128
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToDecimal::<Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
         // Int_ -> Decimal128
-        RawCastFunction::new(DataTypeId::Int8, &IntToDecimal::<PhysicalI8, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int16, &IntToDecimal::<PhysicalI16, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int32, &IntToDecimal::<PhysicalI32, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int64, &IntToDecimal::<PhysicalI64, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Int128, &IntToDecimal::<PhysicalI128, Decimal128Type>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::Int8, &IntToDecimal::<PhysicalI8, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int16, &IntToDecimal::<PhysicalI16, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int32, &IntToDecimal::<PhysicalI32, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int64, &IntToDecimal::<PhysicalI64, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int128, &IntToDecimal::<PhysicalI128, Decimal128Type>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         // UInt_ -> Decimal128
-        RawCastFunction::new(DataTypeId::UInt8, &IntToDecimal::<PhysicalU8, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt16, &IntToDecimal::<PhysicalU16, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt32, &IntToDecimal::<PhysicalU32, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt64, &IntToDecimal::<PhysicalU64, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::UInt128, &IntToDecimal::<PhysicalU128, Decimal128Type>::new(), CastRule::Explicit),
+        RawCastFunction::new(DataTypeId::UInt8, &IntToDecimal::<PhysicalU8, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt16, &IntToDecimal::<PhysicalU16, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt32, &IntToDecimal::<PhysicalU32, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt64, &IntToDecimal::<PhysicalU64, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt128, &IntToDecimal::<PhysicalU128, Decimal128Type>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         // Float_ -> Decimal128
-        RawCastFunction::new(DataTypeId::Float16, &FloatToDecimal::<PhysicalF16, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Float32, &FloatToDecimal::<PhysicalF32, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Float64, &FloatToDecimal::<PhysicalF64, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Float16, &FloatToDecimal::<PhysicalF16, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Float32, &FloatToDecimal::<PhysicalF32, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Float64, &FloatToDecimal::<PhysicalF64, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
         // Decimal_ -> Decimal128 (rescale)
-        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToDecimal::<Decimal64Type, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
-        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToDecimal::<Decimal128Type, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Decimal64, &DecimalToDecimal::<Decimal64Type, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Decimal128, &DecimalToDecimal::<Decimal128Type, Decimal128Type>::new(), TO_DECIMAL128_CAST_RULE, CastFlatten::Unsafe),
     ],
 };
 

@@ -31,9 +31,9 @@ impl LogicalNode for Node<LogicalProject> {
         vec![self.node.projection_table]
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         for expr in &self.node.projections {
             func(expr)?;
@@ -41,9 +41,9 @@ impl LogicalNode for Node<LogicalProject> {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, mut func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         for expr in &mut self.node.projections {
             func(expr)?;

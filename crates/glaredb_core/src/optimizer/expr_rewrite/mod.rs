@@ -50,7 +50,7 @@ impl OptimizeRule for ExpressionRewriter {
                 LogicalOperator::ArbitraryJoin(join)
             }
             mut other => {
-                other.for_each_expr_mut(&mut |expr| {
+                other.for_each_expr_mut(|expr| {
                     // Replace with temp dummy value.
                     let mut orig = std::mem::replace(expr, expr::lit(83).into());
                     orig = Self::apply_rewrites(orig)?;

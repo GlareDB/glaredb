@@ -226,7 +226,7 @@ impl SelectList {
                         )));
                     }
                 }
-                other => other.for_each_child(&mut |child| inner(bind_context, child, refs))?,
+                other => other.for_each_child(|child| inner(bind_context, child, refs))?,
             }
             Ok(())
         }
@@ -484,7 +484,7 @@ impl SelectList {
                 return Ok(());
             }
 
-            expr.for_each_child_mut(&mut |child| {
+            expr.for_each_child_mut(|child| {
                 update_projection_expr(group_by_expr, group_by_col, child)
             })
         }

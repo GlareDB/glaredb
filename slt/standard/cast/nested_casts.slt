@@ -1,0 +1,29 @@
+# Nested casts.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Should flatten all casts
+query I
+SELECT CAST(CAST(a AS int) AS bigint) FROM (VALUES (3)) v(a);
+----
+3
+
+# Should flatten the inner cast, outer cast should stay.
+#
+# Postgres will optimize this into a single cast. We could do that by changing
+# the 'to_float' casts to be safe for flattening. Opted to be more conservative
+# for now.
+#
+# DuckDB flattens just the inner casts (same as us currently).
+query R
+SELECT CAST(CAST(CAST(a AS int) AS bigint) AS double) FROM (VALUES (3)) v(a);
+----
+3
+
+# Can't flatten these. String represents a valid float, but cannot be parsed
+# directly as an int.
+query I
+SELECT CAST(CAST(a AS FLOAT) AS INT) FROM (VALUES ('14.5')) v(a);
+----
+14

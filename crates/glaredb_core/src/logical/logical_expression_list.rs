@@ -28,9 +28,9 @@ impl LogicalNode for Node<LogicalExpressionList> {
         vec![self.node.table_ref]
     }
 
-    fn for_each_expr<F>(&self, func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         for row in &self.node.rows {
             for expr in row {
@@ -40,9 +40,9 @@ impl LogicalNode for Node<LogicalExpressionList> {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, mut func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         for row in &mut self.node.rows {
             for expr in row {

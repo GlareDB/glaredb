@@ -27,7 +27,7 @@ impl UnnestPlanner {
     ) -> Result<LogicalOperator> {
         let mut expr_count = 0; // Determines if we need to introduce a cross join.
         let mut has_unnest = false;
-        plan.for_each_expr(&mut |expr| {
+        plan.for_each_expr(|expr| {
             expr_count += 1;
             if expr.contains_unnest() {
                 has_unnest = true;
@@ -50,7 +50,7 @@ impl UnnestPlanner {
         let mut unnest_expressions = Vec::new();
         let mut project_expressions = Vec::new();
 
-        plan.for_each_expr_mut(&mut |expr| {
+        plan.for_each_expr_mut(|expr| {
             // Generate replacement column expr based on number of extracted
             // expressions so far.
             let did_extract = extract_unnest(expr, unnest_ref, &mut unnest_expressions)?;
@@ -162,7 +162,7 @@ fn extract_unnest(
         }
         other => {
             let mut did_extract = false;
-            other.for_each_child_mut(&mut |child| {
+            other.for_each_child_mut(|child| {
                 let child_did_extract = extract_unnest(child, unnest_ref, extracted)?;
                 did_extract |= child_did_extract;
 

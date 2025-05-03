@@ -1,0 +1,42 @@
+# Test queries with common sub-expressions
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE hits (width SMALLINT);
+
+statement ok
+INSERT INTO hits VALUES (55), (65), (75), (85);
+
+# Single expression with common sub expressions
+query I
+SELECT (width + 1) * (width + 1) FROM hits ORDER BY 1;
+----
+3136
+4356
+5776
+7396
+
+# Multiple expressions with same common sub expression.
+query II
+SELECT (width + 1) * (width + 1), width + 1 FROM hits ORDER BY 1;
+----
+3136  56
+4356  66
+5776  76
+7396  86
+
+# Single input to agg containing mulitipe CSEs
+query I
+SELECT sum((width + 1) * (width + 1)) FROM hits;
+----
+20664
+
+# Multiple aggs with same sub expression.
+#
+# Note the subexpression is the cast, explicit here.
+query IIII
+SELECT sum(width::int), sum(width::int + 1), sum(width::int + 2), sum(width::int + 3) FROM hits;
+----
+280  284  288  292

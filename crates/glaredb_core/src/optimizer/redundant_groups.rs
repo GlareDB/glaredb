@@ -102,7 +102,7 @@ impl RemoveRedundantGroups {
                     }
                 }
                 other => other
-                    .for_each_child_mut(&mut |child| {
+                    .for_each_child_mut(|child| {
                         inner(child, replacements);
                         Ok(())
                     })

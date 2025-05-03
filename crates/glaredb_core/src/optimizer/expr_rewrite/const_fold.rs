@@ -47,7 +47,7 @@ fn maybe_fold(expr: &mut Expression) -> Result<()> {
     }
 
     // Otherwise try the children.
-    expr.for_each_child_mut(&mut |child| maybe_fold(child))
+    expr.for_each_child_mut(maybe_fold)
 }
 
 #[cfg(test)]

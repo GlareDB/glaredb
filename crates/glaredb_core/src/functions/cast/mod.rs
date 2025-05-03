@@ -53,13 +53,45 @@ pub const TO_DECIMAL128_CAST_RULE: CastRule = CastRule::Implicit(130);
 
 pub const TO_STRING_CAST_RULE: CastRule = CastRule::Implicit(1);
 
+/// Determines when we can apply a cast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CastRule {
     /// Casting is explicit-only.
+    ///
+    /// User needs to apply the cast themselves.
     Explicit,
     /// Casting can be implicit or explicit. The score determines which is the
     /// "best" cast to use if there are many.
+    ///
+    /// We may apply the cast for the user in order to fit a function signature.
     Implicit(u32),
+}
+
+impl CastRule {
+    pub const fn is_implicit(&self) -> bool {
+        matches!(self, Self::Implicit(_))
+    }
+}
+
+/// Determines if the cast is safe to use for flattening nested casts.
+///
+/// E.g. a cast expression like `CAST(CAST a AS INT) AS BIGINT` is safe to
+/// flatten to `CAST(a AS BIGINT)`.
+///
+/// Not all casts are safe to flatten, even if the cast is considered implicit.
+///
+/// E.g. We can't turn `'123456789e-1234'::FLOAT::INT` into
+/// `'123456789e-1234'::INT` directly as that string cannot be parsed as an
+/// integer, even though both cast functions are implicit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CastFlatten {
+    /// Cast is safe to use for flattening another cast.
+    ///
+    /// This should be used conservatively for cast the we know will always
+    /// work, e.g. casting from an i16 to i64.
+    Safe,
+    /// Cast is not safe to use.
+    Unsafe,
 }
 
 #[derive(Debug)]
@@ -139,6 +171,7 @@ pub struct RawCastFunctionVTable {
 pub struct RawCastFunction {
     pub(crate) src: DataTypeId,
     pub(crate) rule: CastRule,
+    pub(crate) flatten: CastFlatten,
 
     function: *const (),
     vtable: &'static RawCastFunctionVTable,
@@ -148,7 +181,12 @@ unsafe impl Send for RawCastFunction {}
 unsafe impl Sync for RawCastFunction {}
 
 impl RawCastFunction {
-    pub const fn new<F>(src: DataTypeId, function: &'static F, rule: CastRule) -> Self
+    pub const fn new<F>(
+        src: DataTypeId,
+        function: &'static F,
+        rule: CastRule,
+        flatten: CastFlatten,
+    ) -> Self
     where
         F: CastFunction,
     {
@@ -157,6 +195,7 @@ impl RawCastFunction {
             function,
             src,
             rule,
+            flatten,
             vtable: F::VTABLE,
         }
     }

@@ -115,9 +115,9 @@ impl Expression {
         })
     }
 
-    pub fn for_each_child_mut<F>(&mut self, func: &mut F) -> Result<()>
+    pub fn for_each_child_mut<'a, F>(&'a mut self, mut func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         match self {
             Self::Aggregate(agg) => {
@@ -187,9 +187,9 @@ impl Expression {
         Ok(())
     }
 
-    pub fn for_each_child<F>(&self, func: &mut F) -> Result<()>
+    pub fn for_each_child<'a, F>(&'a self, mut func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         match self {
             Self::Aggregate(agg) => {
@@ -282,7 +282,7 @@ impl Expression {
             Self::Subquery(_) => true,
             _ => {
                 let mut has_subquery = false;
-                self.for_each_child(&mut |expr| {
+                self.for_each_child(|expr| {
                     if has_subquery {
                         return Ok(());
                     }
@@ -300,7 +300,7 @@ impl Expression {
             Self::Unnest(_) => true,
             _ => {
                 let mut has_unnest = false;
-                self.for_each_child(&mut |expr| {
+                self.for_each_child(|expr| {
                     if has_unnest {
                         return Ok(());
                     }
@@ -318,7 +318,7 @@ impl Expression {
             Self::Window(_) => true,
             _ => {
                 let mut has_window = false;
-                self.for_each_child(&mut |expr| {
+                self.for_each_child(|expr| {
                     if has_window {
                         return Ok(());
                     }
@@ -329,6 +329,23 @@ impl Expression {
                 has_window
             }
         }
+    }
+
+    pub fn is_volatile(&self) -> bool {
+        if let Self::ScalarFunction(func) = self {
+            return func.function.raw.volatility() == FunctionVolatility::Volatile;
+        }
+
+        let mut volatile = false;
+        self.for_each_child(|child| {
+            if child.is_volatile() {
+                volatile = true;
+            }
+            Ok(())
+        })
+        .expect("volatile expression walking to not error");
+
+        volatile
     }
 
     /// Checks if this expression can be folded into a constant.
@@ -380,7 +397,7 @@ impl Expression {
             }
             _ => {
                 let mut is_foldable = true;
-                self.for_each_child(&mut |expr| {
+                self.for_each_child(|expr| {
                     if !is_foldable {
                         return Ok(());
                     }
@@ -405,7 +422,7 @@ impl Expression {
                     }
                 }
                 other => other
-                    .for_each_child_mut(&mut |child| {
+                    .for_each_child_mut(|child| {
                         inner(child, from, to);
                         Ok(())
                     })
@@ -423,7 +440,7 @@ impl Expression {
             match expr {
                 Expression::Column(col) => cols.push(col.reference),
                 other => other
-                    .for_each_child(&mut |child| {
+                    .for_each_child(|child| {
                         inner(child, cols);
                         Ok(())
                     })
@@ -444,7 +461,7 @@ impl Expression {
                     tables.insert(col.reference.table_scope);
                 }
                 other => other
-                    .for_each_child(&mut |child| {
+                    .for_each_child(|child| {
                         inner(child, tables);
                         Ok(())
                     })

@@ -9,6 +9,7 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{IntervalParser, Parser};
 use crate::functions::cast::{
+    CastFlatten,
     CastFunction,
     CastFunctionSet,
     RawCastFunction,
@@ -19,11 +20,12 @@ use crate::util::iter::IntoExactSizeIterator;
 pub const FUNCTION_SET_TO_INTERVAL: CastFunctionSet = CastFunctionSet {
     name: "to_interval",
     target: DataTypeId::Interval,
+    #[rustfmt::skip]
     functions: &[
         // Null -> Interval
-        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INTERVAL_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Null, &NullToAnything, TO_INTERVAL_CAST_RULE, CastFlatten::Safe),
         // Utf8 -> Interval
-        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToInterval, TO_INTERVAL_CAST_RULE),
+        RawCastFunction::new(DataTypeId::Utf8, &Utf8ToInterval, TO_INTERVAL_CAST_RULE, CastFlatten::Unsafe),
     ],
 };
 

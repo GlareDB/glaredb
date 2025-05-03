@@ -679,8 +679,6 @@ fn replace_references(
 
             Ok(())
         }
-        other => {
-            other.for_each_child_mut(&mut |child| replace_references(columns, table_ref, child))
-        }
+        other => other.for_each_child_mut(|child| replace_references(columns, table_ref, child)),
     }
 }

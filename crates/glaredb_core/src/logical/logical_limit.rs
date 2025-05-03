@@ -30,16 +30,16 @@ impl LogicalNode for Node<LogicalLimit> {
         self.get_children_table_refs(bind_context)
     }
 
-    fn for_each_expr<F>(&self, _func: &mut F) -> Result<()>
+    fn for_each_expr<'a, F>(&'a self, _func: F) -> Result<()>
     where
-        F: FnMut(&Expression) -> Result<()>,
+        F: FnMut(&'a Expression) -> Result<()>,
     {
         Ok(())
     }
 
-    fn for_each_expr_mut<F>(&mut self, _func: &mut F) -> Result<()>
+    fn for_each_expr_mut<'a, F>(&'a mut self, _func: F) -> Result<()>
     where
-        F: FnMut(&mut Expression) -> Result<()>,
+        F: FnMut(&'a mut Expression) -> Result<()>,
     {
         Ok(())
     }

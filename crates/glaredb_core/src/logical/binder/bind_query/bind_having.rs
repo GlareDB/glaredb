@@ -79,7 +79,7 @@ impl<'a> HavingBinder<'a> {
                 return Ok(());
             }
 
-            expr.for_each_child_mut(&mut |child| update_expr(group_by_expr, group_by_col, child))
+            expr.for_each_child_mut(|child| update_expr(group_by_expr, group_by_col, child))
         }
 
         if let Some(group_by) = group_by {
