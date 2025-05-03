@@ -137,7 +137,7 @@ fn replace_expressions(
                     // add it to projections.
                     let col_idx = bind_context.push_column_for_table(
                         proj_ref,
-                        "__generated_cse_col_ref",
+                        "__generated_cse_col_ref_for_expr",
                         expr.datatype()?,
                     )?;
                     let new_col_expr = ColumnExpr {
@@ -153,7 +153,31 @@ fn replace_expressions(
             }
         }
         None => {
-            // Not a common expression, check children.
+            // Not considered a common expression. However if we're on a column
+            // expression, we'll need to update it to point to the new
+            // projection node (and push the old column expr to the projection
+            // list).
+            if let Expression::Column(col_expr) = expr {
+                let col_idx = bind_context.push_column_for_table(
+                    proj_ref,
+                    "__generated_cse_col_ref_for_column",
+                    col_expr.datatype.clone(),
+                )?;
+                let new_col_expr = ColumnExpr {
+                    reference: (proj_ref, col_idx).into(),
+                    datatype: col_expr.datatype.clone(),
+                };
+                let orig = std::mem::replace(expr, Expression::from(new_col_expr.clone()));
+
+                // Ensure all other column expressions share the same updated
+                // expr.
+                cse_replacements.insert(orig.clone(), Some(new_col_expr));
+
+                projections.push(orig);
+                return Ok(());
+            }
+
+            // Now move through children.
             expr.for_each_child_mut(|child| {
                 replace_expressions(child, proj_ref, bind_context, cse_replacements, projections)
             })
