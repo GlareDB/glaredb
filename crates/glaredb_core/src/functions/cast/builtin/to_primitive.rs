@@ -339,14 +339,14 @@ pub const FUNCTION_SET_TO_FLOAT16: CastFunctionSet = CastFunctionSet {
         // Utf8 -> Float16
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF16>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         // Int_ -> Float16
-        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Safe),
+        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Unsafe), // TODO: This might a bit sketch.
         RawCastFunction::new(DataTypeId::Int64, &PrimToPrim::<PhysicalI64, PhysicalF16>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::Int128, &PrimToPrim::<PhysicalI128, PhysicalF16>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         // UInt_ -> Float16
-        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Safe),
+        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF16>::new(), TO_F16_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::UInt32, &PrimToPrim::<PhysicalU32, PhysicalF16>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::UInt64, &PrimToPrim::<PhysicalU64, PhysicalF16>::new(), CastRule::Explicit, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::UInt128, &PrimToPrim::<PhysicalU128, PhysicalF16>::new(), CastRule::Explicit, CastFlatten::Unsafe),
@@ -370,15 +370,15 @@ pub const FUNCTION_SET_TO_FLOAT32: CastFunctionSet = CastFunctionSet {
         // Utf8 -> Float32
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
         // Int_ -> Float32
-        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Safe),
+        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::Int64, &PrimToPrim::<PhysicalI64, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::Int128, &PrimToPrim::<PhysicalI128, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
         // UInt_ -> Float32
-        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::UInt32, &PrimToPrim::<PhysicalU32, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Safe),
+        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt32, &PrimToPrim::<PhysicalU32, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::UInt64, &PrimToPrim::<PhysicalU64, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::UInt128, &PrimToPrim::<PhysicalU128, PhysicalF32>::new(), TO_F32_CAST_RULE, CastFlatten::Unsafe),
         // Float_ -> Float32
@@ -401,16 +401,16 @@ pub const FUNCTION_SET_TO_FLOAT64: CastFunctionSet = CastFunctionSet {
         // Utf8 -> Float64
         RawCastFunction::new(DataTypeId::Utf8, &Utf8ToPrim::<PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
         // Int_ -> Float64
-        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::Int64, &PrimToPrim::<PhysicalI64, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
+        RawCastFunction::new(DataTypeId::Int8, &PrimToPrim::<PhysicalI8, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int16, &PrimToPrim::<PhysicalI16, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int32, &PrimToPrim::<PhysicalI32, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::Int64, &PrimToPrim::<PhysicalI64, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::Int128, &PrimToPrim::<PhysicalI128, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
         // UInt_ -> Float64
-        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::UInt32, &PrimToPrim::<PhysicalU32, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
-        RawCastFunction::new(DataTypeId::UInt64, &PrimToPrim::<PhysicalU64, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
+        RawCastFunction::new(DataTypeId::UInt8, &PrimToPrim::<PhysicalU8, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt16, &PrimToPrim::<PhysicalU16, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt32, &PrimToPrim::<PhysicalU32, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
+        RawCastFunction::new(DataTypeId::UInt64, &PrimToPrim::<PhysicalU64, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
         RawCastFunction::new(DataTypeId::UInt128, &PrimToPrim::<PhysicalU128, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Unsafe),
         // Float_ -> Float64
         RawCastFunction::new(DataTypeId::Float16, &PrimToPrim::<PhysicalF16, PhysicalF64>::new(), TO_F64_CAST_RULE, CastFlatten::Safe),
