@@ -72,6 +72,10 @@ pub enum BinaryOperator {
     BitwiseAnd,
     /// Bitwise XOR, e.g. `a ^ b`
     BitwiseXor,
+    /// `<<`
+    BitShiftLeft,
+    /// `>>`
+    BitShiftRight,
     /// IS DISTINCT FROM
     IsDistinctFrom,
     /// IS NOT DISTINCT FROM
@@ -575,6 +579,8 @@ impl Expr<Raw> {
             Token::Div => Some(BinaryOperator::Divide),
             Token::IntDiv => Some(BinaryOperator::IntDiv),
             Token::Mod => Some(BinaryOperator::Modulo),
+            Token::BitShiftLeft => Some(BinaryOperator::BitShiftLeft),
+            Token::BitShiftRight => Some(BinaryOperator::BitShiftRight),
             Token::Concat => Some(BinaryOperator::StringConcat),
             Token::CaretAt => Some(BinaryOperator::StringStartsWith),
             Token::Word(w) => match w.keyword {
@@ -870,6 +876,9 @@ impl Expr<Raw> {
             // Numeric operators
             Token::Plus | Token::Minus => Ok(Self::PREC_ADD_SUB),
             Token::Mul | Token::Div | Token::IntDiv | Token::Mod => Ok(Self::PREC_MUL_DIV_MOD),
+
+            // Bit shifts
+            Token::BitShiftLeft | Token::BitShiftRight => Ok(Self::PREC_EVERYTHING_ELSE),
 
             // Cast
             Token::DoubleColon => Ok(Self::PREC_CAST),

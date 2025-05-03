@@ -67,3 +67,10 @@ query I
 SELECT shl(1, NULL) AS result;
 ----
 NULL
+
+# Test using operator syntax.
+
+query I
+SELECT 4 << 1;
+----
+8
