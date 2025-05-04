@@ -87,13 +87,19 @@ pub struct SortOperatorState {
 pub struct PhysicalGlobalSort {
     pub(crate) sort_exprs: Vec<PhysicalSortExpression>,
     pub(crate) output_types: Vec<DataType>,
+    pub(crate) limit_hint: Option<usize>,
 }
 
 impl PhysicalGlobalSort {
-    pub fn new(sort_exprs: Vec<PhysicalSortExpression>, output_types: Vec<DataType>) -> Self {
+    pub fn new(
+        sort_exprs: Vec<PhysicalSortExpression>,
+        output_types: Vec<DataType>,
+        limit_hint: Option<usize>,
+    ) -> Self {
         PhysicalGlobalSort {
             sort_exprs,
             output_types,
+            limit_hint,
         }
     }
 }
@@ -113,7 +119,7 @@ impl BaseOperator for PhysicalGlobalSort {
         let data_layout = RowLayout::new(self.output_types.clone());
 
         Ok(SortOperatorState {
-            queue: MergeQueue::new(key_layout, data_layout, props.batch_size),
+            queue: MergeQueue::new(key_layout, data_layout, props.batch_size, self.limit_hint),
         })
     }
 
@@ -277,7 +283,7 @@ impl ExecuteOperator for PhysicalGlobalSort {
                     _ => unreachable!(),
                 };
 
-                collect_state.collection.sort_unsorted()?;
+                collect_state.collection.sort_unsorted(self.limit_hint)?;
                 operator_state
                     .queue
                     .add_sorted_partition(*collect_state.collection)?;
@@ -329,6 +335,7 @@ mod tests {
         let wrapper = OperatorWrapper::new(PhysicalGlobalSort::new(
             sort_exprs.into_iter().collect(),
             output_types.into_iter().collect(),
+            None,
         ));
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();

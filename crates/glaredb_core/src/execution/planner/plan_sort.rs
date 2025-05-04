@@ -21,7 +21,11 @@ impl OperatorPlanState<'_> {
             .expr_planner
             .plan_sorts(&input_refs, &order.node.exprs)?;
 
-        let sort = PhysicalGlobalSort::new(sort_exprs, child.operator.call_output_types());
+        let sort = PhysicalGlobalSort::new(
+            sort_exprs,
+            child.operator.call_output_types(),
+            order.node.limit_hint,
+        );
 
         Ok(PlannedOperatorWithChildren {
             operator: PlannedOperator::new_execute(self.id_gen.next_id(), sort),

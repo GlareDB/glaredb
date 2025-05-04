@@ -44,6 +44,7 @@ impl SortedBlock {
         heap_keys_heap: Vec<Block>,
         data: Block,
         data_heap: Vec<Block>,
+        limit_hint: Option<usize>,
     ) -> Result<Option<Self>> {
         let row_width = key_layout.row_width;
         let num_rows = keys.num_rows(row_width);
@@ -179,6 +180,21 @@ impl SortedBlock {
             sorted_data.reserved_bytes = data.reserved_bytes;
             let row_idx_iter = BlockRowIndexIter::new(key_layout, &keys, num_rows);
             apply_sort_indices(&data, &mut sorted_data, row_idx_iter, data_layout.row_width);
+        }
+
+        if let Some(limit_hint) = limit_hint {
+            if keys.num_rows(key_layout.row_width) > limit_hint {
+                // We've been provided a limit hint and number of rows we just
+                // sorted is greater than that. Go ahead and truncated the
+                // blocks such that they only contain the rows within the limit.
+                //
+                // Block reserved capacities are what determines the number of
+                // rows in block. We don't truncate the heap blocks since
+                // there's no ordering in them.
+                keys.reserved_bytes = key_layout.row_width * limit_hint;
+                sorted_heap_keys.reserved_bytes = key_layout.heap_layout.row_width * limit_hint;
+                sorted_data.reserved_bytes = data_layout.row_width * limit_hint;
+            }
         }
 
         Ok(Some(SortedBlock {

@@ -58,6 +58,7 @@ impl SetOpPlanner {
             plan = LogicalOperator::Order(Node {
                 node: LogicalOrder {
                     exprs: order_by.exprs,
+                    limit_hint: None,
                 },
                 location: LocationRequirement::Any,
                 children: vec![plan],
