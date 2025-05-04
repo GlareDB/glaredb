@@ -169,6 +169,9 @@ impl PartialSortedRowCollection {
         //
         // Note we don't concat heap blocks as we have active pointers to them
         // in the fixed sized blocks.
+        //
+        // TODO: Try to avoid concatenating here. We currently do it for ease of
+        // implmentation when building the sorted block.
         let keys = Block::concat(&DefaultBufferManager, keys)?;
         let heap_keys = Block::concat(&DefaultBufferManager, heap_keys)?;
         let data = Block::concat(&DefaultBufferManager, data)?;
