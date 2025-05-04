@@ -166,6 +166,14 @@ Returns the remainder after dividing the left value by the right value.
 
 Round number to the nearest whole value.
 
+## `shl`
+
+Shifts an integer left by a specified number of bits.
+
+## `shr`
+
+Shifts an integer right by a specified number of bits.
+
 ## `sin`
 
 Compute the sin of value.
@@ -193,6 +201,10 @@ Compute the hyperbolic tangent of value.
 ## `trunc`
 
 Truncate number towards zero.
+
+## `xor`
+
+Performs a bitwise XOR operation on two integers.
 
 
 <!-- DOCSGEN_END -->
