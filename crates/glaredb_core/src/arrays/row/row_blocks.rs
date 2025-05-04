@@ -5,35 +5,6 @@ use super::block_scan::BlockScanState;
 use super::row_layout::RowLayout;
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 
-/// Wrapper around a plan pointer to a heap block to also give us information
-/// about which heap block we're writing to.
-///
-/// This is used when constructing the string view that gets written to the row.
-// TODO: Not sure how useful this is right now. It might become actually useful
-// when we start spilling heap blocks.
-#[derive(Debug, Copy, Clone)]
-pub struct HeapMutPtr {
-    /// The pointer to the where to write in the heap.
-    pub ptr: *mut u8,
-    /// The index of the heap block.
-    pub heap_idx: usize,
-    /// The offset within the block that corresponds to the pointer.
-    pub offset: usize,
-}
-
-impl HeapMutPtr {
-    #[must_use]
-    pub unsafe fn byte_add(self, count: usize) -> Self {
-        unsafe {
-            HeapMutPtr {
-                ptr: self.ptr.byte_add(count),
-                heap_idx: self.heap_idx,
-                offset: self.offset + count,
-            }
-        }
-    }
-}
-
 /// State used during appending data to the row collection.
 #[derive(Debug)]
 pub struct BlockAppendState {
@@ -41,7 +12,7 @@ pub struct BlockAppendState {
     pub row_pointers: Vec<*mut u8>,
     /// Pointers to the start of each location in the heap for writing nested or
     /// varlen data.
-    pub heap_pointers: Vec<HeapMutPtr>,
+    pub heap_pointers: Vec<*mut u8>,
 }
 
 // SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
@@ -264,7 +235,6 @@ where
             let block = Block::try_new_reserve_none(&self.manager, total_heap_size, None)?;
             self.heap_blocks.push(block);
 
-            let heap_idx = self.heap_blocks.len() - 1;
             let block = self.heap_blocks.last_mut().expect("heap block to exist");
 
             let block_ptr = block.as_mut_ptr();
@@ -274,21 +244,17 @@ where
                 // SAFETEY: We should have allocated the exact size needed for
                 // the heap block. Everything should be contained within that
                 // block.
-                let ptr = unsafe { block_ptr.byte_add(offset) };
-                state.heap_pointers.push(HeapMutPtr {
-                    ptr,
-                    heap_idx,
-                    offset,
-                });
+                let heap_ptr = unsafe { block_ptr.byte_add(offset) };
+                state.heap_pointers.push(heap_ptr);
                 // Assert that this block contains the computed pointer. Note
                 // that for 0-sized heap requirements, the 'contains' check may
                 // fail since it may point to the end of the allocation (which
                 // is fine, we're not writing to it in that case). The 0 check
                 // just catches this.
                 debug_assert!(
-                    heap_size == 0 || block.data.contains_addr(ptr.addr()),
+                    heap_size == 0 || block.data.contains_addr(heap_ptr.addr()),
                     "ptr: {}, block: {}",
-                    ptr.addr(),
+                    heap_ptr.addr(),
                     block_ptr.addr(),
                 );
                 block.reserved_bytes += heap_size;
