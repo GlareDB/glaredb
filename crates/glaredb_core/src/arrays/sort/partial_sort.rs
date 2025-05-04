@@ -2,28 +2,24 @@ use std::borrow::Borrow;
 
 use glaredb_error::Result;
 
+use super::key_encode::KeyEncodeAppendState;
 use super::sort_layout::SortLayout;
 use super::sorted_block::SortedBlock;
 use crate::arrays::array::Array;
 use crate::arrays::row::block::{Block, NopInitializer, ValidityInitializer};
 use crate::arrays::row::row_blocks::{BlockAppendState, RowBlocks};
 use crate::arrays::row::row_layout::RowLayout;
+use crate::arrays::sort::key_encode::sort_key_encode;
 use crate::buffer::buffer_manager::DefaultBufferManager;
 
 #[derive(Debug)]
 pub struct SortedRowAppendState {
-    /// State for appending to row blocks for sort keys.
-    key_block_append: BlockAppendState,
-    /// State for appending row/heap blocks for columns in the sort key that
-    /// need heap blocks.
-    key_heap_block_append: BlockAppendState,
+    /// State for encoding and appending keys.
+    key_append_state: KeyEncodeAppendState,
     /// State for appending to row blocks for data not part of the sort key.
     data_block_append: BlockAppendState,
     /// Reusable buffer for computing heaps sizes needed per row.
-    ///
-    /// This used for computing the heap sizes for sort key data and non-sort
-    /// key data.
-    heap_sizes: Vec<usize>,
+    data_heap_sizes: Vec<usize>,
 }
 
 /// A collection of partially sorted rows.
@@ -101,19 +97,12 @@ impl PartialSortedRowCollection {
         // TODO: We should probably be able to reuse the same append state for
         // each step.
         SortedRowAppendState {
-            key_block_append: BlockAppendState {
-                row_pointers: Vec::new(),
-                heap_pointers: Vec::new(),
-            },
-            key_heap_block_append: BlockAppendState {
-                row_pointers: Vec::new(),
-                heap_pointers: Vec::new(),
-            },
+            key_append_state: KeyEncodeAppendState::empty(),
             data_block_append: BlockAppendState {
                 row_pointers: Vec::new(),
                 heap_pointers: Vec::new(),
             },
-            heap_sizes: Vec::new(),
+            data_heap_sizes: Vec::new(),
         }
     }
 
@@ -130,67 +119,27 @@ impl PartialSortedRowCollection {
         debug_assert_eq!(keys.len(), self.key_layout.columns.len());
         debug_assert_eq!(data.len(), self.data_layout.num_columns());
 
-        // Encode sort keys first (no heap values)
-        state.key_block_append.clear();
-        self.key_blocks
-            .prepare_append(&mut state.key_block_append, count, None)?;
-        debug_assert_eq!(0, self.key_blocks.num_heap_blocks());
-        unsafe {
-            self.key_layout
-                .write_key_arrays(&mut state.key_block_append, keys, count)?;
-        }
-
-        // Encode sort keys that require heap blocks.
-        if self.key_layout.any_requires_heap() {
-            let heap_keys: Vec<&Array> = self
-                .key_layout
-                .heap_mapping
-                .iter()
-                .enumerate()
-                .filter_map(|(key_idx, maybe_heap_idx)| {
-                    if maybe_heap_idx.is_some() {
-                        Some(keys[key_idx].borrow())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            // Compute heap sizes needed.
-            state.heap_sizes.resize(count, 0);
-            self.key_layout.heap_layout.compute_heap_sizes(
-                &heap_keys,
-                0..count,
-                &mut state.heap_sizes,
-            )?;
-
-            state.key_heap_block_append.clear();
-            self.key_heap_blocks.prepare_append(
-                &mut state.key_heap_block_append,
-                count,
-                Some(&state.heap_sizes),
-            )?;
-
-            unsafe {
-                self.key_layout.heap_layout.write_arrays(
-                    &mut state.key_heap_block_append,
-                    &heap_keys,
-                    0..count,
-                )?;
-            }
-        }
+        // Encode the keys...
+        sort_key_encode(
+            &self.key_layout,
+            &mut state.key_append_state,
+            &mut self.key_blocks,
+            &mut self.key_heap_blocks,
+            keys,
+            0..count,
+        )?;
 
         // Now encode data not part of the key.
         if self.data_layout.num_columns() > 0 {
             // TODO: Only compute heap sizes if heap is actually needed.
-            state.heap_sizes.resize(count, 0);
+            state.data_heap_sizes.resize(count, 0);
             self.data_layout
-                .compute_heap_sizes(data, 0..count, &mut state.heap_sizes)?;
+                .compute_heap_sizes(data, 0..count, &mut state.data_heap_sizes)?;
             state.data_block_append.clear();
             self.data_blocks.prepare_append(
                 &mut state.data_block_append,
                 count,
-                Some(&state.heap_sizes),
+                Some(&state.data_heap_sizes),
             )?;
             unsafe {
                 self.data_layout

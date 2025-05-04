@@ -3,7 +3,7 @@ use std::borrow::{Borrow, BorrowMut};
 use glaredb_error::{Result, not_implemented};
 use half::f16;
 
-use super::row_blocks::{BlockAppendState, HeapMutPtr};
+use super::row_blocks::BlockAppendState;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
     Addressable,
@@ -279,7 +279,7 @@ unsafe fn write_array(
     array_idx: usize,
     array: &Array,
     row_pointers: &[*mut u8],
-    heap_pointers: &mut [HeapMutPtr],
+    heap_pointers: &mut [*mut u8],
     rows: impl IntoExactSizeIterator<Item = usize>,
 ) -> Result<()> {
     unsafe {
@@ -353,7 +353,7 @@ unsafe fn write_binary(
     array_idx: usize,
     array: &Array,
     row_pointers: &[*mut u8],
-    heap_pointers: &mut [HeapMutPtr],
+    heap_pointers: &mut [*mut u8],
     rows: impl IntoExactSizeIterator<Item = usize>,
 ) -> Result<()> {
     unsafe {
@@ -374,12 +374,12 @@ unsafe fn write_binary(
                 let view = data.metadata.get(sel_idx).unwrap();
 
                 if !view.is_inline() {
-                    let heap_ptr = &mut heap_pointers[output];
+                    let heap_ptr = heap_pointers[output];
 
                     // Write data to heap, inline an updated string view reference.
                     let value = data.get(sel_idx).unwrap();
-                    std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
-                    let bs = std::slice::from_raw_parts(heap_ptr.ptr, value.len());
+                    std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr, value.len());
+                    let bs = std::slice::from_raw_parts(heap_ptr, value.len());
 
                     // Create new view that we write to the row.
                     let string_ptr = StringPtr::new_reference(bs);
@@ -387,7 +387,7 @@ unsafe fn write_binary(
                     ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                     // Update heap offset for next column.
-                    *heap_ptr = heap_ptr.byte_add(value.len());
+                    heap_pointers[output] = heap_ptr.byte_add(value.len());
                 } else {
                     // Otherwise we can just write the inline string directly.
                     let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
@@ -402,12 +402,12 @@ unsafe fn write_binary(
                     let view = data.metadata.get(sel_idx).unwrap();
 
                     if !view.is_inline() {
-                        let heap_ptr = &mut heap_pointers[output];
+                        let heap_ptr = heap_pointers[output];
 
                         // Write data to heap, inline an updated string view reference.
                         let value = data.get(sel_idx).unwrap();
-                        std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr.ptr, value.len());
-                        let bs = std::slice::from_raw_parts(heap_ptr.ptr, value.len());
+                        std::ptr::copy_nonoverlapping(value.as_ptr(), heap_ptr, value.len());
+                        let bs = std::slice::from_raw_parts(heap_ptr, value.len());
 
                         // Create new view that we write to the row.
                         let string_ptr = StringPtr::new_reference(bs);
@@ -415,7 +415,7 @@ unsafe fn write_binary(
                         ptr.cast::<StringPtr>().write_unaligned(string_ptr);
 
                         // Update heap offset for next column.
-                        *heap_ptr = heap_ptr.byte_add(value.len());
+                        heap_pointers[output] = heap_ptr.byte_add(value.len());
                     } else {
                         // Otherwise we can just write the inline string directly.
                         let ptr = row_pointers[output].byte_add(layout.offsets[array_idx]);
