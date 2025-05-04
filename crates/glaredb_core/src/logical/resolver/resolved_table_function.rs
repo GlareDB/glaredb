@@ -22,7 +22,7 @@ pub enum ResolvedTableFunctionReference {
     Planned(PlannedTableFunction),
     /// Table function contains non-constant arguments, so planning happens
     /// after resolving.
-    Delayed(TableFunctionSet),
+    Delayed(&'static TableFunctionSet),
 }
 
 impl ResolvedTableFunctionReference {

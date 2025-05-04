@@ -22,7 +22,7 @@ pub enum ArithOperator {
 }
 
 impl AsScalarFunctionSet for ArithOperator {
-    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
+    fn as_scalar_function_set(&self) -> &'static ScalarFunctionSet {
         match self {
             Self::Add => &FUNCTION_SET_ADD,
             Self::Sub => &FUNCTION_SET_SUB,

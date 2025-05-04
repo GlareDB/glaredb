@@ -24,7 +24,7 @@ pub struct AggregateStateInfo {
 #[derive(Debug, Clone)]
 pub struct PlannedAggregateFunction {
     pub(crate) name: &'static str,
-    pub(crate) raw: RawAggregateFunction,
+    pub(crate) raw: &'static RawAggregateFunction,
     pub(crate) state: RawBindState,
 }
 

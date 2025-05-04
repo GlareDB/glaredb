@@ -107,7 +107,7 @@ pub struct CastFunctionSet {
 #[derive(Debug, Clone)]
 pub struct PlannedCastFunction {
     pub(crate) name: &'static str,
-    pub(crate) raw: RawCastFunction,
+    pub(crate) raw: &'static RawCastFunction,
     pub(crate) state: RawCastBindState,
 }
 

@@ -183,7 +183,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         let bind_state = exact.call_bind(inputs)?;
         let planned = PlannedScalarFunction {
             name: op.as_scalar_function_set().name,
-            raw: *exact,
+            raw: exact,
             state: bind_state,
         };
 

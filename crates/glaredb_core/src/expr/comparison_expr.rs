@@ -55,7 +55,7 @@ impl ComparisonOperator {
 }
 
 impl AsScalarFunctionSet for ComparisonOperator {
-    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
+    fn as_scalar_function_set(&self) -> &'static ScalarFunctionSet {
         match self {
             ComparisonOperator::Eq => &FUNCTION_SET_EQ,
             ComparisonOperator::NotEq => &FUNCTION_SET_NEQ,

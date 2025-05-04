@@ -50,7 +50,7 @@ impl CastExpr {
                     let bind_state = cast_fn.call_bind(&child_datatype, &to)?;
                     let planned = PlannedCastFunction {
                         name: cast_set.name,
-                        raw: *cast_fn,
+                        raw: cast_fn,
                         state: bind_state,
                     };
 
@@ -80,7 +80,7 @@ impl CastExpr {
 
         let planned = PlannedCastFunction {
             name: cast_set.name,
-            raw: *cast_fn,
+            raw: cast_fn,
             state: bind_state,
         };
 
@@ -113,7 +113,7 @@ fn find_cast_function_set(target: DataTypeId) -> Option<&'static CastFunctionSet
         .find(|&cast_set| cast_set.target == target)
 }
 
-fn find_cast_function(set: &CastFunctionSet, src: DataTypeId) -> Option<&RawCastFunction> {
+fn find_cast_function(set: &CastFunctionSet, src: DataTypeId) -> Option<&'static RawCastFunction> {
     set.functions.iter().find(|&cast_fn| cast_fn.src == src)
 }
 

@@ -15,7 +15,7 @@ pub enum NegateOperator {
 }
 
 impl AsScalarFunctionSet for NegateOperator {
-    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
+    fn as_scalar_function_set(&self) -> &'static ScalarFunctionSet {
         match self {
             Self::Not => &FUNCTION_SET_NOT,
             Self::Negate => &FUNCTION_SET_NEGATE,

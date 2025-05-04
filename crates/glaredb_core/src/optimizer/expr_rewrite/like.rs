@@ -59,7 +59,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         let bind_state = func.call_bind(inputs)?;
                         let planned = PlannedScalarFunction {
                             name: FUNCTION_SET_STARTS_WITH.name,
-                            raw: *func,
+                            raw: func,
                             state: bind_state,
                         };
 
@@ -83,7 +83,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         let bind_state = func.call_bind(inputs)?;
                         let planned = PlannedScalarFunction {
                             name: FUNCTION_SET_ENDS_WITH.name,
-                            raw: *func,
+                            raw: func,
                             state: bind_state,
                         };
 
@@ -107,7 +107,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         let bind_state = func.call_bind(inputs)?;
                         let planned = PlannedScalarFunction {
                             name: FUNCTION_SET_CONTAINS.name,
-                            raw: *func,
+                            raw: func,
                             state: bind_state,
                         };
 

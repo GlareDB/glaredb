@@ -92,7 +92,7 @@ where
     pub fn resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<Option<TableFunctionSet>> {
+    ) -> Result<Option<&'static TableFunctionSet>> {
         // TODO: Search path.
         let [catalog, schema, name] = match reference.0.len() {
             1 => [
@@ -129,7 +129,7 @@ where
         };
 
         match schema_ent.get_table_function(&name)? {
-            Some(entry) => Ok(Some(*entry.try_as_table_function_entry()?.function)),
+            Some(entry) => Ok(Some(entry.try_as_table_function_entry()?.function)),
             _ => Ok(None),
         }
     }
@@ -137,7 +137,7 @@ where
     pub fn require_resolve_table_function(
         &self,
         reference: &ast::ObjectReference,
-    ) -> Result<TableFunctionSet> {
+    ) -> Result<&'static TableFunctionSet> {
         self.resolve_table_function(reference)?.ok_or_else(|| {
             DbError::new(format!(
                 "Missing table function for reference '{}'",
@@ -254,7 +254,10 @@ where
     ///
     /// This will look at all table functions in the system database to
     /// determine if there's a function that can handle path.
-    pub fn require_resolve_function_for_path(&self, path: &str) -> Result<TableFunctionSet> {
+    pub fn require_resolve_function_for_path(
+        &self,
+        path: &str,
+    ) -> Result<&'static TableFunctionSet> {
         let schema_ent = self
             .context
             .require_get_database(SYSTEM_CATALOG)?
@@ -271,7 +274,7 @@ where
 
         let func = ent.try_as_table_function_entry()?.function;
 
-        Ok(*func)
+        Ok(func)
     }
 
     fn resolve_from_memory_catalog(

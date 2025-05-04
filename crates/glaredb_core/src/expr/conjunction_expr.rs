@@ -12,7 +12,7 @@ pub enum ConjunctionOperator {
 }
 
 impl AsScalarFunctionSet for ConjunctionOperator {
-    fn as_scalar_function_set(&self) -> &ScalarFunctionSet {
+    fn as_scalar_function_set(&self) -> &'static ScalarFunctionSet {
         match self {
             ConjunctionOperator::And => &FUNCTION_SET_AND,
             ConjunctionOperator::Or => &FUNCTION_SET_OR,

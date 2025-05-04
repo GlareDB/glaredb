@@ -33,7 +33,7 @@ pub struct PlannedScalarFunction {
     /// Name of this function.
     pub(crate) name: &'static str,
     /// The raw function containing the vtable to call into.
-    pub(crate) raw: RawScalarFunction,
+    pub(crate) raw: &'static RawScalarFunction,
     /// State for the function (inputs, return type).
     pub(crate) state: RawBindState,
 }

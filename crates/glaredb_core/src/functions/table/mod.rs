@@ -60,7 +60,7 @@ pub struct TableFunctionBindState<S> {
 #[derive(Debug, Clone)]
 pub struct PlannedTableFunction {
     pub(crate) name: &'static str,
-    pub(crate) raw: RawTableFunction,
+    pub(crate) raw: &'static RawTableFunction,
     pub(crate) bind_state: RawTableFunctionBindState,
 }
 

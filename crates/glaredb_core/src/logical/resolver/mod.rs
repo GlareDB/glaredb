@@ -946,7 +946,7 @@ where
                             database_context: self.context,
                         };
                         let planned = expr::bind_table_scan_function(
-                            &function,
+                            function,
                             scan_context,
                             TableFunctionInput {
                                 positional: vec![expr::lit(path.clone()).into()],
@@ -1004,7 +1004,7 @@ where
                                 database_context: self.context,
                             };
                             let planned = expr::bind_table_scan_function(
-                                &function,
+                                function,
                                 scan_context,
                                 constant_args,
                             )

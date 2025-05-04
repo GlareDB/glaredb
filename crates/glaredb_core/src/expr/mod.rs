@@ -693,14 +693,14 @@ pub trait AsScalarFunctionSet {
     /// Called during planning to get the function implementation for arith,
     /// comparision, etc operators to apply appropriate casts to the input
     /// expressions.
-    fn as_scalar_function_set(&self) -> &ScalarFunctionSet;
+    fn as_scalar_function_set(&self) -> &'static ScalarFunctionSet;
 }
 
 /// Binds an scalar function with the given inputs.
 ///
 /// This will cast the inputs as needed.
 pub fn bind_aggregate_function(
-    function: &AggregateFunctionSet,
+    function: &'static AggregateFunctionSet,
     inputs: Vec<Expression>,
 ) -> Result<PlannedAggregateFunction> {
     let (func, inputs) = bind_function_signature(function, inputs)?;
@@ -714,7 +714,7 @@ pub fn bind_aggregate_function(
 }
 
 pub fn scalar_function(
-    function: &ScalarFunctionSet,
+    function: &'static ScalarFunctionSet,
     inputs: Vec<Expression>,
 ) -> Result<ScalarFunctionExpr> {
     Ok(ScalarFunctionExpr {
@@ -726,7 +726,7 @@ pub fn scalar_function(
 ///
 /// This will cast positional input arguments according to the signature.
 pub fn bind_table_execute_function(
-    function: &TableFunctionSet,
+    function: &'static TableFunctionSet,
     input: TableFunctionInput,
 ) -> Result<PlannedTableFunction> {
     let (func, input) = bind_table_function_signature(function, input)?;
@@ -748,7 +748,7 @@ pub fn bind_table_execute_function(
 }
 
 pub async fn bind_table_scan_function(
-    function: &TableFunctionSet,
+    function: &'static TableFunctionSet,
     context: ScanContext<'_>,
     input: TableFunctionInput,
 ) -> Result<PlannedTableFunction> {
@@ -771,9 +771,9 @@ pub async fn bind_table_scan_function(
 }
 
 pub fn bind_table_function_signature(
-    function: &TableFunctionSet,
+    function: &'static TableFunctionSet,
     mut input: TableFunctionInput,
-) -> Result<(RawTableFunction, TableFunctionInput)> {
+) -> Result<(&'static RawTableFunction, TableFunctionInput)> {
     let (func, positional) = bind_function_signature(function, input.positional)?;
     input.positional = positional;
 
@@ -784,7 +784,7 @@ pub fn bind_table_function_signature(
 ///
 /// This will cast the inputs as needed.
 pub fn bind_scalar_function(
-    function: &ScalarFunctionSet,
+    function: &'static ScalarFunctionSet,
     inputs: Vec<Expression>,
 ) -> Result<PlannedScalarFunction> {
     let (func, inputs) = bind_function_signature(function, inputs)?;
@@ -799,9 +799,9 @@ pub fn bind_scalar_function(
 
 /// Convenience function for working with fixed sized inputs.
 pub(crate) fn bind_function_signature_fixed<F, const N: usize>(
-    function: &FunctionSet<F>,
+    function: &'static FunctionSet<F>,
     inputs: [Expression; N],
-) -> Result<(F, [Expression; N])>
+) -> Result<(&'static F, [Expression; N])>
 where
     F: FunctionInfo,
 {
@@ -818,9 +818,9 @@ where
 /// If the there isn't an exact match, but a candidate exists, casts will be
 /// applied to match the closest signature.
 pub(crate) fn bind_function_signature<F>(
-    function: &FunctionSet<F>,
+    function: &'static FunctionSet<F>,
     mut inputs: Vec<Expression>,
-) -> Result<(F, Vec<Expression>)>
+) -> Result<(&'static F, Vec<Expression>)>
 where
     F: FunctionInfo,
 {
@@ -875,7 +875,7 @@ where
         }
     };
 
-    Ok((*func, inputs))
+    Ok((func, inputs))
 }
 
 #[cfg(test)]
