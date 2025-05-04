@@ -166,7 +166,7 @@ impl MergeQueue {
 
         // TODO: Should this be stored somewhere?
         let mut state = merger.init_merge_state();
-        let out = merger.merge(&mut state, left, right)?;
+        let out = merger.merge(&mut state, left, right, self.limit_hint)?;
 
         // Push merged run back into the queue.
         let mut inner = self.inner.lock();

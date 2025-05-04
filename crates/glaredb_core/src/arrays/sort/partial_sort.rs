@@ -82,6 +82,10 @@ impl PartialSortedRowCollection {
         }
     }
 
+    pub fn key_block_capacity(&self) -> usize {
+        self.key_blocks.row_capacity
+    }
+
     pub fn unsorted_row_count(&self) -> usize {
         self.key_blocks.reserved_row_count()
     }

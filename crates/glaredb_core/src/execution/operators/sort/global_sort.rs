@@ -197,6 +197,15 @@ impl ExecuteOperator for PhysicalGlobalSort {
                     num_rows,
                 )?;
 
+                let num_unsorted = state.collection.unsorted_row_count();
+                if let Some(limit_hint) = self.limit_hint {
+                    if num_unsorted > limit_hint {
+                        // Sort early sort often. Having smaller blocks will let
+                        // us prune them earlier.
+                        state.collection.sort_unsorted(self.limit_hint)?;
+                    }
+                }
+
                 Ok(PollExecute::NeedsMore)
             }
             SortPartitionState::Merging(merge_state) => {
@@ -308,6 +317,7 @@ impl Explainable for PhysicalGlobalSort {
                     &expr.column
                 }),
             )
+            .with_value_opt("limit_hint", self.limit_hint)
             .build()
     }
 }
