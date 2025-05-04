@@ -539,7 +539,7 @@ where
                     expr: Box::new(Box::pin(self.resolve_expression(expr, resolve_context)).await?),
                 }),
             },
-            ast::UnaryOperator::Not => {
+            ast::UnaryOperator::Not | ast::UnaryOperator::BitwiseNot => {
                 let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
                 Ok(ast::Expr::UnaryExpr {
                     op,

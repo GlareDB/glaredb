@@ -31,6 +31,7 @@ use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
 use crate::functions::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
 use crate::functions::scalar::builtin::binary::{
     FUNCTION_SET_BITAND,
+    FUNCTION_SET_BITNOT,
     FUNCTION_SET_BITOR,
     FUNCTION_SET_SHL,
     FUNCTION_SET_SHR,
@@ -236,6 +237,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     ast::UnaryOperator::Plus => expr,
                     ast::UnaryOperator::Not => expr::negate(NegateOperator::Not, expr)?.into(),
                     ast::UnaryOperator::Minus => expr::negate(NegateOperator::Negate, expr)?.into(),
+                    ast::UnaryOperator::BitwiseNot => {
+                        let function =
+                            expr::bind_scalar_function(&FUNCTION_SET_BITNOT, vec![expr])?;
+                        Expression::ScalarFunction(ScalarFunctionExpr { function })
+                    }
                 })
             }
             ast::Expr::BinaryExpr { left, op, right } => {
