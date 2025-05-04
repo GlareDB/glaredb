@@ -623,7 +623,6 @@ pub(crate) mod private {
         + PartialOrd
         + Send
         + crate::encodings::decoding::private::GetDecoder
-        + crate::metadata::statistics::private::MakeStatistics
     {
         const PHYSICAL_TYPE: Type;
 
