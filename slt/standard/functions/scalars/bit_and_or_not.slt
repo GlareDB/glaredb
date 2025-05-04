@@ -22,3 +22,8 @@ query I
 SELECT 4 & NULL;
 ----
 NULL
+
+query I
+SELECT ~1;
+----
+-2

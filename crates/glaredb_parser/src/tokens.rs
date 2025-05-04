@@ -86,6 +86,8 @@ pub enum Token {
     Exclamation,
     /// '^'
     Caret,
+    /// '~'
+    Tilde,
     /// '^@'
     CaretAt,
 }
@@ -405,6 +407,10 @@ impl<'a> Tokenizer<'a> {
             '&' => {
                 self.state.next();
                 Token::Ampersand
+            }
+            '~' => {
+                self.state.next();
+                Token::Tilde
             }
             ':' => {
                 self.state.next();

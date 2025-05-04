@@ -26,6 +26,8 @@ pub enum UnaryOperator {
     Minus,
     /// Not, e.g. `NOT(true)`
     Not,
+    /// `~a`
+    BitwiseNot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -543,6 +545,10 @@ impl Expr<Raw> {
             },
             Token::Plus => Expr::UnaryExpr {
                 op: UnaryOperator::Plus,
+                expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_UNARY_MINUS)?),
+            },
+            Token::Tilde => Expr::UnaryExpr {
+                op: UnaryOperator::BitwiseNot,
                 expr: Box::new(Expr::parse_subexpr(parser, Self::PREC_UNARY_MINUS)?),
             },
             other => {
