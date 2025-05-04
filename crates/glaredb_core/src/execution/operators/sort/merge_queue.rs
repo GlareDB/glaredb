@@ -42,6 +42,7 @@ pub enum PollMerge {
 pub struct MergeQueue {
     pub key_layout: SortLayout,
     pub data_layout: RowLayout,
+    pub limit_hint: Option<usize>,
     block_capacity: usize,
     inner: Mutex<MergeQueueInner>,
 }
@@ -77,7 +78,12 @@ impl MergeQueueInner {
 impl MergeQueue {
     /// Creates a new merge queue for merging multiple inputs into a single
     /// totally sorted output.
-    pub fn new(key_layout: SortLayout, data_layout: RowLayout, block_capacity: usize) -> Self {
+    pub fn new(
+        key_layout: SortLayout,
+        data_layout: RowLayout,
+        block_capacity: usize,
+        limit_hint: Option<usize>,
+    ) -> Self {
         let inner = MergeQueueInner {
             runs: VecDeque::new(),
             remaining_collection_count: DelayedPartitionCount::uninit(),
@@ -88,6 +94,7 @@ impl MergeQueue {
         MergeQueue {
             key_layout,
             data_layout,
+            limit_hint,
             block_capacity,
             inner: Mutex::new(inner),
         }
@@ -110,7 +117,7 @@ impl MergeQueue {
     ///
     /// Decrements the number of inputs we're waiting on by one.
     pub fn add_sorted_partition(&self, collection: PartialSortedRowCollection) -> Result<()> {
-        let blocks = collection.try_into_sorted_blocks()?;
+        let blocks = collection.try_into_sorted_blocks(self.limit_hint)?;
         self.add_sorted_blocks(blocks)
     }
 
@@ -159,7 +166,7 @@ impl MergeQueue {
 
         // TODO: Should this be stored somewhere?
         let mut state = merger.init_merge_state();
-        let out = merger.merge(&mut state, left, right)?;
+        let out = merger.merge(&mut state, left, right, self.limit_hint)?;
 
         // Push merged run back into the queue.
         let mut inner = self.inner.lock();

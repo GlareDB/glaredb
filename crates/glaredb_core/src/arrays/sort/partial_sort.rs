@@ -82,6 +82,10 @@ impl PartialSortedRowCollection {
         }
     }
 
+    pub fn key_block_capacity(&self) -> usize {
+        self.key_blocks.row_capacity
+    }
+
     pub fn unsorted_row_count(&self) -> usize {
         self.key_blocks.reserved_row_count()
     }
@@ -155,7 +159,12 @@ impl PartialSortedRowCollection {
     /// Note that this may produce sorted blocks that exceed our initial block
     /// capacity (e.g. may produce a block of 2117 rows when we have a capacity
     /// of 2048). This is for implementation simplicity.
-    pub fn sort_unsorted(&mut self) -> Result<()> {
+    ///
+    /// An optional limit hint may be provided which will apply a limit to the
+    /// resulting sorted block. Note that the total number of sorted rows across
+    /// all sorted blocks may exceed the limit as there's not yet any ordering
+    /// guarantees between the blocks.
+    pub fn sort_unsorted(&mut self, limit_hint: Option<usize>) -> Result<()> {
         let (keys, _) = self.key_blocks.take_blocks(); // Keys should never have heap blocks.
         let (heap_keys, heap_keys_heap) = self.key_heap_blocks.take_blocks();
         let (data, data_heap) = self.data_blocks.take_blocks();
@@ -164,6 +173,9 @@ impl PartialSortedRowCollection {
         //
         // Note we don't concat heap blocks as we have active pointers to them
         // in the fixed sized blocks.
+        //
+        // TODO: Try to avoid concatenating here. We currently do it for ease of
+        // implmentation when building the sorted block.
         let keys = Block::concat(&DefaultBufferManager, keys)?;
         let heap_keys = Block::concat(&DefaultBufferManager, heap_keys)?;
         let data = Block::concat(&DefaultBufferManager, data)?;
@@ -177,6 +189,7 @@ impl PartialSortedRowCollection {
             heap_keys_heap,
             data,
             data_heap,
+            limit_hint,
         )?;
 
         if let Some(block) = sorted_block {
@@ -188,8 +201,8 @@ impl PartialSortedRowCollection {
 
     /// Try sort any remaining unsorted blocks, and return all sorted blocks in
     /// the collection.
-    pub fn try_into_sorted_blocks(mut self) -> Result<Vec<SortedBlock>> {
-        self.sort_unsorted()?;
+    pub fn try_into_sorted_blocks(mut self, limit_hint: Option<usize>) -> Result<Vec<SortedBlock>> {
+        self.sort_unsorted(limit_hint)?;
         debug_assert_eq!(0, self.unsorted_row_count());
 
         Ok(self.sorted)
@@ -234,7 +247,7 @@ mod tests {
         assert_eq!(row_count, collection.unsorted_row_count());
         assert_eq!(0, collection.sorted_row_count());
 
-        collection.sort_unsorted().unwrap();
+        collection.sort_unsorted(None).unwrap();
         assert_eq!(0, collection.unsorted_row_count());
         assert_eq!(row_count, collection.sorted_row_count());
 

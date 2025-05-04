@@ -87,11 +87,17 @@ impl<'a> BinaryMerger<'a> {
     /// Merge left and right, producing a new sorted run.
     ///
     /// This will internally reset the provided state.
+    ///
+    /// If `limit_hint` is provided, then the merge may stop early to abide by
+    /// the limit. The output segment will still represent the top rows
+    /// according to the sort. The segment may contain more than the number of
+    /// rows requested.
     pub fn merge(
         &self,
         state: &mut BinaryMergeState,
         mut left: SortedSegment,
         right: SortedSegment,
+        limit_hint: Option<usize>,
     ) -> Result<SortedSegment> {
         state.left_scan.reset_for_run(self.key_layout, &left);
         state.right_scan.reset_for_run(self.key_layout, &right);
@@ -99,6 +105,8 @@ impl<'a> BinaryMerger<'a> {
         let mut merged_keys = Vec::new();
         let mut merged_heap_keys = Vec::new();
         let mut merged_data = Vec::new();
+
+        let mut total_scan_count = 0;
 
         loop {
             // Scan count used to build blocks for this iteration of the loop.
@@ -111,6 +119,16 @@ impl<'a> BinaryMerger<'a> {
 
             if state.left_scan.remaining == 0 && state.right_scan.remaining == 0 {
                 break;
+            }
+
+            if let Some(limit_hint) = limit_hint {
+                if total_scan_count >= limit_hint {
+                    // We've scanned at least the requested number of rows.
+                    //
+                    // Return whatever we have in the segment now. All other
+                    // remaining blocks will be dropped.
+                    break;
+                }
             }
 
             // Fill which sides to scan from for each row.
@@ -181,6 +199,9 @@ impl<'a> BinaryMerger<'a> {
 
             state.left_scan = new_left_scan;
             state.right_scan = new_right_scan;
+
+            // For the possible limit.
+            total_scan_count += scan_count;
         }
 
         // Move heap blocks, we have active pointers from the row blocks, so
@@ -720,7 +741,7 @@ mod tests {
             cap,
         );
         let mut state = merger.init_merge_state();
-        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        let out = merger.merge(&mut state, left_run, right_run, None).unwrap();
         assert_eq!(1, out.keys.len());
 
         let mut scan = out.init_scan_state();
@@ -933,7 +954,7 @@ mod tests {
             4,
         );
         let mut state = merger.init_merge_state();
-        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        let out = merger.merge(&mut state, left_run, right_run, None).unwrap();
         assert_eq!(2, out.keys.len());
 
         let mut scan = out.init_scan_state();
@@ -980,7 +1001,9 @@ mod tests {
         let left_run2 = SortedSegment::from_sorted_block(left_block2.sorted_block);
 
         let mut state = merger.init_merge_state();
-        let left_out = merger.merge(&mut state, left_run1, left_run2).unwrap();
+        let left_out = merger
+            .merge(&mut state, left_run1, left_run2, None)
+            .unwrap();
         assert_eq!(2, left_out.keys.len());
 
         // Now do the same with some right blocks, these values always sort
@@ -994,13 +1017,15 @@ mod tests {
         let right_run1 = SortedSegment::from_sorted_block(right_block1.sorted_block);
         let right_run2 = SortedSegment::from_sorted_block(right_block2.sorted_block);
 
-        let right_out = merger.merge(&mut state, right_run1, right_run2).unwrap();
+        let right_out = merger
+            .merge(&mut state, right_run1, right_run2, None)
+            .unwrap();
         assert_eq!(2, right_out.keys.len());
 
         // Now merge the two sorted runs. Left with exhaust quicker than right
         // when producing the final run.
 
-        let final_out = merger.merge(&mut state, left_out, right_out).unwrap();
+        let final_out = merger.merge(&mut state, left_out, right_out, None).unwrap();
         assert_eq!(4, final_out.keys.len());
 
         let mut scan = final_out.init_scan_state();
@@ -1047,10 +1072,12 @@ mod tests {
         let right_run2 = SortedSegment::from_sorted_block(right_block2.sorted_block);
 
         let mut state = merger.init_merge_state();
-        let right_out = merger.merge(&mut state, right_run1, right_run2).unwrap();
+        let right_out = merger
+            .merge(&mut state, right_run1, right_run2, None)
+            .unwrap();
         assert_eq!(2, right_out.keys.len());
 
-        let final_out = merger.merge(&mut state, left_run, right_out).unwrap();
+        let final_out = merger.merge(&mut state, left_run, right_out, None).unwrap();
         assert_eq!(3, final_out.keys.len());
 
         let mut scan = final_out.init_scan_state();
@@ -1088,7 +1115,9 @@ mod tests {
         let left_run2 = SortedSegment::from_sorted_block(left_block2.sorted_block);
 
         let mut state = merger.init_merge_state();
-        let left_out = merger.merge(&mut state, left_run1, left_run2).unwrap();
+        let left_out = merger
+            .merge(&mut state, left_run1, left_run2, None)
+            .unwrap();
         assert_eq!(2, left_out.keys.len());
 
         let right1 = generate_batch!([3, 6]);
@@ -1101,10 +1130,12 @@ mod tests {
         let right_run2 = SortedSegment::from_sorted_block(right_block2.sorted_block);
 
         let mut state = merger.init_merge_state();
-        let right_out = merger.merge(&mut state, right_run1, right_run2).unwrap();
+        let right_out = merger
+            .merge(&mut state, right_run1, right_run2, None)
+            .unwrap();
         assert_eq!(2, right_out.keys.len());
 
-        let final_out = merger.merge(&mut state, left_out, right_out).unwrap();
+        let final_out = merger.merge(&mut state, left_out, right_out, None).unwrap();
         assert_eq!(4, final_out.keys.len());
 
         let mut scan = final_out.init_scan_state();
@@ -1142,7 +1173,7 @@ mod tests {
         );
 
         let mut state = merger.init_merge_state();
-        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        let out = merger.merge(&mut state, left_run, right_run, None).unwrap();
         assert_eq!(3, out.keys.len());
 
         assert_eq!(4, out.keys[0].num_rows(left_block.key_layout.row_width));
@@ -1170,7 +1201,9 @@ mod tests {
             let append_run = SortedSegment::from_sorted_block(append_block.sorted_block);
 
             let mut state = merger.init_merge_state();
-            left_run = merger.merge(&mut state, left_run, append_run).unwrap();
+            left_run = merger
+                .merge(&mut state, left_run, append_run, None)
+                .unwrap();
         }
 
         // Now create a larger than normal right block/run
@@ -1180,7 +1213,7 @@ mod tests {
 
         // Merge them.
         let mut state = merger.init_merge_state();
-        let out = merger.merge(&mut state, left_run, right_run).unwrap();
+        let out = merger.merge(&mut state, left_run, right_run, None).unwrap();
         assert_eq!(8, out.keys.len());
 
         assert_eq!(2048, out.keys[0].num_rows(left_block.key_layout.row_width));

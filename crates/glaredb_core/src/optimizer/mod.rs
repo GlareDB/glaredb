@@ -6,6 +6,7 @@ pub mod join_reorder;
 pub mod limit_pushdown;
 pub mod location;
 pub mod selection_reorder;
+pub mod sort_limit_hint;
 
 #[allow(dead_code)] // Until it's more robust
 pub mod redundant_groups;
@@ -18,6 +19,7 @@ use glaredb_error::Result;
 use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
 use selection_reorder::SelectionReorder;
+use sort_limit_hint::SortLimitHint;
 use tracing::debug;
 
 use crate::catalog::profile::OptimizerProfile;
@@ -109,6 +111,14 @@ impl Optimizer {
         self.profile_data
             .timings
             .push(("join_reorder", timer.stop()));
+
+        // Try to limit the amount of sorting that needs to happen.
+        let timer = Timer::<I>::start();
+        let mut rule = SortLimitHint;
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("sort_limit_hint", timer.stop()));
 
         // Selection reorder.
         let timer = Timer::<I>::start();

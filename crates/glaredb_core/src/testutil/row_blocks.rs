@@ -108,9 +108,9 @@ impl TestSortedRowBlock {
         collection
             .append_unsorted_keys_and_data(&mut state, keys, data, num_rows)
             .unwrap();
-        collection.sort_unsorted();
+        collection.sort_unsorted(None);
 
-        let mut blocks = collection.try_into_sorted_blocks().unwrap();
+        let mut blocks = collection.try_into_sorted_blocks(None).unwrap();
         assert_eq!(1, blocks.len());
 
         let block = blocks.pop().unwrap();

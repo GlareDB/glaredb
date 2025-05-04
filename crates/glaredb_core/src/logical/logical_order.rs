@@ -9,13 +9,18 @@ use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalOrder {
+    /// Sort expressions.
     pub exprs: Vec<BoundOrderByExpr>,
+    /// Optional limit hint that can be provided to the physical operator to
+    /// reduce the amount of work needed for the sort.
+    pub limit_hint: Option<usize>,
 }
 
 impl Explainable for LogicalOrder {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         EntryBuilder::new("Order", conf)
             .with_values("expressions", &self.exprs)
+            .with_value_opt("limit_hint", self.limit_hint)
             .build()
     }
 }
