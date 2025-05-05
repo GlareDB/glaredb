@@ -365,23 +365,23 @@ impl ValueStatisticsType for Vec<u8> {}
 /// Statistics for a particular `ParquetValueType`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValueStatistics<T> {
-    min: Option<T>,
-    max: Option<T>,
+    pub min: Option<T>,
+    pub max: Option<T>,
     // Distinct count could be omitted in some cases
-    distinct_count: Option<u64>,
+    pub distinct_count: Option<u64>,
     /// Returns optional value of number of distinct values occurring.
-    null_count: u64,
+    pub null_count: u64,
 
     /// Whether the stored `max` field represents the exact maximum, or just a
     /// bound on the maximum value.
-    is_max_value_exact: bool,
+    pub is_max_value_exact: bool,
     /// Whether the stored `min` field represents the exact minimum, or just a
     /// bound on the minimum value.
-    is_min_value_exact: bool,
+    pub is_min_value_exact: bool,
 
     /// If `true` populate the deprecated `min` and `max` fields instead of
     /// `min_value` and `max_value`
-    is_min_max_deprecated: bool,
+    pub is_min_max_deprecated: bool,
 
     /// Old versions of parquet stored statistics in `min` and `max` fields, ordered
     /// using signed comparison. This resulted in an undefined ordering for unsigned
@@ -393,7 +393,7 @@ pub struct ValueStatistics<T> {
     /// However, not all readers have been updated. For backwards compatibility, this method
     /// returns `true` if the statistics within this have a signed sort order, that is
     /// compatible with being stored in the deprecated `min` and `max` fields
-    is_min_max_backwards_compatible: bool,
+    pub is_min_max_backwards_compatible: bool,
 }
 
 impl<T> ValueStatistics<T>

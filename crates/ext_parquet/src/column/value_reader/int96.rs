@@ -6,6 +6,7 @@ use glaredb_core::arrays::array::physical_type::{
 
 use super::{ReaderErrorState, ValueReader};
 use crate::column::read_buffer::ReadCursor;
+use crate::column::row_group_pruner::PlainTypeInt96;
 
 /// Julian day 2440588 corresponds to Unix epoch (1970-01-01)
 const UNIX_EPOCH_JULIAN: u32 = 2_440_588;
@@ -23,6 +24,7 @@ pub struct Int96TsReader;
 
 impl ValueReader for Int96TsReader {
     type Storage = PhysicalI64;
+    type PlainType = PlainTypeInt96;
 
     unsafe fn read_next_unchecked(
         &mut self,

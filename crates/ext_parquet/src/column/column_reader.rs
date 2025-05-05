@@ -6,6 +6,7 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_error::{DbError, Result};
 
 use super::page_reader::PageReader;
+use super::row_group_pruner::RowGroupPruner;
 use super::value_reader::ValueReader;
 use crate::basic::Compression;
 use crate::column::encoding::{Definitions, PageDecoder};

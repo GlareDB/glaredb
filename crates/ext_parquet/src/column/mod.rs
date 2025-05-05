@@ -21,6 +21,7 @@
 //! repetition levels directly.
 
 pub mod column_reader;
+pub mod row_group_pruner;
 pub mod struct_reader;
 
 mod bitutil;

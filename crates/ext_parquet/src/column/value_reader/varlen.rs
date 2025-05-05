@@ -8,6 +8,7 @@ use glaredb_error::DbError;
 
 use super::{ReaderErrorState, ValueReader};
 use crate::column::read_buffer::ReadCursor;
+use crate::column::row_group_pruner::PlainTypeByteArray;
 
 /// Value reader for reading variable length strings and byte arrays.
 #[derive(Debug, Clone, Copy, Default)]
@@ -15,6 +16,7 @@ pub struct BinaryValueReader;
 
 impl ValueReader for BinaryValueReader {
     type Storage = PhysicalBinary;
+    type PlainType = PlainTypeByteArray;
 
     unsafe fn read_next_unchecked(
         &mut self,
@@ -49,6 +51,7 @@ pub struct Utf8ValueReader;
 
 impl ValueReader for Utf8ValueReader {
     type Storage = PhysicalUtf8;
+    type PlainType = PlainTypeByteArray;
 
     unsafe fn read_next_unchecked(
         &mut self,
