@@ -14,7 +14,7 @@ case "$1" in
 esac
 
 TRIES=3
-QUERY_NUM=1
+QUERY_NUM=0
 
 echo "[" > results.json
 echo "query_num,iteration,duration" > results.csv
@@ -29,7 +29,7 @@ cat queries.sql | while read -r query; do
 
     echo "${QUERY_NUM}: ${query}"
 
-    [ "${QUERY_NUM}" != 1 ] && echo "," >> results.json
+    [ "${QUERY_NUM}" != 0 ] && echo "," >> results.json
     echo -n "    [" >> results.json
 
     for i in $(seq 1 $TRIES); do
