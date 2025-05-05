@@ -11,6 +11,7 @@ use glaredb_core::logical::statistics::StatisticsValue;
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
 use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::Result;
 
 /// Describes a single column in a tpch table.
@@ -125,6 +126,7 @@ where
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(TableGenOperatorState {

@@ -24,6 +24,7 @@ use glaredb_core::runtime::filesystem::{
     OpenFlags,
 };
 use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
 use crate::decoder::{ByteRecords, CsvDecoder};
@@ -140,6 +141,7 @@ impl TableScanFunction for ReadCsv {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         // TODO: Seems like a common pattern that operator state is always a

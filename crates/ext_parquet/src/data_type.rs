@@ -529,6 +529,26 @@ gen_as_bytes!(u64);
 gen_as_bytes!(f32);
 gen_as_bytes!(f64);
 
+macro_rules! unimplemented_slice_as_bytes {
+    ($ty: ty) => {
+        impl SliceAsBytes for $ty {
+            fn slice_as_bytes(_self: &[Self]) -> &[u8] {
+                unimplemented!()
+            }
+
+            unsafe fn slice_as_bytes_mut(_self: &mut [Self]) -> &mut [u8] {
+                unimplemented!()
+            }
+        }
+    };
+}
+
+// TODO - Can Int96 and bool be implemented in these terms?
+unimplemented_slice_as_bytes!(Int96);
+unimplemented_slice_as_bytes!(bool);
+unimplemented_slice_as_bytes!(ByteArray);
+unimplemented_slice_as_bytes!(FixedLenByteArray);
+
 impl AsBytes for bool {
     fn as_bytes(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self as *const bool as *const u8, 1) }

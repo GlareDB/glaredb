@@ -24,8 +24,8 @@ impl ScanFilter {
     pub fn plan(
         self,
         table_ref: TableRef,
-        _bind_context: &mut BindContext,
-        expr_planner: PhysicalExpressionPlanner,
+        _bind_context: &BindContext,
+        expr_planner: &PhysicalExpressionPlanner,
     ) -> Result<PhysicalScanFilter> {
         let column_refs = self.expression.get_column_references();
         let planned = expr_planner.plan_scalar(&[table_ref], &self.expression)?;

@@ -29,6 +29,7 @@ use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::storage::projections::{ProjectedColumn, Projections};
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 // TODO: Should empty args for these just return the profiles for all queries?
 // Doing so would enable something like:
@@ -596,6 +597,7 @@ where
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ProfileTableGenOperatorState {

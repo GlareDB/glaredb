@@ -22,6 +22,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
     name: "list_tables",
@@ -186,6 +187,7 @@ impl TableScanFunction for ListTables {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
@@ -300,6 +302,7 @@ impl TableScanFunction for ListViews {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {
@@ -476,6 +479,7 @@ impl TableScanFunction for ListFunctions {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListEntriesOperatorState {

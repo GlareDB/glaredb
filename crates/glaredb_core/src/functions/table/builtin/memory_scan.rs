@@ -16,6 +16,7 @@ use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFun
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::datatable::{DataTable, ParallelDataTableScanState};
 use crate::storage::projections::Projections;
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_MEMORY_SCAN: TableFunctionSet = TableFunctionSet {
     name: "memory_scan",
@@ -102,6 +103,7 @@ impl TableScanFunction for MemoryScan {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(MemoryScanOperatorState {

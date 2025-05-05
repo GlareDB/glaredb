@@ -16,6 +16,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_LIST_DATABASES: TableFunctionSet = TableFunctionSet {
     name: "list_databases",
@@ -81,6 +82,7 @@ impl TableScanFunction for ListDatabases {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ListDatabasesOperatorState {

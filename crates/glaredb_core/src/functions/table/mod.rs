@@ -22,6 +22,7 @@ use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize
 use crate::expr::Expression;
 use crate::logical::statistics::StatisticsValue;
 use crate::storage::projections::Projections;
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableFunctionInput {
@@ -148,12 +149,14 @@ impl RawTableFunction {
         &self,
         bind_state: &RawTableFunctionBindState,
         projections: Projections,
+        filters: &[PhysicalScanFilter],
         props: ExecutionProperties,
     ) -> Result<AnyTableOperatorState> {
         unsafe {
             (self.vtable.create_pull_operator_state_fn)(
                 bind_state.state.as_ref(),
                 projections,
+                filters,
                 props,
             )
         }
@@ -262,6 +265,7 @@ pub struct RawTableFunctionVTable {
     create_pull_operator_state_fn: unsafe fn(
         bind_state: &dyn Any,
         projections: Projections,
+        filters: &[PhysicalScanFilter],
         props: ExecutionProperties,
     ) -> Result<AnyTableOperatorState>,
 
@@ -331,7 +335,7 @@ where
                 cardinality: state.cardinality,
             })
         },
-        create_pull_operator_state_fn: |_bind_state, _projections, _props| {
+        create_pull_operator_state_fn: |_bind_state, _projections, _filters, _props| {
             Err(DbError::new("Not a scan function"))
         },
         create_pull_partition_states_fn: |_bind_state, _props, _partitions| {
@@ -405,11 +409,11 @@ where
             }))
         },
         execute_bind_fn: |_function, _input| Err(DbError::new("Not an execute function")),
-        create_pull_operator_state_fn: |bind_state, projections, props| {
+        create_pull_operator_state_fn: |bind_state, projections, filters, props| {
             let bind_state = bind_state
                 .downcast_ref::<<F as TableScanFunction>::BindState>()
                 .unwrap();
-            let op_state = F::create_pull_operator_state(bind_state, projections, props)?;
+            let op_state = F::create_pull_operator_state(bind_state, projections, filters, props)?;
             Ok(AnyTableOperatorState(Arc::new(op_state)))
         },
         create_pull_partition_states_fn: |op_state, props, partitions| {
