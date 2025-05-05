@@ -6,10 +6,9 @@ pub mod varlen;
 use std::fmt::Debug;
 
 use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
-use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
-use super::row_group_pruner::{PlainType, RowGroupPruner};
+use super::row_group_pruner::PlainType;
 use crate::column::read_buffer::ReadCursor;
 
 /// Reads values from the read buffer, and writes them to addressable storage.

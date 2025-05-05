@@ -54,7 +54,7 @@ where
     V: ValueReader,
     F: RowGroupPruner<V::PlainType>,
 {
-    pub fn try_new<'a>(
+    pub fn try_new(
         manager: &impl AsRawBufferManager,
         datatype: DataType,
         descr: ColumnDescriptor,

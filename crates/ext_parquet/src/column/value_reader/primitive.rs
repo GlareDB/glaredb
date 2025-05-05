@@ -15,10 +15,7 @@ use glaredb_core::arrays::array::physical_type::{
     PhysicalU32,
     PhysicalU64,
 };
-use glaredb_core::arrays::scalar::ScalarValue;
-use glaredb_core::storage::scan_filter::{PhysicalScanFilter, PhysicalScanFilterType};
 use glaredb_core::util::marker::PhantomCovariant;
-use glaredb_error::Result;
 use num::cast::AsPrimitive;
 
 use super::{ReaderErrorState, ValueReader};
@@ -30,9 +27,7 @@ use crate::column::row_group_pruner::{
     PlainTypeFixedLenByteArray,
     PlainTypeI32,
     PlainTypeI64,
-    RowGroupPruner,
 };
-use crate::metadata::statistics::ValueStatistics;
 
 pub type PlainInt32ValueReader = PrimitiveValueReader<PhysicalI32, PlainTypeI32>;
 pub type PlainInt64ValueReader = PrimitiveValueReader<PhysicalI64, PlainTypeI64>;

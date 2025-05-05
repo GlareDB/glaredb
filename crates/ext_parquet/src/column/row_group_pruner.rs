@@ -1,7 +1,5 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
-use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
 use glaredb_core::arrays::scalar::ScalarValue;
 use glaredb_core::arrays::scalar::unwrap::{NullableValue, ScalarValueUnwrap};
 use glaredb_core::storage::scan_filter::{PhysicalScanFilter, PhysicalScanFilterType};
