@@ -6,6 +6,7 @@ use glaredb_core::arrays::array::physical_type::{
 
 use super::{ReaderErrorState, ValueReader};
 use crate::column::read_buffer::ReadCursor;
+use crate::column::row_group_pruner::PlainTypeBool;
 
 /// Bit-packed bool reader (LSB).
 #[derive(Debug, Default)]
@@ -16,6 +17,7 @@ pub struct BoolValueReader {
 
 impl ValueReader for BoolValueReader {
     type Storage = PhysicalBool;
+    type PlainType = PlainTypeBool;
 
     unsafe fn read_next_unchecked(
         &mut self,

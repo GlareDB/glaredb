@@ -529,7 +529,7 @@ gen_as_bytes!(u64);
 gen_as_bytes!(f32);
 gen_as_bytes!(f64);
 
-macro_rules! unimplemented_slice_as_bytes {
+macro_rules! slice_as_bytes_unimplemented {
     ($ty: ty) => {
         impl SliceAsBytes for $ty {
             fn slice_as_bytes(_self: &[Self]) -> &[u8] {
@@ -544,10 +544,10 @@ macro_rules! unimplemented_slice_as_bytes {
 }
 
 // TODO - Can Int96 and bool be implemented in these terms?
-unimplemented_slice_as_bytes!(Int96);
-unimplemented_slice_as_bytes!(bool);
-unimplemented_slice_as_bytes!(ByteArray);
-unimplemented_slice_as_bytes!(FixedLenByteArray);
+slice_as_bytes_unimplemented!(Int96);
+slice_as_bytes_unimplemented!(bool);
+slice_as_bytes_unimplemented!(ByteArray);
+slice_as_bytes_unimplemented!(FixedLenByteArray);
 
 impl AsBytes for bool {
     fn as_bytes(&self) -> &[u8] {
@@ -623,7 +623,6 @@ pub(crate) mod private {
         + PartialOrd
         + Send
         + crate::encodings::decoding::private::GetDecoder
-        + crate::metadata::statistics::private::MakeStatistics
     {
         const PHYSICAL_TYPE: Type;
 

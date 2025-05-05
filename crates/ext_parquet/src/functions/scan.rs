@@ -27,6 +27,7 @@ use glaredb_core::runtime::filesystem::{
     OpenFlags,
 };
 use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
 use crate::metadata::ParquetMetaData;
@@ -64,6 +65,7 @@ pub struct ReadParquetOperatorState {
     path: String,
     metadata: Arc<ParquetMetaData>,
     projections: Projections,
+    filters: Vec<PhysicalScanFilter>,
     schema: ColumnSchema, // TODO
 }
 
@@ -130,6 +132,7 @@ impl TableScanFunction for ReadParquet {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ReadParquetOperatorState {
@@ -137,6 +140,7 @@ impl TableScanFunction for ReadParquet {
             path: bind_state.path.clone(),
             metadata: bind_state.metadata.clone(),
             projections,
+            filters: filters.to_vec(),
             schema: bind_state.schema.clone(),
         })
     }
@@ -157,6 +161,7 @@ impl TableScanFunction for ReadParquet {
             .into_iter()
             .map(|groups| {
                 let projections = op_state.projections.clone();
+                let filters = op_state.filters.clone();
                 let metadata = op_state.metadata.clone();
                 let schema = op_state.schema.clone();
                 let open_fut = op_state
@@ -174,6 +179,7 @@ impl TableScanFunction for ReadParquet {
                         file,
                         groups,
                         projections,
+                        &filters,
                     )
                 });
 

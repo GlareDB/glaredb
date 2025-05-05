@@ -12,6 +12,7 @@ use crate::functions::table::{
     PlannedTableFunction,
 };
 use crate::storage::projections::Projections;
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 #[derive(Debug)]
 pub struct ScanOperatorState {
@@ -27,12 +28,17 @@ pub struct ScanPartitionState {
 #[derive(Debug)]
 pub struct PhysicalScan {
     pub(crate) projections: Projections,
+    pub(crate) filters: Vec<PhysicalScanFilter>,
     pub(crate) output_types: Vec<DataType>,
     pub(crate) function: PlannedTableFunction,
 }
 
 impl PhysicalScan {
-    pub fn new(projections: Projections, function: PlannedTableFunction) -> Self {
+    pub fn new(
+        projections: Projections,
+        filters: Vec<PhysicalScanFilter>,
+        function: PlannedTableFunction,
+    ) -> Self {
         let output_types = projections
             .data_indices()
             .iter()
@@ -41,6 +47,7 @@ impl PhysicalScan {
 
         PhysicalScan {
             projections,
+            filters,
             output_types,
             function,
         }
@@ -56,6 +63,7 @@ impl BaseOperator for PhysicalScan {
         let op_state = self.function.raw.call_create_pull_operator_state(
             &self.function.bind_state,
             self.projections.clone(),
+            &self.filters,
             props,
         )?;
 

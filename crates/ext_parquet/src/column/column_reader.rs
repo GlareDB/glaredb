@@ -6,10 +6,12 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_error::{DbError, Result};
 
 use super::page_reader::PageReader;
+use super::row_group_pruner::{PlainType, RowGroupPruner};
 use super::value_reader::ValueReader;
 use crate::basic::Compression;
 use crate::column::encoding::{Definitions, PageDecoder};
 use crate::compression::{CodecOptions, create_codec};
+use crate::metadata::statistics::Statistics;
 use crate::schema::types::ColumnDescriptor;
 
 /// Reads column values into the output array.
@@ -30,10 +32,15 @@ pub trait ColumnReader: Debug + Sync + Send {
     /// This buffer will be used for reading the column chunk from the file
     /// directly.
     fn chunk_buf_mut(&mut self) -> &mut [u8];
+
+    /// See if we can prune a row group based on these column statistics.
+    fn should_prune(&self, stats: &Statistics) -> Result<bool>;
 }
 
 #[derive(Debug)]
-pub struct ValueColumnReader<V: ValueReader> {
+pub struct ValueColumnReader<V: ValueReader, F: RowGroupPruner<V::PlainType>> {
+    /// Filter used for pruning row groups.
+    pub(crate) filter: F,
     /// Page reader for this column.
     pub(crate) page_reader: PageReader<V>,
     /// Reusable buffer for definition levels.
@@ -42,18 +49,21 @@ pub struct ValueColumnReader<V: ValueReader> {
     pub(crate) repetitions: Vec<i16>,
 }
 
-impl<V> ValueColumnReader<V>
+impl<V, F> ValueColumnReader<V, F>
 where
     V: ValueReader,
+    F: RowGroupPruner<V::PlainType>,
 {
     pub fn try_new(
         manager: &impl AsRawBufferManager,
         datatype: DataType,
         descr: ColumnDescriptor,
+        filter: F,
     ) -> Result<Self> {
         let page_reader = PageReader::try_new(manager, datatype, descr)?;
 
         Ok(ValueColumnReader {
+            filter,
             page_reader,
             definitions: Vec::new(),
             repetitions: Vec::new(),
@@ -61,9 +71,10 @@ where
     }
 }
 
-impl<V> ColumnReader for ValueColumnReader<V>
+impl<V, F> ColumnReader for ValueColumnReader<V, F>
 where
     V: ValueReader,
+    F: RowGroupPruner<V::PlainType>,
 {
     fn prepare_for_chunk(&mut self, chunk_size: usize, compression: Compression) -> Result<()> {
         self.page_reader.chunk_offset = 0;
@@ -155,5 +166,11 @@ where
         }
 
         Ok(())
+    }
+
+    fn should_prune(&self, stats: &Statistics) -> Result<bool> {
+        let stats = <V::PlainType as PlainType>::statistics(stats)
+            .ok_or_else(|| DbError::new("Unexpected column stats"))?;
+        self.filter.should_prune(stats)
     }
 }

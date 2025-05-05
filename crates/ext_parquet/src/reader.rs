@@ -9,6 +9,7 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::Result;
 
 use crate::column::struct_reader::StructReader;
@@ -92,12 +93,14 @@ impl Reader {
         file: AnyFile,
         groups: impl IntoIterator<Item = usize>,
         projections: Projections,
+        filters: &[PhysicalScanFilter],
     ) -> Result<Self> {
         let root = StructReader::try_new_root(
             manager,
             &projections,
             &schema,
             &metadata.file_metadata.schema_descr,
+            filters,
         )?;
 
         Ok(Reader {
@@ -120,25 +123,34 @@ impl Reader {
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
         if self.state.remaining_group_rows == 0 {
             // No more rows, get the next row group.
-            let next = match self.row_groups.pop_front() {
-                Some(group) => group,
-                None => {
-                    // No more row groups, we're done.
-                    output.set_num_rows(0)?;
-                    return Ok(PollPull::Exhausted);
+            loop {
+                let next = match self.row_groups.pop_front() {
+                    Some(group) => group,
+                    None => {
+                        // No more row groups, we're done.
+                        output.set_num_rows(0)?;
+                        return Ok(PollPull::Exhausted);
+                    }
+                };
+
+                let group = &self.metadata.row_groups[next];
+                // We may be able to prune this group...
+                if self.root.should_prune(&self.projections, group)? {
+                    // Safe to prune, move to next row group.
+                    continue;
                 }
-            };
 
-            let group = &self.metadata.row_groups[next];
-            self.state = RowGroupState {
-                current_group: next,
-                remaining_group_rows: group.num_rows as usize,
-            };
+                self.state = RowGroupState {
+                    current_group: next,
+                    remaining_group_rows: group.num_rows as usize,
+                };
 
-            // Init fetch.
-            self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
-            // Continue on... The fetch state will trigger fetching of the
-            // columns.
+                // Init fetch.
+                self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
+                // Continue on... The fetch state will trigger fetching of the
+                // columns.
+                break;
+            }
         }
 
         match self.poll_fetch(cx)? {

@@ -12,9 +12,23 @@ impl OperatorPlanState<'_> {
         let _location = scan.location;
 
         let projections = Projections::new(scan.node.projection);
+        let filters = scan
+            .node
+            .scan_filters
+            .into_iter()
+            .map(|filter| {
+                filter.plan(
+                    scan.node.table_ref,
+                    self.bind_context,
+                    &projections,
+                    &self.expr_planner,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+
         let function = scan.node.source.into_function();
 
-        let operator = PhysicalScan::new(projections, function);
+        let operator = PhysicalScan::new(projections, filters, function);
 
         Ok(PlannedOperatorWithChildren {
             operator: PlannedOperator::new_pull(self.id_gen.next_id(), operator),

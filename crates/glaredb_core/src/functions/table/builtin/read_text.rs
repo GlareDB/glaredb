@@ -24,6 +24,7 @@ use crate::runtime::filesystem::{
     OpenFlags,
 };
 use crate::storage::projections::{ProjectedColumn, Projections};
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_READ_TEXT: TableFunctionSet = TableFunctionSet {
     name: "read_text",
@@ -108,6 +109,7 @@ impl TableScanFunction for ReadText {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ReadTextOperatorState {

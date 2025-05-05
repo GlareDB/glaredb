@@ -5,6 +5,7 @@ pub mod filter_pushdown;
 pub mod join_reorder;
 pub mod limit_pushdown;
 pub mod location;
+pub mod scan_filter;
 pub mod selection_reorder;
 pub mod sort_limit_hint;
 
@@ -18,6 +19,7 @@ use filter_pushdown::FilterPushdown;
 use glaredb_error::Result;
 use join_reorder::JoinReorder;
 use limit_pushdown::LimitPushdown;
+use scan_filter::ScanFilterPushdown;
 use selection_reorder::SelectionReorder;
 use sort_limit_hint::SortLimitHint;
 use tracing::debug;
@@ -88,6 +90,14 @@ impl Optimizer {
         self.profile_data
             .timings
             .push(("column_pruning", timer.stop()));
+
+        // Push down scan filters.
+        let timer = Timer::<I>::start();
+        let mut rule = ScanFilterPushdown;
+        let plan = rule.optimize(bind_context, plan)?;
+        self.profile_data
+            .timings
+            .push(("scan_filter_pushdown", timer.stop()));
 
         // TODO: Re-enable this when it works better with duplicated expressions
         // across grouping sets.

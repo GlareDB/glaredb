@@ -5,13 +5,13 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use super::scan_filter::ScanFilter;
 use super::statistics::StatisticsValue;
 use crate::arrays::datatype::DataType;
 use crate::catalog::entry::CatalogEntry;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 use crate::functions::table::PlannedTableFunction;
+use crate::storage::scan_filter::ScanFilter;
 
 #[derive(Debug, Clone)]
 pub struct TableScanSource {
@@ -93,6 +93,7 @@ impl Explainable for LogicalScan {
         let mut builder = EntryBuilder::new("Scan", conf)
             .with_values("column_names", &self.names)
             .with_values("column_types", &self.types)
+            .with_contextual_values("scan_filters", &self.scan_filters)
             .with_value_if_verbose("table_ref", self.table_ref)
             .with_values_if_verbose("projection", &self.projection);
 
@@ -131,6 +132,9 @@ impl LogicalNode for Node<LogicalScan> {
                 func(expr)?
             }
         }
+        for filter in &self.node.scan_filters {
+            func(&filter.expression)?;
+        }
         Ok(())
     }
 
@@ -143,6 +147,9 @@ impl LogicalNode for Node<LogicalScan> {
             for expr in &mut table_func.function.bind_state.input.positional {
                 func(expr)?
             }
+        }
+        for filter in &mut self.node.scan_filters {
+            func(&mut filter.expression)?;
         }
         Ok(())
     }

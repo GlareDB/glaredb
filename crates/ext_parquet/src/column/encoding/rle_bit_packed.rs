@@ -14,6 +14,7 @@ use super::Definitions;
 use crate::column::bitutil::{BitPackEncodeable, BitUnpackState, bit_unpack, read_unsigned_vlq};
 use crate::column::encoding::plain::PlainDecoder;
 use crate::column::read_buffer::ReadCursor;
+use crate::column::row_group_pruner::PlainTypeBool;
 use crate::column::value_reader::{ReaderErrorState, ValueReader};
 
 /// Decoder for reading bool values using RLE.
@@ -79,6 +80,7 @@ const _BOOL_SIZE_ASSERTION: () = assert!(std::mem::size_of::<bool>() == std::mem
 
 impl ValueReader for RealSizedBoolReader {
     type Storage = PhysicalBool;
+    type PlainType = PlainTypeBool;
 
     unsafe fn read_next_unchecked(
         &mut self,

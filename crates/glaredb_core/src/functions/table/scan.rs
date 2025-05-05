@@ -10,6 +10,7 @@ use crate::catalog::context::DatabaseContext;
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::runtime::filesystem::dispatch::FileSystemDispatch;
 use crate::storage::projections::Projections;
+use crate::storage::scan_filter::PhysicalScanFilter;
 
 /// Context providing dependencies for a scan.
 #[derive(Debug, Clone, Copy)]
@@ -37,6 +38,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
+        filters: &[PhysicalScanFilter],
         props: ExecutionProperties,
     ) -> Result<Self::OperatorState>;
 
