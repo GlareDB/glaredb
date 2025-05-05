@@ -93,6 +93,7 @@ impl Explainable for LogicalScan {
         let mut builder = EntryBuilder::new("Scan", conf)
             .with_values("column_names", &self.names)
             .with_values("column_types", &self.types)
+            .with_contextual_values("scan_filters", &self.scan_filters)
             .with_value_if_verbose("table_ref", self.table_ref)
             .with_values_if_verbose("projection", &self.projection);
 
