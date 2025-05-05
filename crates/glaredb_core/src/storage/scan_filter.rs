@@ -2,7 +2,7 @@ use std::fmt;
 
 use glaredb_error::Result;
 
-use super::projections::ProjectedColumn;
+use super::projections::{ProjectedColumn, Projections};
 use crate::arrays::scalar::ScalarValue;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::expr::Expression;
@@ -25,6 +25,7 @@ impl ScanFilter {
         self,
         table_ref: TableRef,
         _bind_context: &BindContext,
+        projections: &Projections,
         expr_planner: &PhysicalExpressionPlanner,
     ) -> Result<PhysicalScanFilter> {
         let column_refs = self.expression.get_column_references();
@@ -53,7 +54,10 @@ impl ScanFilter {
                 // Note this will change when we filter on metadata. Those will
                 // point to a separate table ref.
                 debug_assert_eq!(table_ref, col_ref.table_scope);
-                ProjectedColumn::Data(col_ref.column)
+                // The col ref exposed from the table scan is relative to the
+                // output projections.
+                let data_col = projections.data_indices()[col_ref.column];
+                ProjectedColumn::Data(data_col)
             })
             .collect();
 

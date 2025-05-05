@@ -16,7 +16,14 @@ impl OperatorPlanState<'_> {
             .node
             .scan_filters
             .into_iter()
-            .map(|filter| filter.plan(scan.node.table_ref, self.bind_context, &self.expr_planner))
+            .map(|filter| {
+                filter.plan(
+                    scan.node.table_ref,
+                    self.bind_context,
+                    &projections,
+                    &self.expr_planner,
+                )
+            })
             .collect::<Result<Vec<_>>>()?;
 
         let function = scan.node.source.into_function();
