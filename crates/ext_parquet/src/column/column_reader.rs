@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
-use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
 use super::page_reader::PageReader;

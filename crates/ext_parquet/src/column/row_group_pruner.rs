@@ -3,13 +3,11 @@ use std::marker::PhantomData;
 
 use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
 use glaredb_core::arrays::scalar::ScalarValue;
-use glaredb_core::storage::scan_filter::{
-    PhysicalScanFilter,
-    PhysicalScanFilterConstantEq,
-    PhysicalScanFilterType,
-};
+use glaredb_core::arrays::scalar::unwrap::{NullableValue, ScalarValueUnwrap};
+use glaredb_core::storage::scan_filter::{PhysicalScanFilter, PhysicalScanFilterType};
 use glaredb_core::util::marker::PhantomCovariant;
 use glaredb_error::Result;
+use num::cast::AsPrimitive;
 
 use crate::data_type::Int96;
 use crate::metadata::statistics::{Statistics, ValueStatistics};
@@ -146,30 +144,42 @@ where
     }
 }
 
-/// A pruner that works on primitive values _without casting_.
+/// A pruner that works on primitive values.
+///
+/// The scalar value unwrap should represent the unwrapping of the constants
+/// we're comparing against. The plain type will be cast to the appropriate
+/// scalar type.
+///
+/// For example, the expression 'a = 5' where both sides represent u8 values,
+/// the scalar unwrap we use should be for u8, even though we're reading 32
+/// values from the parquet file. The i32 value will be cast to u8 before the
+/// compare.
 #[derive(Debug)]
-pub struct PrimitiveRowGroupPruner<T: PlainType> {
-    /// Filter thare are comparing a column to a constant.
-    // TODO: Allow more than one, ensure all signal we can prune.
-    const_eq_filters: Option<PhysicalScanFilterConstantEq>,
+pub struct PrimitiveRowGroupPruner<T: PlainType, U: ScalarValueUnwrap> {
+    /// Compare against constant value.
+    const_eq_filters: Vec<ScalarValue>,
     _t: PhantomCovariant<T>,
+    _u: PhantomCovariant<U>,
 }
 
-impl<T> PrimitiveRowGroupPruner<T>
+impl<T, U> PrimitiveRowGroupPruner<T, U>
 where
     T: PlainType,
-    T::Native: Into<ScalarValue> + Copy,
+    U: ScalarValueUnwrap,
+    U::StorageType: Copy + PartialOrd,
+    T::Native: AsPrimitive<U::StorageType>,
 {
     pub fn new<'a>(filters: impl Iterator<Item = &'a PhysicalScanFilter>) -> Self {
         let mut pruner = PrimitiveRowGroupPruner {
-            const_eq_filters: None,
+            const_eq_filters: Vec::new(),
             _t: PhantomCovariant::new(),
+            _u: PhantomCovariant::new(),
         };
 
         for filter in filters {
             match &filter.filter_type {
-                PhysicalScanFilterType::ConstantEq(filter) if pruner.const_eq_filters.is_none() => {
-                    pruner.const_eq_filters = Some(filter.clone())
+                PhysicalScanFilterType::ConstantEq(constant) => {
+                    pruner.const_eq_filters.push(constant.clone())
                 }
                 _ => (), // Skip
             }
@@ -179,10 +189,12 @@ where
     }
 }
 
-impl<T> RowGroupPruner<T> for PrimitiveRowGroupPruner<T>
+impl<T, U> RowGroupPruner<T> for PrimitiveRowGroupPruner<T, U>
 where
     T: PlainType,
-    T::Native: Into<ScalarValue> + Copy,
+    U: ScalarValueUnwrap,
+    U::StorageType: Copy + PartialOrd,
+    T::Native: AsPrimitive<U::StorageType>,
 {
     fn should_prune(&self, stats: &ValueStatistics<<T as PlainType>::Native>) -> Result<bool> {
         if !(stats.is_max_value_exact && stats.is_min_value_exact) {
@@ -191,15 +203,31 @@ where
 
         match (stats.min.as_ref(), stats.max.as_ref()) {
             (Some(&min), Some(&max)) => {
-                match &self.const_eq_filters {
-                    Some(filter) => {
-                        let in_range = filter.is_in_range(min, max)?;
-                        // Only allow pruning if the constant is not in this
-                        // range.
-                        Ok(!in_range)
+                let min: U::StorageType = min.as_();
+                let max: U::StorageType = max.as_();
+
+                for constant in &self.const_eq_filters {
+                    let constant = match U::try_unwrap(constant)? {
+                        NullableValue::Value(v) => *v,
+                        NullableValue::Null => return Ok(false), // I don't know, just skip pruning.
+                    };
+
+                    if min > constant {
+                        // Unsatisfiable.
+                        return Ok(true);
                     }
-                    None => Ok(false), // No filter.
+
+                    if max < constant {
+                        // Unsatisfiable.
+                        return Ok(true);
+                    }
+
+                    // Try the next constant.
                 }
+
+                // Getting here means all the filters passed the min/max range.
+                // Can't prune.
+                Ok(false)
             }
             _ => Ok(false), // No min/max, can't glean anything from this.
         }

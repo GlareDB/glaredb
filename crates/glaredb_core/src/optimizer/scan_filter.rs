@@ -2,6 +2,7 @@ use glaredb_error::Result;
 
 use super::OptimizeRule;
 use crate::expr::Expression;
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::conjunction_expr::ConjunctionOperator;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::operator::LogicalOperator;
@@ -36,15 +37,40 @@ fn optimize_inner(plan: &mut LogicalOperator) -> Result<()> {
     if let LogicalOperator::Filter(filter) = plan {
         debug_assert_eq!(1, filter.children.len());
         if let LogicalOperator::Scan(scan) = &mut filter.children[0] {
-            // Go ahead and just clone all the expressions as scan filters. At
-            // some point we'll have a way for the scan to signal exact/inexact
-            // filters so that we could potentially remove from the filter.
+            // Clone only epxressions that we know we can easily handle, at
+            // least for now.
+            //
+            // At some point we'll have a way for the scan to signal
+            // exact/inexact filters so that we could potentially remove from
+            // the filter.
             let mut filters = match &filter.node.filter {
                 Expression::Conjunction(conj) if conj.op == ConjunctionOperator::And => conj
                     .expressions
                     .iter()
-                    .map(|f| ScanFilter {
-                        expression: f.clone(),
+                    .filter_map(|expr| {
+                        let column_refs = expr.get_column_references();
+                        if column_refs.len() != 1 {
+                            return None;
+                        }
+
+                        match expr {
+                            Expression::Comparison(cmp) if cmp.op == ComparisonOperator::Eq => {
+                                match (cmp.left.as_ref(), cmp.right.as_ref()) {
+                                    (Expression::Column(_), right) if right.is_const_foldable() => {
+                                        Some(ScanFilter {
+                                            expression: expr.clone(),
+                                        })
+                                    }
+                                    (left, Expression::Column(_)) if left.is_const_foldable() => {
+                                        Some(ScanFilter {
+                                            expression: expr.clone(),
+                                        })
+                                    }
+                                    _ => None,
+                                }
+                            }
+                            _ => None,
+                        }
                     })
                     .collect(),
                 other => vec![ScanFilter {

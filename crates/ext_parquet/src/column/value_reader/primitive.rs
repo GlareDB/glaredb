@@ -16,11 +16,7 @@ use glaredb_core::arrays::array::physical_type::{
     PhysicalU64,
 };
 use glaredb_core::arrays::scalar::ScalarValue;
-use glaredb_core::storage::scan_filter::{
-    PhysicalScanFilter,
-    PhysicalScanFilterConstantEq,
-    PhysicalScanFilterType,
-};
+use glaredb_core::storage::scan_filter::{PhysicalScanFilter, PhysicalScanFilterType};
 use glaredb_core::util::marker::PhantomCovariant;
 use glaredb_error::Result;
 use num::cast::AsPrimitive;

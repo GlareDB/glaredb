@@ -1,5 +1,15 @@
 use glaredb_core::arrays::datatype::{DataType, TimeUnit};
 use glaredb_core::arrays::field::ColumnSchema;
+use glaredb_core::arrays::scalar::unwrap::{
+    UnwrapI8,
+    UnwrapI16,
+    UnwrapI32,
+    UnwrapI64,
+    UnwrapU8,
+    UnwrapU16,
+    UnwrapU32,
+    UnwrapU64,
+};
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
@@ -108,49 +118,49 @@ pub(crate) fn new_column_reader<'a>(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::<_, UnwrapI8>::new(filters),
         )?),
         DataType::Int16 => Box::new(ValueColumnReader::<CastingInt32ToInt16Reader, _>::try_new(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::<_, UnwrapI16>::new(filters),
         )?),
         DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
-            PrimitiveRowGroupPruner::new(filters),
+            PrimitiveRowGroupPruner::<_, UnwrapI32>::new(filters),
         )?),
         DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
-            PrimitiveRowGroupPruner::new(filters),
+            PrimitiveRowGroupPruner::<_, UnwrapI64>::new(filters),
         )?),
         DataType::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader, _>::try_new(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::<_, UnwrapU8>::new(filters),
         )?),
         DataType::UInt16 => Box::new(ValueColumnReader::<CastingInt32ToUInt16Reader, _>::try_new(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::<_, UnwrapU16>::new(filters),
         )?),
         DataType::UInt32 => Box::new(ValueColumnReader::<CastingInt32ToUInt32Reader, _>::try_new(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::<_, UnwrapU32>::new(filters),
         )?),
         DataType::UInt64 => Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader, _>::try_new(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::<_, UnwrapU64>::new(filters),
         )?),
         DataType::Float16 => Box::new(ValueColumnReader::<PlainFloat16ValueReader, _>::try_new(
             manager,

@@ -1,14 +1,14 @@
 use std::fmt;
 
-use glaredb_error::{DbError, Result};
+use glaredb_error::Result;
 
 use super::projections::ProjectedColumn;
 use crate::arrays::scalar::ScalarValue;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
+use crate::expr::Expression;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
-use crate::expr::{self, Expression};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -34,16 +34,12 @@ impl ScanFilter {
             Expression::Comparison(cmp) if cmp.op == ComparisonOperator::Eq => {
                 match (cmp.left.as_ref(), cmp.right.as_ref()) {
                     (Expression::Column(_), right) if right.is_const_foldable() => {
-                        let right = ConstFold::rewrite(*cmp.right)?;
-                        PhysicalScanFilterType::ConstantEq(PhysicalScanFilterConstantEq {
-                            constant: right.try_into_scalar()?,
-                        })
+                        let right = ConstFold::rewrite(*cmp.right)?.try_into_scalar()?;
+                        PhysicalScanFilterType::ConstantEq(right)
                     }
                     (left, Expression::Column(_)) if left.is_const_foldable() => {
-                        let left = ConstFold::rewrite(*cmp.left)?;
-                        PhysicalScanFilterType::ConstantEq(PhysicalScanFilterConstantEq {
-                            constant: left.try_into_scalar()?,
-                        })
+                        let left = ConstFold::rewrite(*cmp.left)?.try_into_scalar()?;
+                        PhysicalScanFilterType::ConstantEq(left)
                     }
                     _ => PhysicalScanFilterType::Unknown,
                 }
@@ -79,6 +75,8 @@ impl ContextDisplay for ScanFilter {
     }
 }
 
+// TODO: At some point I want to expand this so that we can pre-plan some more
+// expressions and execute those arbitrary expressions on ranges/values.
 #[derive(Debug, Clone)]
 pub struct PhysicalScanFilter {
     /// Which columns this filter applies to.
@@ -92,62 +90,9 @@ pub struct PhysicalScanFilter {
 #[derive(Debug, Clone)]
 pub enum PhysicalScanFilterType {
     /// Filter represents a column equality with a constant value.
-    ConstantEq(PhysicalScanFilterConstantEq),
+    ConstantEq(ScalarValue),
     /// Unknown filter type.
     ///
     /// Could still be valid, we just don't know what to do with it.
     Unknown,
-}
-
-#[derive(Debug, Clone)]
-pub struct PhysicalScanFilterConstantEq {
-    /// The constant we're comparing with.
-    pub constant: ScalarValue,
-}
-
-impl PhysicalScanFilterConstantEq {
-    /// Compares the constant with the provided min/max values to see if it's
-    /// contained within the range.
-    pub fn is_in_range(
-        &self,
-        min: impl Into<ScalarValue>,
-        max: impl Into<ScalarValue>,
-    ) -> Result<bool> {
-        let min_gt_constant: Expression =
-            expr::gt(expr::lit(min), expr::lit(self.constant.clone()))?.into();
-
-        let min_is_gt_constant = match ConstFold::rewrite(min_gt_constant)? {
-            Expression::Literal(lit) => lit.literal.try_as_bool()?,
-            other => {
-                return Err(DbError::new(format!(
-                    "Expected literal after const folding, got: {other}",
-                )));
-            }
-        };
-
-        if min_is_gt_constant {
-            // Not in range, min is greater than the constant.
-            return Ok(false);
-        }
-
-        let max_lt_constant: Expression =
-            expr::lt(expr::lit(max), expr::lit(self.constant.clone()))?.into();
-
-        let max_is_lt_constant = match ConstFold::rewrite(max_lt_constant)? {
-            Expression::Literal(lit) => lit.literal.try_as_bool()?,
-            other => {
-                return Err(DbError::new(format!(
-                    "Expected literal after const folding, got: {other}",
-                )));
-            }
-        };
-
-        if max_is_lt_constant {
-            // Not in range, max is less than constant.
-            return Ok(false);
-        }
-
-        // Constant is in range.
-        Ok(true)
-    }
 }
