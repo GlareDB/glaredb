@@ -39,8 +39,9 @@ pub trait ColumnReader: Debug + Sync + Send {
 }
 
 #[derive(Debug)]
-pub struct ValueColumnReader<V: ValueReader> {
-    pub(crate) filter: Option<Box<dyn RowGroupPruner<V::PlainType>>>,
+pub struct ValueColumnReader<V: ValueReader, F: RowGroupPruner<V::PlainType>> {
+    /// Filter used for pruning row groups.
+    pub(crate) filter: F,
     /// Page reader for this column.
     pub(crate) page_reader: PageReader<V>,
     /// Reusable buffer for definition levels.
@@ -49,15 +50,16 @@ pub struct ValueColumnReader<V: ValueReader> {
     pub(crate) repetitions: Vec<i16>,
 }
 
-impl<V> ValueColumnReader<V>
+impl<V, F> ValueColumnReader<V, F>
 where
     V: ValueReader,
+    F: RowGroupPruner<V::PlainType>,
 {
     pub fn try_new<'a>(
         manager: &impl AsRawBufferManager,
         datatype: DataType,
         descr: ColumnDescriptor,
-        filter: Option<Box<dyn RowGroupPruner<V::PlainType>>>,
+        filter: F,
     ) -> Result<Self> {
         let page_reader = PageReader::try_new(manager, datatype, descr)?;
 
@@ -70,9 +72,10 @@ where
     }
 }
 
-impl<V> ColumnReader for ValueColumnReader<V>
+impl<V, F> ColumnReader for ValueColumnReader<V, F>
 where
     V: ValueReader,
+    F: RowGroupPruner<V::PlainType>,
 {
     fn prepare_for_chunk(&mut self, chunk_size: usize, compression: Compression) -> Result<()> {
         self.page_reader.chunk_offset = 0;
@@ -167,13 +170,8 @@ where
     }
 
     fn can_prune_using_column_stats(&self, stats: &Statistics) -> Result<bool> {
-        match self.filter.as_ref() {
-            Some(filter) => {
-                let stats = <V::PlainType as PlainType>::statistics(stats)
-                    .ok_or_else(|| DbError::new("Unexpected column stats"))?;
-                filter.can_prune_using_column_stats(stats)
-            }
-            None => Ok(false),
-        }
+        let stats = <V::PlainType as PlainType>::statistics(stats)
+            .ok_or_else(|| DbError::new("Unexpected column stats"))?;
+        self.filter.can_prune_using_column_stats(stats)
     }
 }

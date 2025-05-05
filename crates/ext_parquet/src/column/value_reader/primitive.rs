@@ -87,32 +87,6 @@ where
     }
 }
 
-#[derive(Debug)]
-struct PrimitiveRowGroupContains {
-    filter: PhysicalScanFilterConstantEq,
-}
-
-impl<T> RowGroupPruner<T> for PrimitiveRowGroupContains
-where
-    T: Into<ScalarValue> + Copy,
-{
-    fn can_prune_using_column_stats(&self, stats: &ValueStatistics<T>) -> Result<bool> {
-        if !stats.is_max_value_exact || !stats.is_min_value_exact {
-            // If not exact, don't do anything yet.
-            return Ok(false);
-        }
-
-        match (stats.min.as_ref(), stats.max.as_ref()) {
-            (Some(&min), Some(&max)) => {
-                let in_range = self.filter.is_in_range(min, max)?;
-                // We can only prune if the constant is not in range.
-                Ok(!in_range)
-            }
-            _ => Ok(false), // Nothing we can glean from stats.
-        }
-    }
-}
-
 // INT32 => LogicalType::Int8
 pub type CastingInt32ToInt8Reader = CastingValueReader<PlainTypeI32, PhysicalI8>;
 // INT32 => LogicalType::Int16

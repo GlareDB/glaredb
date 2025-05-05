@@ -1,6 +1,14 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
-use glaredb_core::storage::scan_filter::PhysicalScanFilterConstantEq;
+use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
+use glaredb_core::arrays::scalar::ScalarValue;
+use glaredb_core::storage::scan_filter::{
+    PhysicalScanFilter,
+    PhysicalScanFilterConstantEq,
+    PhysicalScanFilterType,
+};
+use glaredb_core::util::marker::PhantomCovariant;
 use glaredb_error::Result;
 
 use crate::data_type::Int96;
@@ -122,4 +130,89 @@ where
     /// Returns a boolean indicating if we can prune this row group based on
     /// statistics for a column.
     fn can_prune_using_column_stats(&self, stats: &ValueStatistics<T::Native>) -> Result<bool>;
+}
+
+/// A pruner that will never allow pruning a row group.
+#[derive(Debug, Default)]
+pub struct NopRowGroupPruner<T: PlainType> {
+    _t: PhantomCovariant<T>,
+}
+
+impl<T> RowGroupPruner<T> for NopRowGroupPruner<T>
+where
+    T: PlainType,
+{
+    fn can_prune_using_column_stats(
+        &self,
+        _stats: &ValueStatistics<<T as PlainType>::Native>,
+    ) -> Result<bool> {
+        Ok(false)
+    }
+}
+
+/// A pruner that works on primitive values _without casting_.
+#[derive(Debug)]
+pub struct PrimitiveRowGroupPruner<S: MutableScalarStorage, T: PlainType> {
+    /// Filter thare are comparing a column to a constant.
+    // TODO: Allow more than one, ensure all signal we can prune.
+    const_eq_filters: Option<PhysicalScanFilterConstantEq>,
+    _s: PhantomCovariant<S>,
+    _t: PhantomCovariant<T>,
+}
+
+impl<S, T> PrimitiveRowGroupPruner<S, T>
+where
+    S: MutableScalarStorage,
+    T: PlainType,
+    T::Native: Into<ScalarValue> + Copy,
+{
+    pub fn new<'a>(filters: impl Iterator<Item = &'a PhysicalScanFilter>) -> Self {
+        let mut pruner = PrimitiveRowGroupPruner {
+            const_eq_filters: None,
+            _s: PhantomCovariant::new(),
+            _t: PhantomCovariant::new(),
+        };
+
+        for filter in filters {
+            match &filter.filter_type {
+                PhysicalScanFilterType::ConstantEq(filter) if pruner.const_eq_filters.is_none() => {
+                    pruner.const_eq_filters = Some(filter.clone())
+                }
+                _ => (), // Skip
+            }
+        }
+
+        pruner
+    }
+}
+
+impl<S, T> RowGroupPruner<T> for PrimitiveRowGroupPruner<S, T>
+where
+    S: MutableScalarStorage,
+    T: PlainType,
+    T::Native: Into<ScalarValue> + Copy,
+{
+    fn can_prune_using_column_stats(
+        &self,
+        stats: &ValueStatistics<<T as PlainType>::Native>,
+    ) -> Result<bool> {
+        if !(stats.is_max_value_exact && stats.is_min_value_exact) {
+            return Ok(false);
+        }
+
+        match (stats.min.as_ref(), stats.max.as_ref()) {
+            (Some(&min), Some(&max)) => {
+                match &self.const_eq_filters {
+                    Some(filter) => {
+                        let in_range = filter.is_in_range(min, max)?;
+                        // Only allow pruning if the constant is not in this
+                        // range.
+                        Ok(!in_range)
+                    }
+                    None => Ok(false), // No filter.
+                }
+            }
+            _ => Ok(false), // No min/max, can't glean anything from this.
+        }
+    }
 }

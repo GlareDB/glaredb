@@ -32,22 +32,17 @@ impl ScanFilter {
 
         let filter_type = match self.expression {
             Expression::Comparison(cmp) if cmp.op == ComparisonOperator::Eq => {
-                let left_refs = cmp.left.get_column_references();
-                let right_refs = cmp.right.get_column_references();
-
-                match (left_refs.is_empty(), right_refs.is_empty()) {
-                    (true, false) => {
-                        // Left is constant.
-                        let left = ConstFold::rewrite(*cmp.left)?;
-                        PhysicalScanFilterType::ConstantEq(PhysicalScanFilterConstantEq {
-                            constant: left.try_into_scalar()?,
-                        })
-                    }
-                    (false, true) => {
-                        // Right is constant.
+                match (cmp.left.as_ref(), cmp.right.as_ref()) {
+                    (Expression::Column(_), right) if right.is_const_foldable() => {
                         let right = ConstFold::rewrite(*cmp.right)?;
                         PhysicalScanFilterType::ConstantEq(PhysicalScanFilterConstantEq {
                             constant: right.try_into_scalar()?,
+                        })
+                    }
+                    (left, Expression::Column(_)) if left.is_const_foldable() => {
+                        let left = ConstFold::rewrite(*cmp.left)?;
+                        PhysicalScanFilterType::ConstantEq(PhysicalScanFilterConstantEq {
+                            constant: left.try_into_scalar()?,
                         })
                     }
                     _ => PhysicalScanFilterType::Unknown,

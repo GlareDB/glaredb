@@ -6,6 +6,7 @@ use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{Result, not_implemented};
 
 use super::column_reader::{ColumnReader, ValueColumnReader};
+use super::row_group_pruner::NopRowGroupPruner;
 use super::value_reader::bool::BoolValueReader;
 use super::value_reader::int96::Int96TsReader;
 use super::value_reader::primitive::{
@@ -71,74 +72,131 @@ pub(crate) fn new_column_reader<'a>(
     filters: impl Iterator<Item = &'a PhysicalScanFilter>,
 ) -> Result<Box<dyn ColumnReader>> {
     Ok(match &datatype {
-        DataType::Boolean => Box::new(ValueColumnReader::<BoolValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Boolean => Box::new(ValueColumnReader::<BoolValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Int8 => Box::new(ValueColumnReader::<CastingInt32ToInt8Reader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Int8 => Box::new(ValueColumnReader::<CastingInt32ToInt8Reader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Int16 => Box::new(ValueColumnReader::<CastingInt32ToInt16Reader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Int16 => Box::new(ValueColumnReader::<CastingInt32ToInt16Reader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader>::try_new(
-            manager, datatype, descr, None,
+        DataType::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::UInt16 => Box::new(ValueColumnReader::<CastingInt32ToUInt16Reader>::try_new(
-            manager, datatype, descr, None,
+        DataType::UInt16 => Box::new(ValueColumnReader::<CastingInt32ToUInt16Reader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::UInt32 => Box::new(ValueColumnReader::<CastingInt32ToUInt32Reader>::try_new(
-            manager, datatype, descr, None,
+        DataType::UInt32 => Box::new(ValueColumnReader::<CastingInt32ToUInt32Reader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::UInt64 => Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader>::try_new(
-            manager, datatype, descr, None,
+        DataType::UInt64 => Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Float16 => Box::new(ValueColumnReader::<PlainFloat16ValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Float16 => Box::new(ValueColumnReader::<PlainFloat16ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Date32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Date32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
         DataType::Decimal64(_) => match descr.physical_type() {
             basic::Type::INT32 => {
-                Box::new(ValueColumnReader::<CastingInt32ToInt64Reader>::try_new(
-                    manager, datatype, descr, None,
+                Box::new(ValueColumnReader::<CastingInt32ToInt64Reader, _>::try_new(
+                    manager,
+                    datatype,
+                    descr,
+                    NopRowGroupPruner::default(),
                 )?)
             }
-            basic::Type::INT64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
-                manager, datatype, descr, None,
+            basic::Type::INT64 => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
+                manager,
+                datatype,
+                descr,
+                NopRowGroupPruner::default(),
             )?),
             other => not_implemented!("decimal64 reader for physical type: {other:?}"),
         },
         DataType::Timestamp(m) => match (m.unit, descr.physical_type()) {
             (TimeUnit::Nanosecond, basic::Type::INT64) => {
-                Box::new(ValueColumnReader::<PlainTsNsValueReader>::try_new(
-                    manager, datatype, descr, None,
+                Box::new(ValueColumnReader::<PlainTsNsValueReader, _>::try_new(
+                    manager,
+                    datatype,
+                    descr,
+                    NopRowGroupPruner::default(),
                 )?)
             }
             (TimeUnit::Nanosecond, basic::Type::INT96) => {
-                Box::new(ValueColumnReader::<Int96TsReader>::try_new(
-                    manager, datatype, descr, None,
+                Box::new(ValueColumnReader::<Int96TsReader, _>::try_new(
+                    manager,
+                    datatype,
+                    descr,
+                    NopRowGroupPruner::default(),
                 )?)
             }
             other => not_implemented!("timestamp reader for physical type: {other:?}"),
         },
-        DataType::Utf8 => Box::new(ValueColumnReader::<Utf8ValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Utf8 => Box::new(ValueColumnReader::<Utf8ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
-        DataType::Binary => Box::new(ValueColumnReader::<BinaryValueReader>::try_new(
-            manager, datatype, descr, None,
+        DataType::Binary => Box::new(ValueColumnReader::<BinaryValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
         )?),
         other => not_implemented!("create parquet column reader for data type: {other}"),
     })
