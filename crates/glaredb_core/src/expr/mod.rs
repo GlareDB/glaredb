@@ -530,8 +530,10 @@ pub fn compare(
     left: impl Into<Expression>,
     right: impl Into<Expression>,
 ) -> Result<ComparisonExpr> {
-    let (raw, inputs) =
-        bind_function_signature(op.as_scalar_function_set(), vec![left.into(), right.into()])?;
+    let (raw, inputs) = bind_function_signature_from_expressions(
+        op.as_scalar_function_set(),
+        vec![left.into(), right.into()],
+    )?;
 
     let state = raw.call_bind(inputs)?;
     let [left, right] = state.inputs.try_into().unwrap();
@@ -548,8 +550,10 @@ pub fn arith(
     left: impl Into<Expression>,
     right: impl Into<Expression>,
 ) -> Result<ArithExpr> {
-    let (raw, inputs) =
-        bind_function_signature(op.as_scalar_function_set(), vec![left.into(), right.into()])?;
+    let (raw, inputs) = bind_function_signature_from_expressions(
+        op.as_scalar_function_set(),
+        vec![left.into(), right.into()],
+    )?;
 
     // TODO: Avoid
     let state = raw.call_bind(inputs)?;
@@ -568,8 +572,10 @@ pub fn conjunction(
     op: ConjunctionOperator,
     inputs: impl IntoIterator<Item = Expression>,
 ) -> Result<ConjunctionExpr> {
-    let (_, inputs) =
-        bind_function_signature(op.as_scalar_function_set(), inputs.into_iter().collect())?;
+    let (_, inputs) = bind_function_signature_from_expressions(
+        op.as_scalar_function_set(),
+        inputs.into_iter().collect(),
+    )?;
 
     Ok(ConjunctionExpr {
         op,
@@ -703,7 +709,7 @@ pub fn bind_aggregate_function(
     function: &'static AggregateFunctionSet,
     inputs: Vec<Expression>,
 ) -> Result<PlannedAggregateFunction> {
-    let (func, inputs) = bind_function_signature(function, inputs)?;
+    let (func, inputs) = bind_function_signature_from_expressions(function, inputs)?;
     let bind_state = func.call_bind(inputs)?;
 
     Ok(PlannedAggregateFunction {
@@ -774,7 +780,7 @@ pub fn bind_table_function_signature(
     function: &'static TableFunctionSet,
     mut input: TableFunctionInput,
 ) -> Result<(&'static RawTableFunction, TableFunctionInput)> {
-    let (func, positional) = bind_function_signature(function, input.positional)?;
+    let (func, positional) = bind_function_signature_from_expressions(function, input.positional)?;
     input.positional = positional;
 
     Ok((func, input))
@@ -787,7 +793,7 @@ pub fn bind_scalar_function(
     function: &'static ScalarFunctionSet,
     inputs: Vec<Expression>,
 ) -> Result<PlannedScalarFunction> {
-    let (func, inputs) = bind_function_signature(function, inputs)?;
+    let (func, inputs) = bind_function_signature_from_expressions(function, inputs)?;
     let bind_state = func.call_bind(inputs)?;
 
     Ok(PlannedScalarFunction {
@@ -805,7 +811,7 @@ pub(crate) fn bind_function_signature_fixed<F, const N: usize>(
 where
     F: FunctionInfo,
 {
-    let (f, inputs) = bind_function_signature(function, inputs.to_vec())?;
+    let (f, inputs) = bind_function_signature_from_expressions(function, inputs.to_vec())?;
     let inputs = inputs
         .try_into()
         .map_err(|_| DbError::new("failed to convert to array"))?;
@@ -817,7 +823,7 @@ where
 ///
 /// If the there isn't an exact match, but a candidate exists, casts will be
 /// applied to match the closest signature.
-pub(crate) fn bind_function_signature<F>(
+pub(crate) fn bind_function_signature_from_expressions<F>(
     function: &'static FunctionSet<F>,
     mut inputs: Vec<Expression>,
 ) -> Result<(&'static F, Vec<Expression>)>

@@ -5,13 +5,13 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use super::scan_filter::ScanFilter;
 use super::statistics::StatisticsValue;
 use crate::arrays::datatype::DataType;
 use crate::catalog::entry::CatalogEntry;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 use crate::functions::table::PlannedTableFunction;
+use crate::storage::scan_filter::ScanFilter;
 
 #[derive(Debug, Clone)]
 pub struct TableScanSource {
