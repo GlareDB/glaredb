@@ -6,7 +6,7 @@ use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{Result, not_implemented};
 
 use super::column_reader::{ColumnReader, ValueColumnReader};
-use super::row_group_pruner::NopRowGroupPruner;
+use super::row_group_pruner::{NopRowGroupPruner, PrimitiveRowGroupPruner};
 use super::value_reader::bool::BoolValueReader;
 use super::value_reader::int96::Int96TsReader;
 use super::value_reader::primitive::{
@@ -26,6 +26,7 @@ use super::value_reader::primitive::{
 };
 use super::value_reader::varlen::{BinaryValueReader, Utf8ValueReader};
 use crate::basic;
+use crate::metadata::RowGroupMetaData;
 use crate::schema::types::{ColumnDescriptor, SchemaDescriptor};
 
 #[derive(Debug)]
@@ -62,6 +63,31 @@ impl StructReader {
 
         Ok(StructReader { readers })
     }
+
+    /// Checks to see if we can prune this row group by looking at the stats for
+    /// each column.
+    ///
+    /// This ANDs all column filters, meaning we'll prune a row group if _any_
+    /// column says we should prune it, and the predicate will never be
+    /// satisfied.
+    pub fn should_prune(
+        &self,
+        projections: &Projections,
+        row_group: &RowGroupMetaData,
+    ) -> Result<bool> {
+        debug_assert_eq!(projections.data_indices().len(), self.readers.len());
+
+        for (&proj, col_reader) in projections.data_indices().iter().zip(&self.readers) {
+            let col_meta = &row_group.columns[proj];
+            if let Some(stats) = &col_meta.statistics {
+                if col_reader.should_prune(stats)? {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
+    }
 }
 
 /// Create a new boxed column reader.
@@ -94,13 +120,13 @@ pub(crate) fn new_column_reader<'a>(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::new(filters),
         )?),
         DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
-            NopRowGroupPruner::default(),
+            PrimitiveRowGroupPruner::new(filters),
         )?),
         DataType::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader, _>::try_new(
             manager,

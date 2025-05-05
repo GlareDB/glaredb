@@ -127,9 +127,8 @@ pub trait RowGroupPruner<T>: Debug + Sync + Send
 where
     T: PlainType,
 {
-    /// Returns a boolean indicating if we can prune this row group based on
-    /// statistics for a column.
-    fn can_prune_using_column_stats(&self, stats: &ValueStatistics<T::Native>) -> Result<bool>;
+    /// Returns if a row group should be pruned based on column stats.
+    fn should_prune(&self, stats: &ValueStatistics<T::Native>) -> Result<bool>;
 }
 
 /// A pruner that will never allow pruning a row group.
@@ -142,34 +141,28 @@ impl<T> RowGroupPruner<T> for NopRowGroupPruner<T>
 where
     T: PlainType,
 {
-    fn can_prune_using_column_stats(
-        &self,
-        _stats: &ValueStatistics<<T as PlainType>::Native>,
-    ) -> Result<bool> {
+    fn should_prune(&self, _stats: &ValueStatistics<<T as PlainType>::Native>) -> Result<bool> {
         Ok(false)
     }
 }
 
 /// A pruner that works on primitive values _without casting_.
 #[derive(Debug)]
-pub struct PrimitiveRowGroupPruner<S: MutableScalarStorage, T: PlainType> {
+pub struct PrimitiveRowGroupPruner<T: PlainType> {
     /// Filter thare are comparing a column to a constant.
     // TODO: Allow more than one, ensure all signal we can prune.
     const_eq_filters: Option<PhysicalScanFilterConstantEq>,
-    _s: PhantomCovariant<S>,
     _t: PhantomCovariant<T>,
 }
 
-impl<S, T> PrimitiveRowGroupPruner<S, T>
+impl<T> PrimitiveRowGroupPruner<T>
 where
-    S: MutableScalarStorage,
     T: PlainType,
     T::Native: Into<ScalarValue> + Copy,
 {
     pub fn new<'a>(filters: impl Iterator<Item = &'a PhysicalScanFilter>) -> Self {
         let mut pruner = PrimitiveRowGroupPruner {
             const_eq_filters: None,
-            _s: PhantomCovariant::new(),
             _t: PhantomCovariant::new(),
         };
 
@@ -186,16 +179,12 @@ where
     }
 }
 
-impl<S, T> RowGroupPruner<T> for PrimitiveRowGroupPruner<S, T>
+impl<T> RowGroupPruner<T> for PrimitiveRowGroupPruner<T>
 where
-    S: MutableScalarStorage,
     T: PlainType,
     T::Native: Into<ScalarValue> + Copy,
 {
-    fn can_prune_using_column_stats(
-        &self,
-        stats: &ValueStatistics<<T as PlainType>::Native>,
-    ) -> Result<bool> {
+    fn should_prune(&self, stats: &ValueStatistics<<T as PlainType>::Native>) -> Result<bool> {
         if !(stats.is_max_value_exact && stats.is_min_value_exact) {
             return Ok(false);
         }

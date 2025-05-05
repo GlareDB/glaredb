@@ -123,25 +123,34 @@ impl Reader {
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
         if self.state.remaining_group_rows == 0 {
             // No more rows, get the next row group.
-            let next = match self.row_groups.pop_front() {
-                Some(group) => group,
-                None => {
-                    // No more row groups, we're done.
-                    output.set_num_rows(0)?;
-                    return Ok(PollPull::Exhausted);
+            loop {
+                let next = match self.row_groups.pop_front() {
+                    Some(group) => group,
+                    None => {
+                        // No more row groups, we're done.
+                        output.set_num_rows(0)?;
+                        return Ok(PollPull::Exhausted);
+                    }
+                };
+
+                let group = &self.metadata.row_groups[next];
+                // We may be able to prune this group...
+                if self.root.should_prune(&self.projections, group)? {
+                    // Safe to prune, move to next row group.
+                    continue;
                 }
-            };
 
-            let group = &self.metadata.row_groups[next];
-            self.state = RowGroupState {
-                current_group: next,
-                remaining_group_rows: group.num_rows as usize,
-            };
+                self.state = RowGroupState {
+                    current_group: next,
+                    remaining_group_rows: group.num_rows as usize,
+                };
 
-            // Init fetch.
-            self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
-            // Continue on... The fetch state will trigger fetching of the
-            // columns.
+                // Init fetch.
+                self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
+                // Continue on... The fetch state will trigger fetching of the
+                // columns.
+                break;
+            }
         }
 
         match self.poll_fetch(cx)? {

@@ -161,6 +161,7 @@ impl TableScanFunction for ReadParquet {
             .into_iter()
             .map(|groups| {
                 let projections = op_state.projections.clone();
+                let filters = op_state.filters.clone();
                 let metadata = op_state.metadata.clone();
                 let schema = op_state.schema.clone();
                 let open_fut = op_state
@@ -178,7 +179,7 @@ impl TableScanFunction for ReadParquet {
                         file,
                         groups,
                         projections,
-                        &op_state.filters,
+                        &filters,
                     )
                 });
 

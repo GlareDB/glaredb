@@ -35,7 +35,7 @@ pub trait ColumnReader: Debug + Sync + Send {
     fn chunk_buf_mut(&mut self) -> &mut [u8];
 
     /// See if we can prune a row group based on these column statistics.
-    fn can_prune_using_column_stats(&self, stats: &Statistics) -> Result<bool>;
+    fn should_prune(&self, stats: &Statistics) -> Result<bool>;
 }
 
 #[derive(Debug)]
@@ -169,9 +169,9 @@ where
         Ok(())
     }
 
-    fn can_prune_using_column_stats(&self, stats: &Statistics) -> Result<bool> {
+    fn should_prune(&self, stats: &Statistics) -> Result<bool> {
         let stats = <V::PlainType as PlainType>::statistics(stats)
             .ok_or_else(|| DbError::new("Unexpected column stats"))?;
-        self.filter.can_prune_using_column_stats(stats)
+        self.filter.should_prune(stats)
     }
 }
