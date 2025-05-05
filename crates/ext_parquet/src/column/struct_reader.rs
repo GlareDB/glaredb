@@ -1,7 +1,8 @@
 use glaredb_core::arrays::datatype::{DataType, TimeUnit};
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{Result, not_implemented};
 
 use super::column_reader::{ColumnReader, ValueColumnReader};
@@ -38,16 +39,23 @@ impl StructReader {
         projections: &Projections,
         column_schema: &ColumnSchema,
         parquet_schema: &SchemaDescriptor,
+        filters: &[PhysicalScanFilter],
     ) -> Result<Self> {
         let readers = projections
             .data_indices()
             .iter()
             .map(|&col_idx| {
+                // Get the filters to apply to just this column.
+                let filters = filters.iter().filter(|filter| {
+                    filter.columns.len() == 1
+                        && filter.columns.contains(&ProjectedColumn::Data(col_idx))
+                });
+
                 // TODO: I'll fix this later, we're just assuming a flat schema
                 // right now.
                 let col_descr = parquet_schema.leaves[col_idx].clone();
                 let datatype = column_schema.fields[col_idx].datatype.clone();
-                new_column_reader(manager, datatype, col_descr)
+                new_column_reader(manager, datatype, col_descr, filters)
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -56,78 +64,81 @@ impl StructReader {
 }
 
 /// Create a new boxed column reader.
-pub(crate) fn new_column_reader(
+pub(crate) fn new_column_reader<'a>(
     manager: &impl AsRawBufferManager,
     datatype: DataType,
     descr: ColumnDescriptor,
+    filters: impl Iterator<Item = &'a PhysicalScanFilter>,
 ) -> Result<Box<dyn ColumnReader>> {
     Ok(match &datatype {
         DataType::Boolean => Box::new(ValueColumnReader::<BoolValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Int8 => Box::new(ValueColumnReader::<CastingInt32ToInt8Reader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Int16 => Box::new(ValueColumnReader::<CastingInt32ToInt16Reader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::UInt16 => Box::new(ValueColumnReader::<CastingInt32ToUInt16Reader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::UInt32 => Box::new(ValueColumnReader::<CastingInt32ToUInt32Reader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::UInt64 => Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Float16 => Box::new(ValueColumnReader::<PlainFloat16ValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Date32 => Box::new(ValueColumnReader::<PlainInt32ValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Decimal64(_) => match descr.physical_type() {
-            basic::Type::INT32 => Box::new(
-                ValueColumnReader::<CastingInt32ToInt64Reader>::try_new(manager, datatype, descr)?,
-            ),
+            basic::Type::INT32 => {
+                Box::new(ValueColumnReader::<CastingInt32ToInt64Reader>::try_new(
+                    manager, datatype, descr, None,
+                )?)
+            }
             basic::Type::INT64 => Box::new(ValueColumnReader::<PlainInt64ValueReader>::try_new(
-                manager, datatype, descr,
+                manager, datatype, descr, None,
             )?),
             other => not_implemented!("decimal64 reader for physical type: {other:?}"),
         },
         DataType::Timestamp(m) => match (m.unit, descr.physical_type()) {
             (TimeUnit::Nanosecond, basic::Type::INT64) => {
                 Box::new(ValueColumnReader::<PlainTsNsValueReader>::try_new(
-                    manager, datatype, descr,
+                    manager, datatype, descr, None,
                 )?)
             }
             (TimeUnit::Nanosecond, basic::Type::INT96) => {
                 Box::new(ValueColumnReader::<Int96TsReader>::try_new(
-                    manager, datatype, descr,
+                    manager, datatype, descr, None,
                 )?)
             }
             other => not_implemented!("timestamp reader for physical type: {other:?}"),
         },
         DataType::Utf8 => Box::new(ValueColumnReader::<Utf8ValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         DataType::Binary => Box::new(ValueColumnReader::<BinaryValueReader>::try_new(
-            manager, datatype, descr,
+            manager, datatype, descr, None,
         )?),
         other => not_implemented!("create parquet column reader for data type: {other}"),
     })

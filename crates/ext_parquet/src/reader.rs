@@ -9,6 +9,7 @@ use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::Projections;
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::Result;
 
 use crate::column::struct_reader::StructReader;
@@ -92,12 +93,14 @@ impl Reader {
         file: AnyFile,
         groups: impl IntoIterator<Item = usize>,
         projections: Projections,
+        filters: &[PhysicalScanFilter],
     ) -> Result<Self> {
         let root = StructReader::try_new_root(
             manager,
             &projections,
             &schema,
             &metadata.file_metadata.schema_descr,
+            filters,
         )?;
 
         Ok(Reader {

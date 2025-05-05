@@ -1,5 +1,8 @@
 use std::fmt::Debug;
 
+use glaredb_core::storage::scan_filter::PhysicalScanFilterConstantEq;
+use glaredb_error::Result;
+
 use crate::data_type::Int96;
 use crate::metadata::statistics::{Statistics, ValueStatistics};
 
@@ -112,49 +115,11 @@ impl PlainType for PlainTypeFixedLenByteArray {
     }
 }
 
-pub trait RowGroupPruner<T>: Debug + Sync + Send {
+pub trait RowGroupPruner<T>: Debug + Sync + Send
+where
+    T: PlainType,
+{
     /// Returns a boolean indicating if we can prune this row group based on
     /// statistics for a column.
-    fn can_prune_using_column_stats(&self, stats: &ValueStatistics<T>) -> bool;
-}
-
-/// Prune base on if column contains an exact value.
-#[derive(Debug)]
-pub struct ColumnContainsValue<T> {
-    pub value: T,
-}
-
-impl<T> RowGroupPruner<T> for ColumnContainsValue<T>
-where
-    T: Debug + Sync + Send + PartialEq + PartialOrd,
-{
-    fn can_prune_using_column_stats(&self, stats: &ValueStatistics<T>) -> bool {
-        if !(stats.is_max_value_exact && stats.is_min_value_exact) {
-            // Not exact values, need to think more about what that means.
-            return false;
-        }
-
-        match (stats.min.as_ref(), stats.max.as_ref()) {
-            (Some(min), Some(max)) => {
-                // Check if value falls outside the min/max range. If it does,
-                // we're safe to prune.
-                min > &self.value || max < &self.value
-            }
-            _ => false, // Nothing we can glean from this.
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn exact_value_can_prune_with_min_max() {
-        let c = ColumnContainsValue { value: 4 };
-        let stats = ValueStatistics::new(Some(6), Some(12), Some(2), 0, false);
-
-        let can_prune = c.can_prune_using_column_stats(&stats);
-        assert!(can_prune);
-    }
+    fn can_prune_using_column_stats(&self, stats: &ValueStatistics<T::Native>) -> Result<bool>;
 }

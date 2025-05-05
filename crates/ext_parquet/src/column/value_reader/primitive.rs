@@ -15,7 +15,14 @@ use glaredb_core::arrays::array::physical_type::{
     PhysicalU32,
     PhysicalU64,
 };
+use glaredb_core::arrays::scalar::ScalarValue;
+use glaredb_core::storage::scan_filter::{
+    PhysicalScanFilter,
+    PhysicalScanFilterConstantEq,
+    PhysicalScanFilterType,
+};
 use glaredb_core::util::marker::PhantomCovariant;
+use glaredb_error::Result;
 use num::cast::AsPrimitive;
 
 use super::{ReaderErrorState, ValueReader};
@@ -27,7 +34,9 @@ use crate::column::row_group_pruner::{
     PlainTypeFixedLenByteArray,
     PlainTypeI32,
     PlainTypeI64,
+    RowGroupPruner,
 };
+use crate::metadata::statistics::ValueStatistics;
 
 pub type PlainInt32ValueReader = PrimitiveValueReader<PhysicalI32, PlainTypeI32>;
 pub type PlainInt64ValueReader = PrimitiveValueReader<PhysicalI64, PlainTypeI64>;
@@ -75,6 +84,32 @@ where
         _error_state: &mut ReaderErrorState,
     ) {
         unsafe { data.skip_bytes_unchecked(std::mem::size_of::<S::StorageType>()) };
+    }
+}
+
+#[derive(Debug)]
+struct PrimitiveRowGroupContains {
+    filter: PhysicalScanFilterConstantEq,
+}
+
+impl<T> RowGroupPruner<T> for PrimitiveRowGroupContains
+where
+    T: Into<ScalarValue> + Copy,
+{
+    fn can_prune_using_column_stats(&self, stats: &ValueStatistics<T>) -> Result<bool> {
+        if !stats.is_max_value_exact || !stats.is_min_value_exact {
+            // If not exact, don't do anything yet.
+            return Ok(false);
+        }
+
+        match (stats.min.as_ref(), stats.max.as_ref()) {
+            (Some(&min), Some(&max)) => {
+                let in_range = self.filter.is_in_range(min, max)?;
+                // We can only prune if the constant is not in range.
+                Ok(!in_range)
+            }
+            _ => Ok(false), // Nothing we can glean from stats.
+        }
     }
 }
 

@@ -65,6 +65,7 @@ pub struct ReadParquetOperatorState {
     path: String,
     metadata: Arc<ParquetMetaData>,
     projections: Projections,
+    filters: Vec<PhysicalScanFilter>,
     schema: ColumnSchema, // TODO
 }
 
@@ -131,7 +132,7 @@ impl TableScanFunction for ReadParquet {
     fn create_pull_operator_state(
         bind_state: &Self::BindState,
         projections: Projections,
-        _filters: &[PhysicalScanFilter],
+        filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
         Ok(ReadParquetOperatorState {
@@ -139,6 +140,7 @@ impl TableScanFunction for ReadParquet {
             path: bind_state.path.clone(),
             metadata: bind_state.metadata.clone(),
             projections,
+            filters: filters.to_vec(),
             schema: bind_state.schema.clone(),
         })
     }
@@ -176,6 +178,7 @@ impl TableScanFunction for ReadParquet {
                         file,
                         groups,
                         projections,
+                        &op_state.filters,
                     )
                 });
 

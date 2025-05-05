@@ -3,14 +3,16 @@ use std::fmt::Debug;
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::datatype::DataType;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
 use super::page_reader::PageReader;
-use super::row_group_pruner::RowGroupPruner;
+use super::row_group_pruner::{PlainType, RowGroupPruner};
 use super::value_reader::ValueReader;
 use crate::basic::Compression;
 use crate::column::encoding::{Definitions, PageDecoder};
 use crate::compression::{CodecOptions, create_codec};
+use crate::metadata::statistics::Statistics;
 use crate::schema::types::ColumnDescriptor;
 
 /// Reads column values into the output array.
@@ -31,10 +33,14 @@ pub trait ColumnReader: Debug + Sync + Send {
     /// This buffer will be used for reading the column chunk from the file
     /// directly.
     fn chunk_buf_mut(&mut self) -> &mut [u8];
+
+    /// See if we can prune a row group based on these column statistics.
+    fn can_prune_using_column_stats(&self, stats: &Statistics) -> Result<bool>;
 }
 
 #[derive(Debug)]
 pub struct ValueColumnReader<V: ValueReader> {
+    pub(crate) filter: Option<Box<dyn RowGroupPruner<V::PlainType>>>,
     /// Page reader for this column.
     pub(crate) page_reader: PageReader<V>,
     /// Reusable buffer for definition levels.
@@ -47,14 +53,16 @@ impl<V> ValueColumnReader<V>
 where
     V: ValueReader,
 {
-    pub fn try_new(
+    pub fn try_new<'a>(
         manager: &impl AsRawBufferManager,
         datatype: DataType,
         descr: ColumnDescriptor,
+        filter: Option<Box<dyn RowGroupPruner<V::PlainType>>>,
     ) -> Result<Self> {
         let page_reader = PageReader::try_new(manager, datatype, descr)?;
 
         Ok(ValueColumnReader {
+            filter,
             page_reader,
             definitions: Vec::new(),
             repetitions: Vec::new(),
@@ -156,5 +164,16 @@ where
         }
 
         Ok(())
+    }
+
+    fn can_prune_using_column_stats(&self, stats: &Statistics) -> Result<bool> {
+        match self.filter.as_ref() {
+            Some(filter) => {
+                let stats = <V::PlainType as PlainType>::statistics(stats)
+                    .ok_or_else(|| DbError::new("Unexpected column stats"))?;
+                filter.can_prune_using_column_stats(stats)
+            }
+            None => Ok(false),
+        }
     }
 }

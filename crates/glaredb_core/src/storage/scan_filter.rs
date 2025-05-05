@@ -39,14 +39,14 @@ impl ScanFilter {
                     (true, false) => {
                         // Left is constant.
                         let left = ConstFold::rewrite(*cmp.left)?;
-                        PhysicalScanFilterType::Eq(PhysicalScanFilterEq {
+                        PhysicalScanFilterType::ConstantEq(PhysicalScanFilterConstantEq {
                             constant: left.try_into_scalar()?,
                         })
                     }
                     (false, true) => {
                         // Right is constant.
                         let right = ConstFold::rewrite(*cmp.right)?;
-                        PhysicalScanFilterType::Eq(PhysicalScanFilterEq {
+                        PhysicalScanFilterType::ConstantEq(PhysicalScanFilterConstantEq {
                             constant: right.try_into_scalar()?,
                         })
                     }
@@ -84,7 +84,7 @@ impl ContextDisplay for ScanFilter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhysicalScanFilter {
     /// Which columns this filter applies to.
     pub columns: Vec<ProjectedColumn>,
@@ -94,23 +94,23 @@ pub struct PhysicalScanFilter {
     pub filter_type: PhysicalScanFilterType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PhysicalScanFilterType {
     /// Filter represents a column equality with a constant value.
-    Eq(PhysicalScanFilterEq),
+    ConstantEq(PhysicalScanFilterConstantEq),
     /// Unknown filter type.
     ///
     /// Could still be valid, we just don't know what to do with it.
     Unknown,
 }
 
-#[derive(Debug)]
-pub struct PhysicalScanFilterEq {
+#[derive(Debug, Clone)]
+pub struct PhysicalScanFilterConstantEq {
     /// The constant we're comparing with.
     pub constant: ScalarValue,
 }
 
-impl PhysicalScanFilterEq {
+impl PhysicalScanFilterConstantEq {
     /// Compares the constant with the provided min/max values to see if it's
     /// contained within the range.
     pub fn is_in_range(

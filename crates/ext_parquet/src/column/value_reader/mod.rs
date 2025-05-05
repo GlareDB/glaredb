@@ -6,7 +6,7 @@ pub mod varlen;
 use std::fmt::Debug;
 
 use glaredb_core::arrays::array::physical_type::MutableScalarStorage;
-use glaredb_core::expr::Expression;
+use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
 use super::row_group_pruner::{PlainType, RowGroupPruner};
