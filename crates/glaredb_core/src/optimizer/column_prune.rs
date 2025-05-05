@@ -523,6 +523,9 @@ impl PruneState {
                         .collect();
                     scan.node.table_ref = new_ref;
                     scan.node.projection = cols.into_iter().collect();
+                    // TODO: Probably want to walk scan filters for completeness
+                    // here. Currently scan filters get pushed down after this
+                    // rule.
                 }
             }
             LogicalOperator::Aggregate(agg) => {

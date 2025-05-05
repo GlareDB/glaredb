@@ -131,6 +131,9 @@ impl LogicalNode for Node<LogicalScan> {
                 func(expr)?
             }
         }
+        for filter in &self.node.scan_filters {
+            func(&filter.expression)?;
+        }
         Ok(())
     }
 
@@ -143,6 +146,9 @@ impl LogicalNode for Node<LogicalScan> {
             for expr in &mut table_func.function.bind_state.input.positional {
                 func(expr)?
             }
+        }
+        for filter in &mut self.node.scan_filters {
+            func(&mut filter.expression)?;
         }
         Ok(())
     }
