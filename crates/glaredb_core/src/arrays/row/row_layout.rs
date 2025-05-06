@@ -30,13 +30,25 @@ use crate::arrays::array::physical_type::{
     ScalarStorage,
     UntypedNull,
 };
-use crate::arrays::bitmap::view::{BitmapView, BitmapViewMut, num_bytes_for_bitmap};
+use crate::arrays::bitmap::view::{BitmapViewMut, num_bytes_for_bitmap};
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::string::StringPtr;
 use crate::util::iter::IntoExactSizeIterator;
 
 /// Describes the layout of a row for use with a row collection.
+///
+/// Row layout:
+/// [validity_bytes, row_encoded_values]
+///
+/// The validity bytes are just a bitmap padded out to the nearest byte which
+/// each bit indicating the corresponding value's validity.
+///
+/// The row encoded values are just unaligned writes of the value. Varlen data
+/// will have a fixed sized prefix/marker written inline, while the rest is
+/// written to a heap block somewhere.
+///
+/// Row encoding has no comparison properties.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RowLayout {
     /// Data types for each column in the row.
@@ -570,6 +582,10 @@ unsafe fn read_array(
     }
 }
 
+// TODO: We'll want to pass in the blocks directly to allow for strided scans
+// instead of randomly accessing pointers.
+//
+// Same with varlen.
 unsafe fn read_scalar<S>(
     layout: &RowLayout,
     row_pointers: impl IntoIterator<Item = *const u8>,
@@ -581,26 +597,34 @@ where
     S: MutableScalarStorage,
     S::StorageType: Copy + Sized,
 {
-    unsafe {
-        let mut data = S::get_addressable_mut(&mut out.data)?;
-        let validity = &mut out.validity;
+    let mut data = S::get_addressable_mut(&mut out.data)?;
+    let validity = &mut out.validity;
 
-        for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
-            let validity_buf = layout.validity_buffer(row_ptr);
-            let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
+    // Bit ops for the validity bit buffer.
+    let bit_offset = array_idx;
+    let byte_offset = bit_offset >> 3; // Equivalent to `idx / 8`
+    let bit_mask = 1u8 << (bit_offset & 7); // Equivalent to `1 << (idx % 8)`
 
-            if is_valid {
+    for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
+        // Validity buffer starts at the beginning of the row, then we move to
+        // the required byte.
+        let validity_byte = unsafe { row_ptr.byte_add(byte_offset).read() };
+
+        let is_valid = validity_byte & bit_mask != 0;
+
+        if is_valid {
+            let v = unsafe {
                 let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
-                let v = ptr.cast::<S::StorageType>().read_unaligned();
+                ptr.cast::<S::StorageType>().read_unaligned()
+            };
 
-                data.put(output_idx, &v);
-            } else {
-                validity.set_invalid(output_idx);
-            }
+            data.put(output_idx, &v);
+        } else {
+            validity.set_invalid(output_idx);
         }
-
-        Ok(())
     }
+
+    Ok(())
 }
 
 unsafe fn read_binary(
@@ -610,27 +634,33 @@ unsafe fn read_binary(
     out: &mut Array,
     write_offset: usize,
 ) -> Result<()> {
-    unsafe {
-        let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
-        let validity = &mut out.validity;
+    let mut data = PhysicalBinary::get_addressable_mut(&mut out.data)?;
+    let validity = &mut out.validity;
 
-        for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
-            let validity_buf = layout.validity_buffer(row_ptr);
-            let is_valid = BitmapView::new(validity_buf, layout.num_columns()).value(array_idx);
+    // Bit ops for the validity bit buffer.
+    let bit_offset = array_idx;
+    let byte_offset = bit_offset >> 3; // Equivalent to `idx / 8`
+    let bit_mask = 1u8 << (bit_offset & 7); // Equivalent to `1 << (idx % 8)`
 
-            if is_valid {
-                let ptr = row_ptr.byte_add(layout.offsets[array_idx]);
-                let string_ptr = ptr.cast::<StringPtr>().read_unaligned();
+    for (row_ptr, output_idx) in row_pointers.into_iter().zip(write_offset..) {
+        // Validity buffer starts at the beginning of the row, then we move to
+        // the required byte.
+        let validity_byte = unsafe { row_ptr.byte_add(byte_offset).read() };
 
-                let bs = string_ptr.as_bytes();
-                data.put(output_idx, bs);
-            } else {
-                validity.set_invalid(output_idx);
-            }
+        let is_valid = validity_byte & bit_mask != 0;
+
+        if is_valid {
+            let ptr = unsafe { row_ptr.byte_add(layout.offsets[array_idx]) };
+            let string_ptr = unsafe { ptr.cast::<StringPtr>().read_unaligned() };
+
+            let bs = string_ptr.as_bytes();
+            data.put(output_idx, bs);
+        } else {
+            validity.set_invalid(output_idx);
         }
-
-        Ok(())
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
