@@ -102,6 +102,15 @@ impl Directory {
             }
         }
 
+        debug_assert_eq!(
+            self.num_occupied,
+            self.entries
+                .as_slice()
+                .iter()
+                .filter(|ent| ent.ptr.is_some())
+                .count()
+        );
+
         Ok(())
     }
 

@@ -157,45 +157,46 @@ impl SortedBlock {
             compare_width = 0;
         }
 
+        // Number of rows to copy for block the heap keys, and the sorted data.
+        let num_rows_to_copy = match limit_hint {
+            Some(limit_hint) if limit_hint < num_rows => limit_hint,
+            _ => num_rows,
+        };
+        // Block reserved capacities are what determines the number of
+        // rows in block.
+        //
+        // This will just truncate the keys block if limit is less than the
+        // number of encodeded keys.
+        keys.reserved_bytes = key_layout.row_width * num_rows_to_copy;
+
+        // Iter to read the first 'n' sorted rows. If we don't have a limit
+        // hint, it'll just scan the entire block.
+        let row_idx_iter = BlockRowIndexIter::new(key_layout, &keys, num_rows_to_copy);
+
         // Reorder heap keys and data according to the sorted keys.
         //
         // Note this doesn't reorder heap blocks as we have active pointers to
         // those from the row blocks.
-        let mut sorted_heap_keys =
-            Block::try_new_reserve_none(manager, heap_keys.reserved_bytes, None)?;
+        let key_heap_cap = num_rows_to_copy * key_layout.heap_layout.row_width;
+        let mut sorted_heap_keys = Block::try_new_reserve_all(manager, key_heap_cap)?;
         if key_layout.any_requires_heap() {
-            sorted_heap_keys.reserved_bytes = heap_keys.reserved_bytes;
-            let row_idx_iter = BlockRowIndexIter::new(key_layout, &keys, num_rows);
             apply_sort_indices(
                 &heap_keys,
                 &mut sorted_heap_keys,
-                row_idx_iter,
+                row_idx_iter.clone(),
                 key_layout.heap_layout.row_width,
             );
         }
 
         // Apply sort indices to the data blocks.
-        let mut sorted_data = Block::try_new_reserve_none(manager, data.reserved_bytes, None)?;
+        let data_cap = data_layout.row_width * num_rows_to_copy;
+        let mut sorted_data = Block::try_new_reserve_all(manager, data_cap)?;
         if data_layout.num_columns() > 0 {
-            sorted_data.reserved_bytes = data.reserved_bytes;
-            let row_idx_iter = BlockRowIndexIter::new(key_layout, &keys, num_rows);
             apply_sort_indices(&data, &mut sorted_data, row_idx_iter, data_layout.row_width);
         }
 
-        if let Some(limit_hint) = limit_hint {
-            if keys.num_rows(key_layout.row_width) > limit_hint {
-                // We've been provided a limit hint and number of rows we just
-                // sorted is greater than that. Go ahead and truncated the
-                // blocks such that they only contain the rows within the limit.
-                //
-                // Block reserved capacities are what determines the number of
-                // rows in block. We don't truncate the heap blocks since
-                // there's no ordering in them.
-                keys.reserved_bytes = key_layout.row_width * limit_hint;
-                sorted_heap_keys.reserved_bytes = key_layout.heap_layout.row_width * limit_hint;
-                sorted_data.reserved_bytes = data_layout.row_width * limit_hint;
-            }
-        }
+        debug_assert_eq!(num_rows_to_copy, keys.num_rows(key_layout.row_width));
+        debug_assert!(num_rows_to_copy <= num_rows);
 
         Ok(Some(SortedBlock {
             keys,
@@ -556,6 +557,11 @@ unsafe fn sort_heap_keys(
     Ok(())
 }
 
+/// Applies sort indices to a src fixed-len block, writing the sorted output to
+/// dest.
+///
+/// The indices iterator may contain fewer indices that what's in `src` if we
+/// have a limit hint. The dest block will be exact sized to hold the output.
 fn apply_sort_indices(
     src: &Block,
     dest: &mut Block,
@@ -564,7 +570,14 @@ fn apply_sort_indices(
 ) {
     let indices = indices.into_exact_size_iter();
 
-    debug_assert_eq!(src.data.len(), indices.len() * row_width);
+    // Indices may be few than src if we have a limit hint.
+    debug_assert!(
+        src.data.len() >= indices.len() * row_width,
+        "src: {}, width {}",
+        src.data.len(),
+        indices.len() * row_width
+    );
+    // Output always exact sized, even with a limit hint.
     debug_assert_eq!(dest.data.len(), indices.len() * row_width);
 
     let src_ptr = src.as_ptr();
@@ -585,7 +598,7 @@ fn apply_sort_indices(
 /// Key blocks contain a row index at the end of each row. When we sort the key
 /// blocks, those row indexes are included in the data that's moved. This iterator
 /// serves to iterate over those reordered indices.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BlockRowIndexIter<'a> {
     keys: &'a Block,
     count: usize,
