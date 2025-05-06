@@ -24,11 +24,18 @@ pub struct Directory {
 unsafe impl Send for Directory {}
 unsafe impl Sync for Directory {}
 
+const _: () = {
+    assert!(
+        Directory::DEFAULT_CAPACITY.is_power_of_two(),
+        "must be power of two"
+    );
+};
+
 impl Directory {
     const LOAD_NUM: usize = 7;
     const LOAD_DEN: usize = 10;
 
-    pub const DEFAULT_CAPACITY: usize = 128;
+    pub const DEFAULT_CAPACITY: usize = 2048;
 
     pub fn try_with_capacity(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();

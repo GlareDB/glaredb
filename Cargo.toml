@@ -8,7 +8,7 @@ version = "25.5.1"
 edition = "2024"
 
 [profile.release]
-lto = "thin"
+lto = "fat"
 opt-level = 3
 codegen-units = 1
 
