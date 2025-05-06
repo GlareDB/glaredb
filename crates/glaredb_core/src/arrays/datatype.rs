@@ -322,6 +322,8 @@ impl DataType {
     pub const DATE32: &'static Self = &Self::new_primitive(DataTypeId::Date32);
     pub const DATE64: &'static Self = &Self::new_primitive(DataTypeId::Date64);
 
+    pub const INTERVAL: &'static Self = &Self::new_primitive(DataTypeId::Interval);
+
     pub const UTF8: &'static Self = &Self::new_primitive(DataTypeId::Utf8);
     pub const BINARY: &'static Self = &Self::new_primitive(DataTypeId::Binary);
 
@@ -345,6 +347,8 @@ impl DataType {
 
     datatype_new_primitive!(date32, DATE32);
     datatype_new_primitive!(date64, DATE64);
+
+    datatype_new_primitive!(interval, INTERVAL);
 
     datatype_new_primitive!(utf8, UTF8);
     datatype_new_primitive!(binary, BINARY);

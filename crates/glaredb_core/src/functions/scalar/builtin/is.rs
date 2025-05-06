@@ -71,7 +71,7 @@ impl<const RETURN: bool> ScalarFunction for CheckNull<RETURN> {
         let input = &input.arrays()[0];
 
         let out = PhysicalBool::get_addressable_mut(&mut output.data)?;
-        if input.physical_type() == PhysicalType::UntypedNull {
+        if input.physical_type()? == PhysicalType::UntypedNull {
             // Everything null, just set to default value.
             out.slice.iter_mut().for_each(|v| *v = RETURN);
             return Ok(());
