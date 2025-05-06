@@ -1,0 +1,77 @@
+# Test implicit casting of int literals.
+#
+# We attempt to parse integer literals as either i32 or i64. These tests assert
+# that we can potentially cast those literals to smaller types.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# We should never get a type smaller than i32 when working with just integer
+# literals.
+query TT
+DESCRIBE SELECT 4 + 5;
+----
+?column?  Int32
+
+query I
+SELECT ((4 + 5) * 8) - 2;
+----
+70
+
+query TT
+DESCRIBE SELECT ((4 + 5) * 8) - 2;
+----
+?column? Int32
+
+# An i64 lit and i32 lit
+query I
+SELECT 2147483648 + 5;
+----
+2147483653
+
+query TT
+DESCRIBE SELECT 2147483648 + 5
+----
+?column?  Int64
+
+# We should be ablet to implicit cast to smaller types if the literal fits it.
+query I
+SELECT 4::SMALLINT + 5;
+----
+9
+
+query TT
+DESCRIBE SELECT 4::SMALLINT + 5;
+----
+?column?  Int16
+
+# Unless it can't be casted.
+query I
+SELECT 4::SMALLINT + 32768;
+----
+32772
+
+query TT
+DESCRIBE SELECT 4::SMALLINT + 32768;
+----
+?column?  Int32
+
+query I
+SELECT 4::TINYINT + 5;
+----
+9
+
+query TT
+DESCRIBE SELECT 4::TINYINT + 5
+----
+?column?  Int8
+
+query I
+SELECT 4::BIGINT + 5;
+----
+9
+
+query TT
+DESCRIBE SELECT 4::BIGINT + 5;
+----
+?column?  Int64
