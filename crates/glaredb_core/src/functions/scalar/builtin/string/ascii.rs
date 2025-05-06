@@ -39,7 +39,7 @@ impl ScalarFunction for Ascii {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Int32,
+            return_type: DataType::int32(),
             inputs,
         })
     }

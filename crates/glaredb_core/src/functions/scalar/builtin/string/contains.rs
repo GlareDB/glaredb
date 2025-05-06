@@ -56,7 +56,7 @@ impl ScalarFunction for StringContains {
 
         Ok(BindState {
             state: StringContainsState { constant },
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }

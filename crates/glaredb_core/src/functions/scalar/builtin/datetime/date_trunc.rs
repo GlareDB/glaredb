@@ -94,20 +94,14 @@ impl ScalarFunction for DateTrunc {
             .to_lowercase();
 
         let field = field.parse::<TruncField>()?;
-
-        let time_m = match inputs[1].datatype()? {
-            DataType::Timestamp(m) => m,
-            other => {
-                return Err(DbError::new("Unexpected data type").with_field("datatype", other));
-            }
-        };
+        let time_m = inputs[1].datatype()?.try_get_timestamp_type_meta()?;
 
         Ok(BindState {
             state: DateTruncState {
                 input_unit: time_m.unit,
                 field,
             },
-            return_type: DataType::Timestamp(time_m),
+            return_type: DataType::timestamp(time_m.clone()),
             inputs,
         })
     }

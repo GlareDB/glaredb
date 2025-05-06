@@ -24,7 +24,7 @@ pub const FUNCTION_SET_ACOSH: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-        &UnaryInputNumericScalar::<PhysicalF64, AcoshOp>::new(&DataType::Float64),
+        &UnaryInputNumericScalar::<PhysicalF64, AcoshOp>::new(DataType::FLOAT64),
     )],
 };
 

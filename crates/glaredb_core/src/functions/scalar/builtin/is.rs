@@ -61,7 +61,7 @@ impl<const RETURN: bool> ScalarFunction for CheckNull<RETURN> {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }
@@ -174,7 +174,7 @@ impl<const NOT: bool, const BOOL: bool> ScalarFunction for IsBool<NOT, BOOL> {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn is_null() {
         let input = generate_batch!([Some(4), None, Some(5)]);
-        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::boolean(), 3).unwrap();
 
         CheckNull::<true>::execute(&(), &input, &mut out).unwrap();
 
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn is_not_null() {
         let input = generate_batch!([Some(4), None, Some(5)]);
-        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::boolean(), 3).unwrap();
 
         CheckNull::<false>::execute(&(), &input, &mut out).unwrap();
 

@@ -30,15 +30,15 @@ pub const FUNCTION_SET_ROUND: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
-            &UnaryInputNumericScalar::<PhysicalF16, RoundOp>::new(&DataType::Float16),
+            &UnaryInputNumericScalar::<PhysicalF16, RoundOp>::new(DataType::FLOAT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
-            &UnaryInputNumericScalar::<PhysicalF32, RoundOp>::new(&DataType::Float32),
+            &UnaryInputNumericScalar::<PhysicalF32, RoundOp>::new(DataType::FLOAT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-            &UnaryInputNumericScalar::<PhysicalF64, RoundOp>::new(&DataType::Float64),
+            &UnaryInputNumericScalar::<PhysicalF64, RoundOp>::new(DataType::FLOAT64),
         ),
     ],
 };

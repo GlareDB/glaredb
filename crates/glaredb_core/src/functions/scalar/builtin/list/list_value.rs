@@ -26,7 +26,7 @@ pub const FUNCTION_SET_LIST_VALUE: ScalarFunctionSet = ScalarFunctionSet {
         &Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
-            return_type: DataTypeId::List(&DataTypeId::Any),
+            return_type: DataTypeId::List,
         },
         &ListValue,
     )],

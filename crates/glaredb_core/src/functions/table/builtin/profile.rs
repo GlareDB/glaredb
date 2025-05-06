@@ -217,10 +217,10 @@ impl PlanningProfileRow {
 
 impl ProfileTable for PlanningProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
-        ProfileColumn::new("query_id", DataType::Utf8),
-        ProfileColumn::new("step_order", DataType::Int32),
-        ProfileColumn::new("step", DataType::Utf8),
-        ProfileColumn::new("duration_seconds", DataType::Float64),
+        ProfileColumn::new("query_id", DataType::utf8()),
+        ProfileColumn::new("step_order", DataType::int32()),
+        ProfileColumn::new("step", DataType::utf8()),
+        ProfileColumn::new("duration_seconds", DataType::float64()),
     ];
 
     type Row = PlanningProfileRow;
@@ -305,10 +305,10 @@ pub struct OptimizerProfileRow {
 
 impl ProfileTable for OptimizerProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
-        ProfileColumn::new("query_id", DataType::Utf8),
-        ProfileColumn::new("rule_order", DataType::Int32),
-        ProfileColumn::new("rule", DataType::Utf8),
-        ProfileColumn::new("duration_seconds", DataType::Float64),
+        ProfileColumn::new("query_id", DataType::utf8()),
+        ProfileColumn::new("rule_order", DataType::int32()),
+        ProfileColumn::new("rule", DataType::utf8()),
+        ProfileColumn::new("duration_seconds", DataType::float64()),
     ];
 
     type Row = OptimizerProfileRow;

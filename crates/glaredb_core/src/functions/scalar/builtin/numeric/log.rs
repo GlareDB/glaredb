@@ -30,15 +30,15 @@ pub const FUNCTION_SET_LOG: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
-            &UnaryInputNumericScalar::<PhysicalF16, LogOp>::new(&DataType::Float16),
+            &UnaryInputNumericScalar::<PhysicalF16, LogOp>::new(DataType::FLOAT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
-            &UnaryInputNumericScalar::<PhysicalF32, LogOp>::new(&DataType::Float32),
+            &UnaryInputNumericScalar::<PhysicalF32, LogOp>::new(DataType::FLOAT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-            &UnaryInputNumericScalar::<PhysicalF64, LogOp>::new(&DataType::Float64),
+            &UnaryInputNumericScalar::<PhysicalF64, LogOp>::new(DataType::FLOAT64),
         ),
     ],
 };

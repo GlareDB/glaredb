@@ -58,7 +58,7 @@ impl ScalarFunction for RegexpCount {
 
         Ok(BindState {
             state: RegexpCountState { pattern },
-            return_type: DataType::Int64,
+            return_type: DataType::int64(),
             inputs,
         })
     }

@@ -70,7 +70,7 @@ where
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::bool(),
             inputs,
         })
     }

@@ -59,7 +59,7 @@ impl ScalarFunction for Like {
 
         Ok(BindState {
             state: LikeState { constant },
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }

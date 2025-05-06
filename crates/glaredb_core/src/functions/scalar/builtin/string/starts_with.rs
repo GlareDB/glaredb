@@ -56,7 +56,7 @@ impl ScalarFunction for StartsWith {
 
         Ok(BindState {
             state: StartsWithState { constant },
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }

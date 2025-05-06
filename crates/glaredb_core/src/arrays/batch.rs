@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn append_batch_simple() {
-        let mut batch = Batch::new([DataType::Int32, DataType::Utf8], 1024).unwrap();
+        let mut batch = Batch::new([DataType::int32(), DataType::utf8()], 1024).unwrap();
 
         let append1 = Batch::from_arrays([
             Array::try_from_iter([1, 2, 3]).unwrap(),
@@ -447,7 +447,7 @@ mod tests {
         ])
         .unwrap();
 
-        let mut batch2 = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut batch2 = Batch::new([DataType::int32(), DataType::utf8()], 4).unwrap();
 
         batch2.clone_from_other(&mut batch1).unwrap();
 

@@ -59,7 +59,7 @@ impl ScalarFunction for RegexpLike {
 
         Ok(BindState {
             state: RegexpLikeState { constant },
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }

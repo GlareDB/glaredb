@@ -147,7 +147,6 @@ impl CandidateSignature {
 
     fn no_cast_needed(have: &DataTypeId, want: &DataTypeId) -> bool {
         match (have, want) {
-            (&DataTypeId::List(_), &DataTypeId::List(&DataTypeId::Any)) => true,
             (_, &DataTypeId::Any) => true,
             (a, b) => a == b,
         }

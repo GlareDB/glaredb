@@ -40,35 +40,35 @@ pub const FUNCTION_SET_NEGATE: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
-            &Negate::<PhysicalF16>::new(&DataType::Float16),
+            &Negate::<PhysicalF16>::new(DataType::FLOAT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
-            &Negate::<PhysicalF32>::new(&DataType::Float32),
+            &Negate::<PhysicalF32>::new(DataType::FLOAT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-            &Negate::<PhysicalF64>::new(&DataType::Float64),
+            &Negate::<PhysicalF64>::new(DataType::FLOAT64),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8], DataTypeId::Int8),
-            &Negate::<PhysicalI8>::new(&DataType::Int8),
+            &Negate::<PhysicalI8>::new(DataType::INT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16], DataTypeId::Int16),
-            &Negate::<PhysicalI16>::new(&DataType::Int16),
+            &Negate::<PhysicalI16>::new(DataType::INT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32], DataTypeId::Int32),
-            &Negate::<PhysicalI32>::new(&DataType::Int32),
+            &Negate::<PhysicalI32>::new(DataType::INT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64], DataTypeId::Int64),
-            &Negate::<PhysicalI64>::new(&DataType::Int64),
+            &Negate::<PhysicalI64>::new(DataType::INT64),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int128], DataTypeId::Int128),
-            &Negate::<PhysicalI128>::new(&DataType::Int128),
+            &Negate::<PhysicalI128>::new(DataType::INT128),
         ),
     ],
 };
@@ -142,7 +142,7 @@ impl ScalarFunction for Not {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }

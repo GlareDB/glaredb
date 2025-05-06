@@ -30,7 +30,7 @@ pub const FUNCTION_SET_POWER: ScalarFunctionSet = ScalarFunctionSet {
             &[DataTypeId::Float64, DataTypeId::Float64],
             DataTypeId::Float64,
         ),
-        &Power::<PhysicalF64>::new(&DataType::Float64),
+        &Power::<PhysicalF64>::new(DataType::FLOAT64),
     )],
 };
 

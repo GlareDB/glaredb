@@ -8,7 +8,7 @@ use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
 use crate::arrays::batch::Batch;
-use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::arrays::scalar::ScalarValue;
 use crate::catalog::database::Database;
@@ -176,9 +176,9 @@ impl TableScanFunction for ListTables {
             state,
             input,
             schema: ColumnSchema::new([
-                Field::new("database_name", DataType::Utf8, false),
-                Field::new("schema_name", DataType::Utf8, false),
-                Field::new("table_name", DataType::Utf8, false),
+                Field::new("database_name", DataType::utf8(), false),
+                Field::new("schema_name", DataType::utf8(), false),
+                Field::new("table_name", DataType::utf8(), false),
             ]),
             cardinality: StatisticsValue::Unknown,
         })
@@ -291,9 +291,9 @@ impl TableScanFunction for ListViews {
             state,
             input,
             schema: ColumnSchema::new([
-                Field::new("database_name", DataType::Utf8, false),
-                Field::new("schema_name", DataType::Utf8, false),
-                Field::new("view_name", DataType::Utf8, false),
+                Field::new("database_name", DataType::utf8(), false),
+                Field::new("schema_name", DataType::utf8(), false),
+                Field::new("view_name", DataType::utf8(), false),
             ]),
             cardinality: StatisticsValue::Unknown,
         })
@@ -452,25 +452,17 @@ impl TableScanFunction for ListFunctions {
             state,
             input,
             schema: ColumnSchema::new([
-                Field::new("database_name", DataType::Utf8, false),
-                Field::new("schema_name", DataType::Utf8, false),
-                Field::new("function_name", DataType::Utf8, false),
-                Field::new("function_type", DataType::Utf8, false),
-                Field::new("category", DataType::Utf8, false),
-                Field::new(
-                    "arguments",
-                    DataType::List(ListTypeMeta::new(DataType::Utf8)),
-                    false,
-                ),
-                Field::new(
-                    "argument_types",
-                    DataType::List(ListTypeMeta::new(DataType::Utf8)),
-                    false,
-                ),
-                Field::new("return_type", DataType::Utf8, false),
-                Field::new("description", DataType::Utf8, true),
-                Field::new("example", DataType::Utf8, true),
-                Field::new("example_output", DataType::Utf8, true),
+                Field::new("database_name", DataType::utf8(), false),
+                Field::new("schema_name", DataType::utf8(), false),
+                Field::new("function_name", DataType::utf8(), false),
+                Field::new("function_type", DataType::utf8(), false),
+                Field::new("category", DataType::utf8(), false),
+                Field::new("arguments", DataType::list(DataType::utf8()), false),
+                Field::new("argument_types", DataType::list(DataType::utf8()), false),
+                Field::new("return_type", DataType::utf8(), false),
+                Field::new("description", DataType::utf8(), true),
+                Field::new("example", DataType::utf8(), true),
+                Field::new("example_output", DataType::utf8(), true),
             ]),
             cardinality: StatisticsValue::Unknown,
         })

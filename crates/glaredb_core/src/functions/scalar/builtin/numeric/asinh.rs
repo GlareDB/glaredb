@@ -24,7 +24,7 @@ pub const FUNCTION_SET_ASINH: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-        &UnaryInputNumericScalar::<PhysicalF64, AsinhOp>::new(&DataType::Float64),
+        &UnaryInputNumericScalar::<PhysicalF64, AsinhOp>::new(DataType::FLOAT64),
     )],
 };
 

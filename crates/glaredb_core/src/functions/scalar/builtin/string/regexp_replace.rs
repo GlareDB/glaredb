@@ -75,7 +75,7 @@ impl ScalarFunction for RegexpReplace {
                 pattern,
                 replacement,
             },
-            return_type: DataType::Utf8,
+            return_type: DataType::utf8(),
             inputs,
         })
     }

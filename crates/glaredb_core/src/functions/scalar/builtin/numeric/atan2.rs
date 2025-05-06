@@ -29,7 +29,7 @@ pub const FUNCTION_SET_ATAN2: ScalarFunctionSet = ScalarFunctionSet {
             &[DataTypeId::Float64, DataTypeId::Float64],
             DataTypeId::Float64,
         ),
-        &Atan2::<PhysicalF64>::new(&DataType::Float64),
+        &Atan2::<PhysicalF64>::new(DataType::FLOAT64),
     )],
 };
 
