@@ -1,5 +1,3 @@
-use glaredb_error::{OptionExt, Result};
-use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::datatype::DataType;

@@ -201,7 +201,7 @@ impl CsvReader {
                         }
                         other => {
                             return Err(DbError::new("Unhandled datatype for csv scanning")
-                                .with_field("datatype", other.clone()));
+                                .with_field("datatype", other));
                         }
                     }
                     Ok(())

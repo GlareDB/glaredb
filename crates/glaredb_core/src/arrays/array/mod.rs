@@ -50,7 +50,7 @@ use super::cache::MaybeCache;
 use super::compute::copy::copy_rows_array;
 use super::scalar::ScalarValue;
 use crate::arrays::compute::set_list_value::set_list_value_raw;
-use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
 use crate::arrays::scalar::interval::Interval;

@@ -89,7 +89,7 @@ impl BaseOperator for PhysicalCreateTableAs {
     }
 
     fn output_types(&self) -> &[DataType] {
-        const OUTPUT_TYPES: &'static [DataType] = &[DataType::int64()];
+        const OUTPUT_TYPES: &[DataType] = &[DataType::int64()];
         OUTPUT_TYPES
     }
 }

@@ -1,8 +1,6 @@
 use std::fmt;
-use std::sync::Arc;
 
-use glaredb_error::{DbError, OptionExt, Result, ResultExt};
-use glaredb_proto::ProtoConv;
+use glaredb_error::{DbError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::PhysicalType;

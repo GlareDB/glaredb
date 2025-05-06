@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use ahash::RandomState;
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{Result, not_implemented};
 use half::f16;
 
 use crate::arrays::array::Array;
