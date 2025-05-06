@@ -189,7 +189,8 @@ mod tests {
     #[test]
     fn virtual_columns() {
         let projections = Projections::new_with_virtual([0, 1], [0]);
-        let mut output = Batch::new([DataType::int32(), DataType::int32(), DataType::utf8()], 1).unwrap();
+        let mut output =
+            Batch::new([DataType::int32(), DataType::int32(), DataType::utf8()], 1).unwrap();
 
         projections
             .for_each_column(&mut output, &mut |proj_idx, array| match proj_idx {

@@ -551,8 +551,13 @@ mod tests {
     #[test]
     fn cross_join_single_partition() {
         let wrapper = OperatorWrapper::new(
-            PhysicalNestedLoopJoin::new(JoinType::Inner, [DataType::utf8()], [DataType::int32()], None)
-                .unwrap(),
+            PhysicalNestedLoopJoin::new(
+                JoinType::Inner,
+                [DataType::utf8()],
+                [DataType::int32()],
+                None,
+            )
+            .unwrap(),
         );
 
         let props = ExecutionProperties { batch_size: 16 };

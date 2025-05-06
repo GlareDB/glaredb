@@ -260,7 +260,8 @@ mod tests {
 
     #[test]
     fn single_partition_exhaust_right_exhaust_left() {
-        let wrapper = OperatorWrapper::new(PhysicalUnion::new([DataType::int32(), DataType::utf8()]));
+        let wrapper =
+            OperatorWrapper::new(PhysicalUnion::new([DataType::int32(), DataType::utf8()]));
 
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
