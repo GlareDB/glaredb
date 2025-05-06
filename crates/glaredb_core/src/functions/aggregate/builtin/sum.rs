@@ -3,9 +3,17 @@ use std::marker::PhantomData;
 use std::ops::AddAssign;
 
 use glaredb_error::Result;
-use num_traits::CheckedAdd;
+use num_traits::{AsPrimitive, CheckedAdd};
 
-use crate::arrays::array::physical_type::{AddressableMut, PhysicalF64, PhysicalI64};
+use crate::arrays::array::physical_type::{
+    AddressableMut,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    ScalarStorage,
+};
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::executor::aggregate::AggregateState;
@@ -33,8 +41,20 @@ pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
             &SimpleUnaryAggregate::new(&SumF64),
         ),
         RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int8], DataTypeId::Int64),
+            &SimpleUnaryAggregate::new(&SumInt::<PhysicalI8>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int16], DataTypeId::Int64),
+            &SimpleUnaryAggregate::new(&SumInt::<PhysicalI16>::new()),
+        ),
+        RawAggregateFunction::new(
+            &Signature::new(&[DataTypeId::Int32], DataTypeId::Int64),
+            &SimpleUnaryAggregate::new(&SumInt::<PhysicalI32>::new()),
+        ),
+        RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Int64], DataTypeId::Int64), // TODO: Return should be big num
-            &SimpleUnaryAggregate::new(&SumI64),
+            &SimpleUnaryAggregate::new(&SumInt::<PhysicalI64>::new()),
         ),
         RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Decimal64], DataTypeId::Decimal64),
@@ -48,14 +68,29 @@ pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct SumI64;
+pub struct SumInt<I: ScalarStorage> {
+    _s: PhantomData<I>,
+}
 
-impl UnaryAggregate for SumI64 {
-    type Input = PhysicalI64;
+impl<I> SumInt<I>
+where
+    I: ScalarStorage,
+{
+    pub const fn new() -> Self {
+        SumInt { _s: PhantomData }
+    }
+}
+
+impl<I> UnaryAggregate for SumInt<I>
+where
+    I: ScalarStorage,
+    I::StorageType: Sized + Default + AsPrimitive<i64>,
+{
+    type Input = I;
     type Output = PhysicalI64;
 
     type BindState = ();
-    type GroupState = SumStateCheckedAdd<i64>;
+    type GroupState = SumStateCheckedAdd<i64, I::StorageType>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -112,7 +147,7 @@ where
     type Output = D::Storage;
 
     type BindState = ();
-    type GroupState = SumStateCheckedAdd<D::Primitive>;
+    type GroupState = SumStateCheckedAdd<D::Primitive, D::Primitive>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -128,14 +163,16 @@ where
 }
 
 #[derive(Debug, Default)]
-pub struct SumStateCheckedAdd<T> {
-    sum: T,
+pub struct SumStateCheckedAdd<S, I> {
+    sum: S,
     valid: bool,
+    _input: PhantomData<I>,
 }
 
-impl<T> AggregateState<&T, T> for SumStateCheckedAdd<T>
+impl<S, I> AggregateState<&I, S> for SumStateCheckedAdd<S, I>
 where
-    T: CheckedAdd + Default + Debug + Copy + Sync + Send,
+    S: CheckedAdd + Default + Debug + Copy + Sync + Send + 'static,
+    I: AsPrimitive<S> + Debug + Sync + Send,
 {
     type BindState = ();
 
@@ -145,15 +182,15 @@ where
         Ok(())
     }
 
-    fn update(&mut self, _state: &(), input: &T) -> Result<()> {
-        self.sum = self.sum.checked_add(input).unwrap_or_default(); // TODO
+    fn update(&mut self, _state: &(), input: &I) -> Result<()> {
+        self.sum = self.sum.checked_add(&input.as_()).unwrap_or_default(); // TODO
         self.valid = true;
         Ok(())
     }
 
     fn finalize<M>(&mut self, _state: &(), output: PutBuffer<M>) -> Result<()>
     where
-        M: AddressableMut<T = T>,
+        M: AddressableMut<T = S>,
     {
         if self.valid {
             output.put(&self.sum);
