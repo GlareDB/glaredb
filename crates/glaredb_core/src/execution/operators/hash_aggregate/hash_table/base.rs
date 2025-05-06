@@ -31,6 +31,22 @@ pub struct BaseHashTableInsertState {
     row_ptrs: Vec<*mut u8>,
     /// State for appending to the aggregate collection.
     append_state: AggregateAppendState,
+    /// Buffers used during insert.
+    buffers: InsertBuffers,
+}
+
+#[derive(Debug)]
+struct InsertBuffers {
+    /// Buffer for storing the selected hashes.
+    selected_hashes: Vec<u64>,
+    /// Precomputed offsets into the table.
+    offsets: Vec<usize>,
+    /// Selection of rows that need to be inserted into the table.
+    needs_insert: Vec<usize>,
+    /// Track groups that have never been seen before.
+    new_groups: Vec<usize>,
+    /// Track rows that we need to compare with existing groups.
+    needs_compare: Vec<usize>,
 }
 
 // SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers to row
@@ -93,6 +109,13 @@ impl BaseHashTable {
         BaseHashTableInsertState {
             row_ptrs: Vec::new(),
             append_state: self.data.init_append_state(),
+            buffers: InsertBuffers {
+                selected_hashes: Vec::new(),
+                offsets: Vec::new(),
+                needs_insert: Vec::new(),
+                new_groups: Vec::new(),
+                needs_compare: Vec::new(),
+            },
         }
     }
 
@@ -116,11 +139,10 @@ impl BaseHashTable {
         debug_assert_eq!(groups.num_rows, inputs.num_rows);
 
         state.row_ptrs.clear();
-        state
-            .row_ptrs
-            .extend(std::iter::repeat_n(std::ptr::null_mut(), groups.num_rows));
+        state.row_ptrs.resize(groups.num_rows, std::ptr::null_mut());
 
         self.find_or_create_groups(
+            &mut state.buffers,
             &mut state.append_state,
             &groups.arrays,
             hashes,
@@ -151,6 +173,7 @@ impl BaseHashTable {
     /// update the aggregate state.
     fn find_or_create_groups<A>(
         &mut self,
+        buffers: &mut InsertBuffers,
         append_state: &mut AggregateAppendState,
         groups: &[A],
         hashes_arr: &Array,
@@ -167,17 +190,18 @@ impl BaseHashTable {
         debug_assert_eq!(num_rows, out_ptrs.len());
         // Output hashes into a linear buffer to avoid having to go through the
         // selection in the probe loop.
-        let selected_hashes: Vec<_> = {
+        let selected_hashes: &[u64] = {
             let hashes_exec = PhysicalU64::downcast_execution_format(&hashes_arr.data)?
                 .into_selection_format()?;
             let hashes_buf = hashes_exec.buffer.buffer.as_slice();
             let hashes_sel = hashes_exec.selection;
 
-            hashes_sel
-                .iter()
-                .take(num_rows)
-                .map(|sel| hashes_buf[sel])
-                .collect()
+            buffers.selected_hashes.clear();
+            buffers
+                .selected_hashes
+                .extend(hashes_sel.iter().take(num_rows).map(|sel| hashes_buf[sel]));
+
+            &buffers.selected_hashes
         };
         debug_assert_eq!(num_rows, selected_hashes.len());
 
@@ -195,7 +219,8 @@ impl BaseHashTable {
         }
 
         // Precompute offsets into the table.
-        let mut offsets = vec![0; num_rows];
+        buffers.offsets.resize(num_rows, 0);
+        let offsets = &mut buffers.offsets;
         let cap = self.directory.capacity() as u64;
         for idx in 0..num_rows {
             let hash = selected_hashes[idx];
@@ -203,16 +228,24 @@ impl BaseHashTable {
         }
 
         // Init selection to all rows in input.
-        let mut needs_insert: Vec<_> = (0..num_rows).collect();
+        buffers.needs_insert.clear();
+        buffers.needs_insert.extend(0..num_rows);
+        let needs_insert: &mut Vec<_> = &mut buffers.needs_insert;
 
         // Track rows that require allocating new rows for.
-        let mut new_groups = Vec::with_capacity(num_rows);
+        buffers.new_groups.clear();
+        let additional = num_rows.saturating_sub(buffers.new_groups.capacity());
+        buffers.new_groups.reserve(additional);
+        let new_groups: &mut Vec<_> = &mut buffers.new_groups;
 
         // Total number of new groups we created.
         let mut total_new_groups = 0;
 
         // Track rows that need to be compared to rows already in the table.
-        let mut needs_compare = Vec::with_capacity(num_rows);
+        buffers.needs_compare.clear();
+        let additional = num_rows.saturating_sub(buffers.needs_compare.capacity());
+        buffers.needs_compare.reserve(additional);
+        let needs_compare: &mut Vec<_> = &mut buffers.needs_compare;
 
         // Groups + hashes used when appending new groups to the collection.
         let mut groups_and_hashes = Vec::with_capacity(groups.len() + 1);
@@ -305,7 +338,7 @@ impl BaseHashTable {
 
             // If we had hashes match, check the actual values.
             if !needs_compare.is_empty() {
-                for &row_idx in &needs_compare {
+                for &row_idx in &*needs_compare {
                     // Offset updated during probing...
                     let offset = offsets[row_idx];
                     let row_ptr = ent_ptrs[offset];
@@ -325,13 +358,13 @@ impl BaseHashTable {
                     &self.layout,
                     out_ptrs,
                     &groups_and_hashes,
-                    &mut needs_compare,
-                    &mut needs_insert,
+                    needs_compare,
+                    needs_insert,
                 )?;
 
                 // For everything that didn't match, increment its offset so the
                 // next iteration tries a new slot.
-                for &not_match_row_idx in &needs_insert {
+                for &not_match_row_idx in &*needs_insert {
                     let offset = &mut offsets[not_match_row_idx];
                     *offset = inc_and_wrap_offset(*offset, cap);
                 }
@@ -380,6 +413,7 @@ impl BaseHashTable {
             state.row_ptrs.resize(num_rows, std::ptr::null_mut());
 
             self.find_or_create_groups(
+                &mut state.buffers,
                 &mut state.append_state,
                 groups,
                 hashes,
