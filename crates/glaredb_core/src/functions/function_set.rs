@@ -6,7 +6,7 @@ use super::documentation::Documentation;
 use super::scalar::RawScalarFunction;
 use super::table::{RawTableFunction, TableFunctionType};
 use super::{CandidateSignature, Signature};
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::DataTypeId;
 use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 pub type ScalarFunctionSet = FunctionSet<RawScalarFunction>;

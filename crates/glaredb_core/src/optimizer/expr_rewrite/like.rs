@@ -1,7 +1,7 @@
 use glaredb_error::{OptionExt, Result};
 
 use super::ExpressionRewriteRule;
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::DataTypeId;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::{self, Expression};
