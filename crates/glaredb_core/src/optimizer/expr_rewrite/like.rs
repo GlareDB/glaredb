@@ -1,7 +1,7 @@
 use glaredb_error::{OptionExt, Result};
 
 use super::ExpressionRewriteRule;
-use crate::arrays::datatype::DataType;
+use crate::arrays::datatype::DataTypeId;
 use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::{self, Expression};
@@ -53,7 +53,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         ];
 
                         let func = FUNCTION_SET_STARTS_WITH
-                            .find_exact(&[DataType::utf8(), DataType::utf8()])
+                            .find_exact(&[DataTypeId::Utf8, DataTypeId::Utf8])
                             .required("STARTS_WITH implementation to exist")?;
 
                         let bind_state = func.call_bind(inputs)?;
@@ -77,7 +77,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         ];
 
                         let func = FUNCTION_SET_ENDS_WITH
-                            .find_exact(&[DataType::utf8(), DataType::utf8()])
+                            .find_exact(&[DataTypeId::Utf8, DataTypeId::Utf8])
                             .required("ENDS_WITH implementation to exist")?;
 
                         let bind_state = func.call_bind(inputs)?;
@@ -101,7 +101,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         ];
 
                         let func = FUNCTION_SET_CONTAINS
-                            .find_exact(&[DataType::utf8(), DataType::utf8()])
+                            .find_exact(&[DataTypeId::Utf8, DataTypeId::Utf8])
                             .required("ENDS_WITH implementation to exist")?;
 
                         let bind_state = func.call_bind(inputs)?;

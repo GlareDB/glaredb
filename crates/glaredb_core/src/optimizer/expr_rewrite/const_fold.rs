@@ -32,7 +32,7 @@ fn maybe_fold(expr: &mut Expression) -> Result<()> {
         let val = evaluator.try_eval_constant()?;
 
         // Our brand new expression.
-        *expr = Expression::Literal(LiteralExpr { literal: val });
+        *expr = Expression::Literal(LiteralExpr(val));
 
         return Ok(());
     }

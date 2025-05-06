@@ -678,9 +678,9 @@ impl<'a> BaseExpressionBinder<'a> {
                             }
                         };
 
-                        let interval = Expression::Literal(LiteralExpr {
-                            literal: BorrowedScalarValue::Interval(const_interval),
-                        });
+                        let interval = Expression::Literal(LiteralExpr(
+                            BorrowedScalarValue::Interval(const_interval),
+                        ));
 
                         let op = ArithOperator::Mul;
                         // Plan `mul(<interval>, <expr>)`
@@ -846,9 +846,8 @@ impl<'a> BaseExpressionBinder<'a> {
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }
             ast::Expr::Extract { date_part, expr } => {
-                let date_part_expr = Expression::Literal(LiteralExpr {
-                    literal: date_part.into_kw().to_string().into(),
-                });
+                let date_part_expr =
+                    Expression::Literal(LiteralExpr(date_part.into_kw().to_string().into()));
 
                 let expr =
                     self.bind_expression(bind_context, expr, column_binder, recur.not_root())?;
@@ -960,15 +959,11 @@ impl<'a> BaseExpressionBinder<'a> {
                     return Err(DbError::new(format!("Unable to parse {n} as a number")));
                 }
             }
-            ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Boolean(*b),
-            }),
-            ast::Literal::Null => Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Null,
-            }),
-            ast::Literal::SingleQuotedString(s) => Expression::Literal(LiteralExpr {
-                literal: ScalarValue::Utf8(s.to_string().into()),
-            }),
+            ast::Literal::Boolean(b) => Expression::Literal(LiteralExpr(ScalarValue::Boolean(*b))),
+            ast::Literal::Null => Expression::Literal(LiteralExpr(ScalarValue::Null)),
+            ast::Literal::SingleQuotedString(s) => {
+                Expression::Literal(LiteralExpr(ScalarValue::Utf8(s.to_string().into())))
+            }
             other => {
                 return Err(DbError::new(format!("Unusupported SQL literal: {other:?}")));
             }

@@ -341,9 +341,9 @@ impl FromPlanner {
             // Possible if we were able to push filters to left/right
             // completely.
             if expressions.is_empty() {
-                expressions.push(Expression::Literal(LiteralExpr {
-                    literal: BorrowedScalarValue::Boolean(true),
-                }));
+                expressions.push(Expression::Literal(LiteralExpr(
+                    BorrowedScalarValue::Boolean(true),
+                )));
             }
 
             return Ok(LogicalOperator::ArbitraryJoin(Node {

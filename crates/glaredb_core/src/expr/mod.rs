@@ -42,7 +42,7 @@ use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::aggregate::PlannedAggregateFunction;
-use crate::functions::candidate::CastType;
+use crate::functions::candidate::{CastType, InputDataType, RefinedLiteral};
 use crate::functions::function_set::{
     AggregateFunctionSet,
     FunctionInfo,
@@ -105,7 +105,7 @@ impl Expression {
             Self::Comparison(_) => DataType::boolean(),
             Self::Conjunction(_) => DataType::boolean(),
             Self::Is(_) => DataType::boolean(),
-            Self::Literal(expr) => expr.literal.datatype(),
+            Self::Literal(expr) => expr.0.datatype(),
             Self::Negate(expr) => expr.datatype()?,
             Self::ScalarFunction(expr) => expr.function.state.return_type.clone(),
             Self::Subquery(expr) => expr.return_type.clone(),
@@ -266,9 +266,7 @@ impl Expression {
     {
         let expr = std::mem::replace(
             self,
-            Expression::Literal(LiteralExpr {
-                literal: BorrowedScalarValue::Null,
-            }),
+            Expression::Literal(LiteralExpr(BorrowedScalarValue::Null)),
         );
 
         let out = replace_fn(expr)?;
@@ -373,7 +371,7 @@ impl Expression {
     {
         match self {
             Self::Literal(v) => {
-                match &v.literal {
+                match &v.0 {
                     BorrowedScalarValue::Null => {
                         // TODO: Not allowing null to be const foldable is
                         // currently a workaround for not have comprehensive
@@ -483,14 +481,14 @@ impl Expression {
     /// not one.
     pub fn try_into_scalar(self) -> Result<ScalarValue> {
         match self {
-            Self::Literal(lit) => Ok(lit.literal),
+            Self::Literal(lit) => Ok(lit.0),
             other => Err(DbError::new(format!("Not a literal: {other}"))),
         }
     }
 
     pub fn try_as_scalar(&self) -> Result<&ScalarValue> {
         match self {
-            Self::Literal(lit) => Ok(&lit.literal),
+            Self::Literal(lit) => Ok(&lit.0),
             other => Err(DbError::new(format!("Not a literal: {other}"))),
         }
     }
@@ -648,9 +646,7 @@ pub fn column(reference: impl Into<ColumnReference>, datatype: DataType) -> Expr
 }
 
 pub fn lit(scalar: impl Into<ScalarValue>) -> LiteralExpr {
-    LiteralExpr {
-        literal: scalar.into(),
-    }
+    LiteralExpr(scalar.into())
 }
 
 /// Wraps an expression in a cast using the default casting rules.
@@ -830,19 +826,24 @@ pub(crate) fn bind_function_signature_from_expressions<F>(
 where
     F: FunctionInfo,
 {
-    let datatypes = inputs
+    let input_types = inputs
         .iter()
-        .map(|expr| expr.datatype())
+        .map(InputDataType::try_from_expr)
         .collect::<Result<Vec<_>>>()?;
 
-    let func = match function.find_exact(&datatypes) {
+    // TODO: Would be nice not needing to do this... But the exact match needs
+    // significantly less info than candidate selection, and is used in other
+    // places as well.
+    let type_ids: Vec<_> = input_types.iter().map(|typ| typ.datatype.id).collect();
+
+    let func = match function.find_exact(&type_ids) {
         Some(func) => func,
         None => {
             // No exact, try to see if there's candidate.
-            let mut candidates = function.candidates(&datatypes);
+            let mut candidates = function.candidates(&input_types);
 
             if candidates.is_empty() {
-                let no_matches = function.no_function_matches(&datatypes);
+                let no_matches = function.no_function_matches(&input_types);
                 return Err(DbError::new(no_matches.to_string()));
             }
 
@@ -856,21 +857,30 @@ where
             // Apply casts where needed.
             inputs = inputs
                 .into_iter()
-                .zip(datatypes.into_iter().zip(candidate.casts))
+                .zip(input_types.into_iter().zip(candidate.casts))
                 .map(|(input, (from_dt, cast_to))| {
                     Ok(match cast_to {
                         CastType::Cast { to, .. } => {
-                            let to = DataType::try_generate_cast_datatype(from_dt, to).context_fn(
-                                || {
+                            let to = DataType::try_generate_cast_datatype(from_dt.datatype, to)
+                                .context_fn(|| {
                                     format!(
                                         "Failed to create cast datatype for function '{}'",
                                         function.name
                                     )
-                                },
-                            )?;
+                                })?;
                             cast(input, to)?.into()
                         }
                         CastType::NoCastNeeded => input,
+                        CastType::RefinedLiteral { refined, .. } => {
+                            // Literal was refined, create the expression
+                            // directly from the new value.
+                            match refined {
+                                RefinedLiteral::Int8(v) => lit(v).into(),
+                                RefinedLiteral::Int16(v) => lit(v).into(),
+                                RefinedLiteral::Int32(v) => lit(v).into(),
+                                RefinedLiteral::Int64(v) => lit(v).into(),
+                            }
+                        }
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -901,7 +911,11 @@ mod tests {
         let expr = add(lit(4), lit(5_i64)).unwrap();
         // Construction of the expression should lookup the function, and add a
         // cast where needed.
-        let expected = add(cast(lit(4), DataType::int64()).unwrap(), lit(5_i64)).unwrap();
+        //
+        // Note that since this is a literal, we'll just be casting the value
+        // directly which would result in a smaller integer size for the i64,
+        // and no cast in the expression.
+        let expected = add(lit(4_i32), lit(5_i32)).unwrap();
 
         assert_eq!(expected, expr);
     }
