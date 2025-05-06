@@ -93,7 +93,7 @@ impl<'a> PhysicalExpressionPlanner<'a> {
             }
             Expression::Literal(expr) => {
                 Ok(PhysicalScalarExpression::Literal(PhysicalLiteralExpr {
-                    literal: expr.literal.clone(),
+                    literal: expr.0.clone(),
                 }))
             }
             Expression::ScalarFunction(expr) => {
@@ -171,13 +171,13 @@ impl<'a> PhysicalExpressionPlanner<'a> {
         op: impl AsScalarFunctionSet,
         inputs: Vec<Expression>,
     ) -> Result<PhysicalScalarFunctionExpr> {
-        let datatypes = inputs
+        let datatype_ids = inputs
             .iter()
-            .map(|input| input.datatype())
+            .map(|input| input.datatype().map(|dt| dt.id))
             .collect::<Result<Vec<_>>>()?;
         let exact = op
             .as_scalar_function_set()
-            .find_exact(&datatypes)
+            .find_exact(&datatype_ids)
             .ok_or_else(|| DbError::new("Expected exact function signature match"))?;
 
         let bind_state = exact.call_bind(inputs)?;

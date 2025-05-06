@@ -1,11 +1,12 @@
 use std::fmt::{self, Display};
 
 use super::aggregate::RawAggregateFunction;
+use super::candidate::InputDataType;
 use super::documentation::Documentation;
 use super::scalar::RawScalarFunction;
 use super::table::{RawTableFunction, TableFunctionType};
 use super::{CandidateSignature, Signature};
-use crate::arrays::datatype::DataType;
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::util::fmt::displayable::IntoDisplayableSlice;
 
 pub type ScalarFunctionSet = FunctionSet<RawScalarFunction>;
@@ -36,7 +37,7 @@ where
     ///
     /// If no signatures match (e.g. incorrect number of args, or args need to
     /// be casted), None will be returned.
-    pub fn find_exact(&self, inputs: &[DataType]) -> Option<&T> {
+    pub fn find_exact(&self, inputs: &[DataTypeId]) -> Option<&T> {
         self.functions
             .iter()
             .find(|func| func.signature().exact_match(inputs))
@@ -49,7 +50,7 @@ where
     ///
     /// Candidates are returned in sorted order with the highest cast score
     /// being first.
-    pub fn candidates(&self, inputs: &[DataType]) -> Vec<CandidateSignature> {
+    pub fn candidates(&self, inputs: &[InputDataType]) -> Vec<CandidateSignature> {
         CandidateSignature::find_candidates(
             inputs,
             self.functions.iter().map(|func| func.signature()),
@@ -63,7 +64,7 @@ where
 
     pub fn no_function_matches<'a>(
         &'a self,
-        datatypes: &'a [DataType],
+        datatypes: &'a [InputDataType],
     ) -> NoFunctionMatches<'a, T> {
         NoFunctionMatches {
             datatypes,
@@ -111,7 +112,7 @@ impl FunctionInfo for RawTableFunction {
 
 #[derive(Debug)]
 pub struct NoFunctionMatches<'a, T: 'static> {
-    datatypes: &'a [DataType],
+    datatypes: &'a [InputDataType],
     function: &'a FunctionSet<T>,
 }
 

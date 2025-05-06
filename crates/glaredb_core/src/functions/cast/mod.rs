@@ -28,30 +28,93 @@ use crate::util::iter::IntoExactSizeIterator;
 //
 // Higher the score, the more preferred that cast is.
 
-pub const TO_BOOL_CAST_RULE: CastRule = CastRule::Implicit(100);
-pub const TO_DATE32_CAST_RULE: CastRule = CastRule::Implicit(100);
-pub const TO_INTERVAL_CAST_RULE: CastRule = CastRule::Implicit(100);
+#[derive(Debug)]
+pub struct ImplicitCastScores {
+    pub i8: u32,
+    pub i16: u32,
+    pub i32: u32,
+    pub i64: u32,
+    pub u8: u32,
+    pub u16: u32,
+    pub u32: u32,
+    pub u64: u32,
+    pub f16: u32,
+    pub f32: u32,
+    pub f64: u32,
+    pub utf8: u32,
+    pub bool: u32,
+    pub interval: u32,
+    pub date32: u32,
+    pub decimal64: u32,
+    pub decimal128: u32,
+}
 
-pub const TO_INT8_CAST_RULE: CastRule = CastRule::Implicit(191);
-pub const TO_UINT8_CAST_RULE: CastRule = CastRule::Implicit(190);
+pub const DEFAULT_IMPLICIT_CAST_SCORES: ImplicitCastScores = ImplicitCastScores {
+    // Prefer casting to i32 or i64 first.
+    i32: 191,
+    i64: 190,
 
-pub const TO_INT16_CAST_RULE: CastRule = CastRule::Implicit(181);
-pub const TO_UINT16_CAST_RULE: CastRule = CastRule::Implicit(180);
+    // Then floats, prefer f64 over f32.
+    f64: 181,
+    f32: 180,
+    // Small float, don't really want to cast to this, but it prevents the error
+    // 'Cannot create decimal datatype for casting from Float16 to Decimal64'
+    // since we're preferring to cast to it over a decimal.
+    //
+    // We should fix the underlying error, but I'm not really sure how. The
+    // error results from trying to find the best decimal prec/scale to use for
+    // intergers, but we don't have anything similar for floats.
+    f16: 179,
 
-pub const TO_INT32_CAST_RULE: CastRule = CastRule::Implicit(171);
-pub const TO_UINT32_CAST_RULE: CastRule = CastRule::Implicit(170);
+    // Now try some other "common" types.
+    bool: 162,
+    i16: 161,
+    i8: 160,
 
-pub const TO_INT64_CAST_RULE: CastRule = CastRule::Implicit(161);
-pub const TO_UINT64_CAST_RULE: CastRule = CastRule::Implicit(160);
+    // Now try casting to unsigned ints, same ordering for signed ints.
+    u32: 154,
+    u64: 153,
+    u16: 152,
+    u8: 151,
 
-pub const TO_F16_CAST_RULE: CastRule = CastRule::Implicit(152);
-pub const TO_F32_CAST_RULE: CastRule = CastRule::Implicit(151);
-pub const TO_F64_CAST_RULE: CastRule = CastRule::Implicit(150);
+    // Then decimals, prefer decimal64 over decimal128.
+    decimal64: 141,
+    decimal128: 140,
 
-pub const TO_DECIMAL64_CAST_RULE: CastRule = CastRule::Implicit(131);
-pub const TO_DECIMAL128_CAST_RULE: CastRule = CastRule::Implicit(130);
+    // Then date (and timestamp... when there's implicit casts)
+    interval: 132,
+    date32: 131,
 
-pub const TO_STRING_CAST_RULE: CastRule = CastRule::Implicit(1);
+    // Try to string last
+    utf8: 80,
+};
+
+pub const TO_INT32_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.i32);
+pub const TO_UINT32_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.u32);
+pub const TO_INT64_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.i64);
+pub const TO_UINT64_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.u64);
+
+pub const TO_F64_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.f64);
+pub const TO_F32_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.f32);
+pub const TO_F16_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.f16);
+
+pub const TO_DECIMAL64_CAST_RULE: CastRule =
+    CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.decimal64);
+pub const TO_DECIMAL128_CAST_RULE: CastRule =
+    CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.decimal128);
+
+pub const TO_BOOL_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.bool);
+
+pub const TO_DATE32_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.date32);
+pub const TO_INTERVAL_CAST_RULE: CastRule =
+    CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.interval);
+
+pub const TO_INT16_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.i16);
+pub const TO_UINT16_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.u16);
+pub const TO_INT8_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.i8);
+pub const TO_UINT8_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.u8);
+
+pub const TO_STRING_CAST_RULE: CastRule = CastRule::Implicit(DEFAULT_IMPLICIT_CAST_SCORES.utf8);
 
 /// Determines when we can apply a cast.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

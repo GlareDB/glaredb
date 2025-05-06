@@ -4,9 +4,7 @@ use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct LiteralExpr {
-    pub literal: ScalarValue,
-}
+pub struct LiteralExpr(pub ScalarValue);
 
 impl ContextDisplay for LiteralExpr {
     fn fmt_using_context(
@@ -14,7 +12,7 @@ impl ContextDisplay for LiteralExpr {
         _mode: ContextDisplayMode,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        match self.literal {
+        match self.0 {
             BorrowedScalarValue::Utf8(_) => {
                 // Quote strings.
                 //
@@ -23,9 +21,9 @@ impl ContextDisplay for LiteralExpr {
                 // output. But the display impl for this is used in the context
                 // of printing an expression, and strings should be quoted in
                 // that case.
-                write!(f, "'{}'", self.literal)
+                write!(f, "'{}'", self.0)
             }
-            _ => write!(f, "{}", self.literal),
+            _ => write!(f, "{}", self.0),
         }
     }
 }

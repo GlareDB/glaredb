@@ -56,7 +56,8 @@ SELECT abs('-4.8');
 ----
 4.8
 
+# Float64 matches what postgres reports.
 query TT
 DESCRIBE SELECT abs('-4.8');
 ----
-abs  Float32
+abs  Float64

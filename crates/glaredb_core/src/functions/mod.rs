@@ -18,7 +18,7 @@ pub mod table;
 
 use candidate::CandidateSignature;
 
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::DataTypeId;
 
 /// Function signature.
 // TODO: Include named args. Also make sure to update PartialEq too.
@@ -69,7 +69,7 @@ impl Signature {
     }
 
     /// Return if inputs given data types exactly satisfy the signature.
-    fn exact_match(&self, inputs: &[DataType]) -> bool {
+    fn exact_match(&self, inputs: &[DataTypeId]) -> bool {
         if self.is_variadic() {
             // If function is variadic, we need at least the defined number of
             // positional arguments.
@@ -84,12 +84,12 @@ impl Signature {
             }
         }
 
-        for (&expected, have) in self.positional_args.iter().zip(inputs.iter()) {
+        for (&expected, &have) in self.positional_args.iter().zip(inputs.iter()) {
             if expected == DataTypeId::Any {
                 continue;
             }
 
-            if have.id() != expected {
+            if have != expected {
                 return false;
             }
         }
@@ -97,13 +97,13 @@ impl Signature {
         // Check variadic.
         if let Some(expected) = self.variadic_arg {
             let remaining = &inputs[self.positional_args.len()..];
-            for have in remaining {
+            for &have in remaining {
                 if expected == DataTypeId::Any {
                     // If we're matching against any, we're never an exact match.
                     return false;
                 }
 
-                if have.id() != expected {
+                if have != expected {
                     return false;
                 }
             }
