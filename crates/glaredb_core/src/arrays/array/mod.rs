@@ -931,7 +931,6 @@ mod tests {
     use super::*;
     use crate::arrays::cache::NopCache;
     use crate::arrays::compute::make_list::make_list;
-    use crate::arrays::datatype::ListTypeMeta;
     use crate::arrays::scalar::ScalarValue;
     use crate::generate_array;
     use crate::testutil::arrays::assert_arrays_eq;

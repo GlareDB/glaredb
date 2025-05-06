@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_proto::ProtoConv;
-use num_traits::{FromPrimitive, PrimInt, Signed, Zero};
+use num_traits::{AsPrimitive, FromPrimitive, PrimInt, Signed, Zero};
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI64, PhysicalI128};
@@ -12,7 +12,7 @@ use crate::arrays::datatype::{DataType, DataTypeMeta, DecimalTypeMeta};
 // TODO: These num_trait traits are kind of annoying to use. It might make sense
 // to put some methods/consts directly on this trait.
 pub trait DecimalPrimitive:
-    PrimInt + FromPrimitive + Signed + Default + Debug + Display + Sync + Send
+    PrimInt + FromPrimitive + AsPrimitive<Self> + Signed + Default + Debug + Display + Sync + Send
 {
     const ZERO: Self;
 
