@@ -491,13 +491,12 @@ impl PartitionedHashTable {
         let mut global = flushed.tables.pop().expect("at least one table");
         let mut insert_state = global.init_insert_state();
 
-        for mut table in flushed.tables.drain(..) {
-            global.merge_from(
-                &mut insert_state,
-                0..self.layout.aggregates.len(),
-                &mut table,
-            )?;
-        }
+        // Now merge the remaining into the global table.
+        global.merge_many_into(
+            &mut insert_state,
+            0..self.layout.aggregates.len(),
+            &mut flushed.tables,
+        )?;
 
         // Now put it in the global state.
         let mut final_table = op_state.get().final_tables[partition_idx].lock();

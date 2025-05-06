@@ -4,6 +4,7 @@ use std::ptr::NonNull;
 use glaredb_error::{DbError, Result};
 
 use super::directory::Directory;
+use super::hll::HyperLogLog;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{PhysicalU64, ScalarStorage};
 use crate::arrays::batch::Batch;
@@ -72,6 +73,9 @@ pub struct BaseHashTable {
     /// Group value matcher.
     pub(crate) matcher: GroupMatcher,
     pub(crate) row_capacity: usize,
+    /// HyperLogLog sketch for estimating the number of distinct values in the
+    /// hash table.
+    pub(crate) hll: HyperLogLog,
 }
 
 impl BaseHashTable {
@@ -102,6 +106,7 @@ impl BaseHashTable {
             data,
             matcher,
             row_capacity,
+            hll: HyperLogLog::new(HyperLogLog::DEFAULT_P),
         })
     }
 
@@ -204,6 +209,11 @@ impl BaseHashTable {
             &buffers.selected_hashes
         };
         debug_assert_eq!(num_rows, selected_hashes.len());
+
+        // Update our HLL.
+        for &hash in selected_hashes {
+            self.hll.insert(hash);
+        }
 
         if self.directory.needs_resize(num_rows) {
             let new_cap = usize::max(
@@ -380,58 +390,69 @@ impl BaseHashTable {
         Ok(())
     }
 
-    pub fn merge_from(
+    /// Merge many hash tables into self.
+    pub fn merge_many_into(
         &mut self,
         state: &mut BaseHashTableInsertState,
         agg_selection: impl IntoExactSizeIterator<Item = usize> + Clone,
-        other: &mut Self,
+        tables: &mut [Self],
     ) -> Result<()> {
-        if self.directory.num_occupied == 0 {
-            std::mem::swap(self, other);
-            return Ok(());
-        }
-        if other.directory.num_occupied == 0 {
-            return Ok(());
+        // Update our sketch with the sketches from the other hash tables. We'll
+        // use this to try to resize to good size.
+        for table in &*tables {
+            self.hll.merge(&table.hll);
         }
 
-        let mut merge_state =
-            MergeScanState::try_new(&other.data, &self.layout, self.row_capacity)?;
+        let est_cardinality = self.hll.count() as usize;
+        let est_additional = est_cardinality.saturating_sub(self.directory.num_occupied);
 
-        loop {
-            merge_state.scan()?;
-            if merge_state.groups.num_rows() == 0 {
-                // No more groups scanned, we're done.
-                break;
-            }
+        // Now try to resize based on our estimated cardinality.
+        if self.directory.needs_resize(est_additional) {
+            self.directory
+                .resize(est_additional + self.directory.num_occupied)?;
+        }
 
-            // Append groups we haven't seen before and get dest group pointers.
-            let (groups, hashes) = merge_state.split_groups_and_hashes();
-            let num_rows = merge_state.groups.num_rows();
+        // Now do the actual merging.
+        for other in tables {
+            let mut merge_state =
+                MergeScanState::try_new(&other.data, &self.layout, self.row_capacity)?;
 
-            state.row_ptrs.resize(num_rows, std::ptr::null_mut());
+            loop {
+                merge_state.scan()?;
+                if merge_state.groups.num_rows() == 0 {
+                    // No more groups scanned, we're done.
+                    break;
+                }
 
-            self.find_or_create_groups(
-                &mut state.buffers,
-                &mut state.append_state,
-                groups,
-                hashes,
-                num_rows,
-                &mut state.row_ptrs,
-            )?;
+                // Append groups we haven't seen before and get dest group pointers.
+                let (groups, hashes) = merge_state.split_groups_and_hashes();
+                let num_rows = merge_state.groups.num_rows();
 
-            debug_assert!(
-                !state.row_ptrs.iter().any(|ptr| ptr.is_null()),
-                "Table Merge: null pointer at position: {}",
-                state.row_ptrs.iter().position(|ptr| ptr.is_null()).unwrap(),
-            );
+                state.row_ptrs.resize(num_rows, std::ptr::null_mut());
 
-            // Combine states.
-            unsafe {
-                self.layout.combine_states(
-                    agg_selection.clone(),
-                    merge_state.group_scan.scanned_row_pointers_mut(),
+                self.find_or_create_groups(
+                    &mut state.buffers,
+                    &mut state.append_state,
+                    groups,
+                    hashes,
+                    num_rows,
                     &mut state.row_ptrs,
                 )?;
+
+                debug_assert!(
+                    !state.row_ptrs.iter().any(|ptr| ptr.is_null()),
+                    "Table Merge: null pointer at position: {}",
+                    state.row_ptrs.iter().position(|ptr| ptr.is_null()).unwrap(),
+                );
+
+                // Combine states.
+                unsafe {
+                    self.layout.combine_states(
+                        agg_selection.clone(),
+                        merge_state.group_scan.scanned_row_pointers_mut(),
+                        &mut state.row_ptrs,
+                    )?;
+                }
             }
         }
 
@@ -939,7 +960,7 @@ mod tests {
         let inputs = generate_batch!([5_i64, 6, 7, 8]);
         hash_and_insert(&mut t2, &mut s2, &[0], &groups, &inputs);
 
-        t1.merge_from(&mut s2, [0], &mut t2).unwrap();
+        t1.merge_many_into(&mut s2, [0], &mut [t2]).unwrap();
         assert_eq!(1, t1.data.num_row_blocks());
 
         let (out_groups, out_results) = get_groups_and_results(&t1);
