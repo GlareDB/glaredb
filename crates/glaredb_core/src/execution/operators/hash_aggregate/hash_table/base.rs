@@ -253,8 +253,7 @@ impl BaseHashTable {
         groups_and_hashes.push(hashes_arr);
 
         let cap = self.directory.capacity();
-        let ent_ptrs = self.directory.ptrs.as_slice_mut();
-        let ent_hashes = self.directory.hashes.as_slice_mut();
+        let entries = self.directory.entries.as_slice_mut();
 
         while !needs_insert.is_empty() {
             new_groups.clear();
@@ -271,10 +270,9 @@ impl BaseHashTable {
                 // entry for a row.
                 let mut iter_count = 0;
                 while iter_count < cap {
-                    let ent_ptr = &mut ent_ptrs[*offset];
-                    let ent_hash = &mut ent_hashes[*offset];
+                    let ent = &mut entries[*offset];
 
-                    if ent_ptr.is_none() {
+                    if ent.ptr.is_none() {
                         // Empty entry, claim it.
                         //
                         // Note that a real row pointer will be added to the
@@ -283,14 +281,14 @@ impl BaseHashTable {
                         //
                         // This does store the hash so that we can compare rows
                         // if needed.
-                        *ent_ptr = Some(NonNull::dangling());
-                        *ent_hash = hash;
+                        ent.ptr = Some(NonNull::dangling());
+                        ent.hash = hash;
                         new_groups.push(row_idx);
 
                         break;
                     }
 
-                    if *ent_hash == hash {
+                    if ent.hash == hash {
                         needs_compare.push(row_idx);
                         break;
                     }
@@ -327,7 +325,7 @@ impl BaseHashTable {
                 for (&row_idx, &row_ptr) in new_groups.iter().zip(row_ptrs) {
                     // Offsets updated during probing...
                     let offset = offsets[row_idx];
-                    ent_ptrs[offset] = NonNull::new(row_ptr);
+                    entries[offset].ptr = NonNull::new(row_ptr);
 
                     // Update output pointers.
                     out_ptrs[row_idx] = row_ptr;
@@ -341,7 +339,7 @@ impl BaseHashTable {
                 for &row_idx in &*needs_compare {
                     // Offset updated during probing...
                     let offset = offsets[row_idx];
-                    let row_ptr = ent_ptrs[offset];
+                    let row_ptr = entries[offset].ptr;
                     // Set output pointer assuming it will match. If it doesn't,
                     // the following loop iteration(s) will overwrite it,
                     // eventually setting it the correct pointer.

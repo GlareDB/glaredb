@@ -5,6 +5,20 @@ use glaredb_error::{DbError, Result};
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::db_vec::DbVec;
 
+#[derive(Debug, Clone, Copy)]
+pub struct Entry {
+    /// The hash value for this entry.
+    pub hash: u64,
+    /// The pointer to the start of the row.
+    ///
+    /// None if this slot isn't occupied.
+    pub ptr: Option<NonNull<u8>>,
+}
+
+impl Entry {
+    const ZERO: Self = Entry { hash: 0, ptr: None };
+}
+
 /// Hash table directory containing pointers to rows.
 ///
 /// The number of entries in the directory indicates the number of groups.
@@ -12,12 +26,8 @@ use crate::buffer::db_vec::DbVec;
 pub struct Directory {
     /// Number of non-null pointers in entries.
     pub num_occupied: usize,
-    /// Row pointers.
-    ///
-    /// None if this slot isn't occupied.
-    pub ptrs: DbVec<Option<NonNull<u8>>>,
-    /// Hashes for each slot in the directory.
-    pub hashes: DbVec<u64>,
+    /// Entries in the table.
+    pub entries: DbVec<Entry>,
 }
 
 // Pointers point to heap blocks.
@@ -40,18 +50,16 @@ impl Directory {
     pub fn try_with_capacity(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();
 
-        let ptrs = DbVec::with_value(&DefaultBufferManager, capacity, None)?;
-        let hashes = DbVec::with_value(&DefaultBufferManager, capacity, 0)?;
+        let entries = DbVec::with_value(&DefaultBufferManager, capacity, Entry::ZERO)?;
 
         Ok(Directory {
             num_occupied: 0,
-            ptrs,
-            hashes,
+            entries,
         })
     }
 
     pub fn capacity(&self) -> usize {
-        self.ptrs.len()
+        self.entries.len()
     }
 
     /// Resizes the directory to at least `new_capacity`.
@@ -63,36 +71,29 @@ impl Directory {
                 .checked_next_power_of_two()
                 .ok_or_else(|| DbError::new("Requested capacity for directory to high"))?;
         }
-        if new_capacity < self.ptrs.len() {
+        if new_capacity < self.entries.len() {
             return Err(DbError::new("Cannot reduce capacity of hash table")
-                .with_field("current", self.ptrs.len())
+                .with_field("current", self.entries.len())
                 .with_field("new", new_capacity));
         }
 
-        let old_ptrs = std::mem::replace(
-            &mut self.ptrs,
-            DbVec::with_value(&DefaultBufferManager, new_capacity, None)?,
+        let old_entries = std::mem::replace(
+            &mut self.entries,
+            DbVec::with_value(&DefaultBufferManager, new_capacity, Entry::ZERO)?,
         );
-        let old_hashes = std::mem::replace(
-            &mut self.hashes,
-            DbVec::with_value(&DefaultBufferManager, new_capacity, 0)?,
-        );
+        let entries = self.entries.as_slice_mut();
 
-        let hashes = self.hashes.as_slice_mut();
-        let ptrs = self.ptrs.as_slice_mut();
-
-        for (&hash, &ptr) in old_hashes.as_slice().iter().zip(old_ptrs.as_slice()) {
-            if ptr.is_none() {
+        for ent in old_entries.as_slice() {
+            if ent.ptr.is_none() {
                 continue;
             }
 
-            let mut offset = compute_offset_from_hash(hash, new_capacity as u64) as usize;
+            let mut offset = compute_offset_from_hash(ent.hash, new_capacity as u64) as usize;
             // Continue to try to insert until we find an empty slot.
             loop {
-                if ptrs[offset].is_none() {
+                if entries[offset].ptr.is_none() {
                     // Empty slot, insert entry.
-                    ptrs[offset] = ptr;
-                    hashes[offset] = hash;
+                    entries[offset] = *ent;
                     break;
                 }
 
