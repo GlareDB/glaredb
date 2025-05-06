@@ -89,7 +89,7 @@ impl Signature {
                 continue;
             }
 
-            if have.datatype_id() != expected {
+            if have.id() != expected {
                 return false;
             }
         }
@@ -103,7 +103,7 @@ impl Signature {
                     return false;
                 }
 
-                if have.datatype_id() != expected {
+                if have.id() != expected {
                     return false;
                 }
             }

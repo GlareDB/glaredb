@@ -129,7 +129,7 @@ where
 //     fn l2_distance_ok() {
 //         let mut a = Array::new(
 //             &NopBufferManager,
-//             DataType::List(ListTypeMeta::new(DataType::Float64)),
+//             DataType::List(ListTypeMeta::new(DataType::float64())),
 //             1,
 //         )
 //         .unwrap();
@@ -146,7 +146,7 @@ where
 
 //         let mut b = Array::new(
 //             &NopBufferManager,
-//             DataType::List(ListTypeMeta::new(DataType::Float64)),
+//             DataType::List(ListTypeMeta::new(DataType::float64())),
 //             1,
 //         )
 //         .unwrap();
@@ -168,8 +168,8 @@ where
 //             .push_table(
 //                 None,
 //                 vec![
-//                     DataType::List(ListTypeMeta::new(DataType::Float64)),
-//                     DataType::List(ListTypeMeta::new(DataType::Float64)),
+//                     DataType::List(ListTypeMeta::new(DataType::float64())),
+//                     DataType::List(ListTypeMeta::new(DataType::float64())),
 //                 ],
 //                 vec!["a".to_string(), "b".to_string()],
 //             )
@@ -182,7 +182,7 @@ where
 //             )
 //             .unwrap();
 
-//         let mut out = Array::new(&NopBufferManager, DataType::Float64, 1).unwrap();
+//         let mut out = Array::new(&NopBufferManager, DataType::float64(), 1).unwrap();
 //         planned.function_impl.execute(&batch, &mut out).unwrap();
 
 //         let expected = Array::try_from_iter([1.0]).unwrap();

@@ -126,7 +126,7 @@ impl DistinctCollection {
                         aggregates: Vec::new(),
                     };
                     let grouping_set: BTreeSet<_> = (0..inputs.len()).collect();
-                    let table = PartitionedHashTable::new(&aggregates, grouping_set);
+                    let table = PartitionedHashTable::try_new(&aggregates, grouping_set)?;
 
                     tables.push(DistinctTable {
                         table,

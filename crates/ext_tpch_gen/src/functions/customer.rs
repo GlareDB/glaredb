@@ -46,7 +46,7 @@ impl TpchTable for CustomerTable {
         TpchColumn::new("c_phone", DataType::utf8()),
         TpchColumn::new(
             "c_acctbal",
-            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(15, 2)),
         ),
         TpchColumn::new("c_mktsegment", DataType::utf8()),
         TpchColumn::new("c_comment", DataType::utf8()),

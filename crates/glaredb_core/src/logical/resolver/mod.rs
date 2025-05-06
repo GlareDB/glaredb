@@ -1084,18 +1084,18 @@ where
 pub fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
     Ok(match datatype {
         ast::DataType::Varchar(_) => DataType::utf8(),
-        ast::DataType::Binary(_) => DataType::Binary,
-        ast::DataType::TinyInt => DataType::Int8,
-        ast::DataType::SmallInt => DataType::Int16,
+        ast::DataType::Binary(_) => DataType::binary(),
+        ast::DataType::TinyInt => DataType::int8(),
+        ast::DataType::SmallInt => DataType::int16(),
         ast::DataType::Integer => DataType::int32(),
         ast::DataType::BigInt => DataType::int64(),
-        ast::DataType::UnsignedTinyInt => DataType::UInt8,
-        ast::DataType::UnsignedSmallInt => DataType::UInt16,
-        ast::DataType::UnsignedInt => DataType::UInt32,
-        ast::DataType::UnsignedBigInt => DataType::UInt64,
-        ast::DataType::Half => DataType::Float16,
-        ast::DataType::Real => DataType::Float32,
-        ast::DataType::Double => DataType::Float64,
+        ast::DataType::UnsignedTinyInt => DataType::uint8(),
+        ast::DataType::UnsignedSmallInt => DataType::uint16(),
+        ast::DataType::UnsignedInt => DataType::uint32(),
+        ast::DataType::UnsignedBigInt => DataType::uint64(),
+        ast::DataType::Half => DataType::float16(),
+        ast::DataType::Real => DataType::float32(),
+        ast::DataType::Double => DataType::float64(),
         ast::DataType::Decimal(prec, scale) => {
             // - Precision cannot be negative.
             // - Specifying just precision defaults to a 0 scale.
@@ -1123,27 +1123,27 @@ pub fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType
                     }
 
                     if prec <= Decimal64Type::MAX_PRECISION {
-                        DataType::Decimal64(DecimalTypeMeta::new(prec, scale))
+                        DataType::decimal64(DecimalTypeMeta::new(prec, scale))
                     } else if prec <= Decimal128Type::MAX_PRECISION {
-                        DataType::Decimal128(DecimalTypeMeta::new(prec, scale))
+                        DataType::decimal128(DecimalTypeMeta::new(prec, scale))
                     } else {
                         return Err(DbError::new(
                             "Decimal precision too big for max decimal size",
                         ));
                     }
                 }
-                None => DataType::Decimal64(DecimalTypeMeta::new(
+                None => DataType::decimal64(DecimalTypeMeta::new(
                     Decimal64Type::MAX_PRECISION,
                     Decimal64Type::DEFAULT_SCALE,
                 )),
             }
         }
         ast::DataType::Bool => DataType::boolean(),
-        ast::DataType::Date => DataType::Date32,
+        ast::DataType::Date => DataType::date32(),
         ast::DataType::Timestamp => {
             // Microsecond matches postgres default.
-            DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+            DataType::timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
         }
-        ast::DataType::Interval => DataType::Interval,
+        ast::DataType::Interval => DataType::interval(),
     })
 }

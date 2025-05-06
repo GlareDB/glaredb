@@ -1,7 +1,7 @@
 use glaredb_core::arrays::datatype::{
     DataType,
+    DataTypeId,
     DecimalTypeMeta,
-    StructTypeMeta,
     TimeUnit,
     TimestampTypeMeta,
 };
@@ -20,8 +20,8 @@ impl ColumnSchemaTypeVisitor {
     /// Convert a parquet schema descriptor to a column schema.
     pub fn convert_schema(&mut self, desc: &SchemaDescriptor) -> Result<ColumnSchema> {
         let datatype = self.visit_struct(&desc.schema, ())?;
-        let fields = match datatype {
-            DataType::Struct(m) => m.fields,
+        let fields = match datatype.id() {
+            DataTypeId::Struct => datatype.try_get_struct_type_meta()?.fields.clone(),
             other => panic!("unexpected type: {other:?}"),
         };
 
@@ -46,7 +46,7 @@ impl TypeVisitor<DataType, ()> for ColumnSchemaTypeVisitor {
             let field = Field::new(field.name(), converted, true);
             children.push(field);
         }
-        let datatype = DataType::Struct(StructTypeMeta::new(children));
+        let datatype = DataType::struct_type(children);
 
         Ok(datatype)
     }
@@ -75,18 +75,18 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 prim.basic_info.converted_type(),
             ) {
                 (None, basic::ConvertedType::NONE) => Ok(DataType::int32()),
-                (None, basic::ConvertedType::UINT_8) => Ok(DataType::UInt8),
-                (None, basic::ConvertedType::UINT_16) => Ok(DataType::UInt16),
-                (None, basic::ConvertedType::UINT_32) => Ok(DataType::UInt32),
-                (None, basic::ConvertedType::INT_8) => Ok(DataType::Int8),
-                (None, basic::ConvertedType::INT_16) => Ok(DataType::Int16),
+                (None, basic::ConvertedType::UINT_8) => Ok(DataType::uint8()),
+                (None, basic::ConvertedType::UINT_16) => Ok(DataType::uint16()),
+                (None, basic::ConvertedType::UINT_32) => Ok(DataType::uint32()),
+                (None, basic::ConvertedType::INT_8) => Ok(DataType::int8()),
+                (None, basic::ConvertedType::INT_16) => Ok(DataType::int16()),
                 (None, basic::ConvertedType::INT_32) => Ok(DataType::int32()),
-                (None, basic::ConvertedType::DATE) => Ok(DataType::Date32),
+                (None, basic::ConvertedType::DATE) => Ok(DataType::date32()),
                 (None, basic::ConvertedType::DECIMAL) => {
                     let meta = decimal_type_meta(prim.precision, prim.scale)?;
-                    Ok(DataType::Decimal64(meta))
+                    Ok(DataType::decimal64(meta))
                 }
-                (None, basic::ConvertedType::TIME_MILLIS) => Ok(DataType::Timestamp(
+                (None, basic::ConvertedType::TIME_MILLIS) => Ok(DataType::timestamp(
                     TimestampTypeMeta::new(TimeUnit::Millisecond),
                 )),
                 (
@@ -96,19 +96,19 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                     }),
                     _,
                 ) => match (bit_width, is_signed) {
-                    (8, true) => Ok(DataType::Int8),
-                    (16, true) => Ok(DataType::Int16),
+                    (8, true) => Ok(DataType::int8()),
+                    (16, true) => Ok(DataType::int16()),
                     (32, true) => Ok(DataType::int32()),
-                    (8, false) => Ok(DataType::UInt8),
-                    (16, false) => Ok(DataType::UInt16),
-                    (32, false) => Ok(DataType::UInt32),
+                    (8, false) => Ok(DataType::uint8()),
+                    (16, false) => Ok(DataType::uint16()),
+                    (32, false) => Ok(DataType::uint32()),
                     _ => Err(DbError::new(
                         "Cannot convert from INT32 with width {bit_width}",
                     )),
                 },
                 (Some(basic::LogicalType::Decimal { scale, precision }), _) => {
                     let meta = decimal_type_meta(precision, scale)?;
-                    Ok(DataType::Decimal64(meta))
+                    Ok(DataType::decimal64(meta))
                 }
                 // (Some(basic::LogicalType::Timestamp { unit, .. }), _) => match unit {
                 //     format::TimeUnit::MILLIS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
@@ -118,7 +118,7 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 //         "Unhandled time unit for INT32: {other:?}"
                 //     ))),
                 // },
-                (Some(basic::LogicalType::Date), _) => Ok(DataType::Date32),
+                (Some(basic::LogicalType::Date), _) => Ok(DataType::date32()),
                 (logical, converted) => Err(DbError::new(format!(
                     "Cannot handle INT32 with logical type {logical:?} or converted type {converted:?}",
                 ))),
@@ -131,10 +131,10 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
             ) {
                 (None, basic::ConvertedType::NONE) => Ok(DataType::int64()),
                 (None, basic::ConvertedType::INT_64) => Ok(DataType::int64()),
-                (None, basic::ConvertedType::UINT_64) => Ok(DataType::UInt64),
+                (None, basic::ConvertedType::UINT_64) => Ok(DataType::uint64()),
                 (None, basic::ConvertedType::DECIMAL) => {
                     let meta = decimal_type_meta(prim.precision, prim.scale)?;
-                    Ok(DataType::Decimal64(meta))
+                    Ok(DataType::decimal64(meta))
                 }
                 (
                     Some(basic::LogicalType::Integer {
@@ -143,42 +143,42 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                     }),
                     _,
                 ) => match (bit_width, is_signed) {
-                    (8, true) => Ok(DataType::Int8),
-                    (16, true) => Ok(DataType::Int16),
+                    (8, true) => Ok(DataType::int8()),
+                    (16, true) => Ok(DataType::int16()),
                     (32, true) => Ok(DataType::int32()),
                     (64, true) => Ok(DataType::int64()),
-                    (8, false) => Ok(DataType::UInt8),
-                    (16, false) => Ok(DataType::UInt16),
-                    (32, false) => Ok(DataType::UInt32),
-                    (64, false) => Ok(DataType::UInt64),
+                    (8, false) => Ok(DataType::uint8()),
+                    (16, false) => Ok(DataType::uint16()),
+                    (32, false) => Ok(DataType::uint32()),
+                    (64, false) => Ok(DataType::uint64()),
                     _ => Err(DbError::new(
                         "Cannot convert from INT32 with width {bit_width}",
                     )),
                 },
                 (Some(basic::LogicalType::Decimal { scale, precision }), _) => {
                     let meta = decimal_type_meta(precision, scale)?;
-                    Ok(DataType::Decimal64(meta))
+                    Ok(DataType::decimal64(meta))
                 }
                 (Some(basic::LogicalType::Timestamp { unit, .. }), _) => match unit {
-                    format::TimeUnit::MILLIS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
+                    format::TimeUnit::MILLIS(_) => Ok(DataType::timestamp(TimestampTypeMeta::new(
                         TimeUnit::Millisecond,
                     ))),
-                    format::TimeUnit::MICROS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
+                    format::TimeUnit::MICROS(_) => Ok(DataType::timestamp(TimestampTypeMeta::new(
                         TimeUnit::Microsecond,
                     ))),
-                    format::TimeUnit::NANOS(_) => Ok(DataType::Timestamp(TimestampTypeMeta::new(
+                    format::TimeUnit::NANOS(_) => Ok(DataType::timestamp(TimestampTypeMeta::new(
                         TimeUnit::Nanosecond,
                     ))),
                 },
-                (Some(basic::LogicalType::Date), _) => Ok(DataType::Date64),
+                (Some(basic::LogicalType::Date), _) => Ok(DataType::date64()),
                 (logical, converted) => Err(DbError::new(format!(
                     "Cannot handle INT64 with logical type {logical:?} or converted type {converted:?}",
                 ))),
             }
         }
-        basic::Type::FLOAT => Ok(DataType::Float32),
-        basic::Type::DOUBLE => Ok(DataType::Float64),
-        basic::Type::INT96 => Ok(DataType::Timestamp(TimestampTypeMeta::new(
+        basic::Type::FLOAT => Ok(DataType::float32()),
+        basic::Type::DOUBLE => Ok(DataType::float64()),
+        basic::Type::INT96 => Ok(DataType::timestamp(TimestampTypeMeta::new(
             TimeUnit::Nanosecond,
         ))),
         basic::Type::FIXED_LEN_BYTE_ARRAY => {
@@ -186,7 +186,7 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 prim.basic_info.logical_type(),
                 prim.basic_info.converted_type(),
             ) {
-                (Some(LogicalType::Float16), _) => Ok(DataType::Float16),
+                (Some(LogicalType::Float16), _) => Ok(DataType::float16()),
                 (logical, converted) => Err(DbError::new(format!(
                     "Cannot handle FIXED_LEN_BYTE_ARRAY with logical type {logical:?} or converted type {converted:?}",
                 ))),
@@ -197,7 +197,7 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 prim.basic_info.logical_type(),
                 prim.basic_info.converted_type(),
             ) {
-                (None, basic::ConvertedType::NONE) => Ok(DataType::Binary),
+                (None, basic::ConvertedType::NONE) => Ok(DataType::binary()),
                 (None, basic::ConvertedType::UTF8) => Ok(DataType::utf8()),
                 (Some(LogicalType::String), _) => Ok(DataType::utf8()),
                 (logical, converted) => Err(DbError::new(format!(

@@ -20,7 +20,7 @@ impl CastExpr {
     pub fn new_using_default_casts(expr: impl Into<Expression>, to: DataType) -> Result<Self> {
         // First make sure we even have a function set for casting to the target
         // type.
-        let target_id = to.datatype_id();
+        let target_id = to.id();
         let cast_set = find_cast_function_set(target_id).ok_or_else(|| {
             DbError::new(format!(
                 "Unable to find cast function to handle target type: {target_id}"
@@ -35,7 +35,7 @@ impl CastExpr {
         if let Expression::Cast(existing_cast) = &expr {
             let child = &existing_cast.expr;
             let child_datatype = child.datatype()?;
-            if let Some(cast_fn) = find_cast_function(cast_set, child_datatype.datatype_id()) {
+            if let Some(cast_fn) = find_cast_function(cast_set, child_datatype.id()) {
                 // It's valid to cast directly from the child to target.
                 //
                 // However, we need to check if this cast is "safe" to do
@@ -68,13 +68,12 @@ impl CastExpr {
 
         // Otherwise just wrap unconditionally in a new cast.
         let src_datatype = expr.datatype()?;
-        let cast_fn =
-            find_cast_function(cast_set, src_datatype.datatype_id()).ok_or_else(|| {
-                DbError::new(format!(
-                    "Cast function '{}' cannot handle source type {}",
-                    cast_set.name, src_datatype,
-                ))
-            })?;
+        let cast_fn = find_cast_function(cast_set, src_datatype.id()).ok_or_else(|| {
+            DbError::new(format!(
+                "Cast function '{}' cannot handle source type {}",
+                cast_set.name, src_datatype,
+            ))
+        })?;
 
         let bind_state = cast_fn.call_bind(&src_datatype, &to)?;
 
@@ -125,7 +124,7 @@ mod tests {
     #[test]
     fn no_flatten_unsafe() {
         let cast = CastExpr::new_using_default_casts(
-            CastExpr::new_using_default_casts(expr::lit("123456789e-1234"), DataType::Float32)
+            CastExpr::new_using_default_casts(expr::lit("123456789e-1234"), DataType::float32())
                 .unwrap(),
             DataType::int64(),
         )

@@ -287,12 +287,13 @@ mod tests {
 
     #[test]
     fn sort_single_key_i32_already_sorted() {
-        let key_layout = SortLayout::new([SortColumn {
+        let key_layout = SortLayout::try_new([SortColumn {
             desc: false,
             nulls_first: false,
             datatype: DataType::int32(),
-        }]);
-        let data_layout = RowLayout::new([DataType::int32()]);
+        }])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::int32()]).unwrap();
 
         let keys = Array::try_from_iter([1, 2, 3]).unwrap();
         let expected = Array::try_from_iter([1, 2, 3]).unwrap();
@@ -302,12 +303,13 @@ mod tests {
 
     #[test]
     fn sort_single_key_i32() {
-        let key_layout = SortLayout::new([SortColumn {
+        let key_layout = SortLayout::try_new([SortColumn {
             desc: false,
             nulls_first: false,
             datatype: DataType::int32(),
-        }]);
-        let data_layout = RowLayout::new([DataType::int32()]);
+        }])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::int32()]).unwrap();
 
         let keys = Array::try_from_iter([2, 3, 1]).unwrap();
         let expected = Array::try_from_iter([1, 2, 3]).unwrap();
@@ -317,8 +319,9 @@ mod tests {
 
     #[test]
     fn sort_single_key_utf8_lexical() {
-        let key_layout = SortLayout::new([SortColumn::new_asc_nulls_last(DataType::utf8())]);
-        let data_layout = RowLayout::new([DataType::utf8()]);
+        let key_layout =
+            SortLayout::try_new([SortColumn::new_asc_nulls_last(DataType::utf8())]).unwrap();
+        let data_layout = RowLayout::try_new([DataType::utf8()]).unwrap();
 
         let keys = generate_batch!(["1", "2", "10", "20"]);
         let expected = generate_batch!(["1", "10", "2", "20"]);
@@ -334,11 +337,12 @@ mod tests {
 
     #[test]
     fn sort_two_keys_utf8_i32_with_ties() {
-        let key_layout = SortLayout::new([
+        let key_layout = SortLayout::try_new([
             SortColumn::new_asc_nulls_last(DataType::utf8()),
             SortColumn::new_asc_nulls_last(DataType::int32()),
-        ]);
-        let data_layout = RowLayout::new([DataType::utf8(), DataType::int32()]);
+        ])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::utf8(), DataType::int32()]).unwrap();
 
         let keys = generate_batch!(["a", "b", "b", "c"], [0, 1, 0, 0]);
         let expected = generate_batch!(["a", "b", "b", "c"], [0, 0, 1, 0]);
@@ -354,11 +358,12 @@ mod tests {
 
     #[test]
     fn sort_two_keys_utf8_i32_with_all_ties() {
-        let key_layout = SortLayout::new([
+        let key_layout = SortLayout::try_new([
             SortColumn::new_asc_nulls_last(DataType::utf8()),
             SortColumn::new_asc_nulls_last(DataType::int32()),
-        ]);
-        let data_layout = RowLayout::new([DataType::utf8(), DataType::int32()]);
+        ])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::utf8(), DataType::int32()]).unwrap();
 
         let keys = generate_batch!(["b", "b", "b", "b"], [3, 1, 2, 4]);
         let expected = generate_batch!(["b", "b", "b", "b"], [1, 2, 3, 4]);
@@ -374,12 +379,14 @@ mod tests {
 
     #[test]
     fn sort_three_keys_utf8_utf8_i32_with_layered_ties() {
-        let key_layout = SortLayout::new([
+        let key_layout = SortLayout::try_new([
             SortColumn::new_asc_nulls_last(DataType::utf8()),
             SortColumn::new_asc_nulls_last(DataType::utf8()),
             SortColumn::new_asc_nulls_last(DataType::int32()),
-        ]);
-        let data_layout = RowLayout::new([DataType::utf8(), DataType::utf8(), DataType::int32()]);
+        ])
+        .unwrap();
+        let data_layout =
+            RowLayout::try_new([DataType::utf8(), DataType::utf8(), DataType::int32()]).unwrap();
 
         let keys = generate_batch!(["a", "a", "a", "a"], ["b", "c", "b", "c"], [3, 1, 2, 4]);
         let expected = generate_batch!(["a", "a", "a", "a"], ["b", "b", "c", "c"], [2, 3, 1, 4]);
@@ -395,12 +402,13 @@ mod tests {
 
     #[test]
     fn sort_single_key_utf8_all_inline() {
-        let key_layout = SortLayout::new([SortColumn {
+        let key_layout = SortLayout::try_new([SortColumn {
             desc: false,
             nulls_first: false,
             datatype: DataType::utf8(),
-        }]);
-        let data_layout = RowLayout::new([DataType::utf8()]);
+        }])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::utf8()]).unwrap();
 
         let keys = Array::try_from_iter(["a", "c", "b"]).unwrap();
         let expected = Array::try_from_iter(["a", "b", "c"]).unwrap();
@@ -409,12 +417,13 @@ mod tests {
 
     #[test]
     fn sort_single_key_utf8_all_inline_desc() {
-        let key_layout = SortLayout::new([SortColumn {
+        let key_layout = SortLayout::try_new([SortColumn {
             desc: true,
             nulls_first: false,
             datatype: DataType::utf8(),
-        }]);
-        let data_layout = RowLayout::new([DataType::utf8()]);
+        }])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::utf8()]).unwrap();
 
         let keys = Array::try_from_iter(["a", "c", "b"]).unwrap();
         let expected = Array::try_from_iter(["c", "b", "a"]).unwrap();
@@ -425,7 +434,7 @@ mod tests {
     fn sort_multiple_keys_with_ties_i32() {
         // Tie on fixed length column.
 
-        let key_layout = SortLayout::new([
+        let key_layout = SortLayout::try_new([
             SortColumn {
                 desc: false,
                 nulls_first: false,
@@ -436,8 +445,9 @@ mod tests {
                 nulls_first: false,
                 datatype: DataType::int32(),
             },
-        ]);
-        let data_layout = RowLayout::new([DataType::int32(), DataType::int32()]);
+        ])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::int32(), DataType::int32()]).unwrap();
 
         let keys = [
             Array::try_from_iter([2, 2, 1]).unwrap(),
@@ -456,7 +466,7 @@ mod tests {
         // Tie on fixed length column, descending on tied column, asc on second
         // column.
 
-        let key_layout = SortLayout::new([
+        let key_layout = SortLayout::try_new([
             SortColumn {
                 desc: true,
                 nulls_first: false,
@@ -467,8 +477,9 @@ mod tests {
                 nulls_first: false,
                 datatype: DataType::int32(),
             },
-        ]);
-        let data_layout = RowLayout::new([DataType::int32(), DataType::int32()]);
+        ])
+        .unwrap();
+        let data_layout = RowLayout::try_new([DataType::int32(), DataType::int32()]).unwrap();
 
         let keys = [
             Array::try_from_iter([2, 2, 1]).unwrap(),

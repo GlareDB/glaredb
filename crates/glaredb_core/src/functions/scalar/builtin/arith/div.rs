@@ -193,12 +193,12 @@ impl ScalarFunction for DivDecimal {
     fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         // Wrap decimals in float casts. Then we'll just do the div on floats.
         debug_assert_eq!(2, inputs.len());
-        let right = expr::cast(inputs.pop().unwrap(), DataType::Float64)?.into();
-        let left = expr::cast(inputs.pop().unwrap(), DataType::Float64)?.into();
+        let right = expr::cast(inputs.pop().unwrap(), DataType::float64())?.into();
+        let left = expr::cast(inputs.pop().unwrap(), DataType::float64())?.into();
 
         Ok(BindState {
             state: (),
-            return_type: DataType::Float64,
+            return_type: DataType::float64(),
             inputs: vec![left, right],
         })
     }

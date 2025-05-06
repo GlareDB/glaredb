@@ -46,7 +46,7 @@ impl TpchTable for SupplierTable {
         TpchColumn::new("s_phone", DataType::utf8()),
         TpchColumn::new(
             "s_acctbal",
-            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(15, 2)),
         ),
         TpchColumn::new("s_comment", DataType::utf8()),
     ];

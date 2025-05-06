@@ -34,7 +34,8 @@ impl TestRowBlock {
     where
         A: Borrow<Array>,
     {
-        let layout = RowLayout::new(arrays.iter().map(|a| a.borrow().datatype.clone()));
+        let layout =
+            RowLayout::try_new(arrays.iter().map(|a| a.borrow().datatype.clone())).unwrap();
         let mut collection = RowCollection::new(layout.clone(), num_rows);
 
         let mut state = collection.init_append();
@@ -94,12 +95,14 @@ impl TestSortedRowBlock {
     where
         A: Borrow<Array>,
     {
-        let key_layout = SortLayout::new(keys.iter().map(|arr| SortColumn {
+        let key_layout = SortLayout::try_new(keys.iter().map(|arr| SortColumn {
             desc: false,
             nulls_first: false,
             datatype: arr.borrow().datatype().clone(),
-        }));
-        let data_layout = RowLayout::new(data.iter().map(|arr| arr.borrow().datatype().clone()));
+        }))
+        .unwrap();
+        let data_layout =
+            RowLayout::try_new(data.iter().map(|arr| arr.borrow().datatype().clone())).unwrap();
 
         let mut collection =
             PartialSortedRowCollection::new(key_layout.clone(), data_layout.clone(), num_rows);

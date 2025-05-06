@@ -25,13 +25,13 @@ where
 {
     let l_meta = match D::decimal_meta_opt(left) {
         Some(meta) => meta,
-        None => DecimalTypeMeta::new_for_datatype_id(left.datatype_id())
+        None => DecimalTypeMeta::new_for_datatype_id(left.id())
             .ok_or_else(|| DbError::new(format!("Cannot convert {left} into a decimal")))?,
     };
 
     let r_meta = match D::decimal_meta_opt(right) {
         Some(meta) => meta,
-        None => DecimalTypeMeta::new_for_datatype_id(right.datatype_id())
+        None => DecimalTypeMeta::new_for_datatype_id(right.id())
             .ok_or_else(|| DbError::new(format!("Cannot convert {right} into a decimal")))?,
     };
 

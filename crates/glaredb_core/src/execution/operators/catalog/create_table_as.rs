@@ -59,6 +59,20 @@ pub struct PhysicalCreateTableAs {
     pub(crate) info: CreateTableInfo,
 }
 
+impl PhysicalCreateTableAs {
+    pub fn new(
+        storage: Arc<StorageManager>,
+        schema: Arc<MemorySchema>,
+        info: CreateTableInfo,
+    ) -> Self {
+        PhysicalCreateTableAs {
+            storage,
+            schema,
+            info,
+        }
+    }
+}
+
 impl BaseOperator for PhysicalCreateTableAs {
     const OPERATOR_NAME: &str = "CreateTableAs";
 
@@ -75,7 +89,8 @@ impl BaseOperator for PhysicalCreateTableAs {
     }
 
     fn output_types(&self) -> &[DataType] {
-        &[DataType::int64()]
+        const OUTPUT_TYPES: &'static [DataType] = &[DataType::int64()];
+        OUTPUT_TYPES
     }
 }
 

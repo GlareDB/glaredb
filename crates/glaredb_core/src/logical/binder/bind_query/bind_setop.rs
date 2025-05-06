@@ -117,8 +117,8 @@ impl<'a> SetOpBinder<'a> {
                 continue;
             }
 
-            let left_score = implicit_cast_score(right.datatype_id(), left.datatype_id());
-            let right_score = implicit_cast_score(left.datatype_id(), right.datatype_id());
+            let left_score = implicit_cast_score(right.id(), left.id());
+            let right_score = implicit_cast_score(left.id(), right.id());
 
             if left_score.is_none() && right_score.is_none() {
                 return Err(DbError::new(format!(

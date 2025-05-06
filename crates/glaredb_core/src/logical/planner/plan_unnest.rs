@@ -1,6 +1,6 @@
 use glaredb_error::Result;
 
-use crate::arrays::datatype::DataType;
+use crate::arrays::datatype::DataTypeId;
 use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::BindContext;
@@ -82,9 +82,14 @@ impl UnnestPlanner {
         for (idx, expr) in unnest_expressions.iter().enumerate() {
             // Need to store the type that's being produced from the unnest, so
             // unwrap the list data type.
-            let datatype = match expr.datatype()? {
-                DataType::List(list) => list.datatype.as_ref().clone(),
-                other => other,
+            let expr_datatype = expr.datatype()?;
+            let datatype = match expr_datatype.id {
+                DataTypeId::List => expr_datatype
+                    .try_get_list_type_meta()?
+                    .datatype
+                    .as_ref()
+                    .clone(),
+                _ => expr_datatype,
             };
 
             bind_context.push_column_for_table(

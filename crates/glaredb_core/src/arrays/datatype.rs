@@ -294,8 +294,8 @@ pub struct DataType {
 
 macro_rules! datatype_new_primitive {
     ($fn_name:ident, $static_const:ident) => {
-        pub fn $fn_name() -> Self {
-            Self::$static_const.clone()
+        pub const fn $fn_name() -> Self {
+            Self::new_primitive(Self::$static_const.id)
         }
     };
 }
@@ -371,21 +371,30 @@ impl DataType {
         }
     }
 
-    pub fn decimal64(m: DecimalTypeMeta) -> Self {
+    pub fn struct_type(fields: impl IntoIterator<Item = Field>) -> Self {
+        DataType {
+            id: DataTypeId::Struct,
+            metadata: DataTypeMeta::Struct(StructTypeMeta {
+                fields: fields.into_iter().collect(),
+            }),
+        }
+    }
+
+    pub const fn decimal64(m: DecimalTypeMeta) -> Self {
         DataType {
             id: DataTypeId::Decimal64,
             metadata: DataTypeMeta::Decimal(m),
         }
     }
 
-    pub fn decimal128(m: DecimalTypeMeta) -> Self {
+    pub const fn decimal128(m: DecimalTypeMeta) -> Self {
         DataType {
             id: DataTypeId::Decimal128,
             metadata: DataTypeMeta::Decimal(m),
         }
     }
 
-    pub fn timestamp(m: TimestampTypeMeta) -> Self {
+    pub const fn timestamp(m: TimestampTypeMeta) -> Self {
         DataType {
             id: DataTypeId::Timestamp,
             metadata: DataTypeMeta::Timestamp(m),
@@ -474,7 +483,7 @@ impl DataType {
     }
 
     /// Get the data type id from the data type.
-    pub fn datatype_id(&self) -> DataTypeId {
+    pub fn id(&self) -> DataTypeId {
         self.id
     }
 
@@ -565,6 +574,15 @@ impl DataType {
             DataTypeMeta::Timestamp(m) => Ok(m),
             other => Err(DbError::new(format!(
                 "Cannot get timestamp time unit from metadata {other:?}"
+            ))),
+        }
+    }
+
+    pub fn try_get_struct_type_meta(&self) -> Result<&StructTypeMeta> {
+        match &self.metadata {
+            DataTypeMeta::Struct(m) => Ok(m),
+            other => Err(DbError::new(format!(
+                "Cannot get struct type meta from metadata {other:?}"
             ))),
         }
     }

@@ -328,7 +328,7 @@ where
         out: &mut Array,
     ) -> Result<()> {
         // TODO: Temp until... not sure. Is this actually reasonable?
-        let id = out.datatype.datatype_id();
+        let id = out.datatype.id();
         let mut parser = DecimalParser::<D::Primitive>::new(state.precision, state.scale);
 
         UnaryExecutor::execute::<PhysicalUtf8, D::Storage, _>(
@@ -479,11 +479,11 @@ mod tests {
     fn cast_decimal64_to_different_prec() {
         let mut arr = Array::try_from_iter([13000_i64]).unwrap();
         // '[1.3000]'
-        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
+        arr.datatype = DataType::decimal64(DecimalTypeMeta::new(6, 4));
 
         let mut out = Array::new(
             &DefaultBufferManager,
-            DataType::Decimal64(DecimalTypeMeta::new(8, 4)),
+            DataType::decimal64(DecimalTypeMeta::new(8, 4)),
             1,
         )
         .unwrap();
@@ -509,11 +509,11 @@ mod tests {
     fn cast_decimal64_to_different_scale() {
         let mut arr = Array::try_from_iter([13000_i64]).unwrap();
         // '[1.3000]'
-        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
+        arr.datatype = DataType::decimal64(DecimalTypeMeta::new(6, 4));
 
         let mut out = Array::new(
             &DefaultBufferManager,
-            DataType::Decimal64(DecimalTypeMeta::new(6, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(6, 2)),
             1,
         )
         .unwrap();
@@ -540,12 +540,12 @@ mod tests {
         let mut arr =
             Array::try_from_iter([13100_i64, 13600, 13501, -13100, -13600, -13499]).unwrap();
         // '[1.3100, 1.3600, 1.3501, -1.3100, -1.3600, -1.3499]'
-        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(6, 4));
+        arr.datatype = DataType::decimal64(DecimalTypeMeta::new(6, 4));
 
         // Scale down to single decimal place.
         let mut out = Array::new(
             &DefaultBufferManager,
-            DataType::Decimal64(DecimalTypeMeta::new(6, 1)),
+            DataType::decimal64(DecimalTypeMeta::new(6, 1)),
             6,
         )
         .unwrap();
@@ -566,8 +566,8 @@ mod tests {
         assert_eq!(13, v[0]); // Round down (1.3100 -> 1.3)
         assert_eq!(14, v[1]); // Round up (1.3600 -> 1.4)
         assert_eq!(14, v[2]); // Round up (1.3501 -> 1.4)
-        assert_eq!(-13, v[3]); // Round up (-1.3100 -> -1.3)
+        assert_eq!(-13, v[3]); // Round down (-1.3100 -> -1.3)
         assert_eq!(-14, v[4]); // Round up (-1.3600 -> -1.4)
-        assert_eq!(-13, v[5]); // Round up (-1.3499 -> -1.3)
+        assert_eq!(-13, v[5]); // Round down (-1.3499 -> -1.3)
     }
 }

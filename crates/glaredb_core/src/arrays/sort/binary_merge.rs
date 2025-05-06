@@ -692,7 +692,7 @@ impl<'a> BinaryMerger<'a> {
         let left_col_ptr = unsafe { left_row_ptr.byte_add(col_offset) };
         let right_col_ptr = unsafe { right_row_ptr.byte_add(col_offset) };
 
-        let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
+        let phys_type = layout.heap_layout.types[heap_key_column].physical_type()?;
         let ord = unsafe { compare_heap_values(left_col_ptr, right_col_ptr, phys_type)? };
 
         // Note we're using the original key column index.

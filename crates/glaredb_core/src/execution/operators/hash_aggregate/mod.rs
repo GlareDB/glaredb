@@ -189,8 +189,10 @@ impl BaseOperator for PhysicalHashAggregate {
         let tables: Vec<_> = self
             .grouping_sets
             .iter()
-            .map(|grouping_set| PartitionedHashTable::new(&self.aggregates, grouping_set.clone()))
-            .collect();
+            .map(|grouping_set| {
+                PartitionedHashTable::try_new(&self.aggregates, grouping_set.clone())
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let table_states = tables
             .iter()

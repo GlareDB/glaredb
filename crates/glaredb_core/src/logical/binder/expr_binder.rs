@@ -687,7 +687,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let expr = expr::arith(op, interval, expr)?;
                         Ok(expr.into())
                     }
-                    None => Ok(expr::cast(expr, DataType::Interval)?.into()),
+                    None => Ok(expr::cast(expr, DataType::interval())?.into()),
                 }
             }
             ast::Expr::Between {

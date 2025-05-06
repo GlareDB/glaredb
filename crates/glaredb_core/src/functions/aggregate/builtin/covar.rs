@@ -47,7 +47,7 @@ impl BinaryAggregate for CovarPop {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Float64,
+            return_type: DataType::float64(),
             inputs,
         })
     }
@@ -89,7 +89,7 @@ impl BinaryAggregate for CovarSamp {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Float64,
+            return_type: DataType::float64(),
             inputs,
         })
     }

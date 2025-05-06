@@ -104,7 +104,7 @@ impl OperatorPlanState<'_> {
             }
             None => {
                 // Otherwise push an ungrouped aggregate operator.
-                let operator = PhysicalUngroupedAggregate::new(phys_aggs);
+                let operator = PhysicalUngroupedAggregate::try_new(phys_aggs)?;
 
                 Ok(PlannedOperatorWithChildren {
                     operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),

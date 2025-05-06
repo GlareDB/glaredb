@@ -1,5 +1,5 @@
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::datatype::DataType;
+use glaredb_core::arrays::datatype::DataTypeId;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::format::{BinaryFormat, FormatOptions, Formatter};
 use glaredb_error::Result;
@@ -41,17 +41,17 @@ pub fn batches_to_rows(batches: Vec<Batch>) -> Result<Vec<Vec<String>>> {
 pub fn schema_to_types(schema: &ColumnSchema) -> Vec<DefaultColumnType> {
     let mut typs = Vec::new();
     for field in &schema.fields {
-        let typ = match field.datatype {
-            DataType::Int8
-            | DataType::Int16
-            | DataType::int32()
-            | DataType::int64()
-            | DataType::UInt8
-            | DataType::UInt16
-            | DataType::UInt32
-            | DataType::UInt64 => DefaultColumnType::Integer,
-            DataType::Float32 | DataType::Float64 => DefaultColumnType::FloatingPoint,
-            DataType::utf8() | DataType::boolean() => DefaultColumnType::Text,
+        let typ = match field.datatype.id() {
+            DataTypeId::Int8
+            | DataTypeId::Int16
+            | DataTypeId::Int32
+            | DataTypeId::Int64
+            | DataTypeId::UInt8
+            | DataTypeId::UInt16
+            | DataTypeId::UInt32
+            | DataTypeId::UInt64 => DefaultColumnType::Integer,
+            DataTypeId::Float32 | DataTypeId::Float64 => DefaultColumnType::FloatingPoint,
+            DataTypeId::Utf8 | DataTypeId::Boolean => DefaultColumnType::Text,
             _ => DefaultColumnType::Any,
         };
         typs.push(typ);

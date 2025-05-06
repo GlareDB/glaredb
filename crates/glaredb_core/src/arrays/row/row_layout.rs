@@ -842,7 +842,7 @@ mod tests {
 
     // #[test]
     // fn encode_decode_multiple_fixed_size() {
-    //     let layout = RowLayout::new(vec![DataType::int32(), DataType::Float64]);
+    //     let layout = RowLayout::new(vec![DataType::int32(), DataType::float64()]);
     //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
     //     let mut buf = vec![0; layout.buffer_size(3)];
@@ -852,7 +852,7 @@ mod tests {
     //         .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
     //         .unwrap();
 
-    //     let mut output = Batch::try_new([DataType::int32(), DataType::Float64], 16).unwrap();
+    //     let mut output = Batch::try_new([DataType::int32(), DataType::float64()], 16).unwrap();
     //     layout
     //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
     //         .unwrap();
@@ -864,7 +864,7 @@ mod tests {
 
     // #[test]
     // fn encode_decode_multiple_fixed_size_with_invalid() {
-    //     let layout = RowLayout::new(vec![DataType::int32(), DataType::Float64]);
+    //     let layout = RowLayout::new(vec![DataType::int32(), DataType::float64()]);
     //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
     //     let mut buf = vec![0; layout.buffer_size(3)];
@@ -874,7 +874,7 @@ mod tests {
     //         .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
     //         .unwrap();
 
-    //     let mut output = Batch::try_new([DataType::int32(), DataType::Float64], 16).unwrap();
+    //     let mut output = Batch::try_new([DataType::int32(), DataType::float64()], 16).unwrap();
     //     layout
     //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
     //         .unwrap();

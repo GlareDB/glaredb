@@ -45,9 +45,9 @@ impl TpchTable for OrdersTable {
         TpchColumn::new("o_orderstatus", DataType::utf8()),
         TpchColumn::new(
             "o_totalprice",
-            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(15, 2)),
         ),
-        TpchColumn::new("o_orderdate", DataType::Date32),
+        TpchColumn::new("o_orderdate", DataType::date32()),
         TpchColumn::new("o_orderpriority", DataType::utf8()),
         TpchColumn::new("o_clerk", DataType::utf8()),
         TpchColumn::new("o_shippriority", DataType::int32()),

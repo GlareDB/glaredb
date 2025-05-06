@@ -42,7 +42,7 @@ impl TpchTable for PartSuppTable {
         TpchColumn::new("ps_availqty", DataType::int32()),
         TpchColumn::new(
             "ps_supplycost",
-            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(15, 2)),
         ),
         TpchColumn::new("ps_comment", DataType::utf8()),
     ];

@@ -251,9 +251,9 @@ where
         let (cast_left, l_meta) = match D::decimal_meta_opt(&l_type) {
             Some(meta) => (false, meta),
             None => {
-                let meta = DecimalTypeMeta::new_for_datatype_id(l_type.datatype_id()).ok_or_else(
-                    || DbError::new(format!("Cannot convert {l_type} into a decimal")),
-                )?;
+                let meta = DecimalTypeMeta::new_for_datatype_id(l_type.id()).ok_or_else(|| {
+                    DbError::new(format!("Cannot convert {l_type} into a decimal"))
+                })?;
                 (true, meta)
             }
         };
@@ -261,9 +261,9 @@ where
         let (cast_right, r_meta) = match D::decimal_meta_opt(&r_type) {
             Some(meta) => (false, meta),
             None => {
-                let meta = DecimalTypeMeta::new_for_datatype_id(r_type.datatype_id()).ok_or_else(
-                    || DbError::new(format!("Cannot convert {r_type} into a decimal")),
-                )?;
+                let meta = DecimalTypeMeta::new_for_datatype_id(r_type.id()).ok_or_else(|| {
+                    DbError::new(format!("Cannot convert {r_type} into a decimal"))
+                })?;
                 (true, meta)
             }
         };
@@ -354,7 +354,7 @@ where
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Interval,
+            return_type: DataType::interval(),
             inputs,
         })
     }

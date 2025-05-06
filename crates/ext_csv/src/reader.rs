@@ -30,7 +30,7 @@ use glaredb_core::arrays::array::physical_type::{
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
-use glaredb_core::arrays::datatype::DataType;
+use glaredb_core::arrays::datatype::DataTypeId;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::functions::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_core::runtime::filesystem::AnyFile;
@@ -171,8 +171,8 @@ impl CsvReader {
         self.projections
             .for_each_column(batch, &mut |col_idx, array| match col_idx {
                 ProjectedColumn::Data(col_idx) => {
-                    match array.datatype() {
-                        DataType::boolean() => self.write_primitive::<PhysicalBool, _>(
+                    match array.datatype().id() {
+                        DataTypeId::Boolean => self.write_primitive::<PhysicalBool, _>(
                             records_offset,
                             col_idx,
                             array,
@@ -180,7 +180,7 @@ impl CsvReader {
                             count,
                             BoolParser,
                         )?,
-                        DataType::int64() => self.write_primitive::<PhysicalI64, _>(
+                        DataTypeId::Int64 => self.write_primitive::<PhysicalI64, _>(
                             records_offset,
                             col_idx,
                             array,
@@ -188,7 +188,7 @@ impl CsvReader {
                             count,
                             Int64Parser::new(),
                         )?,
-                        DataType::Float64 => self.write_primitive::<PhysicalF64, _>(
+                        DataTypeId::Float64 => self.write_primitive::<PhysicalF64, _>(
                             records_offset,
                             col_idx,
                             array,
@@ -196,7 +196,7 @@ impl CsvReader {
                             count,
                             Float64Parser::new(),
                         )?,
-                        DataType::utf8() => {
+                        DataTypeId::Utf8 => {
                             self.write_string(records_offset, col_idx, array, write_offset, count)?
                         }
                         other => {
@@ -290,6 +290,7 @@ impl CsvReader {
 
 #[cfg(test)]
 mod tests {
+    use glaredb_core::arrays::datatype::DataType;
     use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
     use glaredb_core::generate_batch;
     use glaredb_core::runtime::filesystem::memory::MemoryFileHandle;
@@ -322,8 +323,11 @@ yoshi,4.5,10000
             output,
         );
 
-        let mut batch =
-            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 16).unwrap();
+        let mut batch = Batch::new(
+            [DataType::utf8(), DataType::float64(), DataType::int64()],
+            16,
+        )
+        .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::Exhausted, poll);
 
@@ -355,8 +359,11 @@ yoshi,4.5,10000
             output,
         );
 
-        let mut batch =
-            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 16).unwrap();
+        let mut batch = Batch::new(
+            [DataType::utf8(), DataType::float64(), DataType::int64()],
+            16,
+        )
+        .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::Exhausted, poll);
 
@@ -387,8 +394,11 @@ yoshi,4.5,10000
             output,
         );
 
-        let mut batch =
-            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 2).unwrap();
+        let mut batch = Batch::new(
+            [DataType::utf8(), DataType::float64(), DataType::int64()],
+            2,
+        )
+        .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::HasMore, poll);
 
@@ -424,8 +434,11 @@ yoshi,4.5,10000
             output,
         );
 
-        let mut batch =
-            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 2).unwrap();
+        let mut batch = Batch::new(
+            [DataType::utf8(), DataType::float64(), DataType::int64()],
+            2,
+        )
+        .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::HasMore, poll);
 
@@ -459,8 +472,11 @@ yoshi,4.5,10000
             output,
         );
 
-        let mut batch =
-            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 16).unwrap();
+        let mut batch = Batch::new(
+            [DataType::utf8(), DataType::float64(), DataType::int64()],
+            16,
+        )
+        .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::Exhausted, poll);
 

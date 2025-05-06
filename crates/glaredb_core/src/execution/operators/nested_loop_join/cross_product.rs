@@ -135,7 +135,7 @@ mod tests {
 
         let mut right = generate_batch!([4.5, 6.0]);
         let mut output =
-            Batch::new([DataType::int32(), DataType::utf8(), DataType::Float64], 16).unwrap();
+            Batch::new([DataType::int32(), DataType::utf8(), DataType::float64()], 16).unwrap();
 
         let did_write_out = cross_state
             .scan_next(&collection, &mut right, &mut output)

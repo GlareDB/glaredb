@@ -957,9 +957,12 @@ mod tests {
         assert!(is_foldable);
 
         let expr: Expression = and([
-            gt_eq(add(lit(4), lit(8)).unwrap(), column((0, 0), DataType::Int8))
-                .unwrap()
-                .into(), // ((4 + 8) >= #column)
+            gt_eq(
+                add(lit(4), lit(8)).unwrap(),
+                column((0, 0), DataType::int8()),
+            )
+            .unwrap()
+            .into(), // ((4 + 8) >= #column)
             lit(false).into(),
         ])
         .unwrap()
@@ -972,9 +975,12 @@ mod tests {
     #[test]
     fn is_const_foldable_fixed() {
         let expr: Expression = and([
-            gt_eq(add(lit(4), lit(8)).unwrap(), column((0, 0), DataType::Int8))
-                .unwrap()
-                .into(), // ((4 + 8) >= #column)
+            gt_eq(
+                add(lit(4), lit(8)).unwrap(),
+                column((0, 0), DataType::int8()),
+            )
+            .unwrap()
+            .into(), // ((4 + 8) >= #column)
             lit(false).into(),
         ])
         .unwrap()

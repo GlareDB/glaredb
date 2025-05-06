@@ -48,7 +48,7 @@ impl TpchTable for PartTable {
         TpchColumn::new("p_container", DataType::utf8()),
         TpchColumn::new(
             "p_retailprice",
-            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(15, 2)),
         ),
         TpchColumn::new("p_comment", DataType::utf8()),
     ];

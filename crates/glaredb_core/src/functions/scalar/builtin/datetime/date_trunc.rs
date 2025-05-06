@@ -94,7 +94,8 @@ impl ScalarFunction for DateTrunc {
             .to_lowercase();
 
         let field = field.parse::<TruncField>()?;
-        let time_m = inputs[1].datatype()?.try_get_timestamp_type_meta()?;
+        let datatype = inputs[1].datatype()?;
+        let time_m = datatype.try_get_timestamp_type_meta()?;
 
         Ok(BindState {
             state: DateTruncState {

@@ -1304,7 +1304,7 @@ mod tests {
         // https://github.com/GlareDB/glaredb/issues/1790
 
         let fields: Vec<_> = (0..30)
-            .map(|i| Field::new(i.to_string(), DataType::Int8, true))
+            .map(|i| Field::new(i.to_string(), DataType::int8(), true))
             .collect();
 
         let schema = ColumnSchema::new(fields);

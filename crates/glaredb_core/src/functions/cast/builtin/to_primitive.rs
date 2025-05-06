@@ -576,7 +576,7 @@ where
         out: &mut Array,
     ) -> Result<()> {
         // TODO: Temp until... not sure. Is this actually reasonable?
-        let id = out.datatype.datatype_id();
+        let id = out.datatype.id();
 
         UnaryExecutor::execute::<PhysicalUtf8, S, _>(
             src,
@@ -655,13 +655,13 @@ mod tests {
     fn array_cast_decimal64_to_f64() {
         let mut arr = Array::try_from_iter([1500_i64, 2000, 2500]).unwrap();
         // '[1.500, 2.000, 2.500]'
-        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(10, 3));
-        let mut out = Array::new(&DefaultBufferManager, DataType::Float64, 3).unwrap();
+        arr.datatype = DataType::decimal64(DecimalTypeMeta::new(10, 3));
+        let mut out = Array::new(&DefaultBufferManager, DataType::float64(), 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
 
         let cast = DecimalToFloat::<Decimal64Type, PhysicalF64>::new();
-        let state = cast.bind(&arr.datatype, &DataType::Float64).unwrap();
+        let state = cast.bind(&arr.datatype, &DataType::float64()).unwrap();
         DecimalToFloat::<Decimal64Type, PhysicalF64>::cast(
             &state,
             error_state,

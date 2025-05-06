@@ -55,10 +55,10 @@ impl OperatorPlanState<'_> {
                     vec![expr::column((0, 0), DataType::int64())],
                 )?;
 
-                let agg = PhysicalUngroupedAggregate::new([PhysicalAggregateExpression::new(
+                let agg = PhysicalUngroupedAggregate::try_new([PhysicalAggregateExpression::new(
                     sum,
                     [(0, DataType::int64())],
-                )]);
+                )])?;
 
                 planned = PlannedOperatorWithChildren {
                     operator: PlannedOperator::new_execute(self.id_gen.next_id(), agg),
