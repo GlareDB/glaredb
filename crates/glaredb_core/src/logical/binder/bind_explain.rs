@@ -58,7 +58,7 @@ impl<'a> ExplainBinder<'a> {
         bind_context.push_table(
             self.current,
             None,
-            [DataType::Utf8, DataType::Utf8],
+            [DataType::utf8(), DataType::utf8()],
             ["plan_type", "plan"],
         )?;
 

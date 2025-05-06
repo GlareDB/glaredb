@@ -44,9 +44,9 @@ impl TryFrom<PrimitiveType> for DataType {
 
     fn try_from(value: PrimitiveType) -> Result<Self> {
         Ok(match value {
-            PrimitiveType::Boolean => DataType::Boolean,
-            PrimitiveType::Int => DataType::Int32,
-            PrimitiveType::Long => DataType::Int64,
+            PrimitiveType::Boolean => DataType::boolean(),
+            PrimitiveType::Int => DataType::int32(),
+            PrimitiveType::Long => DataType::int64(),
             PrimitiveType::Float => DataType::Float32,
             PrimitiveType::Double => DataType::Float64,
             PrimitiveType::Decimal { p, s } => DataType::Decimal128(DecimalTypeMeta {
@@ -61,8 +61,8 @@ impl TryFrom<PrimitiveType> for DataType {
                 DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
             }
             PrimitiveType::Timestamptz => not_implemented!("Timestamp with timezone"),
-            PrimitiveType::String => DataType::Utf8,
-            PrimitiveType::Uuid => DataType::Utf8,
+            PrimitiveType::String => DataType::utf8(),
+            PrimitiveType::Uuid => DataType::utf8(),
             PrimitiveType::Fixed(_) => not_implemented!("Fixed sized binary"),
             PrimitiveType::Binary => DataType::Binary,
         })

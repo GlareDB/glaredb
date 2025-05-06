@@ -127,9 +127,9 @@ mod tests {
         // INPUT:     c0 = c1, c1 = c2
         // GENERATED: c0 = c2
 
-        let c0 = expr::column((0, 0), DataType::Int32);
-        let c1 = expr::column((1, 0), DataType::Int32);
-        let c2 = expr::column((2, 0), DataType::Int32);
+        let c0 = expr::column((0, 0), DataType::int32());
+        let c1 = expr::column((1, 0), DataType::int32());
+        let c2 = expr::column((2, 0), DataType::int32());
 
         let input1 = expr::eq(c0.clone(), c1.clone()).unwrap();
         let input2 = expr::eq(c1.clone(), c2.clone()).unwrap();
@@ -152,9 +152,9 @@ mod tests {
 
     #[test]
     fn gen_not_equal_simple() {
-        let c0 = expr::column((0, 0), DataType::Int32);
-        let c1 = expr::column((1, 0), DataType::Int32);
-        let c2 = expr::column((2, 0), DataType::Int32);
+        let c0 = expr::column((0, 0), DataType::int32());
+        let c1 = expr::column((1, 0), DataType::int32());
+        let c2 = expr::column((2, 0), DataType::int32());
 
         // TODO: We _could_ generated '(0,0) < (2,0)'
         let input1 = expr::lt(c0.clone(), c1.clone()).unwrap();

@@ -67,7 +67,7 @@ impl BinaryAggregate for StringAgg {
 
         Ok(BindState {
             state: StringAggBindState { sep },
-            return_type: DataType::Utf8,
+            return_type: DataType::utf8(),
             inputs,
         })
     }

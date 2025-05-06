@@ -68,19 +68,19 @@ impl TypeVisitor<DataType, ()> for ColumnSchemaTypeVisitor {
 /// Convert a primtive type to a datatype.
 fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
     match prim.physical_type {
-        basic::Type::BOOLEAN => Ok(DataType::Boolean),
+        basic::Type::BOOLEAN => Ok(DataType::boolean()),
         basic::Type::INT32 => {
             match (
                 prim.basic_info.logical_type(),
                 prim.basic_info.converted_type(),
             ) {
-                (None, basic::ConvertedType::NONE) => Ok(DataType::Int32),
+                (None, basic::ConvertedType::NONE) => Ok(DataType::int32()),
                 (None, basic::ConvertedType::UINT_8) => Ok(DataType::UInt8),
                 (None, basic::ConvertedType::UINT_16) => Ok(DataType::UInt16),
                 (None, basic::ConvertedType::UINT_32) => Ok(DataType::UInt32),
                 (None, basic::ConvertedType::INT_8) => Ok(DataType::Int8),
                 (None, basic::ConvertedType::INT_16) => Ok(DataType::Int16),
-                (None, basic::ConvertedType::INT_32) => Ok(DataType::Int32),
+                (None, basic::ConvertedType::INT_32) => Ok(DataType::int32()),
                 (None, basic::ConvertedType::DATE) => Ok(DataType::Date32),
                 (None, basic::ConvertedType::DECIMAL) => {
                     let meta = decimal_type_meta(prim.precision, prim.scale)?;
@@ -98,7 +98,7 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 ) => match (bit_width, is_signed) {
                     (8, true) => Ok(DataType::Int8),
                     (16, true) => Ok(DataType::Int16),
-                    (32, true) => Ok(DataType::Int32),
+                    (32, true) => Ok(DataType::int32()),
                     (8, false) => Ok(DataType::UInt8),
                     (16, false) => Ok(DataType::UInt16),
                     (32, false) => Ok(DataType::UInt32),
@@ -129,8 +129,8 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 prim.basic_info.logical_type(),
                 prim.basic_info.converted_type(),
             ) {
-                (None, basic::ConvertedType::NONE) => Ok(DataType::Int64),
-                (None, basic::ConvertedType::INT_64) => Ok(DataType::Int64),
+                (None, basic::ConvertedType::NONE) => Ok(DataType::int64()),
+                (None, basic::ConvertedType::INT_64) => Ok(DataType::int64()),
                 (None, basic::ConvertedType::UINT_64) => Ok(DataType::UInt64),
                 (None, basic::ConvertedType::DECIMAL) => {
                     let meta = decimal_type_meta(prim.precision, prim.scale)?;
@@ -145,8 +145,8 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 ) => match (bit_width, is_signed) {
                     (8, true) => Ok(DataType::Int8),
                     (16, true) => Ok(DataType::Int16),
-                    (32, true) => Ok(DataType::Int32),
-                    (64, true) => Ok(DataType::Int64),
+                    (32, true) => Ok(DataType::int32()),
+                    (64, true) => Ok(DataType::int64()),
                     (8, false) => Ok(DataType::UInt8),
                     (16, false) => Ok(DataType::UInt16),
                     (32, false) => Ok(DataType::UInt32),
@@ -198,8 +198,8 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                 prim.basic_info.converted_type(),
             ) {
                 (None, basic::ConvertedType::NONE) => Ok(DataType::Binary),
-                (None, basic::ConvertedType::UTF8) => Ok(DataType::Utf8),
-                (Some(LogicalType::String), _) => Ok(DataType::Utf8),
+                (None, basic::ConvertedType::UTF8) => Ok(DataType::utf8()),
+                (Some(LogicalType::String), _) => Ok(DataType::utf8()),
                 (logical, converted) => Err(DbError::new(format!(
                     "Cannot handle BYTE_ARRAY with logical type {logical:?} or converted type {converted:?}",
                 ))),

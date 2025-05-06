@@ -45,7 +45,7 @@ pub struct CaseExpr {
 impl CaseExpr {
     pub fn try_new(mut cases: Vec<WhenThen>, else_expr: Option<Box<Expression>>) -> Result<Self> {
         // Find the data type of this expression.
-        let mut datatype = DataType::Null;
+        let mut datatype = DataType::null();
         for case in &cases {
             let case_datatype = case.then.datatype()?;
             if case_datatype.is_null() {

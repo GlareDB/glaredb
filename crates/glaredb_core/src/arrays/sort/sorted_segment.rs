@@ -126,7 +126,7 @@ mod tests {
         let run = SortedSegment::from_sorted_block(block.sorted_block);
         let mut state = run.init_scan_state();
 
-        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut out = Batch::new([DataType::int32(), DataType::utf8()], 4).unwrap();
         let count = run
             .scan_data(&mut state, &block.data_layout, &mut out)
             .unwrap();
@@ -144,7 +144,7 @@ mod tests {
         let run = SortedSegment::from_sorted_block(block.sorted_block);
         let mut state = run.init_scan_state();
 
-        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 3).unwrap();
+        let mut out = Batch::new([DataType::int32(), DataType::utf8()], 3).unwrap();
         let count = run
             .scan_data(&mut state, &block.data_layout, &mut out)
             .unwrap();

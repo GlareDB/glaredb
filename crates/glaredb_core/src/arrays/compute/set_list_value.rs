@@ -79,7 +79,10 @@ pub fn set_list_value_raw(
     list_value: &[BorrowedScalarValue<'_>],
     row_idx: usize,
 ) -> Result<()> {
-    let inner_type = datatype.try_get_list_type_meta()?.datatype.physical_type();
+    let inner_type = datatype
+        .try_get_list_type_meta()?
+        .datatype
+        .physical_type()?;
 
     // TODO: Do we need validate type metadata like decimal precision?
 

@@ -68,8 +68,8 @@ mod tests {
     #[test]
     fn unnest_none() {
         // '(c0 AND c1)' => '(c0 AND c1)'
-        let c0: Expression = column((0, 0), DataType::Boolean).into();
-        let c1: Expression = column((0, 1), DataType::Boolean).into();
+        let c0: Expression = column((0, 0), DataType::boolean()).into();
+        let c1: Expression = column((0, 1), DataType::boolean()).into();
 
         let expr: Expression = and([c0, c1]).unwrap().into();
 
@@ -83,9 +83,9 @@ mod tests {
     #[test]
     fn unnest_one_level() {
         // '(c0 AND (c1 AND c2))' => '(c0 AND c1 AND c2)'
-        let c0: Expression = column((0, 0), DataType::Boolean).into();
-        let c1: Expression = column((0, 1), DataType::Boolean).into();
-        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c0: Expression = column((0, 0), DataType::boolean()).into();
+        let c1: Expression = column((0, 1), DataType::boolean()).into();
+        let c2: Expression = column((0, 2), DataType::boolean()).into();
 
         let expr: Expression = and([c0.clone(), and([c1.clone(), c2.clone()]).unwrap().into()])
             .unwrap()
@@ -100,9 +100,9 @@ mod tests {
     #[test]
     fn no_unnest_different_ops() {
         // '(c0 AND (c1 OR c2))' => '(c0 AND (c1 OR c2))'
-        let c0: Expression = column((0, 0), DataType::Boolean).into();
-        let c1: Expression = column((0, 1), DataType::Boolean).into();
-        let c2: Expression = column((0, 2), DataType::Boolean).into();
+        let c0: Expression = column((0, 0), DataType::boolean()).into();
+        let c1: Expression = column((0, 1), DataType::boolean()).into();
+        let c2: Expression = column((0, 2), DataType::boolean()).into();
 
         let expr: Expression = and([c0, or([c1, c2]).unwrap().into()]).unwrap().into();
 
@@ -116,10 +116,10 @@ mod tests {
     #[test]
     fn no_unnest_different_ops_nested() {
         // '(c0 AND (c1 OR (c2 AND c3)))' => '(c0 AND (c1 OR (c2 AND c3)))'
-        let c0: Expression = column((0, 0), DataType::Boolean).into();
-        let c1: Expression = column((0, 1), DataType::Boolean).into();
-        let c2: Expression = column((0, 2), DataType::Boolean).into();
-        let c3: Expression = column((0, 3), DataType::Boolean).into();
+        let c0: Expression = column((0, 0), DataType::boolean()).into();
+        let c1: Expression = column((0, 1), DataType::boolean()).into();
+        let c2: Expression = column((0, 2), DataType::boolean()).into();
+        let c3: Expression = column((0, 3), DataType::boolean()).into();
 
         let expr: Expression = and([c0, or([c1, and([c2, c3]).unwrap().into()]).unwrap().into()])
             .unwrap()
@@ -135,11 +135,11 @@ mod tests {
     #[test]
     fn unnest_different_ops_nested() {
         // '(c0 AND (c1 OR (c2 AND (c3 AND c4))))' => '(c0 AND (c1 OR (c2 AND c3 AND c4)))'
-        let c0: Expression = column((0, 0), DataType::Boolean).into();
-        let c1: Expression = column((0, 1), DataType::Boolean).into();
-        let c2: Expression = column((0, 2), DataType::Boolean).into();
-        let c3: Expression = column((0, 3), DataType::Boolean).into();
-        let c4: Expression = column((0, 4), DataType::Boolean).into();
+        let c0: Expression = column((0, 0), DataType::boolean()).into();
+        let c1: Expression = column((0, 1), DataType::boolean()).into();
+        let c2: Expression = column((0, 2), DataType::boolean()).into();
+        let c3: Expression = column((0, 3), DataType::boolean()).into();
+        let c4: Expression = column((0, 4), DataType::boolean()).into();
 
         let expr: Expression = and([
             c0.clone(),
@@ -169,10 +169,10 @@ mod tests {
     #[test]
     fn unnest_three_levels() {
         // '(0 AND (1 AND (2 AND 3)))' => '(0 AND 1 AND 2 AND 3)'
-        let c0: Expression = column((0, 0), DataType::Boolean).into();
-        let c1: Expression = column((0, 1), DataType::Boolean).into();
-        let c2: Expression = column((0, 2), DataType::Boolean).into();
-        let c3: Expression = column((0, 3), DataType::Boolean).into();
+        let c0: Expression = column((0, 0), DataType::boolean()).into();
+        let c1: Expression = column((0, 1), DataType::boolean()).into();
+        let c2: Expression = column((0, 2), DataType::boolean()).into();
+        let c3: Expression = column((0, 3), DataType::boolean()).into();
 
         let expr: Expression = and([
             c0.clone(),

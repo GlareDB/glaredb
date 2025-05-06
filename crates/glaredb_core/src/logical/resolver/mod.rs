@@ -1083,12 +1083,12 @@ where
 /// Convert an AST datatype to an internal datatype.
 pub fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType> {
     Ok(match datatype {
-        ast::DataType::Varchar(_) => DataType::Utf8,
+        ast::DataType::Varchar(_) => DataType::utf8(),
         ast::DataType::Binary(_) => DataType::Binary,
         ast::DataType::TinyInt => DataType::Int8,
         ast::DataType::SmallInt => DataType::Int16,
-        ast::DataType::Integer => DataType::Int32,
-        ast::DataType::BigInt => DataType::Int64,
+        ast::DataType::Integer => DataType::int32(),
+        ast::DataType::BigInt => DataType::int64(),
         ast::DataType::UnsignedTinyInt => DataType::UInt8,
         ast::DataType::UnsignedSmallInt => DataType::UInt16,
         ast::DataType::UnsignedInt => DataType::UInt32,
@@ -1138,7 +1138,7 @@ pub fn ast_datatype_to_exec_datatype(datatype: ast::DataType) -> Result<DataType
                 )),
             }
         }
-        ast::DataType::Bool => DataType::Boolean,
+        ast::DataType::Bool => DataType::boolean(),
         ast::DataType::Date => DataType::Date32,
         ast::DataType::Timestamp => {
             // Microsecond matches postgres default.

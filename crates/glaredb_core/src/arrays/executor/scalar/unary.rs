@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn int32_inc_by_2() {
         let array = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -262,7 +262,7 @@ mod tests {
         let mut array = Array::try_from_iter([1, 2, 3]).unwrap();
         // => [2, 3, 1]
         array.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -281,7 +281,7 @@ mod tests {
         let mut array = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
         // => [NULL, 3, 1]
         array.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn int32_inc_by_2_using_flattened_array() {
         let array = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -337,7 +337,7 @@ mod tests {
         ])
         .unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 6).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 6).unwrap();
 
         fn my_string_double(s: &str, buf: PutBuffer<StringViewAddressableMut>) {
             let mut double = s.to_string();
@@ -378,7 +378,7 @@ mod tests {
         ])
         .unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 6).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 6).unwrap();
 
         let mut string_buf = String::new();
 
@@ -430,7 +430,7 @@ mod tests {
             .select(&DefaultBufferManager, [2, 2, 1, 0, 0, 2])
             .unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 6).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 6).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,
@@ -449,7 +449,7 @@ mod tests {
     fn int32_inc_by_2_constant() {
         let array = Array::new_constant(&DefaultBufferManager, &3.into(), 2).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 2).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 2).unwrap();
 
         UnaryExecutor::execute::<PhysicalI32, PhysicalI32, _>(
             &array,

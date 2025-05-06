@@ -231,7 +231,7 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -266,7 +266,7 @@ mod tests {
         let count = Array::try_from_iter([None, Some(2), Some(3)]).unwrap();
         let pad = Array::try_from_iter(["<", ".", "!"]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -303,7 +303,7 @@ mod tests {
         // '[".", ".", "<"]'
         pad.select(&DefaultBufferManager, [1, 1, 0]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -340,7 +340,7 @@ mod tests {
         // '[NULL, "!", "<"]'
         pad.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -374,7 +374,7 @@ mod tests {
         let count = Array::try_from_iter([1, 2, 3]).unwrap();
         let pad = Array::new_constant(&DefaultBufferManager, &"<".into(), 3).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
         TernaryExecutor::execute::<PhysicalUtf8, PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(

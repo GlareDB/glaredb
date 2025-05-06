@@ -44,14 +44,14 @@ pub fn schema_to_types(schema: &ColumnSchema) -> Vec<DefaultColumnType> {
         let typ = match field.datatype {
             DataType::Int8
             | DataType::Int16
-            | DataType::Int32
-            | DataType::Int64
+            | DataType::int32()
+            | DataType::int64()
             | DataType::UInt8
             | DataType::UInt16
             | DataType::UInt32
             | DataType::UInt64 => DefaultColumnType::Integer,
             DataType::Float32 | DataType::Float64 => DefaultColumnType::FloatingPoint,
-            DataType::Utf8 | DataType::Boolean => DefaultColumnType::Text,
+            DataType::utf8() | DataType::boolean() => DefaultColumnType::Text,
             _ => DefaultColumnType::Any,
         };
         typs.push(typ);

@@ -75,7 +75,7 @@ impl BaseOperator for PhysicalCreateTableAs {
     }
 
     fn output_types(&self) -> &[DataType] {
-        &[DataType::Int64]
+        &[DataType::int64()]
     }
 }
 

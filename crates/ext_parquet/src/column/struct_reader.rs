@@ -108,7 +108,7 @@ pub(crate) fn new_column_reader<'a>(
     filters: impl Iterator<Item = &'a PhysicalScanFilter>,
 ) -> Result<Box<dyn ColumnReader>> {
     Ok(match &datatype {
-        DataType::Boolean => Box::new(ValueColumnReader::<BoolValueReader, _>::try_new(
+        DataType::boolean() => Box::new(ValueColumnReader::<BoolValueReader, _>::try_new(
             manager,
             datatype,
             descr,
@@ -126,13 +126,13 @@ pub(crate) fn new_column_reader<'a>(
             descr,
             PrimitiveRowGroupPruner::<_, UnwrapI16>::new(filters),
         )?),
-        DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
+        DataType::int32() => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
             PrimitiveRowGroupPruner::<_, UnwrapI32>::new(filters),
         )?),
-        DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
+        DataType::int64() => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
@@ -222,7 +222,7 @@ pub(crate) fn new_column_reader<'a>(
             }
             other => not_implemented!("timestamp reader for physical type: {other:?}"),
         },
-        DataType::Utf8 => Box::new(ValueColumnReader::<Utf8ValueReader, _>::try_new(
+        DataType::utf8() => Box::new(ValueColumnReader::<Utf8ValueReader, _>::try_new(
             manager,
             datatype,
             descr,

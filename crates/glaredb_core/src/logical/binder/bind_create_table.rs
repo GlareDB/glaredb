@@ -65,7 +65,7 @@ impl<'a> CreateTableBinder<'a> {
                 bind_context.push_table(
                     self.current,
                     None,
-                    [DataType::Int64],
+                    [DataType::int64()],
                     ["rows_inserted"],
                 )?;
 

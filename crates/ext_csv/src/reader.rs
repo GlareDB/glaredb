@@ -172,7 +172,7 @@ impl CsvReader {
             .for_each_column(batch, &mut |col_idx, array| match col_idx {
                 ProjectedColumn::Data(col_idx) => {
                     match array.datatype() {
-                        DataType::Boolean => self.write_primitive::<PhysicalBool, _>(
+                        DataType::boolean() => self.write_primitive::<PhysicalBool, _>(
                             records_offset,
                             col_idx,
                             array,
@@ -180,7 +180,7 @@ impl CsvReader {
                             count,
                             BoolParser,
                         )?,
-                        DataType::Int64 => self.write_primitive::<PhysicalI64, _>(
+                        DataType::int64() => self.write_primitive::<PhysicalI64, _>(
                             records_offset,
                             col_idx,
                             array,
@@ -196,7 +196,7 @@ impl CsvReader {
                             count,
                             Float64Parser::new(),
                         )?,
-                        DataType::Utf8 => {
+                        DataType::utf8() => {
                             self.write_string(records_offset, col_idx, array, write_offset, count)?
                         }
                         other => {
@@ -323,7 +323,7 @@ yoshi,4.5,10000
         );
 
         let mut batch =
-            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 16).unwrap();
+            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 16).unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::Exhausted, poll);
 
@@ -356,7 +356,7 @@ yoshi,4.5,10000
         );
 
         let mut batch =
-            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 16).unwrap();
+            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 16).unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::Exhausted, poll);
 
@@ -388,7 +388,7 @@ yoshi,4.5,10000
         );
 
         let mut batch =
-            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 2).unwrap();
+            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 2).unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::HasMore, poll);
 
@@ -425,7 +425,7 @@ yoshi,4.5,10000
         );
 
         let mut batch =
-            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 2).unwrap();
+            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 2).unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::HasMore, poll);
 
@@ -460,7 +460,7 @@ yoshi,4.5,10000
         );
 
         let mut batch =
-            Batch::new([DataType::Utf8, DataType::Float64, DataType::Int64], 16).unwrap();
+            Batch::new([DataType::utf8(), DataType::Float64, DataType::int64()], 16).unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
         assert_eq!(PollPull::Exhausted, poll);
 

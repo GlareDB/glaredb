@@ -61,14 +61,14 @@ mod tests {
     fn plan_column_ref() {
         let mut list = TableList::empty();
         let t0 = list
-            .push_table(None, [DataType::Int32, DataType::Utf8], ["c1", "c2"])
+            .push_table(None, [DataType::int32(), DataType::utf8()], ["c1", "c2"])
             .unwrap();
         let phys = plan_scalar(&list, list.column_as_expr((t0, 1)).unwrap());
 
         match phys {
             PhysicalScalarExpression::Column(col) => {
                 assert_eq!(1, col.idx);
-                assert_eq!(DataType::Utf8, col.datatype)
+                assert_eq!(DataType::utf8(), col.datatype)
             }
             other => panic!("unexpected physical expression: {other:?}"),
         }

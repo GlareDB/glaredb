@@ -38,11 +38,11 @@ pub struct LineItemTable;
 
 impl TpchTable for LineItemTable {
     const COLUMNS: &[TpchColumn] = &[
-        TpchColumn::new("l_orderkey", DataType::Int64),
-        TpchColumn::new("l_partkey", DataType::Int64),
-        TpchColumn::new("l_suppkey", DataType::Int64),
-        TpchColumn::new("l_linenumber", DataType::Int32),
-        TpchColumn::new("l_quantity", DataType::Int64),
+        TpchColumn::new("l_orderkey", DataType::int64()),
+        TpchColumn::new("l_partkey", DataType::int64()),
+        TpchColumn::new("l_suppkey", DataType::int64()),
+        TpchColumn::new("l_linenumber", DataType::int32()),
+        TpchColumn::new("l_quantity", DataType::int64()),
         TpchColumn::new(
             "l_extendedprice",
             DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
@@ -52,14 +52,14 @@ impl TpchTable for LineItemTable {
             DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
         ),
         TpchColumn::new("l_tax", DataType::Decimal64(DecimalTypeMeta::new(15, 2))),
-        TpchColumn::new("l_returnflag", DataType::Utf8),
-        TpchColumn::new("l_linestatus", DataType::Utf8),
+        TpchColumn::new("l_returnflag", DataType::utf8()),
+        TpchColumn::new("l_linestatus", DataType::utf8()),
         TpchColumn::new("l_shipdate", DataType::Date32),
         TpchColumn::new("l_commitdate", DataType::Date32),
         TpchColumn::new("l_receiptdate", DataType::Date32),
-        TpchColumn::new("l_shipinstruct", DataType::Utf8),
-        TpchColumn::new("l_shipmode", DataType::Utf8),
-        TpchColumn::new("l_comment", DataType::Utf8),
+        TpchColumn::new("l_shipinstruct", DataType::utf8()),
+        TpchColumn::new("l_shipmode", DataType::utf8()),
+        TpchColumn::new("l_comment", DataType::utf8()),
     ];
 
     type RowIter = LineItemGeneratorIterator<'static>;

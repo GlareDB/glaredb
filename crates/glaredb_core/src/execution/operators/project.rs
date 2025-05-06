@@ -117,13 +117,13 @@ mod tests {
     fn project_simple() {
         let mut list = TableList::empty();
         let t0 = list
-            .push_table(None, [DataType::Boolean, DataType::Int32], ["c1", "c2"])
+            .push_table(None, [DataType::boolean(), DataType::int32()], ["c1", "c2"])
             .unwrap();
 
         let projections = plan_scalars(
             &list,
             [
-                &expr::column((t0, 1), DataType::Int32).into(),
+                &expr::column((t0, 1), DataType::int32()).into(),
                 &expr::lit("lit").into(),
             ],
         );
@@ -136,7 +136,7 @@ mod tests {
             .create_partition_execute_states(&op_state, props, 1)
             .unwrap();
 
-        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut out = Batch::new([DataType::int32(), DataType::utf8()], 4).unwrap();
         let mut in1 = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
 
         let poll = wrapper

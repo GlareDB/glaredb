@@ -353,7 +353,7 @@ mod tests {
                     schema: Some(BinderIdent::from("s1")),
                     table: BinderIdent::from("t1"),
                 }),
-                vec![DataType::Utf8, DataType::Utf8],
+                vec![DataType::utf8(), DataType::utf8()],
                 vec!["c1".to_string(), "c2".to_string()],
             )
             .unwrap();
@@ -372,7 +372,7 @@ mod tests {
                         table_scope: table_ref,
                         column: 0,
                     },
-                    datatype: DataType::Utf8,
+                    datatype: DataType::utf8(),
                 },
                 name: "c1".into(),
             },
@@ -382,7 +382,7 @@ mod tests {
                         table_scope: table_ref,
                         column: 1,
                     },
-                    datatype: DataType::Utf8,
+                    datatype: DataType::utf8(),
                 },
                 name: "c2".into(),
             },
@@ -404,7 +404,7 @@ mod tests {
                     schema: Some(BinderIdent::from("s1")),
                     table: BinderIdent::from("t1"),
                 }),
-                vec![DataType::Utf8, DataType::Utf8],
+                vec![DataType::utf8(), DataType::utf8()],
                 vec!["c1".to_string(), "c2".to_string()],
             )
             .unwrap();
@@ -417,7 +417,7 @@ mod tests {
                     schema: Some(BinderIdent::from("s1")),
                     table: BinderIdent::from("t2"),
                 }),
-                vec![DataType::Utf8, DataType::Utf8],
+                vec![DataType::utf8(), DataType::utf8()],
                 vec!["c3".to_string(), "c4".to_string()],
             )
             .unwrap();
@@ -440,7 +440,7 @@ mod tests {
                         table_scope: t1_table_ref,
                         column: 0,
                     },
-                    datatype: DataType::Utf8,
+                    datatype: DataType::utf8(),
                 },
                 name: "c1".into(),
             },
@@ -450,7 +450,7 @@ mod tests {
                         table_scope: t1_table_ref,
                         column: 1,
                     },
-                    datatype: DataType::Utf8,
+                    datatype: DataType::utf8(),
                 },
                 name: "c2".into(),
             },

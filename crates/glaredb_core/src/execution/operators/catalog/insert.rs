@@ -48,7 +48,7 @@ impl BaseOperator for PhysicalInsert {
     }
 
     fn output_types(&self) -> &[DataType] {
-        &[DataType::Int64]
+        &[DataType::int64()]
     }
 }
 

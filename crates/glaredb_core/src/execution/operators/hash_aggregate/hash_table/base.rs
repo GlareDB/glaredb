@@ -70,7 +70,7 @@ impl BaseHashTable {
             ));
         }
 
-        if layout.groups.types.last().unwrap() != &DataType::UInt64 {
+        if layout.groups.types.last().unwrap() != DataType::UINT64 {
             return Err(DbError::new(
                 "Last group type not u64, expected u64 for the hash value",
             ));
@@ -78,7 +78,7 @@ impl BaseHashTable {
 
         let data = AggregateCollection::new(layout.clone(), row_capacity);
         let directory = Directory::try_with_capacity(Directory::DEFAULT_CAPACITY)?;
-        let matcher = GroupMatcher::new(&layout);
+        let matcher = GroupMatcher::try_new(&layout)?;
 
         Ok(BaseHashTable {
             layout,
@@ -456,20 +456,25 @@ pub(crate) struct GroupMatcher {
 }
 
 impl GroupMatcher {
-    fn new(layout: &AggregateLayout) -> Self {
+    fn try_new(layout: &AggregateLayout) -> Result<Self> {
         let lhs_columns: Vec<_> = (0..layout.groups.num_columns()).collect();
-        let matchers = layout.groups.types.iter().map(|datatype| {
-            (
-                datatype.physical_type(),
-                ComparisonOperator::IsNotDistinctFrom,
-            )
-        });
+        let matchers = layout
+            .groups
+            .types
+            .iter()
+            .map(|datatype| {
+                Ok((
+                    datatype.physical_type()?,
+                    ComparisonOperator::IsNotDistinctFrom,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
         let matcher = PredicateRowMatcher::new(matchers);
 
-        GroupMatcher {
+        Ok(GroupMatcher {
             lhs_columns,
             matcher,
-        }
+        })
     }
 
     fn find_matches<A>(
@@ -524,7 +529,7 @@ mod tests {
         inputs: &Batch,
     ) {
         let mut hashes_arr =
-            Array::new(&DefaultBufferManager, DataType::UInt64, groups.num_rows).unwrap();
+            Array::new(&DefaultBufferManager, DataType::uint64(), groups.num_rows).unwrap();
         let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)
             .unwrap()
             .slice;
@@ -583,15 +588,15 @@ mod tests {
         // AGG_INPUT (col0): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::Int64).into()],
+            vec![expr::column((0, 0), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(0, DataType::Int64)],
+            [(0, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::UInt64], aggs);
+        let layout = AggregateLayout::try_new([DataType::uint64()], aggs).unwrap();
 
         let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -620,15 +625,16 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+        let layout =
+            AggregateLayout::try_new([DataType::utf8(), DataType::uint64()], aggs).unwrap();
 
         let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -663,15 +669,16 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Int32, DataType::UInt64], aggs);
+        let layout =
+            AggregateLayout::try_new([DataType::int32(), DataType::uint64()], aggs).unwrap();
 
         let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -701,15 +708,16 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+        let layout =
+            AggregateLayout::try_new([DataType::utf8(), DataType::uint64()], aggs).unwrap();
 
         let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -742,15 +750,16 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+        let layout =
+            AggregateLayout::try_new([DataType::utf8(), DataType::uint64()], aggs).unwrap();
 
         let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -783,15 +792,16 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+        let layout =
+            AggregateLayout::try_new([DataType::utf8(), DataType::uint64()], aggs).unwrap();
 
         let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -824,15 +834,16 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+        let layout =
+            AggregateLayout::try_new([DataType::utf8(), DataType::uint64()], aggs).unwrap();
 
         let mut table = BaseHashTable::try_new(layout, 16).unwrap();
         let mut state = table.init_insert_state();
@@ -861,15 +872,16 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8, DataType::UInt64], aggs);
+        let layout =
+            AggregateLayout::try_new([DataType::utf8(), DataType::uint64()], aggs).unwrap();
 
         let mut t1 = BaseHashTable::try_new(layout.clone(), 16).unwrap();
         let mut s1 = t1.init_insert_state();

@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn find_candidate_no_match() {
-        let inputs = &[DataType::Int64];
+        let inputs = &[DataType::int64()];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::List(&DataTypeId::Any)],
             variadic_arg: None,
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn find_candidate_simple_no_variadic() {
-        let inputs = &[DataType::Int64];
+        let inputs = &[DataType::int64()];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::Int64],
             variadic_arg: None,
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn find_candidate_match_list_i64() {
-        let inputs = &[DataType::List(ListTypeMeta::new(DataType::Int64))];
+        let inputs = &[DataType::List(ListTypeMeta::new(DataType::int64()))];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::List(&DataTypeId::Int64)],
             variadic_arg: None,
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn find_candidate_match_list_any() {
-        let inputs = &[DataType::List(ListTypeMeta::new(DataType::Int64))];
+        let inputs = &[DataType::List(ListTypeMeta::new(DataType::int64()))];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::List(&DataTypeId::Any)],
             variadic_arg: None,
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn find_candidate_no_match_list_inner_types_different() {
-        let inputs = &[DataType::List(ListTypeMeta::new(DataType::Int64))];
+        let inputs = &[DataType::List(ListTypeMeta::new(DataType::int64()))];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::List(&DataTypeId::Float64)],
             variadic_arg: None,
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn find_candidate_simple_with_variadic() {
-        let inputs = &[DataType::Int64, DataType::Int64, DataType::Int64];
+        let inputs = &[DataType::int64(), DataType::int64(), DataType::int64()];
         let sigs = &[Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn find_candidate_utf8_positional_and_variadic() {
-        let inputs = &[DataType::Utf8, DataType::Utf8];
+        let inputs = &[DataType::utf8(), DataType::utf8()];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
@@ -349,7 +349,7 @@ mod tests {
         //
         // Should want to cast Int32 to Utf8.
 
-        let inputs = &[DataType::Utf8, DataType::Int32];
+        let inputs = &[DataType::utf8(), DataType::int32()];
         let sigs = &[Signature {
             positional_args: &[DataTypeId::Utf8],
             variadic_arg: Some(DataTypeId::Utf8),
@@ -385,7 +385,7 @@ mod tests {
     #[test]
     fn find_candidate_float32_and_string() {
         // SELECT f32_col + '5.0'
-        let inputs = &[DataType::Float32, DataType::Utf8];
+        let inputs = &[DataType::Float32, DataType::utf8()];
 
         let sigs = &[Signature {
             positional_args: &[DataTypeId::Float32, DataTypeId::Float32],

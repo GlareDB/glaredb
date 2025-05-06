@@ -107,9 +107,9 @@ mod tests {
     #[test]
     fn filter_simple() {
         let wrapper = OperatorWrapper::new(PhysicalFilter {
-            datatypes: vec![DataType::Boolean, DataType::Int32],
+            datatypes: vec![DataType::boolean(), DataType::int32()],
             predicate: PhysicalScalarExpression::Column(PhysicalColumnExpr {
-                datatype: DataType::Boolean,
+                datatype: DataType::boolean(),
                 idx: 0,
             }),
         });
@@ -120,7 +120,7 @@ mod tests {
             .create_partition_execute_states(&(), props, 1)
             .unwrap();
 
-        let mut out = Batch::new([DataType::Boolean, DataType::Int32], 4).unwrap();
+        let mut out = Batch::new([DataType::boolean(), DataType::int32()], 4).unwrap();
         let mut in1 = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
 
         let poll = wrapper

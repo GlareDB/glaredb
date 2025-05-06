@@ -396,8 +396,8 @@ pub struct ExecutionProfileRow {
 
 impl ProfileTable for ExecutionProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
-        ProfileColumn::new("query_id", DataType::Utf8),
-        ProfileColumn::new("operator_name", DataType::Utf8),
+        ProfileColumn::new("query_id", DataType::utf8()),
+        ProfileColumn::new("operator_name", DataType::utf8()),
         ProfileColumn::new("operator_id", DataType::UInt32),
         ProfileColumn::new("partition_idx", DataType::UInt32),
         ProfileColumn::new("rows_in", DataType::UInt64),
@@ -497,7 +497,7 @@ impl ProfileTable for ExecutionProfileTable {
 pub struct QueryInfoTable;
 
 impl ProfileTable for QueryInfoTable {
-    const COLUMNS: &[ProfileColumn] = &[ProfileColumn::new("query_id", DataType::Utf8)];
+    const COLUMNS: &[ProfileColumn] = &[ProfileColumn::new("query_id", DataType::utf8())];
     type Row = Uuid;
 
     fn profile_as_rows(profile: &QueryProfile) -> Result<Vec<Self::Row>> {

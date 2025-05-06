@@ -123,7 +123,7 @@ pub struct PartitionedHashTable {
 }
 
 impl PartitionedHashTable {
-    pub fn new(aggs: &Aggregates, grouping_set: BTreeSet<usize>) -> Self {
+    pub fn try_new(aggs: &Aggregates, grouping_set: BTreeSet<usize>) -> Result<Self> {
         let grouping_values: Vec<_> = aggs
             .grouping_functions
             .iter()
@@ -135,16 +135,16 @@ impl PartitionedHashTable {
         let group_types = grouping_set
             .iter()
             .map(|&idx| aggs.groups[idx].datatype())
-            .chain([DataType::UInt64]);
+            .chain([DataType::uint64()]);
 
-        let layout = AggregateLayout::new(group_types, aggs.aggregates.clone());
+        let layout = AggregateLayout::try_new(group_types, aggs.aggregates.clone())?;
 
-        PartitionedHashTable {
+        Ok(PartitionedHashTable {
             layout,
             grouping_set,
             groups: aggs.groups.clone(),
             grouping_values,
-        }
+        })
     }
 
     /// Create the global operator state.
@@ -370,7 +370,8 @@ impl PartitionedHashTable {
 
         // Hash the groups.
         // TODO: Avoid allocating here.
-        let mut hashes_arr = Array::new(&DefaultBufferManager, DataType::UInt64, groups.num_rows)?;
+        let mut hashes_arr =
+            Array::new(&DefaultBufferManager, DataType::uint64(), groups.num_rows)?;
         let hashes = PhysicalU64::get_addressable_mut(&mut hashes_arr.data)?.slice;
         hash_many_arrays(&groups.arrays, 0..groups.num_rows, hashes)?;
 
@@ -799,21 +800,21 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
 
         let aggs = Aggregates {
-            groups: vec![(0, DataType::Utf8).into()],
+            groups: vec![(0, DataType::utf8()).into()],
             grouping_functions: Vec::new(),
             aggregates: vec![PhysicalAggregateExpression::new(
                 sum_agg,
-                [(1, DataType::Int64)],
+                [(1, DataType::int64())],
             )],
         };
 
         let grouping_set: BTreeSet<usize> = [0].into();
-        let table = PartitionedHashTable::new(&aggs, grouping_set);
+        let table = PartitionedHashTable::try_new(&aggs, grouping_set).unwrap();
         let op_state = table.create_operator_state(16).unwrap();
         let mut part_states = table.create_partition_states(&op_state, 1).unwrap();
         assert_eq!(1, part_states.len());
@@ -826,7 +827,7 @@ mod tests {
         table.flush(&op_state, &mut part_states[0]).unwrap();
         table.merge_global(&op_state, &mut part_states[0]).unwrap();
 
-        let mut out = Batch::new([DataType::Utf8, DataType::Int64], 16).unwrap();
+        let mut out = Batch::new([DataType::utf8(), DataType::int64()], 16).unwrap();
         table
             .scan(&op_state, &mut part_states[0], &mut out)
             .unwrap();
@@ -845,21 +846,21 @@ mod tests {
         // GROUP_1     (col2): Utf8
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
 
         let aggs = Aggregates {
-            groups: vec![(0, DataType::Utf8).into(), (2, DataType::Utf8).into()],
+            groups: vec![(0, DataType::utf8()).into(), (2, DataType::utf8()).into()],
             grouping_functions: Vec::new(),
             aggregates: vec![PhysicalAggregateExpression::new(
                 sum_agg,
-                [(1, DataType::Int64)],
+                [(1, DataType::int64())],
             )],
         };
 
         let grouping_set: BTreeSet<usize> = [1].into(); // '1' relative to groups (real column index of 2)
-        let table = PartitionedHashTable::new(&aggs, grouping_set);
+        let table = PartitionedHashTable::try_new(&aggs, grouping_set).unwrap();
         let mut op_state = table.create_operator_state(16).unwrap();
         let mut part_states = table.create_partition_states(&mut op_state, 1).unwrap();
         assert_eq!(1, part_states.len());
@@ -876,7 +877,8 @@ mod tests {
         table.flush(&op_state, &mut part_states[0]).unwrap();
         table.merge_global(&op_state, &mut part_states[0]).unwrap();
 
-        let mut out = Batch::new([DataType::Utf8, DataType::Utf8, DataType::Int64], 16).unwrap();
+        let mut out =
+            Batch::new([DataType::utf8(), DataType::utf8(), DataType::int64()], 16).unwrap();
         table
             .scan(&op_state, &mut part_states[0], &mut out)
             .unwrap();

@@ -37,14 +37,14 @@ pub struct PartSuppTable;
 
 impl TpchTable for PartSuppTable {
     const COLUMNS: &[TpchColumn] = &[
-        TpchColumn::new("ps_partkey", DataType::Int64),
-        TpchColumn::new("ps_suppkey", DataType::Int64),
-        TpchColumn::new("ps_availqty", DataType::Int32),
+        TpchColumn::new("ps_partkey", DataType::int64()),
+        TpchColumn::new("ps_suppkey", DataType::int64()),
+        TpchColumn::new("ps_availqty", DataType::int32()),
         TpchColumn::new(
             "ps_supplycost",
             DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
         ),
-        TpchColumn::new("ps_comment", DataType::Utf8),
+        TpchColumn::new("ps_comment", DataType::utf8()),
     ];
 
     type RowIter = PartSuppGeneratorIterator<'static>;

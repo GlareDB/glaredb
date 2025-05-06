@@ -13,7 +13,7 @@ pub struct GroupingSetExpr {
 
 impl GroupingSetExpr {
     pub fn datatype(&self) -> DataType {
-        DataType::Int64
+        DataType::int64()
     }
 }
 

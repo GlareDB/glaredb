@@ -32,7 +32,7 @@ pub struct NegateExpr {
 impl NegateExpr {
     pub fn datatype(&self) -> Result<DataType> {
         Ok(match self.op {
-            NegateOperator::Not => DataType::Boolean,
+            NegateOperator::Not => DataType::boolean(),
             NegateOperator::Negate => self.expr.datatype()?,
         })
     }

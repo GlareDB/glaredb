@@ -44,9 +44,9 @@ pub struct RegionTable;
 
 impl TpchTable for RegionTable {
     const COLUMNS: &[TpchColumn] = &[
-        TpchColumn::new("r_regionkey", DataType::Int32),
-        TpchColumn::new("r_name", DataType::Utf8),
-        TpchColumn::new("r_comment", DataType::Utf8),
+        TpchColumn::new("r_regionkey", DataType::int32()),
+        TpchColumn::new("r_name", DataType::utf8()),
+        TpchColumn::new("r_comment", DataType::utf8()),
     ];
 
     type RowIter = RegionGeneratorIterator<'static>;

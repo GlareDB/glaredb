@@ -39,16 +39,16 @@ pub struct SupplierTable;
 
 impl TpchTable for SupplierTable {
     const COLUMNS: &[TpchColumn] = &[
-        TpchColumn::new("s_suppkey", DataType::Int64),
-        TpchColumn::new("s_name", DataType::Utf8),
-        TpchColumn::new("s_address", DataType::Utf8),
-        TpchColumn::new("s_nationkey", DataType::Int32),
-        TpchColumn::new("s_phone", DataType::Utf8),
+        TpchColumn::new("s_suppkey", DataType::int64()),
+        TpchColumn::new("s_name", DataType::utf8()),
+        TpchColumn::new("s_address", DataType::utf8()),
+        TpchColumn::new("s_nationkey", DataType::int32()),
+        TpchColumn::new("s_phone", DataType::utf8()),
         TpchColumn::new(
             "s_acctbal",
             DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
         ),
-        TpchColumn::new("s_comment", DataType::Utf8),
+        TpchColumn::new("s_comment", DataType::utf8()),
     ];
 
     type RowIter = SupplierGeneratorIterator<'static>;

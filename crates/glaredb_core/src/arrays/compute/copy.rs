@@ -66,7 +66,7 @@ pub(crate) fn copy_rows_raw(
     dest_buf: &mut AnyArrayBuffer,
     dest_validity: &mut Validity,
 ) -> Result<()> {
-    match datatype.physical_type() {
+    match datatype.physical_type()? {
         PhysicalType::UntypedNull => copy_rows_scalar::<PhysicalUntypedNull>(
             src_buf,
             src_validity,

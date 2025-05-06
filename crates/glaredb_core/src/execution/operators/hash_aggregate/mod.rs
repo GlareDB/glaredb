@@ -167,7 +167,7 @@ impl PhysicalHashAggregate {
             output_types.push(agg.function.state.return_type.clone());
         }
         for _ in 0..aggregates.grouping_functions.len() {
-            output_types.push(DataType::Int64);
+            output_types.push(DataType::int64());
         }
 
         PhysicalHashAggregate {
@@ -771,16 +771,16 @@ mod tests {
         // GROUP     (col1): Utf8
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::Int64).into()],
+            vec![expr::column((0, 0), DataType::int64()).into()],
         )
         .unwrap();
 
         let aggs = Aggregates {
-            groups: vec![(1, DataType::Utf8).into()],
+            groups: vec![(1, DataType::utf8()).into()],
             grouping_functions: Vec::new(),
             aggregates: vec![PhysicalAggregateExpression::new(
                 sum_agg,
-                [(0, DataType::Int64)],
+                [(0, DataType::int64())],
             )],
         };
 

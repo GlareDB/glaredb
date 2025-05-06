@@ -218,15 +218,15 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8], aggs);
+        let layout = AggregateLayout::try_new([DataType::utf8()], aggs).unwrap();
 
         let mut collection = AggregateCollection::new(layout, 16);
         let mut state = collection.init_append_state();
@@ -242,8 +242,8 @@ mod tests {
         // produces a valid "empty" value.
         let mut ptrs = state.row_pointers().to_vec();
 
-        let mut groups = Array::new(&DefaultBufferManager, DataType::Utf8, 2).unwrap();
-        let mut results = Array::new(&DefaultBufferManager, DataType::Int64, 2).unwrap();
+        let mut groups = Array::new(&DefaultBufferManager, DataType::utf8(), 2).unwrap();
+        let mut results = Array::new(&DefaultBufferManager, DataType::int64(), 2).unwrap();
 
         unsafe {
             collection
@@ -266,15 +266,15 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
             sum_agg,
-            [(1, DataType::Int64)],
+            [(1, DataType::int64())],
         )];
 
-        let layout = AggregateLayout::new([DataType::Utf8], aggs);
+        let layout = AggregateLayout::try_new([DataType::utf8()], aggs).unwrap();
 
         let mut collection = AggregateCollection::new(layout, 16);
         let mut state = collection.init_append_state();
@@ -307,8 +307,8 @@ mod tests {
 
         let mut ptrs = state.row_pointers().to_vec();
 
-        let mut groups = Array::new(&DefaultBufferManager, DataType::Utf8, 2).unwrap();
-        let mut results = Array::new(&DefaultBufferManager, DataType::Int64, 2).unwrap();
+        let mut groups = Array::new(&DefaultBufferManager, DataType::utf8(), 2).unwrap();
+        let mut results = Array::new(&DefaultBufferManager, DataType::int64(), 2).unwrap();
 
         unsafe {
             collection

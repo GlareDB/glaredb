@@ -127,7 +127,7 @@ mod tests {
         let cast = CastExpr::new_using_default_casts(
             CastExpr::new_using_default_casts(expr::lit("123456789e-1234"), DataType::Float32)
                 .unwrap(),
-            DataType::Int64,
+            DataType::int64(),
         )
         .unwrap();
 
@@ -137,12 +137,12 @@ mod tests {
     #[test]
     fn flatten_safe() {
         let cast = CastExpr::new_using_default_casts(
-            CastExpr::new_using_default_casts(expr::lit(14_i16), DataType::Int32).unwrap(),
-            DataType::Int64,
+            CastExpr::new_using_default_casts(expr::lit(14_i16), DataType::int32()).unwrap(),
+            DataType::int64(),
         )
         .unwrap();
 
         assert_eq!(Expression::from(expr::lit(14_i16)), *cast.expr);
-        assert_eq!(DataType::Int64, cast.to);
+        assert_eq!(DataType::int64(), cast.to);
     }
 }

@@ -130,7 +130,7 @@ pub struct SortLayout {
 impl SortLayout {
     pub const ROW_INDEX_WIDTH: usize = std::mem::size_of::<u32>();
 
-    pub fn new(columns: impl IntoIterator<Item = SortColumn>) -> Self {
+    pub fn try_new(columns: impl IntoIterator<Item = SortColumn>) -> Result<Self> {
         let columns: Vec<_> = columns.into_iter().collect();
 
         let mut heap_types = Vec::new();
@@ -142,7 +142,7 @@ impl SortLayout {
         let mut heap_mapping = Vec::with_capacity(columns.len());
 
         for col in &columns {
-            let phys_type = col.datatype.physical_type();
+            let phys_type = col.datatype.physical_type()?;
             let width = key_width_for_physical_type(phys_type);
 
             offsets.push(offset);
@@ -150,7 +150,7 @@ impl SortLayout {
 
             column_widths.push(width);
 
-            if matches!(col.datatype, DataType::Utf8 | DataType::Binary) {
+            if matches!(&col.datatype, DataType::UTF8 | DataType::BINARY) {
                 heap_mapping.push(Some(heap_types.len()));
                 heap_types.push(col.datatype.clone());
             } else {
@@ -160,11 +160,11 @@ impl SortLayout {
 
         debug_assert_eq!(columns.len(), heap_mapping.len());
 
-        let heap_layout = RowLayout::new(heap_types);
+        let heap_layout = RowLayout::try_new(heap_types)?;
         let compare_width = offset;
         let row_width = compare_width + Self::ROW_INDEX_WIDTH;
 
-        SortLayout {
+        Ok(SortLayout {
             columns,
             column_widths,
             offsets,
@@ -172,7 +172,7 @@ impl SortLayout {
             row_width,
             heap_layout,
             heap_mapping,
-        }
+        })
     }
 
     pub fn datatypes(&self) -> impl ExactSizeIterator<Item = DataType> + '_ {
@@ -214,7 +214,7 @@ impl SortLayout {
                 let array = array.borrow();
                 write_key_array(
                     self,
-                    array.physical_type(),
+                    array.physical_type()?,
                     array_idx,
                     array,
                     &state.row_pointers,

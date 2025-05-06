@@ -67,8 +67,8 @@ mod tests {
         let batch = generate_batch!([1, 2, 3], ["cat", "dog", "mouse"]);
 
         let schema = ColumnSchema::new([
-            Field::new("Numbers", DataType::Int32, false),
-            Field::new("Strings", DataType::Utf8, false),
+            Field::new("Numbers", DataType::int32(), false),
+            Field::new("Strings", DataType::utf8(), false),
         ]);
 
         let mut buf = String::new();

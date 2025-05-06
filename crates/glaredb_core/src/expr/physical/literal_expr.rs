@@ -67,7 +67,7 @@ mod tests {
             literal: "catdog".into(),
         };
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 4).unwrap();
         expr.eval(
             &mut input,
             &mut ExpressionState::empty(),
@@ -88,7 +88,7 @@ mod tests {
             literal: "catdog".into(),
         };
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 4).unwrap();
         expr.eval(
             &mut input,
             &mut ExpressionState::empty(),

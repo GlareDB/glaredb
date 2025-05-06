@@ -84,13 +84,13 @@ mod tests {
             expr::scalar_function(
                 &FUNCTION_SET_CONTAINS,
                 vec![
-                    expr::column((0, 0), DataType::Utf8),
+                    expr::column((0, 0), DataType::utf8()),
                     expr::lit("google").into(),
                 ],
             )
             .unwrap()
             .into(),
-            expr::eq(expr::column((0, 1), DataType::Utf8), expr::lit(""))
+            expr::eq(expr::column((0, 1), DataType::utf8()), expr::lit(""))
                 .unwrap()
                 .into(),
         ])
@@ -99,13 +99,13 @@ mod tests {
         reorder_conj(&mut expr);
 
         let expected = expr::and([
-            expr::eq(expr::column((0, 1), DataType::Utf8), expr::lit(""))
+            expr::eq(expr::column((0, 1), DataType::utf8()), expr::lit(""))
                 .unwrap()
                 .into(),
             expr::scalar_function(
                 &FUNCTION_SET_CONTAINS,
                 vec![
-                    expr::column((0, 0), DataType::Utf8),
+                    expr::column((0, 0), DataType::utf8()),
                     expr::lit("google").into(),
                 ],
             )

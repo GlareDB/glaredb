@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn prepare_append_allocate_single_row_block() {
-        let layout = RowLayout::new([DataType::Int32]);
+        let layout = RowLayout::new([DataType::int32()]);
         let mut blocks = RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {
@@ -345,7 +345,7 @@ mod tests {
 
     #[test]
     fn prepare_append_allocate_multiple_row_blocks() {
-        let layout = RowLayout::new([DataType::Int32]);
+        let layout = RowLayout::new([DataType::int32()]);
         let mut blocks = RowBlocks::new_using_row_layout(&DefaultBufferManager, &layout, 16);
 
         let mut append_state = BlockAppendState {

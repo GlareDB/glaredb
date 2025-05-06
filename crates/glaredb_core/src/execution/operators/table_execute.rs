@@ -280,9 +280,9 @@ mod tests {
 
     fn plan_generate_series() -> PlannedTableFunction {
         let input = TableFunctionInput::all_unnamed([
-            expr::column((0, 0), DataType::Int64),
-            expr::column((0, 1), DataType::Int64),
-            expr::column((0, 2), DataType::Int64),
+            expr::column((0, 0), DataType::int64()),
+            expr::column((0, 1), DataType::int64()),
+            expr::column((0, 2), DataType::int64()),
         ]);
         expr::bind_table_execute_function(&FUNCTION_SET_GENERATE_SERIES, input).unwrap()
     }
@@ -294,7 +294,7 @@ mod tests {
         let wrapper = OperatorWrapper::new(PhysicalTableExecute::new::<PhysicalColumnExpr>(
             planned,
             [],
-            [DataType::Int64, DataType::Int64, DataType::Int64],
+            [DataType::int64(), DataType::int64(), DataType::int64()],
         ));
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
@@ -303,7 +303,7 @@ mod tests {
             .create_partition_execute_states(&op_state, props, 1)
             .unwrap();
 
-        let mut output = Batch::new([DataType::Int64], 16).unwrap();
+        let mut output = Batch::new([DataType::int64()], 16).unwrap();
 
         // generate_series(4, 8, 2)
         // generate_series(5, 6, 1)
@@ -339,8 +339,8 @@ mod tests {
 
         let wrapper = OperatorWrapper::new(PhysicalTableExecute::new(
             planned,
-            [(0, DataType::Int64)],
-            [DataType::Int64, DataType::Int64, DataType::Int64],
+            [(0, DataType::int64())],
+            [DataType::int64(), DataType::int64(), DataType::int64()],
         ));
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
@@ -349,7 +349,7 @@ mod tests {
             .create_partition_execute_states(&op_state, props, 1)
             .unwrap();
 
-        let mut output = Batch::new([DataType::Int64, DataType::Int64], 16).unwrap();
+        let mut output = Batch::new([DataType::int64(), DataType::int64()], 16).unwrap();
 
         // generate_series(4, 8, 2)
         // generate_series(5, 6, 1)
@@ -386,12 +386,12 @@ mod tests {
 
         let wrapper = OperatorWrapper::new(PhysicalTableExecute::new(
             planned,
-            [(3, DataType::Utf8)],
+            [(3, DataType::utf8())],
             [
-                DataType::Int64,
-                DataType::Int64,
-                DataType::Int64,
-                DataType::Utf8,
+                DataType::int64(),
+                DataType::int64(),
+                DataType::int64(),
+                DataType::utf8(),
             ],
         ));
         let props = ExecutionProperties { batch_size: 16 };
@@ -401,7 +401,7 @@ mod tests {
             .create_partition_execute_states(&op_state, props, 1)
             .unwrap();
 
-        let mut output = Batch::new([DataType::Int64, DataType::Utf8], 16).unwrap();
+        let mut output = Batch::new([DataType::int64(), DataType::utf8()], 16).unwrap();
 
         // generate_series(4, 8, 2), 'hello'
         // generate_series(5, 6, 1), 'world'

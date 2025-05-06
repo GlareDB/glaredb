@@ -16,13 +16,7 @@ use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
 use crate::arrays::array::Array;
-use crate::arrays::datatype::{
-    DataType,
-    DecimalTypeMeta,
-    ListTypeMeta,
-    TimeUnit,
-    TimestampTypeMeta,
-};
+use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::functions::cast::format::{
     BoolFormatter,
@@ -122,43 +116,39 @@ pub type ScalarValue = BorrowedScalarValue<'static>;
 impl BorrowedScalarValue<'_> {
     pub fn datatype(&self) -> DataType {
         match self {
-            BorrowedScalarValue::Null => DataType::Null,
-            BorrowedScalarValue::Boolean(_) => DataType::Boolean,
-            BorrowedScalarValue::Float16(_) => DataType::Float16,
-            BorrowedScalarValue::Float32(_) => DataType::Float32,
-            BorrowedScalarValue::Float64(_) => DataType::Float64,
-            BorrowedScalarValue::Int8(_) => DataType::Int8,
-            BorrowedScalarValue::Int16(_) => DataType::Int16,
-            BorrowedScalarValue::Int32(_) => DataType::Int32,
-            BorrowedScalarValue::Int64(_) => DataType::Int64,
-            BorrowedScalarValue::Int128(_) => DataType::Int128,
-            BorrowedScalarValue::UInt8(_) => DataType::UInt8,
-            BorrowedScalarValue::UInt16(_) => DataType::UInt16,
-            BorrowedScalarValue::UInt32(_) => DataType::UInt32,
-            BorrowedScalarValue::UInt64(_) => DataType::UInt64,
-            BorrowedScalarValue::UInt128(_) => DataType::UInt128,
+            BorrowedScalarValue::Null => DataType::null(),
+            BorrowedScalarValue::Boolean(_) => DataType::boolean(),
+            BorrowedScalarValue::Float16(_) => DataType::float16(),
+            BorrowedScalarValue::Float32(_) => DataType::float32(),
+            BorrowedScalarValue::Float64(_) => DataType::float64(),
+            BorrowedScalarValue::Int8(_) => DataType::int8(),
+            BorrowedScalarValue::Int16(_) => DataType::int16(),
+            BorrowedScalarValue::Int32(_) => DataType::int32(),
+            BorrowedScalarValue::Int64(_) => DataType::int64(),
+            BorrowedScalarValue::Int128(_) => DataType::int128(),
+            BorrowedScalarValue::UInt8(_) => DataType::uint8(),
+            BorrowedScalarValue::UInt16(_) => DataType::uint16(),
+            BorrowedScalarValue::UInt32(_) => DataType::uint32(),
+            BorrowedScalarValue::UInt64(_) => DataType::uint64(),
+            BorrowedScalarValue::UInt128(_) => DataType::uint128(),
             BorrowedScalarValue::Decimal64(v) => {
-                DataType::Decimal64(DecimalTypeMeta::new(v.precision, v.scale))
+                DataType::decimal64(DecimalTypeMeta::new(v.precision, v.scale))
             }
             BorrowedScalarValue::Decimal128(v) => {
-                DataType::Decimal128(DecimalTypeMeta::new(v.precision, v.scale))
+                DataType::decimal128(DecimalTypeMeta::new(v.precision, v.scale))
             }
-            BorrowedScalarValue::Date32(_) => DataType::Date32,
-            BorrowedScalarValue::Date64(_) => DataType::Date64,
+            BorrowedScalarValue::Date32(_) => DataType::date32(),
+            BorrowedScalarValue::Date64(_) => DataType::date64(),
             BorrowedScalarValue::Timestamp(v) => {
-                DataType::Timestamp(TimestampTypeMeta::new(v.unit))
+                DataType::timestamp(TimestampTypeMeta::new(v.unit))
             }
-            BorrowedScalarValue::Interval(_) => DataType::Interval,
-            BorrowedScalarValue::Utf8(_) => DataType::Utf8,
-            BorrowedScalarValue::Binary(_) => DataType::Binary,
+            BorrowedScalarValue::Interval(_) => DataType::interval(),
+            BorrowedScalarValue::Utf8(_) => DataType::utf8(),
+            BorrowedScalarValue::Binary(_) => DataType::binary(),
             BorrowedScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
             BorrowedScalarValue::List(list) => match list.first() {
-                Some(first) => DataType::List(ListTypeMeta {
-                    datatype: Box::new(first.datatype()),
-                }),
-                None => DataType::List(ListTypeMeta {
-                    datatype: Box::new(DataType::Null),
-                }),
+                Some(first) => DataType::list(first.datatype()),
+                None => DataType::list(DataType::null()),
             },
         }
     }

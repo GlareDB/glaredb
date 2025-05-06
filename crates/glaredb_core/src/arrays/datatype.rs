@@ -301,6 +301,8 @@ macro_rules! datatype_new_primitive {
 }
 
 impl DataType {
+    pub const NULL: &'static Self = &Self::new_primitive(DataTypeId::Null);
+
     pub const BOOLEAN: &'static Self = &Self::new_primitive(DataTypeId::Boolean);
 
     pub const INT8: &'static Self = &Self::new_primitive(DataTypeId::Int8);
@@ -326,6 +328,8 @@ impl DataType {
 
     pub const UTF8: &'static Self = &Self::new_primitive(DataTypeId::Utf8);
     pub const BINARY: &'static Self = &Self::new_primitive(DataTypeId::Binary);
+
+    datatype_new_primitive!(null, NULL);
 
     datatype_new_primitive!(boolean, BOOLEAN);
 

@@ -3,7 +3,7 @@ use std::fmt;
 use glaredb_error::{DbError, Result};
 
 use super::Expression;
-use crate::arrays::datatype::DataType;
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 
 // TODO: Include recurse depth.
@@ -17,9 +17,12 @@ impl UnnestExpr {
     pub fn datatype(&self) -> Result<DataType> {
         let child_datatype = self.expr.datatype()?;
 
-        match child_datatype {
-            DataType::Null => Ok(DataType::Null),
-            DataType::List(list) => Ok(list.datatype.as_ref().clone()),
+        match child_datatype.id {
+            DataTypeId::Null => Ok(DataType::null()),
+            DataTypeId::List => {
+                let m = child_datatype.try_get_list_type_meta()?;
+                Ok(m.datatype.as_ref().clone())
+            }
             other => Err(DbError::new(format!(
                 "Unsupported datatype for UNNEST: {other}"
             ))),
