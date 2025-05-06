@@ -48,10 +48,8 @@ pub struct LocalBuildingState {
     tables: Vec<BaseHashTable>,
     /// Insert for the hash tables.
     states: Vec<BaseHashTableInsertState>,
-    /// Reusable buffer for the row selection.
-    ///
-    /// A separate buffer is used since the actual iterator can be a bit
-    /// expensive, and we need to iterate more than once.
+    /// Reusable buffer for the row selection when inserting into the
+    /// partitioned tables.
     row_sel_buf: Vec<usize>,
     /// Batch for holding the grouping columns we're inserting into the table.
     /// Only stores columns for the grouping set.
@@ -404,17 +402,14 @@ impl PartitionedHashTable {
         for (partition_idx, (table, table_state)) in
             state.tables.iter_mut().zip(&mut state.states).enumerate()
         {
-            let row_sel = state
+            state
                 .partition_selector
-                .row_indices_for_partition(partition_idx);
+                .row_indices_for_partition(partition_idx, &mut state.row_sel_buf);
 
-            if row_sel.len() == 0 {
+            if state.row_sel_buf.is_empty() {
                 // Nothing to input for this partition.
                 continue;
             }
-
-            state.row_sel_buf.clear();
-            state.row_sel_buf.extend(row_sel);
 
             let mut groups = groups.clone()?;
             groups.select(state.row_sel_buf.iter().copied())?;
@@ -717,49 +712,23 @@ impl PartitionSelector {
         }
     }
 
-    fn row_indices_for_partition(&self, partition: usize) -> RowIndexIter {
-        RowIndexIter {
-            partition,
-            rem_count: self.counts[partition],
-            curr: 0,
-            partition_indices: &self.partition_indices,
-        }
-    }
-}
+    /// Writes the row indices to select for a given partition to the `out`
+    /// buffer.
+    ///
+    /// `out` will be cleared before it gets written to.
+    fn row_indices_for_partition(&self, partition: usize, out: &mut Vec<usize>) {
+        out.clear();
 
-/// Iterator for emitting row indices for a given partition.
-#[derive(Debug, Clone)]
-struct RowIndexIter<'a> {
-    partition: usize,
-    rem_count: usize,
-    curr: usize,
-    partition_indices: &'a [usize],
-}
+        let additional = self.counts[partition].saturating_sub(out.capacity());
+        out.reserve(additional);
 
-impl Iterator for RowIndexIter<'_> {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.rem_count == 0 {
-                return None;
-            }
-
-            let row_idx = self.curr;
-            self.curr += 1;
-            if self.partition_indices[row_idx] == self.partition {
-                self.rem_count -= 1;
-                return Some(row_idx);
+        for (row_idx, &partition_for_row) in self.partition_indices.iter().enumerate() {
+            if partition_for_row == partition {
+                out.push(row_idx);
             }
         }
     }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.rem_count, Some(self.rem_count))
-    }
 }
-
-impl ExactSizeIterator for RowIndexIter<'_> {}
 
 #[cfg(test)]
 mod tests {
@@ -776,7 +745,8 @@ mod tests {
         let mut selector = PartitionSelector::new(1);
         selector.reset_using_hashes(&[55, 66, 77, 88, 99]);
 
-        let rows: Vec<_> = selector.row_indices_for_partition(0).collect();
+        let mut rows = Vec::new();
+        selector.row_indices_for_partition(0, &mut rows);
         let expected = vec![0, 1, 2, 3, 4];
         assert_eq!(expected, rows);
     }
@@ -792,10 +762,14 @@ mod tests {
         let mut selector = PartitionSelector::new(4);
         selector.reset_using_hashes(&hashes);
 
-        let rows0: Vec<_> = selector.row_indices_for_partition(0).collect();
-        let rows1: Vec<_> = selector.row_indices_for_partition(1).collect();
-        let rows2: Vec<_> = selector.row_indices_for_partition(2).collect();
-        let rows3: Vec<_> = selector.row_indices_for_partition(3).collect();
+        let mut rows0 = Vec::new();
+        selector.row_indices_for_partition(0, &mut rows0);
+        let mut rows1 = Vec::new();
+        selector.row_indices_for_partition(1, &mut rows1);
+        let mut rows2 = Vec::new();
+        selector.row_indices_for_partition(2, &mut rows2);
+        let mut rows3 = Vec::new();
+        selector.row_indices_for_partition(3, &mut rows3);
 
         assert_eq!(vec![3, 6, 8, 9], rows0);
         assert_eq!(Vec::<usize>::new(), rows1);

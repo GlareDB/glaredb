@@ -165,11 +165,21 @@ impl BaseHashTable {
         }
 
         debug_assert_eq!(num_rows, out_ptrs.len());
-        // TODO: Slow?
-        let hashes_exec =
-            PhysicalU64::downcast_execution_format(&hashes_arr.data)?.into_selection_format()?;
-        let hashes_buf = hashes_exec.buffer.buffer.as_slice();
-        let hashes_sel = hashes_exec.selection;
+        // Output hashes into a linear buffer to avoid having to go through the
+        // selection in the probe loop.
+        let selected_hashes: Vec<_> = {
+            let hashes_exec = PhysicalU64::downcast_execution_format(&hashes_arr.data)?
+                .into_selection_format()?;
+            let hashes_buf = hashes_exec.buffer.buffer.as_slice();
+            let hashes_sel = hashes_exec.selection;
+
+            hashes_sel
+                .iter()
+                .take(num_rows)
+                .map(|sel| hashes_buf[sel])
+                .collect()
+        };
+        debug_assert_eq!(num_rows, selected_hashes.len());
 
         if self.directory.needs_resize(num_rows) {
             let new_cap = usize::max(
@@ -188,7 +198,7 @@ impl BaseHashTable {
         let mut offsets = vec![0; num_rows];
         let cap = self.directory.capacity() as u64;
         for idx in 0..num_rows {
-            let hash = hashes_buf[hashes_sel.get(idx).unwrap()];
+            let hash = selected_hashes[idx];
             offsets[idx] = compute_offset_from_hash(hash, cap) as usize;
         }
 
@@ -219,7 +229,7 @@ impl BaseHashTable {
 
             for &row_idx in needs_insert.iter() {
                 let offset = &mut offsets[row_idx];
-                let hash = hashes_buf[hashes_sel.get(row_idx).unwrap()];
+                let hash = selected_hashes[row_idx];
 
                 // Probe.
                 //
