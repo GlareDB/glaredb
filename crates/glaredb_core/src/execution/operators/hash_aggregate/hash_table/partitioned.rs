@@ -48,6 +48,11 @@ pub struct LocalBuildingState {
     tables: Vec<BaseHashTable>,
     /// Insert for the hash tables.
     states: Vec<BaseHashTableInsertState>,
+    /// Reusable buffer for the row selection.
+    ///
+    /// A separate buffer is used since the actual iterator can be a bit
+    /// expensive, and we need to iterate more than once.
+    row_sel_buf: Vec<usize>,
     /// Batch for holding the grouping columns we're inserting into the table.
     /// Only stores columns for the grouping set.
     groups: Batch,
@@ -221,6 +226,7 @@ impl PartitionedHashTable {
                         partition_selector: PartitionSelector::new(partitions),
                         tables,
                         states,
+                        row_sel_buf: Vec::new(),
                         groups,
                         inputs,
                     },
@@ -407,14 +413,17 @@ impl PartitionedHashTable {
                 continue;
             }
 
+            state.row_sel_buf.clear();
+            state.row_sel_buf.extend(row_sel);
+
             let mut groups = groups.clone()?;
-            groups.select(row_sel.clone())?;
+            groups.select(state.row_sel_buf.iter().copied())?;
 
             let mut inputs = inputs.clone()?;
-            inputs.select(row_sel.clone())?;
+            inputs.select(state.row_sel_buf.iter().copied())?;
 
             let mut hashes_arr = hashes_arr.clone()?;
-            hashes_arr.select(&DefaultBufferManager, row_sel)?;
+            hashes_arr.select(&DefaultBufferManager, state.row_sel_buf.iter().copied())?;
 
             table.insert_with_hashes(table_state, agg_selection, &groups, &inputs, &hashes_arr)?;
         }

@@ -356,7 +356,7 @@ mod tests {
 
     use super::*;
     use crate::arrays::compute::make_list::make_list;
-    use crate::arrays::datatype::{DataType, ListTypeMeta};
+    use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::util::iter::TryFromExactSizeIterator;
 
