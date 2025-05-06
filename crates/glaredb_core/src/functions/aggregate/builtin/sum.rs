@@ -60,7 +60,7 @@ impl UnaryAggregate for SumI64 {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Int64,
+            return_type: DataType::int64(),
             inputs,
         })
     }
@@ -83,7 +83,7 @@ impl UnaryAggregate for SumF64 {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Float64,
+            return_type: DataType::float64(),
             inputs,
         })
     }

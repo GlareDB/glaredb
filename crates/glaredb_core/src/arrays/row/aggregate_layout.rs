@@ -53,11 +53,11 @@ pub struct AggregateUpdateSelector<'a> {
 
 impl AggregateLayout {
     /// Create a new layout representing a row of group values and aggregates.
-    pub fn new(
+    pub fn try_new(
         group_types: impl IntoIterator<Item = DataType>,
         aggregates: impl IntoIterator<Item = PhysicalAggregateExpression>,
-    ) -> Self {
-        let groups = RowLayout::new(group_types);
+    ) -> Result<Self> {
+        let groups = RowLayout::try_new(group_types)?;
         let aggregates: Vec<_> = aggregates.into_iter().collect();
 
         let base_align: usize = aggregates
@@ -83,13 +83,13 @@ impl AggregateLayout {
         // Ensure next row in the buffer matches up with the base alignment.
         let row_width = align_len(offset, base_align);
 
-        AggregateLayout {
+        Ok(AggregateLayout {
             base_align,
             groups,
             aggregates,
             row_width,
             aggregate_offsets,
-        }
+        })
     }
 
     /// Return an iterator over relative offsets for each aggregate and the
@@ -383,21 +383,21 @@ mod tests {
         // MAX_INPUT (col1): Int32
         let min_agg = bind_aggregate_function(
             &FUNCTION_SET_MIN,
-            vec![expr::column((0, 0), DataType::Int32).into()],
+            vec![expr::column((0, 0), DataType::int32()).into()],
         )
         .unwrap();
         let max_agg = bind_aggregate_function(
             &FUNCTION_SET_MAX,
-            vec![expr::column((0, 1), DataType::Int32).into()],
+            vec![expr::column((0, 1), DataType::int32()).into()],
         )
         .unwrap();
 
         let aggs = [
-            PhysicalAggregateExpression::new(min_agg, [(0, DataType::Int32)]),
-            PhysicalAggregateExpression::new(max_agg, [(1, DataType::Int32)]),
+            PhysicalAggregateExpression::new(min_agg, [(0, DataType::int32())]),
+            PhysicalAggregateExpression::new(max_agg, [(1, DataType::int32())]),
         ];
 
-        let layout = AggregateLayout::new([], aggs);
+        let layout = AggregateLayout::try_new([], aggs).unwrap();
 
         // Min/max (i32)
         // Align: 4

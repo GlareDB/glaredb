@@ -132,7 +132,7 @@ impl PhysicalNestedLoopJoin {
                 .collect(),
             JoinType::LeftMark { .. } => {
                 let mut types = left_types.clone();
-                types.push(DataType::Boolean);
+                types.push(DataType::boolean());
                 types
             }
         };
@@ -551,8 +551,13 @@ mod tests {
     #[test]
     fn cross_join_single_partition() {
         let wrapper = OperatorWrapper::new(
-            PhysicalNestedLoopJoin::new(JoinType::Inner, [DataType::Utf8], [DataType::Int32], None)
-                .unwrap(),
+            PhysicalNestedLoopJoin::new(
+                JoinType::Inner,
+                [DataType::utf8()],
+                [DataType::int32()],
+                None,
+            )
+            .unwrap(),
         );
 
         let props = ExecutionProperties { batch_size: 16 };
@@ -578,7 +583,7 @@ mod tests {
         assert_eq!(PollFinalize::Finalized, poll);
 
         // Probe
-        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 16).unwrap();
+        let mut output = Batch::new([DataType::utf8(), DataType::int32()], 16).unwrap();
 
         let mut input = generate_batch!([1, 2]);
         let poll = wrapper
@@ -602,13 +607,13 @@ mod tests {
     fn inner_join_single_eq_condition() {
         // CONDITION: a = b
         let mut list = TableList::empty();
-        let t0 = list.push_table(None, [DataType::Int32], ["a"]).unwrap();
-        let t1 = list.push_table(None, [DataType::Int32], ["b"]).unwrap();
+        let t0 = list.push_table(None, [DataType::int32()], ["a"]).unwrap();
+        let t1 = list.push_table(None, [DataType::int32()], ["b"]).unwrap();
         let expr = plan_scalar(
             &list,
             expr::eq(
-                expr::column((t0, 0), DataType::Int32),
-                expr::column((t1, 0), DataType::Int32),
+                expr::column((t0, 0), DataType::int32()),
+                expr::column((t1, 0), DataType::int32()),
             )
             .unwrap(),
         );
@@ -616,8 +621,8 @@ mod tests {
         let wrapper = OperatorWrapper::new(
             PhysicalNestedLoopJoin::new(
                 JoinType::Inner,
-                [DataType::Int32],
-                [DataType::Int32],
+                [DataType::int32()],
+                [DataType::int32()],
                 Some(expr),
             )
             .unwrap(),
@@ -646,7 +651,7 @@ mod tests {
         assert_eq!(PollFinalize::Finalized, poll);
 
         // Probe
-        let mut output = Batch::new([DataType::Int32, DataType::Int32], 16).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::int32()], 16).unwrap();
         let mut probe_input = generate_batch!([1, 2, 3, 4]);
 
         let poll = wrapper

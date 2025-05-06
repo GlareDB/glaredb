@@ -52,7 +52,7 @@ impl<const S: i64> ScalarFunction for EpochImpl<S> {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
+            return_type: DataType::timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
             inputs,
         })
     }

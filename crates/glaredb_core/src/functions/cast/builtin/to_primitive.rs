@@ -576,7 +576,7 @@ where
         out: &mut Array,
     ) -> Result<()> {
         // TODO: Temp until... not sure. Is this actually reasonable?
-        let id = out.datatype.datatype_id();
+        let id = out.datatype.id();
 
         UnaryExecutor::execute::<PhysicalUtf8, S, _>(
             src,
@@ -608,7 +608,7 @@ mod tests {
     #[test]
     fn cast_i32_to_i32() {
         let arr = Array::try_from_iter([4, 5, 6]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
         PrimToPrim::<PhysicalI32, PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out)
@@ -621,7 +621,7 @@ mod tests {
     #[test]
     fn cast_utf8_to_i32() {
         let arr = Array::try_from_iter(["13", "18", "123456789"]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
         Utf8ToPrim::<PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out).unwrap();
@@ -633,7 +633,7 @@ mod tests {
     #[test]
     fn cast_utf8_to_i32_overflow_error() {
         let arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
         Utf8ToPrim::<PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out).unwrap_err();
@@ -642,7 +642,7 @@ mod tests {
     #[test]
     fn cast_utf8_to_i32_overflow_null() {
         let arr = Array::try_from_iter(["13", "18", "123456789000000"]).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         let error_state = CastFailBehavior::Null.new_state();
         Utf8ToPrim::<PhysicalI32>::cast(&(), error_state, &arr, 0..3, &mut out).unwrap();
@@ -655,13 +655,13 @@ mod tests {
     fn array_cast_decimal64_to_f64() {
         let mut arr = Array::try_from_iter([1500_i64, 2000, 2500]).unwrap();
         // '[1.500, 2.000, 2.500]'
-        arr.datatype = DataType::Decimal64(DecimalTypeMeta::new(10, 3));
-        let mut out = Array::new(&DefaultBufferManager, DataType::Float64, 3).unwrap();
+        arr.datatype = DataType::decimal64(DecimalTypeMeta::new(10, 3));
+        let mut out = Array::new(&DefaultBufferManager, DataType::float64(), 3).unwrap();
 
         let error_state = CastFailBehavior::Error.new_state();
 
         let cast = DecimalToFloat::<Decimal64Type, PhysicalF64>::new();
-        let state = cast.bind(&arr.datatype, &DataType::Float64).unwrap();
+        let state = cast.bind(&arr.datatype, &DataType::float64()).unwrap();
         DecimalToFloat::<Decimal64Type, PhysicalF64>::cast(
             &state,
             error_state,

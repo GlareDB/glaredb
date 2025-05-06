@@ -503,7 +503,7 @@ where
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }
@@ -579,14 +579,14 @@ where
 
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs: vec![left, right],
         })
     } else {
         // Left/right have the same precision and scale, no need to cast.
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs: vec![left, right],
         })
     }
@@ -668,7 +668,7 @@ where
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }
@@ -806,7 +806,7 @@ mod tests {
         let arr1 = generate_array!([1, 2, 4]);
         let arr2 = generate_array!([4, 2, 1]);
 
-        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::boolean(), 3).unwrap();
 
         binary_distinct_execute::<IsDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -825,7 +825,7 @@ mod tests {
         let arr1 = generate_array!([Some(1), Some(2), None, None]);
         let arr2 = generate_array!([Some(4), Some(2), None, Some(3)]);
 
-        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::boolean(), 4).unwrap();
 
         binary_distinct_execute::<IsDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -844,7 +844,7 @@ mod tests {
         let arr1 = generate_array!([1, 2, 4]);
         let arr2 = generate_array!([4, 2, 1]);
 
-        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::boolean(), 3).unwrap();
 
         binary_distinct_execute::<IsNotDistinctFromOperation, PhysicalI32>(
             &arr1,
@@ -863,7 +863,7 @@ mod tests {
         let arr1 = generate_array!([Some(1), Some(2), None, None]);
         let arr2 = generate_array!([Some(4), Some(2), None, Some(3)]);
 
-        let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, 4).unwrap();
+        let mut output = Array::new(&DefaultBufferManager, DataType::boolean(), 4).unwrap();
 
         binary_distinct_execute::<IsNotDistinctFromOperation, PhysicalI32>(
             &arr1,

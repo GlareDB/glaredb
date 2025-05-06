@@ -78,13 +78,13 @@ pub struct JoinHashTable {
 
 impl JoinHashTable {
     #[allow(unused)]
-    pub fn new(
+    pub fn try_new(
         join_type: JoinType,
         left_datatypes: impl IntoIterator<Item = DataType>,
         right_datatypes: impl IntoIterator<Item = DataType>,
         conditions: impl IntoIterator<Item = HashJoinCondition>,
         batch_size: usize,
-    ) -> Self {
+    ) -> Result<Self> {
         let mut left_datatypes: Vec<_> = left_datatypes.into_iter().collect();
         let right_datatypes: Vec<_> = right_datatypes.into_iter().collect();
 
@@ -101,8 +101,8 @@ impl JoinHashTable {
                 probe_key_columns.push(condition.right);
             }
 
-            let phys_type = left_datatypes[condition.left].physical_type();
-            debug_assert_eq!(phys_type, right_datatypes[condition.right].physical_type());
+            let phys_type = left_datatypes[condition.left].physical_type()?;
+            debug_assert_eq!(phys_type, right_datatypes[condition.right].physical_type()?);
 
             matcher_conditions.push((phys_type, condition.op));
 
@@ -117,18 +117,18 @@ impl JoinHashTable {
 
         // Add hash to build types.
         let hash_col = left_datatypes.len();
-        left_datatypes.push(DataType::UInt64);
+        left_datatypes.push(DataType::uint64());
 
         if join_type.produce_all_build_side_rows() {
             // Add 'matches' column, we're dealing with LEFT/OUTER join.
-            left_datatypes.push(DataType::Boolean);
+            left_datatypes.push(DataType::boolean());
         }
 
-        let layout = RowLayout::new(left_datatypes);
+        let layout = RowLayout::try_new(left_datatypes)?;
         let build_hash_byte_offset = layout.offsets[hash_col];
         let data = RowCollection::new(layout, batch_size);
 
-        JoinHashTable {
+        Ok(JoinHashTable {
             join_type,
             data,
             directory: None,
@@ -139,7 +139,7 @@ impl JoinHashTable {
             build_hash_byte_offset,
             batch_size,
             row_matcher,
-        }
+        })
     }
 
     /// Initializes a build state for this hash table.
@@ -188,7 +188,7 @@ impl JoinHashTable {
         // Get build keys from the left for hashing.
         build_arrays.extend(self.build_key_columns.iter().map(|&idx| &input.arrays[idx]));
 
-        let mut hashes = Array::new(&DefaultBufferManager, DataType::UInt64, input.num_rows())?;
+        let mut hashes = Array::new(&DefaultBufferManager, DataType::uint64(), input.num_rows())?;
         let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
         hash_many_arrays(
             build_arrays.iter().copied(),
@@ -249,7 +249,7 @@ impl JoinHashTable {
         &self,
         block_indices: impl IntoIterator<Item = usize>,
     ) -> Result<()> {
-        let mut hashes = Array::new(&DefaultBufferManager, DataType::UInt64, self.batch_size)?;
+        let mut hashes = Array::new(&DefaultBufferManager, DataType::uint64(), self.batch_size)?;
         let mut scan_state = self.data.init_partial_scan(block_indices);
 
         let scan_cols = &[self.hash_column_idx()];
@@ -562,17 +562,18 @@ mod tests {
 
     #[test]
     fn inner_join_single_eq_predicate() {
-        let mut table = JoinHashTable::new(
+        let mut table = JoinHashTable::try_new(
             JoinType::Inner,
-            [DataType::Utf8, DataType::Int32],
-            [DataType::Int32],
+            [DataType::utf8(), DataType::int32()],
+            [DataType::int32()],
             [HashJoinCondition {
                 left: 1,
                 right: 0,
                 op: ComparisonOperator::Eq,
             }],
             16,
-        );
+        )
+        .unwrap();
         let mut build_state = table.init_build_state();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 4]);
@@ -585,7 +586,8 @@ mod tests {
         let mut rhs = generate_batch!([2, 3, 5]);
         table.probe(&mut state, &rhs).unwrap();
 
-        let mut out = Batch::new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
+        let mut out =
+            Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
         state.scan_next(&table, &mut rhs, &mut out).unwrap();
 
         let expected = generate_batch!(["b", "c"], [2, 3], [2, 3]);
@@ -594,17 +596,18 @@ mod tests {
 
     #[test]
     fn inner_join_single_eq_predicate_chained() {
-        let mut table = JoinHashTable::new(
+        let mut table = JoinHashTable::try_new(
             JoinType::Inner,
-            [DataType::Utf8, DataType::Int32],
-            [DataType::Int32],
+            [DataType::utf8(), DataType::int32()],
+            [DataType::int32()],
             [HashJoinCondition {
                 left: 1,
                 right: 0,
                 op: ComparisonOperator::Eq,
             }],
             16,
-        );
+        )
+        .unwrap();
         let mut build_state = table.init_build_state();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 3]);
@@ -617,7 +620,8 @@ mod tests {
         let mut rhs = generate_batch!([2, 4, 3, 5]);
         table.probe(&mut state, &rhs).unwrap();
 
-        let mut out = Batch::new([DataType::Utf8, DataType::Int32, DataType::Int32], 16).unwrap();
+        let mut out =
+            Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
         state.scan_next(&table, &mut rhs, &mut out).unwrap();
 
         let expected = generate_batch!(["b", "d"], [2, 3], [2, 3]);

@@ -386,7 +386,7 @@ mod tests {
 
         let left_columns: Vec<_> = (0..left.arrays.len()).collect();
         let mut collection = RowCollection::new(
-            RowLayout::new(left.arrays.iter().map(|arr| arr.datatype().clone())),
+            RowLayout::try_new(left.arrays.iter().map(|arr| arr.datatype().clone())).unwrap(),
             16,
         );
         let mut append_state = collection.init_append();

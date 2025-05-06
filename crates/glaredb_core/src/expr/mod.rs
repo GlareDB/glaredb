@@ -98,13 +98,13 @@ impl Expression {
         Ok(match self {
             Self::Aggregate(expr) => expr.datatype()?,
             Self::Arith(expr) => expr.return_type.clone(),
-            Self::Between(_) => DataType::Boolean,
+            Self::Between(_) => DataType::boolean(),
             Self::Case(expr) => expr.datatype.clone(),
             Self::Cast(expr) => expr.to.clone(),
             Self::Column(expr) => expr.datatype.clone(),
-            Self::Comparison(_) => DataType::Boolean,
-            Self::Conjunction(_) => DataType::Boolean,
-            Self::Is(_) => DataType::Boolean,
+            Self::Comparison(_) => DataType::boolean(),
+            Self::Conjunction(_) => DataType::boolean(),
+            Self::Is(_) => DataType::boolean(),
             Self::Literal(expr) => expr.literal.datatype(),
             Self::Negate(expr) => expr.datatype()?,
             Self::ScalarFunction(expr) => expr.function.state.return_type.clone(),
@@ -901,7 +901,7 @@ mod tests {
         let expr = add(lit(4), lit(5_i64)).unwrap();
         // Construction of the expression should lookup the function, and add a
         // cast where needed.
-        let expected = add(cast(lit(4), DataType::Int64).unwrap(), lit(5_i64)).unwrap();
+        let expected = add(cast(lit(4), DataType::int64()).unwrap(), lit(5_i64)).unwrap();
 
         assert_eq!(expected, expr);
     }
@@ -909,11 +909,11 @@ mod tests {
     #[test]
     fn get_column_refs_simple() {
         let expr: Expression = and([
-            column((0, 0), DataType::Boolean).into(),
-            column((0, 1), DataType::Boolean).into(),
+            column((0, 0), DataType::boolean()).into(),
+            column((0, 1), DataType::boolean()).into(),
             or([
-                column((1, 4), DataType::Boolean),
-                column((1, 2), DataType::Boolean),
+                column((1, 4), DataType::boolean()),
+                column((1, 2), DataType::boolean()),
             ])
             .unwrap()
             .into(),
@@ -957,9 +957,12 @@ mod tests {
         assert!(is_foldable);
 
         let expr: Expression = and([
-            gt_eq(add(lit(4), lit(8)).unwrap(), column((0, 0), DataType::Int8))
-                .unwrap()
-                .into(), // ((4 + 8) >= #column)
+            gt_eq(
+                add(lit(4), lit(8)).unwrap(),
+                column((0, 0), DataType::int8()),
+            )
+            .unwrap()
+            .into(), // ((4 + 8) >= #column)
             lit(false).into(),
         ])
         .unwrap()
@@ -972,9 +975,12 @@ mod tests {
     #[test]
     fn is_const_foldable_fixed() {
         let expr: Expression = and([
-            gt_eq(add(lit(4), lit(8)).unwrap(), column((0, 0), DataType::Int8))
-                .unwrap()
-                .into(), // ((4 + 8) >= #column)
+            gt_eq(
+                add(lit(4), lit(8)).unwrap(),
+                column((0, 0), DataType::int8()),
+            )
+            .unwrap()
+            .into(), // ((4 + 8) >= #column)
             lit(false).into(),
         ])
         .unwrap()

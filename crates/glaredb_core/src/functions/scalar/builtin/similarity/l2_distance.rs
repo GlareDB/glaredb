@@ -36,33 +36,15 @@ pub const FUNCTION_SET_L2_DISTANCE: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[
         RawScalarFunction::new(
-            &Signature::new(
-                &[
-                    DataTypeId::List(&DataTypeId::Float16),
-                    DataTypeId::List(&DataTypeId::Float16),
-                ],
-                DataTypeId::Float64,
-            ),
+            &Signature::new(&[DataTypeId::List, DataTypeId::List], DataTypeId::Float64),
             &L2Distance::<PhysicalF16>::new(),
         ),
         RawScalarFunction::new(
-            &Signature::new(
-                &[
-                    DataTypeId::List(&DataTypeId::Float32),
-                    DataTypeId::List(&DataTypeId::Float32),
-                ],
-                DataTypeId::Float64,
-            ),
+            &Signature::new(&[DataTypeId::List, DataTypeId::List], DataTypeId::Float64),
             &L2Distance::<PhysicalF32>::new(),
         ),
         RawScalarFunction::new(
-            &Signature::new(
-                &[
-                    DataTypeId::List(&DataTypeId::Float64),
-                    DataTypeId::List(&DataTypeId::Float64),
-                ],
-                DataTypeId::Float64,
-            ),
+            &Signature::new(&[DataTypeId::List, DataTypeId::List], DataTypeId::Float64),
             &L2Distance::<PhysicalF64>::new(),
         ),
     ],
@@ -92,7 +74,7 @@ where
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Float64,
+            return_type: DataType::float64(),
             inputs,
         })
     }
@@ -147,7 +129,7 @@ where
 //     fn l2_distance_ok() {
 //         let mut a = Array::new(
 //             &NopBufferManager,
-//             DataType::List(ListTypeMeta::new(DataType::Float64)),
+//             DataType::List(ListTypeMeta::new(DataType::float64())),
 //             1,
 //         )
 //         .unwrap();
@@ -164,7 +146,7 @@ where
 
 //         let mut b = Array::new(
 //             &NopBufferManager,
-//             DataType::List(ListTypeMeta::new(DataType::Float64)),
+//             DataType::List(ListTypeMeta::new(DataType::float64())),
 //             1,
 //         )
 //         .unwrap();
@@ -186,8 +168,8 @@ where
 //             .push_table(
 //                 None,
 //                 vec![
-//                     DataType::List(ListTypeMeta::new(DataType::Float64)),
-//                     DataType::List(ListTypeMeta::new(DataType::Float64)),
+//                     DataType::List(ListTypeMeta::new(DataType::float64())),
+//                     DataType::List(ListTypeMeta::new(DataType::float64())),
 //                 ],
 //                 vec!["a".to_string(), "b".to_string()],
 //             )
@@ -200,7 +182,7 @@ where
 //             )
 //             .unwrap();
 
-//         let mut out = Array::new(&NopBufferManager, DataType::Float64, 1).unwrap();
+//         let mut out = Array::new(&NopBufferManager, DataType::float64(), 1).unwrap();
 //         planned.function_impl.execute(&batch, &mut out).unwrap();
 
 //         let expected = Array::try_from_iter([1.0]).unwrap();

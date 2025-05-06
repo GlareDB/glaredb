@@ -1,10 +1,9 @@
-use glaredb_error::{DbError, Result};
+use glaredb_error::Result;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{ArrayBufferDowncast, ListBuffer, ListItemMetadata};
 use crate::arrays::array::validity::Validity;
 use crate::arrays::compute::copy::copy_rows_raw;
-use crate::arrays::datatype::DataType;
 use crate::util::iter::IntoExactSizeIterator;
 
 /// Writes lists values from `inputs` into `output`.
@@ -32,14 +31,7 @@ fn make_list_scalar(
     sel: impl IntoExactSizeIterator<Item = usize> + Clone,
     output: &mut Array,
 ) -> Result<()> {
-    let inner_type = match &output.datatype {
-        DataType::List(m) => &m.datatype,
-        other => {
-            return Err(DbError::new(format!(
-                "Expected output to be list datatype, got {other}",
-            )));
-        }
-    };
+    let inner_type = &output.datatype.try_get_list_type_meta()?.datatype;
 
     let output_len = sel.clone().into_exact_size_iter().len();
     // A list elements exist. NULLs inside list elements is handled inside the

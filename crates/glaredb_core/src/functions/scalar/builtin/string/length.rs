@@ -39,7 +39,7 @@ impl ScalarFunction for StringLength {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Int64,
+            return_type: DataType::int64(),
             inputs,
         })
     }
@@ -93,7 +93,7 @@ impl ScalarFunction for ByteLength {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Int64,
+            return_type: DataType::int64(),
             inputs,
         })
     }
@@ -145,7 +145,7 @@ impl ScalarFunction for BitLength {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Int64,
+            return_type: DataType::int64(),
             inputs,
         })
     }

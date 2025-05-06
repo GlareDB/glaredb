@@ -79,7 +79,7 @@ mod tests {
     fn cast_expr_literal_string_to_i32() {
         let expr = plan_scalar(
             &TableList::empty(),
-            expr::cast(expr::lit("35"), DataType::Int32).unwrap(),
+            expr::cast(expr::lit("35"), DataType::int32()).unwrap(),
         );
         let expr = match expr {
             PhysicalScalarExpression::Cast(cast) => cast,
@@ -87,7 +87,7 @@ mod tests {
         };
 
         let mut state = expr.create_state(1024).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
         let mut input = Batch::empty_with_num_rows(3);
         let sel = input.selection();
 

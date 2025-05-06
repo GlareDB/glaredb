@@ -95,7 +95,7 @@ mod tests {
         let b = Array::try_from_iter([true, true, false]).unwrap();
         let c = Array::try_from_iter([true, false, false]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::boolean(), 3).unwrap();
 
         UniformExecutor::execute::<PhysicalBool, PhysicalBool, _>(
             &[a, b, c],
@@ -119,7 +119,7 @@ mod tests {
         let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
         let c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -148,7 +148,7 @@ mod tests {
         let b = Array::try_from_iter(["1", "2", "3"]).unwrap();
         let c = Array::try_from_iter([Some("dog"), None, Some("horse")]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -179,7 +179,7 @@ mod tests {
         // '["horse", "horse", "dog"]
         c.select(&DefaultBufferManager, [2, 2, 0]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -210,7 +210,7 @@ mod tests {
         // '[NULL, "horse", "dog"]
         c.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
 
@@ -239,7 +239,7 @@ mod tests {
         let b = Array::new_constant(&DefaultBufferManager, &"*".into(), 3).unwrap();
         let c = Array::try_from_iter(["dog", "cat", "horse"]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut str_buf = String::new();
         UniformExecutor::execute::<PhysicalUtf8, PhysicalUtf8, _>(

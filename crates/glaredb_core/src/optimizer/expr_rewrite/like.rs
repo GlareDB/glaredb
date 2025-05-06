@@ -53,7 +53,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         ];
 
                         let func = FUNCTION_SET_STARTS_WITH
-                            .find_exact(&[DataType::Utf8, DataType::Utf8])
+                            .find_exact(&[DataType::utf8(), DataType::utf8()])
                             .required("STARTS_WITH implementation to exist")?;
 
                         let bind_state = func.call_bind(inputs)?;
@@ -77,7 +77,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         ];
 
                         let func = FUNCTION_SET_ENDS_WITH
-                            .find_exact(&[DataType::Utf8, DataType::Utf8])
+                            .find_exact(&[DataType::utf8(), DataType::utf8()])
                             .required("ENDS_WITH implementation to exist")?;
 
                         let bind_state = func.call_bind(inputs)?;
@@ -101,7 +101,7 @@ impl ExpressionRewriteRule for LikeRewrite {
                         ];
 
                         let func = FUNCTION_SET_CONTAINS
-                            .find_exact(&[DataType::Utf8, DataType::Utf8])
+                            .find_exact(&[DataType::utf8(), DataType::utf8()])
                             .required("ENDS_WITH implementation to exist")?;
 
                         let bind_state = func.call_bind(inputs)?;

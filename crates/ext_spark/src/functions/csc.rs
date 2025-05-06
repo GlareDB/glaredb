@@ -36,7 +36,7 @@ impl ScalarFunction for Csc {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Float64,
+            return_type: DataType::float64(),
             inputs,
         })
     }

@@ -189,7 +189,7 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     mark_table,
                     "__generated_visited_bool",
-                    DataType::Boolean,
+                    DataType::boolean(),
                 )?;
 
                 *plan = LogicalOperator::MagicJoin(Node {
@@ -210,7 +210,7 @@ impl SubqueryPlanner {
                         table_scope: mark_table,
                         column: 0,
                     },
-                    datatype: DataType::Boolean,
+                    datatype: DataType::boolean(),
                 });
 
                 if *negated {
@@ -236,7 +236,7 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     mark_table,
                     "__generated_visited_bool",
-                    DataType::Boolean,
+                    DataType::boolean(),
                 )?;
 
                 let condition = expr::compare(*op, expr.as_ref().clone(), right_out)?;
@@ -260,7 +260,7 @@ impl SubqueryPlanner {
                         table_scope: mark_table,
                         column: 0,
                     },
-                    datatype: DataType::Boolean,
+                    datatype: DataType::boolean(),
                 }))
             }
         }
@@ -461,14 +461,14 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     agg_table,
                     "__generated_count",
-                    DataType::Int64,
+                    DataType::int64(),
                 )?;
 
                 let projection_table = bind_context.new_ephemeral_table()?;
                 bind_context.push_column_for_table(
                     projection_table,
                     "__generated_exists",
-                    DataType::Boolean,
+                    DataType::boolean(),
                 )?;
 
                 let cmp_op = if *negated {
@@ -479,7 +479,7 @@ impl SubqueryPlanner {
 
                 let projection = expr::compare(
                     cmp_op,
-                    expr::column((agg_table, 0), DataType::Int64),
+                    expr::column((agg_table, 0), DataType::int64()),
                     expr::lit(1_i64),
                 )?;
 
@@ -535,7 +535,7 @@ impl SubqueryPlanner {
                         table_scope: projection_table,
                         column: 0,
                     },
-                    datatype: DataType::Boolean,
+                    datatype: DataType::boolean(),
                 }))
             }
             SubqueryType::Any { expr, op } => {
@@ -551,7 +551,7 @@ impl SubqueryPlanner {
                 bind_context.push_column_for_table(
                     mark_table,
                     "__generated_visited_bool",
-                    DataType::Boolean,
+                    DataType::boolean(),
                 )?;
 
                 let subquery_table = subquery_plan.get_output_table_refs(bind_context)[0];
@@ -585,7 +585,7 @@ impl SubqueryPlanner {
                         table_scope: mark_table,
                         column: 0,
                     },
-                    datatype: DataType::Boolean,
+                    datatype: DataType::boolean(),
                 }))
             }
         }

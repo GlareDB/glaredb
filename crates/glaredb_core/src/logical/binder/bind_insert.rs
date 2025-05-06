@@ -55,7 +55,7 @@ impl<'a> InsertBinder<'a> {
         bind_context: &mut BindContext,
         insert: ast::Insert<ResolvedMeta>,
     ) -> Result<BoundInsert> {
-        bind_context.push_table(self.current, None, [DataType::Int64], ["rows_inserted"])?;
+        bind_context.push_table(self.current, None, [DataType::int64()], ["rows_inserted"])?;
 
         let source_scope = bind_context.new_orphan_scope();
 

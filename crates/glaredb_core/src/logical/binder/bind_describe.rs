@@ -34,7 +34,7 @@ impl<'a> DescribeBinder<'a> {
         let table_ref = bind_context.push_table(
             self.current,
             None,
-            [DataType::Utf8, DataType::Utf8],
+            [DataType::utf8(), DataType::utf8()],
             ["column_name", "datatype"],
         )?;
 

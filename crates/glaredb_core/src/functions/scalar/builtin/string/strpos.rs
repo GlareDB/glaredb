@@ -39,7 +39,7 @@ impl ScalarFunction for Strpos {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Int64,
+            return_type: DataType::int64(),
             inputs,
         })
     }

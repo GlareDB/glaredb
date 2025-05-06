@@ -126,7 +126,7 @@ impl DistinctCollection {
                         aggregates: Vec::new(),
                     };
                     let grouping_set: BTreeSet<_> = (0..inputs.len()).collect();
-                    let table = PartitionedHashTable::new(&aggregates, grouping_set);
+                    let table = PartitionedHashTable::try_new(&aggregates, grouping_set)?;
 
                     tables.push(DistinctTable {
                         table,
@@ -287,7 +287,7 @@ mod tests {
     fn distinct_single_agg_single_column_input() {
         // AGG 1: INPUT [0], GROUP []
         let collection = DistinctCollection::new([DistinctAggregateInfo {
-            inputs: &[(0, DataType::Int32).into()],
+            inputs: &[(0, DataType::int32()).into()],
             groups: &[],
         }])
         .unwrap();
@@ -305,7 +305,7 @@ mod tests {
             .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
-        let mut out = Batch::new([DataType::Int32], 16).unwrap();
+        let mut out = Batch::new([DataType::int32()], 16).unwrap();
         collection
             .scan(&op_state, &mut part_states[0], 0, &mut out)
             .unwrap();
@@ -318,7 +318,7 @@ mod tests {
     fn distinct_single_agg_single_column_input_not_first() {
         // AGG 1: INPUT [1], GROUP []
         let collection = DistinctCollection::new([DistinctAggregateInfo {
-            inputs: &[(1, DataType::Utf8).into()],
+            inputs: &[(1, DataType::utf8()).into()],
             groups: &[],
         }])
         .unwrap();
@@ -336,7 +336,7 @@ mod tests {
             .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
-        let mut out = Batch::new([DataType::Utf8], 16).unwrap();
+        let mut out = Batch::new([DataType::utf8()], 16).unwrap();
         collection
             .scan(&op_state, &mut part_states[0], 0, &mut out)
             .unwrap();
@@ -349,7 +349,7 @@ mod tests {
     fn distinct_single_agg_two_column_input() {
         // AGG 1: INPUT [0, 1], GROUP []
         let collection = DistinctCollection::new([DistinctAggregateInfo {
-            inputs: &[(0, DataType::Int32).into(), (1, DataType::Utf8).into()],
+            inputs: &[(0, DataType::int32()).into(), (1, DataType::utf8()).into()],
             groups: &[],
         }])
         .unwrap();
@@ -367,7 +367,7 @@ mod tests {
             .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
-        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
+        let mut out = Batch::new([DataType::int32(), DataType::utf8()], 16).unwrap();
         collection
             .scan(&op_state, &mut part_states[0], 0, &mut out)
             .unwrap();
@@ -382,11 +382,11 @@ mod tests {
         // AGG 2: INPUT [1], GROUP []
         let collection = DistinctCollection::new([
             DistinctAggregateInfo {
-                inputs: &[(0, DataType::Int32).into()],
+                inputs: &[(0, DataType::int32()).into()],
                 groups: &[],
             },
             DistinctAggregateInfo {
-                inputs: &[(1, DataType::Utf8).into()],
+                inputs: &[(1, DataType::utf8()).into()],
                 groups: &[],
             },
         ])
@@ -406,7 +406,7 @@ mod tests {
             .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
-        let mut out_agg1 = Batch::new([DataType::Int32], 16).unwrap();
+        let mut out_agg1 = Batch::new([DataType::int32()], 16).unwrap();
         collection
             .scan(&op_state, &mut part_states[0], 0, &mut out_agg1)
             .unwrap();
@@ -414,7 +414,7 @@ mod tests {
         let expected = generate_batch!([1, 3]);
         assert_batches_eq(&expected, &out_agg1);
 
-        let mut out_agg2 = Batch::new([DataType::Utf8], 16).unwrap();
+        let mut out_agg2 = Batch::new([DataType::utf8()], 16).unwrap();
         collection
             .scan(&op_state, &mut part_states[0], 1, &mut out_agg2)
             .unwrap();
@@ -429,11 +429,11 @@ mod tests {
         // AGG 2: INPUT [0, 1], GROUP []
         let collection = DistinctCollection::new([
             DistinctAggregateInfo {
-                inputs: &[(0, DataType::Int32).into(), (1, DataType::Utf8).into()],
+                inputs: &[(0, DataType::int32()).into(), (1, DataType::utf8()).into()],
                 groups: &[],
             },
             DistinctAggregateInfo {
-                inputs: &[(0, DataType::Int32).into(), (1, DataType::Utf8).into()],
+                inputs: &[(0, DataType::int32()).into(), (1, DataType::utf8()).into()],
                 groups: &[],
             },
         ])
@@ -452,7 +452,7 @@ mod tests {
             .merge_global(&op_state, &mut part_states[0])
             .unwrap();
 
-        let mut out = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
+        let mut out = Batch::new([DataType::int32(), DataType::utf8()], 16).unwrap();
         collection
             .scan(&op_state, &mut part_states[0], 0, &mut out)
             .unwrap();

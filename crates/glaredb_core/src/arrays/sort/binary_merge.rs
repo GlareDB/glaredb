@@ -692,7 +692,7 @@ impl<'a> BinaryMerger<'a> {
         let left_col_ptr = unsafe { left_row_ptr.byte_add(col_offset) };
         let right_col_ptr = unsafe { right_row_ptr.byte_add(col_offset) };
 
-        let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
+        let phys_type = layout.heap_layout.types[heap_key_column].physical_type()?;
         let ord = unsafe { compare_heap_values(left_col_ptr, right_col_ptr, phys_type)? };
 
         // Note we're using the original key column index.
@@ -745,7 +745,7 @@ mod tests {
         assert_eq!(1, out.keys.len());
 
         let mut scan = out.init_scan_state();
-        let mut out_batch = Batch::new([DataType::Int32, DataType::Utf8], cap).unwrap();
+        let mut out_batch = Batch::new([DataType::int32(), DataType::utf8()], cap).unwrap();
         out.scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
             .unwrap();
 
@@ -958,7 +958,7 @@ mod tests {
         assert_eq!(2, out.keys.len());
 
         let mut scan = out.init_scan_state();
-        let mut out_batch = Batch::new([DataType::Int32], 4).unwrap();
+        let mut out_batch = Batch::new([DataType::int32()], 4).unwrap();
         out.scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
             .unwrap();
 
@@ -1029,7 +1029,7 @@ mod tests {
         assert_eq!(4, final_out.keys.len());
 
         let mut scan = final_out.init_scan_state();
-        let mut out_batch = Batch::new([DataType::Int32], 2).unwrap();
+        let mut out_batch = Batch::new([DataType::int32()], 2).unwrap();
         let mut assert_scan = |expected: Batch| {
             final_out
                 .scan_data(&mut scan, &left_block1.data_layout, &mut out_batch)
@@ -1081,7 +1081,7 @@ mod tests {
         assert_eq!(3, final_out.keys.len());
 
         let mut scan = final_out.init_scan_state();
-        let mut out_batch = Batch::new([DataType::Int32], 2).unwrap();
+        let mut out_batch = Batch::new([DataType::int32()], 2).unwrap();
         let mut assert_scan = |expected: Batch| {
             final_out
                 .scan_data(&mut scan, &left_block.data_layout, &mut out_batch)
@@ -1139,7 +1139,7 @@ mod tests {
         assert_eq!(4, final_out.keys.len());
 
         let mut scan = final_out.init_scan_state();
-        let mut out_batch = Batch::new([DataType::Int32], 2).unwrap();
+        let mut out_batch = Batch::new([DataType::int32()], 2).unwrap();
         let mut assert_scan = |expected: Batch| {
             final_out
                 .scan_data(&mut scan, &left_block1.data_layout, &mut out_batch)

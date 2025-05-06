@@ -31,7 +31,7 @@ impl SelectionEvaluator {
         batch_size: usize,
     ) -> Result<Self> {
         let evaluator = ExpressionEvaluator::try_new([expression.into()], batch_size)?;
-        let output = Batch::new([DataType::Boolean], batch_size)?;
+        let output = Batch::new([DataType::boolean()], batch_size)?;
         let selection = Vec::with_capacity(batch_size);
         let selection_sec = Vec::with_capacity(batch_size);
 
@@ -56,7 +56,7 @@ impl SelectionEvaluator {
     pub fn select(&mut self, input: &mut Batch) -> Result<&[usize]> {
         debug_assert_eq!(1, self.evaluator.num_expressions());
         debug_assert_eq!(1, self.output.arrays.len());
-        debug_assert_eq!(&DataType::Boolean, self.output.arrays[0].datatype());
+        debug_assert_eq!(&DataType::boolean(), self.output.arrays[0].datatype());
 
         let (exprs, states) = self.evaluator.eval_parts_mut();
 
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn select_simple() {
         let mut evaluator =
-            SelectionEvaluator::try_new(PhysicalColumnExpr::new(0, DataType::Boolean), 1024)
+            SelectionEvaluator::try_new(PhysicalColumnExpr::new(0, DataType::boolean()), 1024)
                 .unwrap();
 
         let mut input = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn select_with_null() {
         let mut evaluator =
-            SelectionEvaluator::try_new(PhysicalColumnExpr::new(0, DataType::Boolean), 1024)
+            SelectionEvaluator::try_new(PhysicalColumnExpr::new(0, DataType::boolean()), 1024)
                 .unwrap();
 
         let mut input = generate_batch!([Some(true), Some(false), None, Some(true)], [8, 9, 7, 6]);
@@ -179,17 +179,17 @@ mod tests {
     fn select_and_short_circuit() {
         let mut list = TableList::empty();
         let t0 = list
-            .push_table(None, [DataType::Boolean, DataType::Int32], ["c1", "c2"])
+            .push_table(None, [DataType::boolean(), DataType::int32()], ["c1", "c2"])
             .unwrap();
 
         // c1 = true AND c2 > 4
         let expr = plan_scalar(
             &list,
             expr::and([
-                expr::eq(expr::column((t0, 0), DataType::Boolean), expr::lit(true))
+                expr::eq(expr::column((t0, 0), DataType::boolean()), expr::lit(true))
                     .unwrap()
                     .into(),
-                expr::gt(expr::column((t0, 1), DataType::Int32), expr::lit(4))
+                expr::gt(expr::column((t0, 1), DataType::int32()), expr::lit(4))
                     .unwrap()
                     .into(),
             ])
@@ -209,17 +209,17 @@ mod tests {
     fn select_and_short_circuit_no_eval_last() {
         let mut list = TableList::empty();
         let t0 = list
-            .push_table(None, [DataType::Boolean, DataType::Int32], ["c1", "c2"])
+            .push_table(None, [DataType::boolean(), DataType::int32()], ["c1", "c2"])
             .unwrap();
 
         // c1 = true AND c2 > 4 AND debug_error_on_execute() = 3
         let expr = plan_scalar(
             &list,
             expr::and([
-                expr::eq(expr::column((t0, 0), DataType::Boolean), expr::lit(true))
+                expr::eq(expr::column((t0, 0), DataType::boolean()), expr::lit(true))
                     .unwrap()
                     .into(),
-                expr::gt(expr::column((t0, 1), DataType::Int32), expr::lit(4))
+                expr::gt(expr::column((t0, 1), DataType::int32()), expr::lit(4))
                     .unwrap()
                     .into(),
                 expr::eq(

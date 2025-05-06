@@ -40,7 +40,7 @@ impl ScalarFunction for Initcap {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Utf8,
+            return_type: DataType::utf8(),
             inputs,
         })
     }

@@ -43,46 +43,46 @@ pub const FUNCTION_SET_SHR: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8, DataTypeId::Int32], DataTypeId::Int8),
-            &Shr::<PhysicalI8>::new(&DataType::Int8),
+            &Shr::<PhysicalI8>::new(DataType::INT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16, DataTypeId::Int32], DataTypeId::Int16),
-            &Shr::<PhysicalI16>::new(&DataType::Int16),
+            &Shr::<PhysicalI16>::new(DataType::INT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            &Shr::<PhysicalI32>::new(&DataType::Int32),
+            &Shr::<PhysicalI32>::new(DataType::INT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64, DataTypeId::Int32], DataTypeId::Int64),
-            &Shr::<PhysicalI64>::new(&DataType::Int64),
+            &Shr::<PhysicalI64>::new(DataType::INT64),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int128, DataTypeId::Int32], DataTypeId::Int128),
-            &Shr::<PhysicalI128>::new(&DataType::Int128),
+            &Shr::<PhysicalI128>::new(DataType::INT128),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt8, DataTypeId::Int32], DataTypeId::UInt8),
-            &Shr::<PhysicalU8>::new(&DataType::UInt8),
+            &Shr::<PhysicalU8>::new(DataType::UINT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt16, DataTypeId::Int32], DataTypeId::UInt16),
-            &Shr::<PhysicalU16>::new(&DataType::UInt16),
+            &Shr::<PhysicalU16>::new(DataType::UINT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt32, DataTypeId::Int32], DataTypeId::UInt32),
-            &Shr::<PhysicalU32>::new(&DataType::UInt32),
+            &Shr::<PhysicalU32>::new(DataType::UINT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt64, DataTypeId::Int32], DataTypeId::UInt64),
-            &Shr::<PhysicalU64>::new(&DataType::UInt64),
+            &Shr::<PhysicalU64>::new(DataType::UINT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::Int32],
                 DataTypeId::UInt128,
             ),
-            &Shr::<PhysicalU128>::new(&DataType::UInt128),
+            &Shr::<PhysicalU128>::new(DataType::UINT128),
         ),
     ],
 };

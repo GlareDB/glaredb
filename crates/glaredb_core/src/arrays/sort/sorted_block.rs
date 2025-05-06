@@ -476,7 +476,7 @@ unsafe fn sort_heap_keys(
     // Generate sorted indices for the subset of rows we're sorting.
     // Relative to row offset.
     let mut sort_indices: Vec<_> = (0..row_count).collect();
-    let phys_type = layout.heap_layout.types[heap_key_column].physical_type();
+    let phys_type = layout.heap_layout.types[heap_key_column].physical_type()?;
     if !compare_heap_value_supported(phys_type) {
         not_implemented!("Heap key compare for type {phys_type} (sorted block)")
     }

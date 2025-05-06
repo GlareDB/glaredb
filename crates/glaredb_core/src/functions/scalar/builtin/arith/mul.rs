@@ -54,76 +54,76 @@ pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),
-            &Mul::<PhysicalF16>::new(&DataType::Float16),
+            &Mul::<PhysicalF16>::new(DataType::FLOAT16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Float32, DataTypeId::Float32],
                 DataTypeId::Float32,
             ),
-            &Mul::<PhysicalF32>::new(&DataType::Float32),
+            &Mul::<PhysicalF32>::new(DataType::FLOAT32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
                 DataTypeId::Float64,
             ),
-            &Mul::<PhysicalF64>::new(&DataType::Float64),
+            &Mul::<PhysicalF64>::new(DataType::FLOAT64),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            &Mul::<PhysicalI8>::new(&DataType::Int8),
+            &Mul::<PhysicalI8>::new(DataType::INT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            &Mul::<PhysicalI16>::new(&DataType::Int16),
+            &Mul::<PhysicalI16>::new(DataType::INT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            &Mul::<PhysicalI32>::new(&DataType::Int32),
+            &Mul::<PhysicalI32>::new(DataType::INT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            &Mul::<PhysicalI64>::new(&DataType::Int64),
+            &Mul::<PhysicalI64>::new(DataType::INT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
-            &Mul::<PhysicalI128>::new(&DataType::Int128),
+            &Mul::<PhysicalI128>::new(DataType::INT128),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            &Mul::<PhysicalU8>::new(&DataType::UInt8),
+            &Mul::<PhysicalU8>::new(DataType::UINT8),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            &Mul::<PhysicalU16>::new(&DataType::UInt16),
+            &Mul::<PhysicalU16>::new(DataType::UINT16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            &Mul::<PhysicalU32>::new(&DataType::UInt32),
+            &Mul::<PhysicalU32>::new(DataType::UINT32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            &Mul::<PhysicalU64>::new(&DataType::UInt64),
+            &Mul::<PhysicalU64>::new(DataType::UINT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::UInt128],
                 DataTypeId::UInt128,
             ),
-            &Mul::<PhysicalU128>::new(&DataType::UInt128),
+            &Mul::<PhysicalU128>::new(DataType::UINT128),
         ),
         // Decimal64
         RawScalarFunction::new(D_SIGS.d64_d64, &DecimalMul::<Decimal64Type>::new()),
@@ -251,9 +251,9 @@ where
         let (cast_left, l_meta) = match D::decimal_meta_opt(&l_type) {
             Some(meta) => (false, meta),
             None => {
-                let meta = DecimalTypeMeta::new_for_datatype_id(l_type.datatype_id()).ok_or_else(
-                    || DbError::new(format!("Cannot convert {l_type} into a decimal")),
-                )?;
+                let meta = DecimalTypeMeta::new_for_datatype_id(l_type.id()).ok_or_else(|| {
+                    DbError::new(format!("Cannot convert {l_type} into a decimal"))
+                })?;
                 (true, meta)
             }
         };
@@ -261,9 +261,9 @@ where
         let (cast_right, r_meta) = match D::decimal_meta_opt(&r_type) {
             Some(meta) => (false, meta),
             None => {
-                let meta = DecimalTypeMeta::new_for_datatype_id(r_type.datatype_id()).ok_or_else(
-                    || DbError::new(format!("Cannot convert {r_type} into a decimal")),
-                )?;
+                let meta = DecimalTypeMeta::new_for_datatype_id(r_type.id()).ok_or_else(|| {
+                    DbError::new(format!("Cannot convert {r_type} into a decimal"))
+                })?;
                 (true, meta)
             }
         };
@@ -354,7 +354,7 @@ where
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Interval,
+            return_type: DataType::interval(),
             inputs,
         })
     }

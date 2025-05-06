@@ -122,7 +122,8 @@ mod tests {
 
     #[test]
     fn simple() {
-        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 16, 16);
+        let collection =
+            ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 16, 16);
         let mut append_state = collection.init_append_state();
 
         let mut input = generate_batch!([1, 2], ["a", "b"]);
@@ -131,11 +132,15 @@ mod tests {
             .unwrap();
         collection.flush(&mut append_state).unwrap();
 
-        let mut cross_state = CrossProductState::new([DataType::Int32, DataType::Utf8]).unwrap();
+        let mut cross_state =
+            CrossProductState::new([DataType::int32(), DataType::utf8()]).unwrap();
 
         let mut right = generate_batch!([4.5, 6.0]);
-        let mut output =
-            Batch::new([DataType::Int32, DataType::Utf8, DataType::Float64], 16).unwrap();
+        let mut output = Batch::new(
+            [DataType::int32(), DataType::utf8(), DataType::float64()],
+            16,
+        )
+        .unwrap();
 
         let did_write_out = cross_state
             .scan_next(&collection, &mut right, &mut output)

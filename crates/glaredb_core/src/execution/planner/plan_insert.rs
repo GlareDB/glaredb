@@ -30,13 +30,13 @@ impl OperatorPlanState<'_> {
             // Sum counts across partitions.
             let sum = expr::bind_aggregate_function(
                 &FUNCTION_SET_SUM,
-                vec![expr::column((0, 0), DataType::Int64)],
+                vec![expr::column((0, 0), DataType::int64())],
             )?;
 
-            let agg = PhysicalUngroupedAggregate::new([PhysicalAggregateExpression::new(
+            let agg = PhysicalUngroupedAggregate::try_new([PhysicalAggregateExpression::new(
                 sum,
-                [(0, DataType::Int64)],
-            )]);
+                [(0, DataType::int64())],
+            )])?;
 
             planned = PlannedOperatorWithChildren {
                 operator: PlannedOperator::new_execute(self.id_gen.next_id(), agg),

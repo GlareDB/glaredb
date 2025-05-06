@@ -57,7 +57,7 @@ pub struct RowLayout {
 }
 
 impl RowLayout {
-    pub fn new(types: impl IntoIterator<Item = DataType>) -> Self {
+    pub fn try_new(types: impl IntoIterator<Item = DataType>) -> Result<Self> {
         let types: Vec<_> = types.into_iter().collect();
         let validity_width = num_bytes_for_bitmap(types.len());
 
@@ -67,7 +67,7 @@ impl RowLayout {
         let mut requires_heap = false;
 
         for typ in &types {
-            let phys_type = typ.physical_type();
+            let phys_type = typ.physical_type()?;
             let width = row_width_for_physical_type(phys_type);
             offsets.push(offset);
             offset += width;
@@ -75,13 +75,13 @@ impl RowLayout {
             requires_heap = requires_heap || row_encoding_requires_heap(phys_type);
         }
 
-        RowLayout {
+        Ok(RowLayout {
             types,
             offsets,
             row_width: offset,
             requires_heap,
             validity_width,
-        }
+        })
     }
 
     pub fn num_columns(&self) -> usize {
@@ -153,7 +153,7 @@ impl RowLayout {
 
             let array = array.borrow();
 
-            match array.physical_type() {
+            match array.physical_type()? {
                 PhysicalType::Binary | PhysicalType::Utf8 => {
                     let buffer = PhysicalBinary::downcast_execution_format(&array.data)?
                         .into_selection_format()?;
@@ -195,7 +195,7 @@ impl RowLayout {
                 let array = array.borrow();
                 write_array(
                     self,
-                    array.physical_type(),
+                    array.physical_type()?,
                     array_idx,
                     array,
                     &state.row_pointers,
@@ -220,7 +220,7 @@ impl RowLayout {
         unsafe {
             for (array_idx, array) in arrays {
                 let array = array.borrow_mut();
-                let phys_type = array.physical_type();
+                let phys_type = array.physical_type()?;
                 read_array(
                     self,
                     phys_type,
@@ -644,14 +644,14 @@ mod tests {
 
     #[test]
     fn new_empty() {
-        let layout = RowLayout::new([]);
+        let layout = RowLayout::try_new([]).unwrap();
         assert_eq!(0, layout.num_columns());
         assert_eq!(0, layout.row_width);
     }
 
     #[test]
     fn buffer_size_i32() {
-        let layout = RowLayout::new(vec![DataType::Int32]);
+        let layout = RowLayout::try_new(vec![DataType::int32()]).unwrap();
 
         // Note +1 for validity.
         assert_eq!(5, layout.buffer_size(1));
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn buffer_size_i32_f64() {
-        let layout = RowLayout::new(vec![DataType::Int32, DataType::Float64]);
+        let layout = RowLayout::try_new(vec![DataType::int32(), DataType::float64()]).unwrap();
 
         // Note +1 for validity.
         assert_eq!(13, layout.buffer_size(1));
@@ -673,7 +673,7 @@ mod tests {
     fn buffer_size_multi_byte_validity() {
         // Create layout with >8 types to force an additional byte needed for
         // validity.
-        let layout = RowLayout::new(vec![DataType::Int32; 9]);
+        let layout = RowLayout::try_new(vec![DataType::int32(); 9]).unwrap();
 
         // +2 for validity
         assert_eq!((9 * 4 + 2) * 1, layout.buffer_size(1));
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn compute_heap_size_for_fixed_size() {
-        let layout = RowLayout::new([DataType::Int32]);
+        let layout = RowLayout::try_new([DataType::int32()]).unwrap();
         let arr = Array::try_from_iter([1, 2, 3]).unwrap();
         let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
 
@@ -696,7 +696,7 @@ mod tests {
 
     #[test]
     fn compute_heap_size_all_inlineable_strings() {
-        let layout = RowLayout::new([DataType::Int32]);
+        let layout = RowLayout::try_new([DataType::int32()]).unwrap();
         let arr = Array::try_from_iter(["a", "b", "c"]).unwrap();
         let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
 
@@ -709,7 +709,7 @@ mod tests {
 
     #[test]
     fn compute_heap_size_all_heap_strings() {
-        let layout = RowLayout::new([DataType::Int32]);
+        let layout = RowLayout::try_new([DataType::int32()]).unwrap();
         let arr =
             Array::try_from_iter(["aaaaaaaaaaaaa", "bbbbbbbbbbbbbb", "ccccccccccccccc"]).unwrap();
         let mut heap_sizes = vec![1, 2, 3]; // Start with dummy data to ensure it gets zeroed out.
@@ -723,7 +723,7 @@ mod tests {
 
     #[test]
     fn compute_heap_size_all_heap_strings_with_selection() {
-        let layout = RowLayout::new([DataType::Int32]);
+        let layout = RowLayout::try_new([DataType::int32()]).unwrap();
         let arr =
             Array::try_from_iter(["aaaaaaaaaaaaa", "bbbbbbbbbbbbbb", "ccccccccccccccc"]).unwrap();
         let mut heap_sizes = vec![1, 3]; // Start with dummy data to ensure it gets zeroed out.
@@ -744,7 +744,7 @@ mod tests {
         rows: impl IntoExactSizeIterator<Item = usize> + Clone,
     ) -> Array {
         let sel_len = rows.clone().into_exact_size_iter().len();
-        let layout = RowLayout::new([array.datatype().clone()]);
+        let layout = RowLayout::try_new([array.datatype().clone()]).unwrap();
 
         let heap_sizes = if layout.requires_heap {
             let mut heap_sizes = vec![0; sel_len];
@@ -842,7 +842,7 @@ mod tests {
 
     // #[test]
     // fn encode_decode_multiple_fixed_size() {
-    //     let layout = RowLayout::new(vec![DataType::Int32, DataType::Float64]);
+    //     let layout = RowLayout::new(vec![DataType::int32(), DataType::float64()]);
     //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
     //     let mut buf = vec![0; layout.buffer_size(3)];
@@ -852,7 +852,7 @@ mod tests {
     //         .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
     //         .unwrap();
 
-    //     let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
+    //     let mut output = Batch::try_new([DataType::int32(), DataType::float64()], 16).unwrap();
     //     layout
     //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
     //         .unwrap();
@@ -864,7 +864,7 @@ mod tests {
 
     // #[test]
     // fn encode_decode_multiple_fixed_size_with_invalid() {
-    //     let layout = RowLayout::new(vec![DataType::Int32, DataType::Float64]);
+    //     let layout = RowLayout::new(vec![DataType::int32(), DataType::float64()]);
     //     let mut heap = RowHeap::with_capacity(&NopBufferManager, 0).unwrap();
 
     //     let mut buf = vec![0; layout.buffer_size(3)];
@@ -874,7 +874,7 @@ mod tests {
     //         .encode_arrays(&batch.arrays, batch.selection(), &mut buf, &mut heap)
     //         .unwrap();
 
-    //     let mut output = Batch::try_new([DataType::Int32, DataType::Float64], 16).unwrap();
+    //     let mut output = Batch::try_new([DataType::int32(), DataType::float64()], 16).unwrap();
     //     layout
     //         .decode_arrays(&buf, &heap, 0..3, output.arrays.iter_mut().enumerate())
     //         .unwrap();

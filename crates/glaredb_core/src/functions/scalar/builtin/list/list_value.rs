@@ -3,7 +3,7 @@ use glaredb_error::{DbError, Result};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::make_list::make_list;
-use crate::arrays::datatype::{DataType, DataTypeId, ListTypeMeta};
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -26,7 +26,7 @@ pub const FUNCTION_SET_LIST_VALUE: ScalarFunctionSet = ScalarFunctionSet {
         &Signature {
             positional_args: &[],
             variadic_arg: Some(DataTypeId::Any),
-            return_type: DataTypeId::List(&DataTypeId::Any),
+            return_type: DataTypeId::List,
         },
         &ListValue,
     )],
@@ -43,7 +43,7 @@ impl ScalarFunction for ListValue {
             Some(expr) => expr.datatype()?,
             None => {
                 // No values in the list.
-                DataType::Null
+                DataType::null()
             }
         };
 
@@ -57,9 +57,7 @@ impl ScalarFunction for ListValue {
             }
         }
 
-        let return_type = DataType::List(ListTypeMeta {
-            datatype: Box::new(first),
-        });
+        let return_type = DataType::list(first);
 
         Ok(BindState {
             state: (),

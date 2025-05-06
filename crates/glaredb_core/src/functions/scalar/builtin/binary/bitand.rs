@@ -44,58 +44,58 @@ pub const FUNCTION_SET_BITAND: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            &BitAnd::<PhysicalI8>::new(&DataType::Int8),
+            &BitAnd::<PhysicalI8>::new(DataType::INT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            &BitAnd::<PhysicalI16>::new(&DataType::Int16),
+            &BitAnd::<PhysicalI16>::new(DataType::INT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            &BitAnd::<PhysicalI32>::new(&DataType::Int32),
+            &BitAnd::<PhysicalI32>::new(DataType::INT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            &BitAnd::<PhysicalI64>::new(&DataType::Int64),
+            &BitAnd::<PhysicalI64>::new(DataType::INT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
-            &BitAnd::<PhysicalI128>::new(&DataType::Int128),
+            &BitAnd::<PhysicalI128>::new(DataType::INT128),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            &BitAnd::<PhysicalU8>::new(&DataType::UInt8),
+            &BitAnd::<PhysicalU8>::new(DataType::UINT8),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            &BitAnd::<PhysicalU16>::new(&DataType::UInt16),
+            &BitAnd::<PhysicalU16>::new(DataType::UINT16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            &BitAnd::<PhysicalU32>::new(&DataType::UInt32),
+            &BitAnd::<PhysicalU32>::new(DataType::UINT32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            &BitAnd::<PhysicalU64>::new(&DataType::UInt64),
+            &BitAnd::<PhysicalU64>::new(DataType::UINT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::UInt128],
                 DataTypeId::UInt128,
             ),
-            &BitAnd::<PhysicalU128>::new(&DataType::UInt128),
+            &BitAnd::<PhysicalU128>::new(DataType::UINT128),
         ),
     ],
 };

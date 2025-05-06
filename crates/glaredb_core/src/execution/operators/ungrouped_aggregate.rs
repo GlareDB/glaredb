@@ -115,8 +115,10 @@ pub struct PhysicalUngroupedAggregate {
 }
 
 impl PhysicalUngroupedAggregate {
-    pub fn new(aggregates: impl IntoIterator<Item = PhysicalAggregateExpression>) -> Self {
-        let layout = AggregateLayout::new([], aggregates);
+    pub fn try_new(
+        aggregates: impl IntoIterator<Item = PhysicalAggregateExpression>,
+    ) -> Result<Self> {
+        let layout = AggregateLayout::try_new([], aggregates)?;
         debug_assert_eq!(0, layout.groups.row_width);
 
         let output_types: Vec<_> = layout
@@ -127,11 +129,11 @@ impl PhysicalUngroupedAggregate {
 
         let agg_selection = AggregateSelection::new(&layout.aggregates);
 
-        PhysicalUngroupedAggregate {
+        Ok(PhysicalUngroupedAggregate {
             layout,
             output_types,
             agg_selection,
-        }
+        })
     }
 
     /// Initalizes a new buffer for the aggregates in this operator.
@@ -576,12 +578,12 @@ mod tests {
 
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::Int64).into()],
+            vec![expr::column((0, 0), DataType::int64()).into()],
         )
         .unwrap();
-        let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
+        let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::int64())]);
 
-        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
+        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::try_new(vec![agg]).unwrap());
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
@@ -590,7 +592,7 @@ mod tests {
             .unwrap();
 
         let mut input = generate_batch!([1_i64, 2, 3, 4]);
-        let mut output = Batch::new([DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::int64()], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(&op_state, &mut states[0], &mut input, &mut output)
@@ -617,12 +619,12 @@ mod tests {
 
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::Int64).into()],
+            vec![expr::column((0, 0), DataType::int64()).into()],
         )
         .unwrap();
-        let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::Int64)]);
+        let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::int64())]);
 
-        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(vec![agg]));
+        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::try_new(vec![agg]).unwrap());
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
@@ -630,7 +632,7 @@ mod tests {
             .create_partition_execute_states(&op_state, props, 2)
             .unwrap();
 
-        let mut output = Batch::new([DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::int64()], 1024).unwrap();
 
         // Execute and exhaust first partition.
         let mut input = generate_batch!([1_i64, 2, 3, 4]);
@@ -675,21 +677,21 @@ mod tests {
 
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::Int64).into()],
+            vec![expr::column((0, 1), DataType::int64()).into()],
         )
         .unwrap();
         let min_agg = bind_aggregate_function(
             &FUNCTION_SET_MIN,
-            vec![expr::column((0, 0), DataType::Int64).into()],
+            vec![expr::column((0, 0), DataType::int64()).into()],
         )
         .unwrap();
 
         let aggs = [
-            PhysicalAggregateExpression::new(sum_agg, [(1, DataType::Int64)]),
-            PhysicalAggregateExpression::new(min_agg, [(0, DataType::Int64)]),
+            PhysicalAggregateExpression::new(sum_agg, [(1, DataType::int64())]),
+            PhysicalAggregateExpression::new(min_agg, [(0, DataType::int64())]),
         ];
 
-        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::new(aggs));
+        let wrapper = OperatorWrapper::new(PhysicalUngroupedAggregate::try_new(aggs).unwrap());
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
@@ -698,7 +700,7 @@ mod tests {
             .unwrap();
 
         let mut input = generate_batch!([22_i64, 33, 11, 44], [1_i64, 2, 3, 4]);
-        let mut output = Batch::new([DataType::Int64, DataType::Int64], 1024).unwrap();
+        let mut output = Batch::new([DataType::int64(), DataType::int64()], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(&op_state, &mut states[0], &mut input, &mut output)

@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn single_input_two_outputs() {
         let wrapper = OperatorWrapper::new(PhysicalMaterialize {
-            datatypes: vec![DataType::Int32],
+            datatypes: vec![DataType::int32()],
             materialization_ref: MaterializationRef {
                 materialization_idx: 0,
             },
@@ -310,7 +310,7 @@ mod tests {
         let expected = generate_batch!([4, 5, 6, 7]);
 
         // Output 1
-        let mut out1 = Batch::new([DataType::Int32], 4).unwrap();
+        let mut out1 = Batch::new([DataType::int32()], 4).unwrap();
         let poll = wrapper
             .poll_pull(&op_state, &mut out_states1[0], &mut out1)
             .unwrap();
@@ -318,7 +318,7 @@ mod tests {
         assert_batches_eq(&expected, &out1);
 
         // Output 2
-        let mut out2 = Batch::new([DataType::Int32], 4).unwrap();
+        let mut out2 = Batch::new([DataType::int32()], 4).unwrap();
         let poll = wrapper
             .poll_pull(&op_state, &mut out_states2[0], &mut out2)
             .unwrap();

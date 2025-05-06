@@ -84,7 +84,12 @@ impl<'a> SetVarBinder<'a> {
         let name = show.reference.pop()?; // TODO: Allow compound references?
         let var = self.config.get_as_scalar(&name)?;
 
-        bind_context.push_table(self.current, None, vec![DataType::Utf8], vec![name.clone()])?;
+        bind_context.push_table(
+            self.current,
+            None,
+            vec![DataType::utf8()],
+            vec![name.clone()],
+        )?;
 
         Ok(Node {
             node: LogicalShowVar { name, value: var },

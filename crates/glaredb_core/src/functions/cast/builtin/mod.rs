@@ -104,8 +104,8 @@ mod null {
 
         #[test]
         fn array_cast_null_to_f32() {
-            let arr = Array::new(&DefaultBufferManager, DataType::Null, 3).unwrap();
-            let mut out = Array::new(&DefaultBufferManager, DataType::Float32, 3).unwrap();
+            let arr = Array::new(&DefaultBufferManager, DataType::null(), 3).unwrap();
+            let mut out = Array::new(&DefaultBufferManager, DataType::float32(), 3).unwrap();
 
             let error_state = CastFailBehavior::Error.new_state();
             NullToAnything::cast(&(), error_state, &arr, 0..3, &mut out).unwrap();

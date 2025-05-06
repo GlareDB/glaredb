@@ -6,7 +6,7 @@ use num_traits::{FromPrimitive, PrimInt, Signed, Zero};
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalI64, PhysicalI128};
-use crate::arrays::datatype::{DataType, DecimalTypeMeta};
+use crate::arrays::datatype::{DataType, DataTypeMeta, DecimalTypeMeta};
 
 /// Trait describing the underlying primivite representing the decimal.
 // TODO: These num_trait traits are kind of annoying to use. It might make sense
@@ -106,14 +106,14 @@ impl DecimalType for Decimal64Type {
     const DEFAULT_SCALE: i8 = 3;
 
     fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta> {
-        match datatype {
-            DataType::Decimal64(m) => Some(*m),
+        match &datatype.metadata {
+            DataTypeMeta::Decimal(m) => Some(*m),
             _ => None,
         }
     }
 
     fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType {
-        DataType::Decimal64(meta)
+        DataType::decimal64(meta)
     }
 }
 
@@ -128,14 +128,14 @@ impl DecimalType for Decimal128Type {
     const DEFAULT_SCALE: i8 = 9;
 
     fn decimal_meta_opt(datatype: &DataType) -> Option<DecimalTypeMeta> {
-        match datatype {
-            DataType::Decimal128(m) => Some(*m),
+        match &datatype.metadata {
+            DataTypeMeta::Decimal(m) => Some(*m),
             _ => None,
         }
     }
 
     fn datatype_from_decimal_meta(meta: DecimalTypeMeta) -> DataType {
-        DataType::Decimal128(meta)
+        DataType::decimal128(meta)
     }
 }
 

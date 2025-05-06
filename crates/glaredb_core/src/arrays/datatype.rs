@@ -1,7 +1,6 @@
 use std::fmt;
 
-use glaredb_error::{DbError, OptionExt, Result, ResultExt};
-use glaredb_proto::ProtoConv;
+use glaredb_error::{DbError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
 use crate::arrays::array::physical_type::PhysicalType;
@@ -13,7 +12,7 @@ use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType}
 /// This is mostly used for determining the input and return types functions
 /// without needing to worry about extra type info (e.g. precision/scale for
 /// decimals).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataTypeId {
     /// Any datatype.
     ///
@@ -43,16 +42,24 @@ pub enum DataTypeId {
     Float16,
     Float32,
     Float64,
+    /// 64-bit decimal.
     Decimal64,
+    /// 128-bit decimal.
     Decimal128,
+    /// Timestamp, represented as an i64.
     Timestamp,
+    /// Days since unix epoch.
     Date32,
+    /// Milliseconds since unix epoch.
     Date64,
+    /// Some time interval with nanosecond resolution.
     Interval,
     Utf8,
     Binary,
+    /// A struct of different types.
     Struct,
-    List(&'static DataTypeId),
+    /// A list of values all of the same type.
+    List,
 }
 
 impl fmt::Display for DataTypeId {
@@ -84,7 +91,7 @@ impl fmt::Display for DataTypeId {
             Self::Utf8 => write!(f, "Utf8"),
             Self::Binary => write!(f, "Binary"),
             Self::Struct => write!(f, "Struct"),
-            Self::List(inner) => write!(f, "List({inner})"),
+            Self::List => write!(f, "List"),
         }
     }
 }
@@ -196,24 +203,6 @@ impl DecimalTypeMeta {
     }
 }
 
-impl ProtoConv for DecimalTypeMeta {
-    type ProtoType = glaredb_proto::generated::schema::DecimalTypeMeta;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            precision: self.precision as i32,
-            scale: self.scale as i32,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(DecimalTypeMeta {
-            precision: proto.precision.try_into().context("invalid i8")?,
-            scale: proto.scale.try_into().context("invalid i8")?,
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TimestampTypeMeta {
     pub unit: TimeUnit,
@@ -226,51 +215,12 @@ impl TimestampTypeMeta {
     }
 }
 
-impl ProtoConv for TimestampTypeMeta {
-    type ProtoType = glaredb_proto::generated::schema::TimestampTypeMeta;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            unit: self.unit.to_proto()? as i32,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            unit: TimeUnit::from_proto(proto.unit())?,
-        })
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TimeUnit {
     Second,
     Millisecond,
     Microsecond,
     Nanosecond,
-}
-
-impl ProtoConv for TimeUnit {
-    type ProtoType = glaredb_proto::generated::schema::TimeUnit;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(match self {
-            Self::Second => Self::ProtoType::Second,
-            Self::Millisecond => Self::ProtoType::Millisecond,
-            Self::Microsecond => Self::ProtoType::Microsecond,
-            Self::Nanosecond => Self::ProtoType::Nanosecond,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(match proto {
-            Self::ProtoType::InvalidTimeUnit => return Err(DbError::new("invalid")),
-            Self::ProtoType::Second => Self::Second,
-            Self::ProtoType::Millisecond => Self::Millisecond,
-            Self::ProtoType::Microsecond => Self::Microsecond,
-            Self::ProtoType::Nanosecond => Self::Nanosecond,
-        })
-    }
 }
 
 impl fmt::Display for TimeUnit {
@@ -302,29 +252,6 @@ impl StructTypeMeta {
     }
 }
 
-impl ProtoConv for StructTypeMeta {
-    type ProtoType = glaredb_proto::generated::schema::StructTypeMeta;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        let fields = self
-            .fields
-            .iter()
-            .map(|f| f.to_proto())
-            .collect::<Result<Vec<_>>>()?;
-        Ok(Self::ProtoType { fields })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        let fields = proto
-            .fields
-            .into_iter()
-            .map(Field::from_proto)
-            .collect::<Result<Vec<_>>>()?
-            .into_boxed_slice();
-        Ok(Self { fields })
-    }
-}
-
 /// Metadata associated with lists.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ListTypeMeta {
@@ -339,20 +266,14 @@ impl ListTypeMeta {
     }
 }
 
-impl ProtoConv for ListTypeMeta {
-    type ProtoType = glaredb_proto::generated::schema::ListTypeMeta;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            datatype: Some(Box::new(self.datatype.to_proto()?)),
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            datatype: Box::new(DataType::from_proto(*proto.datatype.required("datatype")?)?),
-        })
-    }
+/// Additional metadata that may be associated with a type.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DataTypeMeta {
+    Decimal(DecimalTypeMeta),
+    Timestamp(TimestampTypeMeta),
+    Struct(StructTypeMeta),
+    List(ListTypeMeta),
+    None,
 }
 
 /// Supported data types.
@@ -362,415 +283,368 @@ impl ProtoConv for ListTypeMeta {
 /// Some types may include additional metadata, which acts to refine the type
 /// even further.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum DataType {
-    /// Constant null columns.
-    Null,
-    Boolean,
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    Int128,
-    UInt8,
-    UInt16,
-    UInt32,
-    UInt64,
-    UInt128,
-    Float16,
-    Float32,
-    Float64,
-    /// 64-bit decimal.
-    Decimal64(DecimalTypeMeta),
-    /// 128-bit decimal.
-    Decimal128(DecimalTypeMeta),
-    /// Timestamp
-    Timestamp(TimestampTypeMeta),
-    /// Days since epoch.
-    Date32,
-    /// Milliseconds since epoch.
-    Date64,
-    /// Some time interval with nanosecond resolution.
-    Interval,
-    Utf8,
-    Binary,
-    /// A struct of different types.
-    Struct(StructTypeMeta),
-    /// A list of values all of the same type.
-    List(ListTypeMeta),
+pub struct DataType {
+    /// Identifier for the type.
+    pub(crate) id: DataTypeId,
+    /// Additional metadata for the type.
+    pub(crate) metadata: DataTypeMeta,
+}
+
+macro_rules! datatype_new_primitive {
+    ($fn_name:ident, $static_const:ident) => {
+        pub const fn $fn_name() -> Self {
+            Self::new_primitive(Self::$static_const.id)
+        }
+    };
 }
 
 impl DataType {
+    pub const NULL: &'static Self = &Self::new_primitive(DataTypeId::Null);
+
+    pub const BOOLEAN: &'static Self = &Self::new_primitive(DataTypeId::Boolean);
+
+    pub const INT8: &'static Self = &Self::new_primitive(DataTypeId::Int8);
+    pub const INT16: &'static Self = &Self::new_primitive(DataTypeId::Int16);
+    pub const INT32: &'static Self = &Self::new_primitive(DataTypeId::Int32);
+    pub const INT64: &'static Self = &Self::new_primitive(DataTypeId::Int64);
+    pub const INT128: &'static Self = &Self::new_primitive(DataTypeId::Int128);
+
+    pub const UINT8: &'static Self = &Self::new_primitive(DataTypeId::UInt8);
+    pub const UINT16: &'static Self = &Self::new_primitive(DataTypeId::UInt16);
+    pub const UINT32: &'static Self = &Self::new_primitive(DataTypeId::UInt32);
+    pub const UINT64: &'static Self = &Self::new_primitive(DataTypeId::UInt64);
+    pub const UINT128: &'static Self = &Self::new_primitive(DataTypeId::UInt128);
+
+    pub const FLOAT16: &'static Self = &Self::new_primitive(DataTypeId::Float16);
+    pub const FLOAT32: &'static Self = &Self::new_primitive(DataTypeId::Float32);
+    pub const FLOAT64: &'static Self = &Self::new_primitive(DataTypeId::Float64);
+
+    pub const DATE32: &'static Self = &Self::new_primitive(DataTypeId::Date32);
+    pub const DATE64: &'static Self = &Self::new_primitive(DataTypeId::Date64);
+
+    pub const INTERVAL: &'static Self = &Self::new_primitive(DataTypeId::Interval);
+
+    pub const UTF8: &'static Self = &Self::new_primitive(DataTypeId::Utf8);
+    pub const BINARY: &'static Self = &Self::new_primitive(DataTypeId::Binary);
+
+    datatype_new_primitive!(null, NULL);
+
+    datatype_new_primitive!(boolean, BOOLEAN);
+
+    datatype_new_primitive!(int8, INT8);
+    datatype_new_primitive!(int16, INT16);
+    datatype_new_primitive!(int32, INT32);
+    datatype_new_primitive!(int64, INT64);
+    datatype_new_primitive!(int128, INT128);
+
+    datatype_new_primitive!(uint8, UINT8);
+    datatype_new_primitive!(uint16, UINT16);
+    datatype_new_primitive!(uint32, UINT32);
+    datatype_new_primitive!(uint64, UINT64);
+    datatype_new_primitive!(uint128, UINT128);
+
+    datatype_new_primitive!(float16, FLOAT16);
+    datatype_new_primitive!(float32, FLOAT32);
+    datatype_new_primitive!(float64, FLOAT64);
+
+    datatype_new_primitive!(date32, DATE32);
+    datatype_new_primitive!(date64, DATE64);
+
+    datatype_new_primitive!(interval, INTERVAL);
+
+    datatype_new_primitive!(utf8, UTF8);
+    datatype_new_primitive!(binary, BINARY);
+
+    const fn new_primitive(id: DataTypeId) -> Self {
+        DataType {
+            id,
+            metadata: DataTypeMeta::None,
+        }
+    }
+
+    pub fn list(element_type: DataType) -> Self {
+        DataType {
+            id: DataTypeId::List,
+            metadata: DataTypeMeta::List(ListTypeMeta::new(element_type)),
+        }
+    }
+
+    pub fn struct_type(fields: impl IntoIterator<Item = Field>) -> Self {
+        DataType {
+            id: DataTypeId::Struct,
+            metadata: DataTypeMeta::Struct(StructTypeMeta {
+                fields: fields.into_iter().collect(),
+            }),
+        }
+    }
+
+    pub const fn decimal64(m: DecimalTypeMeta) -> Self {
+        DataType {
+            id: DataTypeId::Decimal64,
+            metadata: DataTypeMeta::Decimal(m),
+        }
+    }
+
+    pub const fn decimal128(m: DecimalTypeMeta) -> Self {
+        DataType {
+            id: DataTypeId::Decimal128,
+            metadata: DataTypeMeta::Decimal(m),
+        }
+    }
+
+    pub const fn timestamp(m: TimestampTypeMeta) -> Self {
+        DataType {
+            id: DataTypeId::Timestamp,
+            metadata: DataTypeMeta::Timestamp(m),
+        }
+    }
+
     /// Try to generate a datatype for casting `from` type id to `to` type id.
     ///
     /// Errors if a suitable datatype cannot be created.
     // TODO: This should probably move.
     pub fn try_generate_cast_datatype(from: DataType, to: DataTypeId) -> Result<Self> {
-        Ok(match to {
+        let (id, meta) = match to {
             DataTypeId::Any => {
                 return Err(DbError::new("Cannot cast to Any"));
             }
             DataTypeId::Table => {
                 return Err(DbError::new("Cannot cast to Table"));
             }
-            DataTypeId::Null => DataType::Null,
-            DataTypeId::Boolean => DataType::Boolean,
-            DataTypeId::Int8 => DataType::Int8,
-            DataTypeId::Int16 => DataType::Int16,
-            DataTypeId::Int32 => DataType::Int32,
-            DataTypeId::Int64 => DataType::Int64,
-            DataTypeId::Int128 => DataType::Int128,
-            DataTypeId::UInt8 => DataType::UInt8,
-            DataTypeId::UInt16 => DataType::UInt16,
-            DataTypeId::UInt32 => DataType::UInt32,
-            DataTypeId::UInt64 => DataType::UInt64,
-            DataTypeId::UInt128 => DataType::UInt128,
-            DataTypeId::Float16 => DataType::Float16,
-            DataTypeId::Float32 => DataType::Float32,
-            DataTypeId::Float64 => DataType::Float64,
-            DataTypeId::Decimal64 => match from {
-                DataType::Decimal64(_) => from,
+            DataTypeId::Null => (DataTypeId::Null, DataTypeMeta::None),
+            DataTypeId::Boolean => (DataTypeId::Boolean, DataTypeMeta::None),
+            DataTypeId::Int8 => (DataTypeId::Int8, DataTypeMeta::None),
+            DataTypeId::Int16 => (DataTypeId::Int16, DataTypeMeta::None),
+            DataTypeId::Int32 => (DataTypeId::Int32, DataTypeMeta::None),
+            DataTypeId::Int64 => (DataTypeId::Int64, DataTypeMeta::None),
+            DataTypeId::Int128 => (DataTypeId::Int128, DataTypeMeta::None),
+            DataTypeId::UInt8 => (DataTypeId::UInt8, DataTypeMeta::None),
+            DataTypeId::UInt16 => (DataTypeId::UInt16, DataTypeMeta::None),
+            DataTypeId::UInt32 => (DataTypeId::UInt32, DataTypeMeta::None),
+            DataTypeId::UInt64 => (DataTypeId::UInt64, DataTypeMeta::None),
+            DataTypeId::UInt128 => (DataTypeId::UInt128, DataTypeMeta::None),
+            DataTypeId::Float16 => (DataTypeId::Float16, DataTypeMeta::None),
+            DataTypeId::Float32 => (DataTypeId::Float32, DataTypeMeta::None),
+            DataTypeId::Float64 => (DataTypeId::Float64, DataTypeMeta::None),
+            DataTypeId::Decimal64 => match from.id {
+                DataTypeId::Decimal64 => (from.id, from.metadata),
                 other => {
-                    let meta = DecimalTypeMeta::new_for_datatype_id(other.datatype_id())
-                        .ok_or_else(|| {
-                            DbError::new(format!(
-                                "Cannot create decimal datatype for casting from {other} to {to}"
-                            ))
-                        })?;
+                    let meta = DecimalTypeMeta::new_for_datatype_id(other).ok_or_else(|| {
+                        DbError::new(format!(
+                            "Cannot create decimal datatype for casting from {other} to {to}"
+                        ))
+                    })?;
                     Decimal64Type::validate_precision(0, meta.precision).context_fn(|| {
                         format!("Cannot create decimal datatype for casting from {other} to {to}")
                     })?;
-                    DataType::Decimal64(meta)
+
+                    (DataTypeId::Decimal64, DataTypeMeta::Decimal(meta))
                 }
             },
-            DataTypeId::Decimal128 => match from {
-                DataType::Decimal64(m) | DataType::Decimal128(m) => DataType::Decimal128(m),
+            DataTypeId::Decimal128 => match from.id {
+                DataTypeId::Decimal64 | DataTypeId::Decimal128 => {
+                    (DataTypeId::Decimal128, from.metadata)
+                }
                 other => {
-                    let meta = DecimalTypeMeta::new_for_datatype_id(other.datatype_id())
-                        .ok_or_else(|| {
-                            DbError::new(format!(
-                                "Cannot create decimal datatype for casting from {other} to {to}"
-                            ))
-                        })?;
+                    let meta = DecimalTypeMeta::new_for_datatype_id(other).ok_or_else(|| {
+                        DbError::new(format!(
+                            "Cannot create decimal datatype for casting from {other} to {to}"
+                        ))
+                    })?;
                     Decimal128Type::validate_precision(0, meta.precision).context_fn(|| {
                         format!("Cannot create decimal datatype for casting from {other} to {to}")
                     })?;
-                    DataType::Decimal128(meta)
+
+                    (DataTypeId::Decimal128, DataTypeMeta::Decimal(meta))
                 }
             },
-            DataTypeId::Timestamp => DataType::Timestamp(TimestampTypeMeta {
-                unit: TimeUnit::Microsecond,
-            }),
-            DataTypeId::Date32 => DataType::Date32,
-            DataTypeId::Date64 => DataType::Date64,
-            DataTypeId::Interval => DataType::Interval,
-            DataTypeId::Utf8 => DataType::Utf8,
-            DataTypeId::Binary => DataType::Binary,
+            DataTypeId::Timestamp => (
+                DataTypeId::Timestamp,
+                DataTypeMeta::Timestamp(TimestampTypeMeta {
+                    unit: TimeUnit::Microsecond,
+                }),
+            ),
+            DataTypeId::Date32 => (DataTypeId::Date32, DataTypeMeta::None),
+            DataTypeId::Date64 => (DataTypeId::Date64, DataTypeMeta::None),
+            DataTypeId::Interval => (DataTypeId::Interval, DataTypeMeta::None),
+            DataTypeId::Utf8 => (DataTypeId::Utf8, DataTypeMeta::None),
+            DataTypeId::Binary => (DataTypeId::Binary, DataTypeMeta::None),
             DataTypeId::Struct => {
                 return Err(DbError::new("Cannot create a default Struct datatype"));
             }
-            DataTypeId::List(&inner) => {
-                // TODO: Is this fine?
-                if from == DataType::Null && inner == DataTypeId::Any {
-                    return Ok(DataType::List(ListTypeMeta::new(DataType::Null)));
-                }
-
+            DataTypeId::List => {
                 return Err(DbError::new("Cannot create a default List datatype"));
+            }
+        };
+
+        Ok(DataType { id, metadata: meta })
+    }
+
+    /// Get the data type id from the data type.
+    pub fn id(&self) -> DataTypeId {
+        self.id
+    }
+
+    pub fn physical_type(&self) -> Result<PhysicalType> {
+        Ok(match self.id {
+            DataTypeId::Null => PhysicalType::UntypedNull,
+            DataTypeId::Boolean => PhysicalType::Boolean,
+            DataTypeId::Int8 => PhysicalType::Int8,
+            DataTypeId::Int16 => PhysicalType::Int16,
+            DataTypeId::Int32 => PhysicalType::Int32,
+            DataTypeId::Int64 => PhysicalType::Int64,
+            DataTypeId::Int128 => PhysicalType::Int128,
+            DataTypeId::UInt8 => PhysicalType::UInt8,
+            DataTypeId::UInt16 => PhysicalType::UInt16,
+            DataTypeId::UInt32 => PhysicalType::UInt32,
+            DataTypeId::UInt64 => PhysicalType::UInt64,
+            DataTypeId::UInt128 => PhysicalType::UInt128,
+            DataTypeId::Float16 => PhysicalType::Float16,
+            DataTypeId::Float32 => PhysicalType::Float32,
+            DataTypeId::Float64 => PhysicalType::Float64,
+            DataTypeId::Decimal64 => PhysicalType::Int64,
+            DataTypeId::Decimal128 => PhysicalType::Int128,
+            DataTypeId::Timestamp => PhysicalType::Int64,
+            DataTypeId::Date32 => PhysicalType::Int32,
+            DataTypeId::Date64 => PhysicalType::Int64,
+            DataTypeId::Interval => PhysicalType::Interval,
+            DataTypeId::Utf8 => PhysicalType::Utf8,
+            DataTypeId::Binary => PhysicalType::Binary,
+            DataTypeId::Struct => PhysicalType::Struct,
+            DataTypeId::List => PhysicalType::List,
+            other => {
+                return Err(DbError::new(format!(
+                    "Cannot get physical type for {other}"
+                )));
             }
         })
     }
 
-    /// Get the data type id from the data type.
-    pub fn datatype_id(&self) -> DataTypeId {
-        match self {
-            DataType::Null => DataTypeId::Null,
-            DataType::Boolean => DataTypeId::Boolean,
-            DataType::Int8 => DataTypeId::Int8,
-            DataType::Int16 => DataTypeId::Int16,
-            DataType::Int32 => DataTypeId::Int32,
-            DataType::Int64 => DataTypeId::Int64,
-            DataType::Int128 => DataTypeId::Int128,
-            DataType::UInt8 => DataTypeId::UInt8,
-            DataType::UInt16 => DataTypeId::UInt16,
-            DataType::UInt32 => DataTypeId::UInt32,
-            DataType::UInt64 => DataTypeId::UInt64,
-            DataType::UInt128 => DataTypeId::UInt128,
-            DataType::Float16 => DataTypeId::Float16,
-            DataType::Float32 => DataTypeId::Float32,
-            DataType::Float64 => DataTypeId::Float64,
-            DataType::Decimal64(_) => DataTypeId::Decimal64,
-            DataType::Decimal128(_) => DataTypeId::Decimal128,
-            DataType::Timestamp(_) => DataTypeId::Timestamp,
-            DataType::Date32 => DataTypeId::Date32,
-            DataType::Date64 => DataTypeId::Date64,
-            DataType::Interval => DataTypeId::Interval,
-            DataType::Utf8 => DataTypeId::Utf8,
-            DataType::Binary => DataTypeId::Binary,
-            DataType::Struct(_) => DataTypeId::Struct,
-            DataType::List(m) => {
-                // Destructure one level deeper.
-                match m.datatype.as_ref() {
-                    DataType::Null => DataTypeId::List(&DataTypeId::Null),
-                    DataType::Boolean => DataTypeId::List(&DataTypeId::Boolean),
-                    DataType::Int8 => DataTypeId::List(&DataTypeId::Int8),
-                    DataType::Int16 => DataTypeId::List(&DataTypeId::Int16),
-                    DataType::Int32 => DataTypeId::List(&DataTypeId::Int32),
-                    DataType::Int64 => DataTypeId::List(&DataTypeId::Int64),
-                    DataType::Int128 => DataTypeId::List(&DataTypeId::Int128),
-                    DataType::UInt8 => DataTypeId::List(&DataTypeId::UInt8),
-                    DataType::UInt16 => DataTypeId::List(&DataTypeId::UInt16),
-                    DataType::UInt32 => DataTypeId::List(&DataTypeId::UInt32),
-                    DataType::UInt64 => DataTypeId::List(&DataTypeId::UInt64),
-                    DataType::UInt128 => DataTypeId::List(&DataTypeId::UInt128),
-                    DataType::Float16 => DataTypeId::List(&DataTypeId::Float16),
-                    DataType::Float32 => DataTypeId::List(&DataTypeId::Float32),
-                    DataType::Float64 => DataTypeId::List(&DataTypeId::Float64),
-                    DataType::Decimal64(_) => DataTypeId::List(&DataTypeId::Decimal64),
-                    DataType::Decimal128(_) => DataTypeId::List(&DataTypeId::Decimal128),
-                    DataType::Timestamp(_) => DataTypeId::List(&DataTypeId::Timestamp),
-                    DataType::Date32 => DataTypeId::List(&DataTypeId::Date32),
-                    DataType::Date64 => DataTypeId::List(&DataTypeId::Date64),
-                    DataType::Interval => DataTypeId::List(&DataTypeId::Interval),
-                    DataType::Utf8 => DataTypeId::List(&DataTypeId::Utf8),
-                    DataType::Binary => DataTypeId::List(&DataTypeId::Binary),
-                    DataType::Struct(_) => DataTypeId::List(&DataTypeId::Struct),
-                    // Unknown or deeply nested type.
-                    _ => DataTypeId::List(&DataTypeId::Any),
-                }
-            }
-        }
-    }
-
-    pub fn physical_type(&self) -> PhysicalType {
-        match self {
-            DataType::Null => PhysicalType::UntypedNull,
-            DataType::Boolean => PhysicalType::Boolean,
-            DataType::Int8 => PhysicalType::Int8,
-            DataType::Int16 => PhysicalType::Int16,
-            DataType::Int32 => PhysicalType::Int32,
-            DataType::Int64 => PhysicalType::Int64,
-            DataType::Int128 => PhysicalType::Int128,
-            DataType::UInt8 => PhysicalType::UInt8,
-            DataType::UInt16 => PhysicalType::UInt16,
-            DataType::UInt32 => PhysicalType::UInt32,
-            DataType::UInt64 => PhysicalType::UInt64,
-            DataType::UInt128 => PhysicalType::UInt128,
-            DataType::Float16 => PhysicalType::Float16,
-            DataType::Float32 => PhysicalType::Float32,
-            DataType::Float64 => PhysicalType::Float64,
-            DataType::Decimal64(_) => PhysicalType::Int64,
-            DataType::Decimal128(_) => PhysicalType::Int128,
-            DataType::Timestamp(_) => PhysicalType::Int64,
-            DataType::Date32 => PhysicalType::Int32,
-            DataType::Date64 => PhysicalType::Int64,
-            DataType::Interval => PhysicalType::Interval,
-            DataType::Utf8 => PhysicalType::Utf8,
-            DataType::Binary => PhysicalType::Binary,
-            DataType::Struct(_) => PhysicalType::Struct,
-            DataType::List(_) => PhysicalType::List,
-        }
-    }
-
     /// Return if this datatype is null.
     pub const fn is_null(&self) -> bool {
-        matches!(self, DataType::Null)
-    }
-
-    /// Return if this datatype is a list.
-    pub const fn is_list(&self) -> bool {
-        matches!(self, DataType::List(_))
+        matches!(self.id, DataTypeId::Null)
     }
 
     pub const fn is_utf8(&self) -> bool {
-        matches!(self, DataType::Utf8)
-    }
-
-    pub const fn is_primitive_numeric(&self) -> bool {
-        matches!(
-            self,
-            DataType::Int8
-                | DataType::Int16
-                | DataType::Int32
-                | DataType::Int64
-                | DataType::Int128
-                | DataType::UInt8
-                | DataType::UInt16
-                | DataType::UInt32
-                | DataType::UInt64
-                | DataType::UInt128
-                | DataType::Float16
-                | DataType::Float32
-                | DataType::Float64
-        )
+        matches!(self.id, DataTypeId::Utf8)
     }
 
     pub const fn is_numeric(&self) -> bool {
         matches!(
-            self,
-            DataType::Int8
-                | DataType::Int16
-                | DataType::Int32
-                | DataType::Int64
-                | DataType::Int128
-                | DataType::UInt8
-                | DataType::UInt16
-                | DataType::UInt32
-                | DataType::UInt64
-                | DataType::UInt128
-                | DataType::Float32
-                | DataType::Float64
-                | DataType::Decimal64(_)
-                | DataType::Decimal128(_)
+            self.id,
+            DataTypeId::Int8
+                | DataTypeId::Int16
+                | DataTypeId::Int32
+                | DataTypeId::Int64
+                | DataTypeId::Int128
+                | DataTypeId::UInt8
+                | DataTypeId::UInt16
+                | DataTypeId::UInt32
+                | DataTypeId::UInt64
+                | DataTypeId::UInt128
+                | DataTypeId::Float32
+                | DataTypeId::Float64
+                | DataTypeId::Decimal64
+                | DataTypeId::Decimal128
         )
-    }
-
-    pub const fn is_float(&self) -> bool {
-        matches!(
-            self,
-            DataType::Float16 | DataType::Float32 | DataType::Float64
-        )
-    }
-
-    pub const fn is_decimal(&self) -> bool {
-        matches!(self, DataType::Decimal64(_) | DataType::Decimal128(_))
     }
 
     pub fn try_get_decimal_type_meta(&self) -> Result<DecimalTypeMeta> {
-        match self {
-            Self::Decimal64(m) => Ok(*m),
-            Self::Decimal128(m) => Ok(*m),
+        match &self.metadata {
+            DataTypeMeta::Decimal(m) => Ok(*m),
             other => Err(DbError::new(format!(
-                "Cannot get decimal type meta from type {other}"
+                "Cannot get decimal type meta from metadata {other:?}"
             ))),
         }
     }
 
     pub fn try_get_list_type_meta(&self) -> Result<&ListTypeMeta> {
-        match self {
-            Self::List(m) => Ok(m),
+        match &self.metadata {
+            DataTypeMeta::List(m) => Ok(m),
             other => Err(DbError::new(format!(
-                "Cannot get list type meta from type {other}"
+                "Cannot get list type meta from metadata {other:?}"
             ))),
         }
     }
 
     pub fn try_get_timestamp_type_meta(&self) -> Result<&TimestampTypeMeta> {
-        match self {
-            Self::Timestamp(m) => Ok(m),
+        match &self.metadata {
+            DataTypeMeta::Timestamp(m) => Ok(m),
             other => Err(DbError::new(format!(
-                "Cannot get timestamp time unit from type {other}"
+                "Cannot get timestamp time unit from metadata {other:?}"
+            ))),
+        }
+    }
+
+    pub fn try_get_struct_type_meta(&self) -> Result<&StructTypeMeta> {
+        match &self.metadata {
+            DataTypeMeta::Struct(m) => Ok(m),
+            other => Err(DbError::new(format!(
+                "Cannot get struct type meta from metadata {other:?}"
             ))),
         }
     }
 }
 
-impl ProtoConv for DataType {
-    type ProtoType = glaredb_proto::generated::schema::DataType;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        use glaredb_proto::generated::schema::EmptyMeta;
-        use glaredb_proto::generated::schema::data_type::Value;
-
-        let value = match self {
-            DataType::Null => Value::TypeNull(EmptyMeta {}),
-            DataType::Boolean => Value::TypeBoolean(EmptyMeta {}),
-            DataType::Int8 => Value::TypeInt8(EmptyMeta {}),
-            DataType::Int16 => Value::TypeInt16(EmptyMeta {}),
-            DataType::Int32 => Value::TypeInt32(EmptyMeta {}),
-            DataType::Int64 => Value::TypeInt64(EmptyMeta {}),
-            DataType::Int128 => Value::TypeInt128(EmptyMeta {}),
-            DataType::UInt8 => Value::TypeUint8(EmptyMeta {}),
-            DataType::UInt16 => Value::TypeUint16(EmptyMeta {}),
-            DataType::UInt32 => Value::TypeUint32(EmptyMeta {}),
-            DataType::UInt64 => Value::TypeUint64(EmptyMeta {}),
-            DataType::UInt128 => Value::TypeUint128(EmptyMeta {}),
-            DataType::Float16 => Value::TypeFloat16(EmptyMeta {}),
-            DataType::Float32 => Value::TypeFloat32(EmptyMeta {}),
-            DataType::Float64 => Value::TypeFloat64(EmptyMeta {}),
-            DataType::Decimal64(m) => Value::TypeDecimal64(m.to_proto()?),
-            DataType::Decimal128(m) => Value::TypeDecimal128(m.to_proto()?),
-            DataType::Timestamp(m) => Value::TypeTimestamp(m.to_proto()?),
-            DataType::Date32 => Value::TypeDate32(EmptyMeta {}),
-            DataType::Date64 => Value::TypeDate64(EmptyMeta {}),
-            DataType::Interval => Value::TypeInterval(EmptyMeta {}),
-            DataType::Utf8 => Value::TypeUtf8(EmptyMeta {}),
-            DataType::Binary => Value::TypeBinary(EmptyMeta {}),
-            DataType::Struct(m) => Value::TypeStruct(m.to_proto()?),
-            DataType::List(m) => Value::TypeList(Box::new(m.to_proto()?)),
-        };
-        Ok(Self::ProtoType { value: Some(value) })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use glaredb_proto::generated::schema::data_type::Value;
-
-        Ok(match proto.value.required("value")? {
-            Value::TypeNull(_) => DataType::Null,
-            Value::TypeBoolean(_) => DataType::Boolean,
-            Value::TypeInt8(_) => DataType::Int8,
-            Value::TypeInt16(_) => DataType::Int16,
-            Value::TypeInt32(_) => DataType::Int32,
-            Value::TypeInt64(_) => DataType::Int64,
-            Value::TypeInt128(_) => DataType::Int128,
-            Value::TypeUint8(_) => DataType::UInt8,
-            Value::TypeUint16(_) => DataType::UInt16,
-            Value::TypeUint32(_) => DataType::UInt32,
-            Value::TypeUint64(_) => DataType::UInt64,
-            Value::TypeUint128(_) => DataType::UInt128,
-            Value::TypeFloat16(_) => DataType::Float16,
-            Value::TypeFloat32(_) => DataType::Float32,
-            Value::TypeFloat64(_) => DataType::Float64,
-            Value::TypeDecimal64(m) => DataType::Decimal64(DecimalTypeMeta::from_proto(m)?),
-            Value::TypeDecimal128(m) => DataType::Decimal128(DecimalTypeMeta::from_proto(m)?),
-            Value::TypeTimestamp(m) => DataType::Timestamp(TimestampTypeMeta::from_proto(m)?),
-            Value::TypeDate32(_) => DataType::Date32,
-            Value::TypeDate64(_) => DataType::Date64,
-            Value::TypeInterval(_) => DataType::Interval,
-            Value::TypeUtf8(_) => DataType::Utf8,
-            Value::TypeBinary(_) => DataType::Binary,
-            Value::TypeStruct(m) => DataType::Struct(StructTypeMeta::from_proto(m)?),
-            Value::TypeList(m) => DataType::List(ListTypeMeta::from_proto(*m)?),
-        })
-    }
-}
-
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Null => write!(f, "Null"),
-            Self::Boolean => write!(f, "Boolean"),
-            Self::Int8 => write!(f, "Int8"),
-            Self::Int16 => write!(f, "Int16"),
-            Self::Int32 => write!(f, "Int32"),
-            Self::Int64 => write!(f, "Int64"),
-            Self::Int128 => write!(f, "Int128"),
-            Self::UInt8 => write!(f, "UInt8"),
-            Self::UInt16 => write!(f, "UInt16"),
-            Self::UInt32 => write!(f, "UInt32"),
-            Self::UInt64 => write!(f, "UInt64"),
-            Self::UInt128 => write!(f, "UInt128"),
-            Self::Float16 => write!(f, "Float16"),
-            Self::Float32 => write!(f, "Float32"),
-            Self::Float64 => write!(f, "Float64"),
-            Self::Decimal64(meta) => write!(f, "Decimal64({},{})", meta.precision, meta.scale),
-            Self::Decimal128(meta) => write!(f, "Decimal128({},{})", meta.precision, meta.scale),
-            Self::Timestamp(meta) => write!(f, "Timestamp({})", meta.unit),
-            Self::Date32 => write!(f, "Date32"),
-            Self::Date64 => write!(f, "Date64"),
-            Self::Interval => write!(f, "Interval"),
-            Self::Utf8 => write!(f, "Utf8"),
-            Self::Binary => write!(f, "Binary"),
-            Self::Struct(meta) => {
-                write!(
-                    f,
-                    "Struct {{{}}}",
-                    meta.fields
-                        .iter()
-                        .map(|field| format!("{}: {}", field.name, field.datatype))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            }
-            DataType::List(meta) => write!(f, "List[{}]", meta.datatype),
+        match self.id {
+            DataTypeId::Any => write!(f, "Any"),
+            DataTypeId::Table => write!(f, "Table"),
+            DataTypeId::Null => write!(f, "Null"),
+            DataTypeId::Boolean => write!(f, "Boolean"),
+            DataTypeId::Int8 => write!(f, "Int8"),
+            DataTypeId::Int16 => write!(f, "Int16"),
+            DataTypeId::Int32 => write!(f, "Int32"),
+            DataTypeId::Int64 => write!(f, "Int64"),
+            DataTypeId::Int128 => write!(f, "Int128"),
+            DataTypeId::UInt8 => write!(f, "UInt8"),
+            DataTypeId::UInt16 => write!(f, "UInt16"),
+            DataTypeId::UInt32 => write!(f, "UInt32"),
+            DataTypeId::UInt64 => write!(f, "UInt64"),
+            DataTypeId::UInt128 => write!(f, "UInt128"),
+            DataTypeId::Float16 => write!(f, "Float16"),
+            DataTypeId::Float32 => write!(f, "Float32"),
+            DataTypeId::Float64 => write!(f, "Float64"),
+            DataTypeId::Decimal64 => match &self.metadata {
+                DataTypeMeta::Decimal(m) => {
+                    write!(f, "Decimal64({},{})", m.precision, m.scale)
+                }
+                _ => write!(f, "Decimal64(Unknown,Unknown)"),
+            },
+            DataTypeId::Decimal128 => match &self.metadata {
+                DataTypeMeta::Decimal(m) => {
+                    write!(f, "Decimal128({},{})", m.precision, m.scale)
+                }
+                _ => write!(f, "Decimal128(Unknown,Unknown)"),
+            },
+            DataTypeId::Timestamp => match &self.metadata {
+                DataTypeMeta::Timestamp(m) => write!(f, "Timestamp({})", m.unit),
+                _ => write!(f, "Timestamp(Unknown)"),
+            },
+            DataTypeId::Date32 => write!(f, "Date32"),
+            DataTypeId::Date64 => write!(f, "Date64"),
+            DataTypeId::Interval => write!(f, "Interval"),
+            DataTypeId::Utf8 => write!(f, "Utf8"),
+            DataTypeId::Binary => write!(f, "Binary"),
+            DataTypeId::Struct => match &self.metadata {
+                DataTypeMeta::Struct(m) => {
+                    write!(
+                        f,
+                        "Struct {{{}}}",
+                        m.fields
+                            .iter()
+                            .map(|field| format!("{}: {}", field.name, field.datatype))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+                _ => write!(f, "Struct Unknown"),
+            },
+            DataTypeId::List => match &self.metadata {
+                DataTypeMeta::List(m) => write!(f, "List[{}]", m.datatype),
+                _ => write!(f, "List[Unknown]"),
+            },
         }
     }
 }

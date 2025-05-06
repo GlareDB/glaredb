@@ -1,13 +1,7 @@
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use glaredb_core::arrays::datatype::{
-    DataType,
-    DecimalTypeMeta,
-    ListTypeMeta,
-    TimeUnit,
-    TimestampTypeMeta,
-};
+use glaredb_core::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use glaredb_core::arrays::field::{ColumnSchema as BulletSchema, Field};
 use glaredb_error::{DbError, Result, not_implemented};
 use regex::Regex;
@@ -44,27 +38,27 @@ impl TryFrom<PrimitiveType> for DataType {
 
     fn try_from(value: PrimitiveType) -> Result<Self> {
         Ok(match value {
-            PrimitiveType::Boolean => DataType::Boolean,
-            PrimitiveType::Int => DataType::Int32,
-            PrimitiveType::Long => DataType::Int64,
-            PrimitiveType::Float => DataType::Float32,
-            PrimitiveType::Double => DataType::Float64,
-            PrimitiveType::Decimal { p, s } => DataType::Decimal128(DecimalTypeMeta {
+            PrimitiveType::Boolean => DataType::boolean(),
+            PrimitiveType::Int => DataType::int32(),
+            PrimitiveType::Long => DataType::int64(),
+            PrimitiveType::Float => DataType::float32(),
+            PrimitiveType::Double => DataType::float64(),
+            PrimitiveType::Decimal { p, s } => DataType::decimal128(DecimalTypeMeta {
                 precision: p,
                 scale: s as i8,
             }),
-            PrimitiveType::Date => DataType::Date32,
+            PrimitiveType::Date => DataType::date32(),
             PrimitiveType::Time => {
-                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+                DataType::timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
             } // TODO: Possibly `Time32` instead?
             PrimitiveType::Timestamp => {
-                DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
+                DataType::timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond))
             }
             PrimitiveType::Timestamptz => not_implemented!("Timestamp with timezone"),
-            PrimitiveType::String => DataType::Utf8,
-            PrimitiveType::Uuid => DataType::Utf8,
+            PrimitiveType::String => DataType::utf8(),
+            PrimitiveType::Uuid => DataType::utf8(),
             PrimitiveType::Fixed(_) => not_implemented!("Fixed sized binary"),
-            PrimitiveType::Binary => DataType::Binary,
+            PrimitiveType::Binary => DataType::binary(),
         })
     }
 }
@@ -184,7 +178,7 @@ impl TryFrom<&ListType> for DataType {
 
     fn try_from(value: &ListType) -> Result<Self> {
         let typ = DataType::try_from(value.element.as_ref())?;
-        Ok(DataType::List(ListTypeMeta::new(typ)))
+        Ok(DataType::list(typ))
     }
 }
 

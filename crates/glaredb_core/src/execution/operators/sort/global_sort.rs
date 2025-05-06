@@ -110,13 +110,13 @@ impl BaseOperator for PhysicalGlobalSort {
     type OperatorState = SortOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
-        let key_layout = SortLayout::new(self.sort_exprs.iter().map(|sort_expr| SortColumn {
+        let key_layout = SortLayout::try_new(self.sort_exprs.iter().map(|sort_expr| SortColumn {
             desc: sort_expr.desc,
             nulls_first: sort_expr.nulls_first,
             datatype: sort_expr.column.datatype(),
-        }));
+        }))?;
         // Assumes input and output types are the same.
-        let data_layout = RowLayout::new(self.output_types.clone());
+        let data_layout = RowLayout::try_new(self.output_types.clone())?;
 
         Ok(SortOperatorState {
             queue: MergeQueue::new(key_layout, data_layout, props.batch_size, self.limit_hint),
@@ -361,17 +361,17 @@ mod tests {
     fn sort_single_column_single_partition() {
         // SORT: c1
         let mut list = TableList::empty();
-        let t0 = list.push_table(None, [DataType::Int32], ["c1"]).unwrap();
+        let t0 = list.push_table(None, [DataType::int32()], ["c1"]).unwrap();
 
         let sort_exprs = [PhysicalSortExpression {
-            column: plan_scalar(&list, expr::column((t0, 0), DataType::Int32)),
+            column: plan_scalar(&list, expr::column((t0, 0), DataType::int32())),
             desc: false,
             nulls_first: false,
         }];
 
-        let (wrapper, op_state, mut states) = new_sort_operator(sort_exprs, [DataType::Int32], 1);
+        let (wrapper, op_state, mut states) = new_sort_operator(sort_exprs, [DataType::int32()], 1);
 
-        let mut output = Batch::new([DataType::Int32], 16).unwrap();
+        let mut output = Batch::new([DataType::int32()], 16).unwrap();
 
         let mut input = generate_batch!([4, 3, 1, 5]);
         let poll = wrapper
@@ -405,21 +405,21 @@ mod tests {
     fn sort_single_column_multiple_partitions() {
         // SORT: c1
         let mut list = TableList::empty();
-        let t0 = list.push_table(None, [DataType::Int32], ["c1"]).unwrap();
+        let t0 = list.push_table(None, [DataType::int32()], ["c1"]).unwrap();
 
         let sort_exprs = [PhysicalSortExpression {
-            column: plan_scalar(&list, expr::column((t0, 0), DataType::Int32)),
+            column: plan_scalar(&list, expr::column((t0, 0), DataType::int32())),
             desc: false,
             nulls_first: false,
         }];
 
-        let (wrapper, op_state, mut states) = new_sort_operator(sort_exprs, [DataType::Int32], 4);
+        let (wrapper, op_state, mut states) = new_sort_operator(sort_exprs, [DataType::int32()], 4);
 
         let mut outputs = [
-            Batch::new([DataType::Int32], 16).unwrap(),
-            Batch::new([DataType::Int32], 16).unwrap(),
-            Batch::new([DataType::Int32], 16).unwrap(),
-            Batch::new([DataType::Int32], 16).unwrap(),
+            Batch::new([DataType::int32()], 16).unwrap(),
+            Batch::new([DataType::int32()], 16).unwrap(),
+            Batch::new([DataType::int32()], 16).unwrap(),
+            Batch::new([DataType::int32()], 16).unwrap(),
         ];
 
         // Push batches for each partition.
@@ -496,20 +496,20 @@ mod tests {
         // SORT: c1 + 8
         // DATA: c1
         let mut list = TableList::empty();
-        let t0 = list.push_table(None, [DataType::Int32], ["c1"]).unwrap();
+        let t0 = list.push_table(None, [DataType::int32()], ["c1"]).unwrap();
 
         let sort_exprs = [PhysicalSortExpression {
             column: plan_scalar(
                 &list,
-                expr::add(expr::column((t0, 0), DataType::Int32), expr::lit(8)).unwrap(),
+                expr::add(expr::column((t0, 0), DataType::int32()), expr::lit(8)).unwrap(),
             ),
             desc: false,
             nulls_first: false,
         }];
 
-        let (wrapper, op_state, mut states) = new_sort_operator(sort_exprs, [DataType::Int32], 1);
+        let (wrapper, op_state, mut states) = new_sort_operator(sort_exprs, [DataType::int32()], 1);
 
-        let mut output = Batch::new([DataType::Int32], 16).unwrap();
+        let mut output = Batch::new([DataType::int32()], 16).unwrap();
 
         let mut input = generate_batch!([4, 3, 1, 5]);
         let poll = wrapper

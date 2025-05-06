@@ -50,7 +50,7 @@ use super::cache::MaybeCache;
 use super::compute::copy::copy_rows_array;
 use super::scalar::ScalarValue;
 use crate::arrays::compute::set_list_value::set_list_value_raw;
-use crate::arrays::datatype::{DataType, ListTypeMeta};
+use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Scalar, Decimal128Scalar};
 use crate::arrays::scalar::interval::Interval;
@@ -298,7 +298,7 @@ impl Array {
     }
 
     /// Gets the physical type for this array's data type.
-    pub fn physical_type(&self) -> PhysicalType {
+    pub fn physical_type(&self) -> Result<PhysicalType> {
         self.datatype.physical_type()
     }
 
@@ -505,64 +505,65 @@ fn get_physical_value<'a>(
         }
     }
 
-    match datatype {
-        DataType::Boolean => {
+    match datatype.id {
+        DataTypeId::Boolean => {
             let v = get_value_inner::<PhysicalBool>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Boolean(*v))
         }
-        DataType::Int8 => {
+        DataTypeId::Int8 => {
             let v = get_value_inner::<PhysicalI8>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int8(*v))
         }
-        DataType::Int16 => {
+        DataTypeId::Int16 => {
             let v = get_value_inner::<PhysicalI16>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int16(*v))
         }
-        DataType::Int32 => {
+        DataTypeId::Int32 => {
             let v = get_value_inner::<PhysicalI32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int32(*v))
         }
-        DataType::Int64 => {
+        DataTypeId::Int64 => {
             let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int64(*v))
         }
-        DataType::Int128 => {
+        DataTypeId::Int128 => {
             let v = get_value_inner::<PhysicalI128>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Int128(*v))
         }
-        DataType::UInt8 => {
+        DataTypeId::UInt8 => {
             let v = get_value_inner::<PhysicalU8>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt8(*v))
         }
-        DataType::UInt16 => {
+        DataTypeId::UInt16 => {
             let v = get_value_inner::<PhysicalU16>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt16(*v))
         }
-        DataType::UInt32 => {
+        DataTypeId::UInt32 => {
             let v = get_value_inner::<PhysicalU32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt32(*v))
         }
-        DataType::UInt64 => {
+        DataTypeId::UInt64 => {
             let v = get_value_inner::<PhysicalU64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt64(*v))
         }
-        DataType::UInt128 => {
+        DataTypeId::UInt128 => {
             let v = get_value_inner::<PhysicalU128>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::UInt128(*v))
         }
-        DataType::Float16 => {
+        DataTypeId::Float16 => {
             let v = get_value_inner::<PhysicalF16>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Float16(*v))
         }
-        DataType::Float32 => {
+        DataTypeId::Float32 => {
             let v = get_value_inner::<PhysicalF32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Float32(*v))
         }
-        DataType::Float64 => {
+        DataTypeId::Float64 => {
             let v = get_value_inner::<PhysicalF64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Float64(*v))
         }
-        DataType::Decimal64(m) => {
+        DataTypeId::Decimal64 => {
+            let m = datatype.try_get_decimal_type_meta()?;
             let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Decimal64(Decimal64Scalar {
                 precision: m.precision,
@@ -570,7 +571,8 @@ fn get_physical_value<'a>(
                 value: *v,
             }))
         }
-        DataType::Decimal128(m) => {
+        DataTypeId::Decimal128 => {
+            let m = datatype.try_get_decimal_type_meta()?;
             let v = get_value_inner::<PhysicalI128>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Decimal128(Decimal128Scalar {
                 precision: m.precision,
@@ -578,34 +580,36 @@ fn get_physical_value<'a>(
                 value: *v,
             }))
         }
-        DataType::Interval => {
+        DataTypeId::Interval => {
             let v = get_value_inner::<PhysicalInterval>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Interval(*v))
         }
-        DataType::Timestamp(m) => {
+        DataTypeId::Timestamp => {
+            let m = datatype.try_get_timestamp_type_meta()?;
             let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Timestamp(TimestampScalar {
                 unit: m.unit,
                 value: *v,
             }))
         }
-        DataType::Date32 => {
+        DataTypeId::Date32 => {
             let v = get_value_inner::<PhysicalI32>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Date32(*v))
         }
-        DataType::Date64 => {
+        DataTypeId::Date64 => {
             let v = get_value_inner::<PhysicalI64>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Date64(*v))
         }
-        DataType::Utf8 => {
+        DataTypeId::Utf8 => {
             let v = get_value_inner::<PhysicalUtf8>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Utf8(v.into()))
         }
-        DataType::Binary => {
+        DataTypeId::Binary => {
             let v = get_value_inner::<PhysicalBinary>(buffer, row_idx)?;
             Ok(BorrowedScalarValue::Binary(v.into()))
         }
-        DataType::List(m) => {
+        DataTypeId::List => {
+            let m = datatype.try_get_list_type_meta()?;
             let list = ListBuffer::downcast_execution_format(buffer)?.into_selection_format()?;
             let sel_idx = list.selection.get(row_idx).unwrap();
             let meta = list.buffer.metadata.as_slice()[sel_idx];
@@ -759,7 +763,7 @@ fn set_physical_value(
 /// Note these create arrays using Nop buffer manager and so really only
 /// suitable for tests right now.
 macro_rules! impl_primitive_from_iter {
-    ($prim:ty, $phys:ty, $typ_variant:ident) => {
+    ($prim:ty, $phys:ty, $typ_func:ident) => {
         impl TryFromExactSizeIterator<$prim> for Array {
             type Error = DbError;
 
@@ -769,7 +773,7 @@ macro_rules! impl_primitive_from_iter {
                 let iter = iter.into_exact_size_iter();
                 let manager = DefaultBufferManager;
 
-                let mut array = Array::new(&manager, DataType::$typ_variant, iter.len())?;
+                let mut array = Array::new(&manager, DataType::$typ_func(), iter.len())?;
                 let slice = <$phys>::get_addressable_mut(&mut array.data)?;
 
                 for (src, dest) in iter.zip(slice.slice) {
@@ -782,25 +786,25 @@ macro_rules! impl_primitive_from_iter {
     };
 }
 
-impl_primitive_from_iter!(bool, PhysicalBool, Boolean);
+impl_primitive_from_iter!(bool, PhysicalBool, boolean);
 
-impl_primitive_from_iter!(i8, PhysicalI8, Int8);
-impl_primitive_from_iter!(i16, PhysicalI16, Int16);
-impl_primitive_from_iter!(i32, PhysicalI32, Int32);
-impl_primitive_from_iter!(i64, PhysicalI64, Int64);
-impl_primitive_from_iter!(i128, PhysicalI128, Int128);
+impl_primitive_from_iter!(i8, PhysicalI8, int8);
+impl_primitive_from_iter!(i16, PhysicalI16, int16);
+impl_primitive_from_iter!(i32, PhysicalI32, int32);
+impl_primitive_from_iter!(i64, PhysicalI64, int64);
+impl_primitive_from_iter!(i128, PhysicalI128, int128);
 
-impl_primitive_from_iter!(u8, PhysicalU8, UInt8);
-impl_primitive_from_iter!(u16, PhysicalU16, UInt16);
-impl_primitive_from_iter!(u32, PhysicalU32, UInt32);
-impl_primitive_from_iter!(u64, PhysicalU64, UInt64);
-impl_primitive_from_iter!(u128, PhysicalU128, UInt128);
+impl_primitive_from_iter!(u8, PhysicalU8, uint8);
+impl_primitive_from_iter!(u16, PhysicalU16, uint16);
+impl_primitive_from_iter!(u32, PhysicalU32, uint32);
+impl_primitive_from_iter!(u64, PhysicalU64, uint64);
+impl_primitive_from_iter!(u128, PhysicalU128, uint128);
 
-impl_primitive_from_iter!(f16, PhysicalF16, Float16);
-impl_primitive_from_iter!(f32, PhysicalF32, Float32);
-impl_primitive_from_iter!(f64, PhysicalF64, Float64);
+impl_primitive_from_iter!(f16, PhysicalF16, float16);
+impl_primitive_from_iter!(f32, PhysicalF32, float32);
+impl_primitive_from_iter!(f64, PhysicalF64, float64);
 
-impl_primitive_from_iter!(Interval, PhysicalInterval, Interval);
+impl_primitive_from_iter!(Interval, PhysicalInterval, interval);
 
 /// Trait that provides `AsRef<str>` for use with creating arrays from an
 /// iterator.
@@ -826,7 +830,7 @@ where
         let iter = iter.into_exact_size_iter();
         let manager = DefaultBufferManager;
 
-        let mut array = Array::new(&manager, DataType::Utf8, iter.len())?;
+        let mut array = Array::new(&manager, DataType::utf8(), iter.len())?;
         let mut buf = PhysicalUtf8::get_addressable_mut(&mut array.data)?;
 
         for (idx, v) in iter.enumerate() {
@@ -905,7 +909,7 @@ where
         let vals: Vec<T> = vals.into_iter().flatten().copied().collect();
         let array: Array = TryFromExactSizeIterator::<T>::try_from_iter(vals)?;
 
-        let datatype = DataType::List(ListTypeMeta::new(array.datatype));
+        let datatype = DataType::list(array.datatype);
 
         let child = ListChildBuffer {
             validity: array.validity,
@@ -937,7 +941,7 @@ mod tests {
         let vals: [&[i64]; 2] = [&[1, 2], &[3, 4, 5]];
         let arr = Array::try_from_iter(vals).unwrap();
 
-        let expected_dt = DataType::List(ListTypeMeta::new(DataType::Int64));
+        let expected_dt = DataType::list(DataType::int64());
         assert_eq!(expected_dt, arr.datatype);
         assert_eq!(2, arr.logical_len());
     }
@@ -947,7 +951,7 @@ mod tests {
         let vals: [&[Option<i64>]; 2] = [&[Some(1), None], &[None, Some(4), Some(5)]];
         let arr = Array::try_from_iter(vals).unwrap();
 
-        let expected_dt = DataType::List(ListTypeMeta::new(DataType::Int64));
+        let expected_dt = DataType::list(DataType::int64());
         assert_eq!(expected_dt, arr.datatype);
         assert_eq!(2, arr.logical_len());
     }
@@ -957,7 +961,7 @@ mod tests {
         let vals: [&[&str]; 2] = [&["a", "b"], &["c", "d", "e"]];
         let arr = Array::try_from_iter(vals).unwrap();
 
-        let expected_dt = DataType::List(ListTypeMeta::new(DataType::Utf8));
+        let expected_dt = DataType::list(DataType::utf8());
         assert_eq!(expected_dt, arr.datatype);
         assert_eq!(2, arr.logical_len());
     }
@@ -1148,12 +1152,8 @@ mod tests {
 
     #[test]
     fn get_value_list_i32() {
-        let mut lists = Array::new(
-            &DefaultBufferManager,
-            DataType::List(ListTypeMeta::new(DataType::Int32)),
-            4,
-        )
-        .unwrap();
+        let mut lists =
+            Array::new(&DefaultBufferManager, DataType::list(DataType::int32()), 4).unwrap();
 
         make_list(
             &[
@@ -1177,7 +1177,7 @@ mod tests {
     #[test]
     fn clone_constant_from_other_i32_valid() {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
-        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::int32(), 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();
@@ -1189,7 +1189,7 @@ mod tests {
     #[test]
     fn clone_constant_from_other_i32_null() {
         let mut arr = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
-        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::int32(), 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();
@@ -1203,7 +1203,7 @@ mod tests {
         let mut arr = Array::try_from_iter([1, 2, 3]).unwrap();
         // => [2, 3, 1]
         arr.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
-        let mut arr2 = Array::new(&DefaultBufferManager, DataType::Int32, 16).unwrap();
+        let mut arr2 = Array::new(&DefaultBufferManager, DataType::int32(), 16).unwrap();
 
         arr2.clone_constant_from(&mut arr, 1, 8, &mut NopCache)
             .unwrap();

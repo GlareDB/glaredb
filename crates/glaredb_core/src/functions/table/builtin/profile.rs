@@ -159,11 +159,11 @@ pub const FUNCTION_SET_QUERY_INFO: TableFunctionSet = TableFunctionSet {
 #[derive(Debug, Clone)]
 pub struct ProfileColumn {
     pub name: &'static str,
-    pub datatype: DataType,
+    pub datatype: &'static DataType,
 }
 
 impl ProfileColumn {
-    pub const fn new(name: &'static str, datatype: DataType) -> Self {
+    pub const fn new(name: &'static str, datatype: &'static DataType) -> Self {
         ProfileColumn { name, datatype }
     }
 }
@@ -217,10 +217,10 @@ impl PlanningProfileRow {
 
 impl ProfileTable for PlanningProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
-        ProfileColumn::new("query_id", DataType::Utf8),
-        ProfileColumn::new("step_order", DataType::Int32),
-        ProfileColumn::new("step", DataType::Utf8),
-        ProfileColumn::new("duration_seconds", DataType::Float64),
+        ProfileColumn::new("query_id", DataType::UTF8),
+        ProfileColumn::new("step_order", DataType::INT32),
+        ProfileColumn::new("step", DataType::UTF8),
+        ProfileColumn::new("duration_seconds", DataType::FLOAT64),
     ];
 
     type Row = PlanningProfileRow;
@@ -305,10 +305,10 @@ pub struct OptimizerProfileRow {
 
 impl ProfileTable for OptimizerProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
-        ProfileColumn::new("query_id", DataType::Utf8),
-        ProfileColumn::new("rule_order", DataType::Int32),
-        ProfileColumn::new("rule", DataType::Utf8),
-        ProfileColumn::new("duration_seconds", DataType::Float64),
+        ProfileColumn::new("query_id", DataType::UTF8),
+        ProfileColumn::new("rule_order", DataType::INT32),
+        ProfileColumn::new("rule", DataType::UTF8),
+        ProfileColumn::new("duration_seconds", DataType::FLOAT64),
     ];
 
     type Row = OptimizerProfileRow;
@@ -396,13 +396,13 @@ pub struct ExecutionProfileRow {
 
 impl ProfileTable for ExecutionProfileTable {
     const COLUMNS: &[ProfileColumn] = &[
-        ProfileColumn::new("query_id", DataType::Utf8),
-        ProfileColumn::new("operator_name", DataType::Utf8),
-        ProfileColumn::new("operator_id", DataType::UInt32),
-        ProfileColumn::new("partition_idx", DataType::UInt32),
-        ProfileColumn::new("rows_in", DataType::UInt64),
-        ProfileColumn::new("rows_out", DataType::UInt64),
-        ProfileColumn::new("execution_time_seconds", DataType::Float64),
+        ProfileColumn::new("query_id", DataType::UTF8),
+        ProfileColumn::new("operator_name", DataType::UTF8),
+        ProfileColumn::new("operator_id", DataType::UINT32),
+        ProfileColumn::new("partition_idx", DataType::UINT32),
+        ProfileColumn::new("rows_in", DataType::UINT64),
+        ProfileColumn::new("rows_out", DataType::UINT64),
+        ProfileColumn::new("execution_time_seconds", DataType::FLOAT64),
     ];
 
     type Row = ExecutionProfileRow;
@@ -497,7 +497,7 @@ impl ProfileTable for ExecutionProfileTable {
 pub struct QueryInfoTable;
 
 impl ProfileTable for QueryInfoTable {
-    const COLUMNS: &[ProfileColumn] = &[ProfileColumn::new("query_id", DataType::Utf8)];
+    const COLUMNS: &[ProfileColumn] = &[ProfileColumn::new("query_id", DataType::UTF8)];
     type Row = Uuid;
 
     fn profile_as_rows(profile: &QueryProfile) -> Result<Vec<Self::Row>> {

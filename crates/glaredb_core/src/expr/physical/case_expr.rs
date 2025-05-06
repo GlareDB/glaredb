@@ -61,7 +61,7 @@ impl PhysicalCaseExpr {
         // and 'else' expressions should evaluate to the same type.
         let buffer = Batch::new(
             [
-                DataType::Boolean,
+                DataType::boolean(),
                 self.else_expr.datatype(),
                 self.else_expr.datatype(),
             ],
@@ -214,20 +214,20 @@ mod tests {
         // CASE a THEN b
         // ELSE 48
         let cases = vec![PhysicalWhenThen::new(
-            PhysicalColumnExpr::from((0, DataType::Boolean)),
-            PhysicalColumnExpr::from((1, DataType::Int32)),
+            PhysicalColumnExpr::from((0, DataType::boolean())),
+            PhysicalColumnExpr::from((1, DataType::int32())),
         )];
         let expr = PhysicalCaseExpr {
             cases,
             else_expr: Box::new(PhysicalLiteralExpr::new(48).into()),
-            datatype: DataType::Int32,
+            datatype: DataType::int32(),
         };
 
         let mut input = generate_batch!([true, true, false], [1, 2, 3]);
 
         let mut state = expr.create_state(3).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
@@ -242,20 +242,20 @@ mod tests {
         // CASE a THEN b
         // ELSE 48
         let cases = vec![PhysicalWhenThen::new(
-            PhysicalColumnExpr::from((0, DataType::Boolean)),
-            PhysicalColumnExpr::from((1, DataType::Int32)),
+            PhysicalColumnExpr::from((0, DataType::boolean())),
+            PhysicalColumnExpr::from((1, DataType::int32())),
         )];
         let expr = PhysicalCaseExpr {
             cases,
             else_expr: Box::new(PhysicalLiteralExpr::new(48).into()),
-            datatype: DataType::Int32,
+            datatype: DataType::int32(),
         };
 
         let mut input = generate_batch!([Some(true), None, Some(false)], [1, 2, 3]);
 
         let mut state = expr.create_state(3).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 3), &mut out)
             .unwrap();
 
@@ -270,29 +270,29 @@ mod tests {
         // END
         let mut table_list = TableList::empty();
         let t0 = table_list
-            .push_table(None, [DataType::Int32], ["i"])
+            .push_table(None, [DataType::int32()], ["i"])
             .unwrap();
 
         // i = 6
         let when_0 = plan_scalar(
             &table_list,
-            expr::eq(expr::column((t0, 0), DataType::Int32), expr::lit(6)).unwrap(),
+            expr::eq(expr::column((t0, 0), DataType::int32()), expr::lit(6)).unwrap(),
         );
         // i+10
         let then_0 = plan_scalar(
             &table_list,
-            expr::add(expr::column((t0, 0), DataType::Int32), expr::lit(10)).unwrap(),
+            expr::add(expr::column((t0, 0), DataType::int32()), expr::lit(10)).unwrap(),
         );
 
         // i >= 5
         let when_1 = plan_scalar(
             &table_list,
-            expr::gt_eq(expr::column((t0, 0), DataType::Int32), expr::lit(5)).unwrap(),
+            expr::gt_eq(expr::column((t0, 0), DataType::int32()), expr::lit(5)).unwrap(),
         );
         // i + 20
         let then_1 = plan_scalar(
             &table_list,
-            expr::add(expr::column((t0, 0), DataType::Int32), expr::lit(20)).unwrap(),
+            expr::add(expr::column((t0, 0), DataType::int32()), expr::lit(20)).unwrap(),
         );
 
         let cases = vec![
@@ -302,15 +302,15 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(typed_null(DataType::Int32)),
-            datatype: DataType::Int32,
+            else_expr: Box::new(typed_null(DataType::int32())),
+            datatype: DataType::int32(),
         };
 
         let mut input = generate_batch!([Some(4), Some(5), Some(6), None]);
 
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 
@@ -327,7 +327,7 @@ mod tests {
 
         let mut table_list = TableList::empty();
         let t0 = table_list
-            .push_table(None, [DataType::Int32], ["i"])
+            .push_table(None, [DataType::int32()], ["i"])
             .unwrap();
 
         // 'WHEN 4' gets desugared to 'WHEN i = 4' during logical planning.
@@ -335,7 +335,7 @@ mod tests {
         // i = 4
         let when_0 = plan_scalar(
             &table_list,
-            expr::eq(expr::column((t0, 0), DataType::Int32), expr::lit(4)).unwrap(),
+            expr::eq(expr::column((t0, 0), DataType::int32()), expr::lit(4)).unwrap(),
         );
         // 'a'
         let then_0 = plan_scalar(&table_list, expr::lit("a"));
@@ -343,7 +343,7 @@ mod tests {
         // i = 5
         let when_1 = plan_scalar(
             &table_list,
-            expr::eq(expr::column((t0, 0), DataType::Int32), expr::lit(5)).unwrap(),
+            expr::eq(expr::column((t0, 0), DataType::int32()), expr::lit(5)).unwrap(),
         );
         // 'b'
         let then_1 = plan_scalar(&table_list, expr::lit("b"));
@@ -355,14 +355,14 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(typed_null(DataType::Utf8)),
-            datatype: DataType::Utf8,
+            else_expr: Box::new(typed_null(DataType::utf8())),
+            datatype: DataType::utf8(),
         };
 
         let mut input = generate_batch!([Some(4), Some(5), Some(6), None]);
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 
@@ -388,13 +388,13 @@ mod tests {
         let expr = PhysicalCaseExpr {
             cases,
             else_expr: Box::new(PhysicalLiteralExpr::new("hello").into()),
-            datatype: DataType::Utf8,
+            datatype: DataType::utf8(),
         };
 
         let mut input = generate_batch!([Some(4), Some(5), Some(6), None]);
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 
@@ -412,42 +412,42 @@ mod tests {
 
         let mut table_list = TableList::empty();
         let t0 = table_list
-            .push_table(None, [DataType::Int32], ["a"])
+            .push_table(None, [DataType::int32()], ["a"])
             .unwrap();
 
         // a < 3
         let when_0 = plan_scalar(
             &table_list,
-            expr::lt(expr::column((t0, 0), DataType::Int32), expr::lit(3)).unwrap(),
+            expr::lt(expr::column((t0, 0), DataType::int32()), expr::lit(3)).unwrap(),
         );
         // a / 0
         let then_0 = plan_scalar(
             &table_list,
-            expr::div(expr::column((t0, 0), DataType::Int32), expr::lit(0)).unwrap(),
+            expr::div(expr::column((t0, 0), DataType::int32()), expr::lit(0)).unwrap(),
         );
 
         // a > 3 OR a < 7
         let when_1 = plan_scalar(
             &table_list,
             expr::or([
-                expr::gt(expr::column((t0, 0), DataType::Int32), expr::lit(3))
+                expr::gt(expr::column((t0, 0), DataType::int32()), expr::lit(3))
                     .unwrap()
                     .into(),
-                expr::lt(expr::column((t0, 0), DataType::Int32), expr::lit(7))
+                expr::lt(expr::column((t0, 0), DataType::int32()), expr::lit(7))
                     .unwrap()
                     .into(),
             ])
             .unwrap(),
         );
         // a
-        let then_1 = plan_scalar(&table_list, expr::column((t0, 0), DataType::Int32));
+        let then_1 = plan_scalar(&table_list, expr::column((t0, 0), DataType::int32()));
 
         // a IS NULL
         let when_2 = plan_scalar(
             &table_list,
             expr::scalar_function(
                 &FUNCTION_SET_IS_NULL,
-                vec![expr::column((t0, 0), DataType::Int32).into()],
+                vec![expr::column((t0, 0), DataType::int32()).into()],
             )
             .unwrap(),
         );
@@ -457,7 +457,7 @@ mod tests {
         // a > 7
         let when_3 = plan_scalar(
             &table_list,
-            expr::gt(expr::column((t0, 0), DataType::Int32), expr::lit(7)).unwrap(),
+            expr::gt(expr::column((t0, 0), DataType::int32()), expr::lit(7)).unwrap(),
         );
         // 1 / 0
         let then_3 = plan_scalar(&table_list, expr::div(expr::lit(1), expr::lit(0)).unwrap());
@@ -471,14 +471,14 @@ mod tests {
 
         let expr = PhysicalCaseExpr {
             cases,
-            else_expr: Box::new(typed_null(DataType::Int32)),
-            datatype: DataType::Int32,
+            else_expr: Box::new(typed_null(DataType::int32())),
+            datatype: DataType::int32(),
         };
 
         let mut input = generate_batch!([Some(4), Some(5), Some(6), None]);
         let mut state = expr.create_state(4).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 4).unwrap();
         expr.eval(&mut input, &mut state, Selection::linear(0, 4), &mut out)
             .unwrap();
 

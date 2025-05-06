@@ -131,7 +131,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
         Ok(TableFunctionBindState {
             state: (),
             input,
-            schema: ColumnSchema::new([Field::new("generate_series", DataType::Int64, false)]),
+            schema: ColumnSchema::new([Field::new("generate_series", DataType::int64(), false)]),
             cardinality: StatisticsValue::Unknown,
         })
     }
@@ -222,7 +222,7 @@ mod tests {
         // generate_series(1, 5, 1)
         let mut input = generate_batch!([1_i64], [5_i64], [1_i64]);
 
-        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let mut output = Batch::new([DataType::int64()], 5).unwrap();
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
@@ -256,7 +256,7 @@ mod tests {
         // generate_series(1, 5, 1)
         let mut input = generate_batch!([1_i64], [5_i64], [1_i64]);
 
-        let mut output = Batch::new([DataType::Int64], 3).unwrap();
+        let mut output = Batch::new([DataType::int64()], 3).unwrap();
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
@@ -292,7 +292,7 @@ mod tests {
         // generate_series(1, 5, 1)
         let mut input = generate_batch!([1_i64], [5_i64], [1_i64]);
 
-        let mut output = Batch::new([DataType::Int64], 4).unwrap();
+        let mut output = Batch::new([DataType::int64()], 4).unwrap();
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
@@ -328,7 +328,7 @@ mod tests {
         // generate_series(4, 8, 2)
         let mut input = generate_batch!([1_i64, 4], [5_i64, 8], [1_i64, 2]);
 
-        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let mut output = Batch::new([DataType::int64()], 5).unwrap();
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
@@ -363,7 +363,7 @@ mod tests {
         // generate_series(5, 1, 1)
         let mut input = generate_batch!([5_i64], [1_i64], [1_i64]);
 
-        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let mut output = Batch::new([DataType::int64()], 5).unwrap();
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
@@ -383,7 +383,7 @@ mod tests {
         // generate_series(1, 5, -1)
         let mut input = generate_batch!([1_i64], [5_i64], [-1_i64]);
 
-        let mut output = Batch::new([DataType::Int64], 5).unwrap();
+        let mut output = Batch::new([DataType::int64()], 5).unwrap();
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),

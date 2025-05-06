@@ -92,7 +92,7 @@ pub fn assert_arrays_eq_sel(
     )
     .unwrap();
 
-    let mut output = Array::new(&DefaultBufferManager, DataType::Boolean, arr_len).unwrap();
+    let mut output = Array::new(&DefaultBufferManager, DataType::boolean(), arr_len).unwrap();
     eq_func.function.call_execute(&batch, &mut output).unwrap();
 
     // Now check if they were all equal.

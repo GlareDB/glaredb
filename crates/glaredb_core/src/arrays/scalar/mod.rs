@@ -8,21 +8,14 @@ use std::fmt;
 use std::hash::Hash;
 
 use decimal::{Decimal64Scalar, Decimal128Scalar};
-use glaredb_error::{DbError, OptionExt, Result};
-use glaredb_proto::ProtoConv;
+use glaredb_error::{DbError, Result};
 use half::f16;
 use interval::Interval;
 use serde::{Deserialize, Serialize};
 use timestamp::TimestampScalar;
 
 use crate::arrays::array::Array;
-use crate::arrays::datatype::{
-    DataType,
-    DecimalTypeMeta,
-    ListTypeMeta,
-    TimeUnit,
-    TimestampTypeMeta,
-};
+use crate::arrays::datatype::{DataType, DecimalTypeMeta, TimeUnit, TimestampTypeMeta};
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::functions::cast::format::{
     BoolFormatter,
@@ -122,43 +115,39 @@ pub type ScalarValue = BorrowedScalarValue<'static>;
 impl BorrowedScalarValue<'_> {
     pub fn datatype(&self) -> DataType {
         match self {
-            BorrowedScalarValue::Null => DataType::Null,
-            BorrowedScalarValue::Boolean(_) => DataType::Boolean,
-            BorrowedScalarValue::Float16(_) => DataType::Float16,
-            BorrowedScalarValue::Float32(_) => DataType::Float32,
-            BorrowedScalarValue::Float64(_) => DataType::Float64,
-            BorrowedScalarValue::Int8(_) => DataType::Int8,
-            BorrowedScalarValue::Int16(_) => DataType::Int16,
-            BorrowedScalarValue::Int32(_) => DataType::Int32,
-            BorrowedScalarValue::Int64(_) => DataType::Int64,
-            BorrowedScalarValue::Int128(_) => DataType::Int128,
-            BorrowedScalarValue::UInt8(_) => DataType::UInt8,
-            BorrowedScalarValue::UInt16(_) => DataType::UInt16,
-            BorrowedScalarValue::UInt32(_) => DataType::UInt32,
-            BorrowedScalarValue::UInt64(_) => DataType::UInt64,
-            BorrowedScalarValue::UInt128(_) => DataType::UInt128,
+            BorrowedScalarValue::Null => DataType::null(),
+            BorrowedScalarValue::Boolean(_) => DataType::boolean(),
+            BorrowedScalarValue::Float16(_) => DataType::float16(),
+            BorrowedScalarValue::Float32(_) => DataType::float32(),
+            BorrowedScalarValue::Float64(_) => DataType::float64(),
+            BorrowedScalarValue::Int8(_) => DataType::int8(),
+            BorrowedScalarValue::Int16(_) => DataType::int16(),
+            BorrowedScalarValue::Int32(_) => DataType::int32(),
+            BorrowedScalarValue::Int64(_) => DataType::int64(),
+            BorrowedScalarValue::Int128(_) => DataType::int128(),
+            BorrowedScalarValue::UInt8(_) => DataType::uint8(),
+            BorrowedScalarValue::UInt16(_) => DataType::uint16(),
+            BorrowedScalarValue::UInt32(_) => DataType::uint32(),
+            BorrowedScalarValue::UInt64(_) => DataType::uint64(),
+            BorrowedScalarValue::UInt128(_) => DataType::uint128(),
             BorrowedScalarValue::Decimal64(v) => {
-                DataType::Decimal64(DecimalTypeMeta::new(v.precision, v.scale))
+                DataType::decimal64(DecimalTypeMeta::new(v.precision, v.scale))
             }
             BorrowedScalarValue::Decimal128(v) => {
-                DataType::Decimal128(DecimalTypeMeta::new(v.precision, v.scale))
+                DataType::decimal128(DecimalTypeMeta::new(v.precision, v.scale))
             }
-            BorrowedScalarValue::Date32(_) => DataType::Date32,
-            BorrowedScalarValue::Date64(_) => DataType::Date64,
+            BorrowedScalarValue::Date32(_) => DataType::date32(),
+            BorrowedScalarValue::Date64(_) => DataType::date64(),
             BorrowedScalarValue::Timestamp(v) => {
-                DataType::Timestamp(TimestampTypeMeta::new(v.unit))
+                DataType::timestamp(TimestampTypeMeta::new(v.unit))
             }
-            BorrowedScalarValue::Interval(_) => DataType::Interval,
-            BorrowedScalarValue::Utf8(_) => DataType::Utf8,
-            BorrowedScalarValue::Binary(_) => DataType::Binary,
+            BorrowedScalarValue::Interval(_) => DataType::interval(),
+            BorrowedScalarValue::Utf8(_) => DataType::utf8(),
+            BorrowedScalarValue::Binary(_) => DataType::binary(),
             BorrowedScalarValue::Struct(_fields) => unimplemented!(), // TODO: Fill out the meta
             BorrowedScalarValue::List(list) => match list.first() {
-                Some(first) => DataType::List(ListTypeMeta {
-                    datatype: Box::new(first.datatype()),
-                }),
-                None => DataType::List(ListTypeMeta {
-                    datatype: Box::new(DataType::Null),
-                }),
+                Some(first) => DataType::list(first.datatype()),
+                None => DataType::list(DataType::null()),
             },
         }
     }
@@ -426,102 +415,6 @@ impl From<Decimal64Scalar> for ScalarValue {
 impl From<Decimal128Scalar> for ScalarValue {
     fn from(value: Decimal128Scalar) -> Self {
         ScalarValue::Decimal128(value)
-    }
-}
-
-impl ProtoConv for ScalarValue {
-    type ProtoType = glaredb_proto::generated::expr::OwnedScalarValue;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        use glaredb_proto::generated::expr::owned_scalar_value::Value;
-        use glaredb_proto::generated::expr::{EmptyScalar, ListScalar, StructScalar};
-
-        let value = match self {
-            Self::Null => Value::ScalarNull(EmptyScalar {}),
-            Self::Boolean(v) => Value::ScalarBoolean(*v),
-            Self::Int8(v) => Value::ScalarInt8(*v as i32),
-            Self::Int16(v) => Value::ScalarInt16(*v as i32),
-            Self::Int32(v) => Value::ScalarInt32(*v),
-            Self::Int64(v) => Value::ScalarInt64(*v),
-            Self::Int128(v) => Value::ScalarInt128(v.to_le_bytes().to_vec()),
-            Self::UInt8(v) => Value::ScalarUint8(*v as u32),
-            Self::UInt16(v) => Value::ScalarUint16(*v as u32),
-            Self::UInt32(v) => Value::ScalarUint32(*v),
-            Self::UInt64(v) => Value::ScalarUint64(*v),
-            Self::UInt128(v) => Value::ScalarUint128(v.to_le_bytes().to_vec()),
-            Self::Float16(v) => Value::ScalarFloat16(v.to_f32()),
-            Self::Float32(v) => Value::ScalarFloat32(*v),
-            Self::Float64(v) => Value::ScalarFloat64(*v),
-            Self::Decimal64(v) => Value::ScalarDecimal64(v.to_proto()?),
-            Self::Decimal128(v) => Value::ScalarDecimal128(v.to_proto()?),
-            Self::Timestamp(v) => Value::ScalarTimestamp(v.to_proto()?),
-            Self::Date32(v) => Value::ScalarDate32(*v),
-            Self::Date64(v) => Value::ScalarDate64(*v),
-            Self::Interval(v) => Value::ScalarInterval(v.to_proto()?),
-            Self::Utf8(v) => Value::ScalarUtf8(v.clone().into()),
-            Self::Binary(v) => Value::ScalarBinary(v.clone().into()),
-            Self::Struct(v) => {
-                let values = v.iter().map(|v| v.to_proto()).collect::<Result<Vec<_>>>()?;
-                Value::ScalarStruct(StructScalar { values })
-            }
-            Self::List(v) => {
-                let values = v.iter().map(|v| v.to_proto()).collect::<Result<Vec<_>>>()?;
-                Value::ScalarList(ListScalar { values })
-            }
-        };
-        Ok(Self::ProtoType { value: Some(value) })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        use glaredb_proto::generated::expr::owned_scalar_value::Value;
-
-        Ok(match proto.value.required("owned scalar value enum")? {
-            Value::ScalarNull(_) => Self::Null,
-            Value::ScalarBoolean(v) => Self::Boolean(v),
-            Value::ScalarInt8(v) => Self::Int8(v.try_into()?),
-            Value::ScalarInt16(v) => Self::Int16(v.try_into()?),
-            Value::ScalarInt32(v) => Self::Int32(v),
-            Value::ScalarInt64(v) => Self::Int64(v),
-            Value::ScalarInt128(v) => Self::Int128(i128::from_le_bytes(
-                v.try_into()
-                    .map_err(|_| DbError::new("byte buffer not 16 bytes"))?,
-            )),
-            Value::ScalarUint8(v) => Self::UInt8(v.try_into()?),
-            Value::ScalarUint16(v) => Self::UInt16(v.try_into()?),
-            Value::ScalarUint32(v) => Self::UInt32(v),
-            Value::ScalarUint64(v) => Self::UInt64(v),
-            Value::ScalarUint128(v) => Self::UInt128(u128::from_le_bytes(
-                v.try_into()
-                    .map_err(|_| DbError::new("byte buffer not 16 bytes"))?,
-            )),
-            Value::ScalarFloat16(v) => Self::Float16(f16::from_f32(v)),
-            Value::ScalarFloat32(v) => Self::Float32(v),
-            Value::ScalarFloat64(v) => Self::Float64(v),
-            Value::ScalarDecimal64(v) => Self::Decimal64(Decimal64Scalar::from_proto(v)?),
-            Value::ScalarDecimal128(v) => Self::Decimal128(Decimal128Scalar::from_proto(v)?),
-            Value::ScalarTimestamp(v) => Self::Timestamp(TimestampScalar::from_proto(v)?),
-            Value::ScalarDate32(v) => Self::Date32(v),
-            Value::ScalarDate64(v) => Self::Date64(v),
-            Value::ScalarInterval(v) => Self::Interval(Interval::from_proto(v)?),
-            Value::ScalarUtf8(v) => Self::Utf8(v.into()),
-            Value::ScalarBinary(v) => Self::Binary(v.into()),
-            Value::ScalarStruct(v) => {
-                let values = v
-                    .values
-                    .into_iter()
-                    .map(ScalarValue::from_proto)
-                    .collect::<Result<Vec<_>>>()?;
-                Self::Struct(values)
-            }
-            Value::ScalarList(v) => {
-                let values = v
-                    .values
-                    .into_iter()
-                    .map(ScalarValue::from_proto)
-                    .collect::<Result<Vec<_>>>()?;
-                Self::List(values)
-            }
-        })
     }
 }
 

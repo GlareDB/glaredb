@@ -38,26 +38,26 @@ pub const FUNCTION_SET_LCM: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            &Lcm::<PhysicalI8>::new(&DataType::Int8),
+            &Lcm::<PhysicalI8>::new(DataType::INT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            &Lcm::<PhysicalI16>::new(&DataType::Int16),
+            &Lcm::<PhysicalI16>::new(DataType::INT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            &Lcm::<PhysicalI32>::new(&DataType::Int32),
+            &Lcm::<PhysicalI32>::new(DataType::INT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            &Lcm::<PhysicalI64>::new(&DataType::Int64),
+            &Lcm::<PhysicalI64>::new(DataType::INT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
-            &Lcm::<PhysicalI128>::new(&DataType::Int128),
+            &Lcm::<PhysicalI128>::new(DataType::INT128),
         ),
     ],
 };

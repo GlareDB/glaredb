@@ -83,7 +83,7 @@ impl<'a> ValuesBinder<'a> {
             }
 
             for (expr, datatype) in row.iter().zip(&mut types) {
-                if datatype == &DataType::Null {
+                if datatype == DataType::NULL {
                     // Replace with current expression type.
                     *datatype = expr.datatype()?;
                 }

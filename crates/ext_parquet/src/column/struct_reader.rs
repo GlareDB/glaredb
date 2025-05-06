@@ -1,4 +1,4 @@
-use glaredb_core::arrays::datatype::{DataType, TimeUnit};
+use glaredb_core::arrays::datatype::{DataType, DataTypeId, TimeUnit};
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::scalar::unwrap::{
     UnwrapI8,
@@ -107,86 +107,92 @@ pub(crate) fn new_column_reader<'a>(
     descr: ColumnDescriptor,
     filters: impl Iterator<Item = &'a PhysicalScanFilter>,
 ) -> Result<Box<dyn ColumnReader>> {
-    Ok(match &datatype {
-        DataType::Boolean => Box::new(ValueColumnReader::<BoolValueReader, _>::try_new(
+    Ok(match datatype.id() {
+        DataTypeId::Boolean => Box::new(ValueColumnReader::<BoolValueReader, _>::try_new(
             manager,
             datatype,
             descr,
             NopRowGroupPruner::default(),
         )?),
-        DataType::Int8 => Box::new(ValueColumnReader::<CastingInt32ToInt8Reader, _>::try_new(
+        DataTypeId::Int8 => Box::new(ValueColumnReader::<CastingInt32ToInt8Reader, _>::try_new(
             manager,
             datatype,
             descr,
             PrimitiveRowGroupPruner::<_, UnwrapI8>::new(filters),
         )?),
-        DataType::Int16 => Box::new(ValueColumnReader::<CastingInt32ToInt16Reader, _>::try_new(
+        DataTypeId::Int16 => Box::new(ValueColumnReader::<CastingInt32ToInt16Reader, _>::try_new(
             manager,
             datatype,
             descr,
             PrimitiveRowGroupPruner::<_, UnwrapI16>::new(filters),
         )?),
-        DataType::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
+        DataTypeId::Int32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
             PrimitiveRowGroupPruner::<_, UnwrapI32>::new(filters),
         )?),
-        DataType::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
+        DataTypeId::Int64 => Box::new(ValueColumnReader::<PlainInt64ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
             PrimitiveRowGroupPruner::<_, UnwrapI64>::new(filters),
         )?),
-        DataType::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader, _>::try_new(
+        DataTypeId::UInt8 => Box::new(ValueColumnReader::<CastingInt32ToUInt8Reader, _>::try_new(
             manager,
             datatype,
             descr,
             PrimitiveRowGroupPruner::<_, UnwrapU8>::new(filters),
         )?),
-        DataType::UInt16 => Box::new(ValueColumnReader::<CastingInt32ToUInt16Reader, _>::try_new(
-            manager,
-            datatype,
-            descr,
-            PrimitiveRowGroupPruner::<_, UnwrapU16>::new(filters),
-        )?),
-        DataType::UInt32 => Box::new(ValueColumnReader::<CastingInt32ToUInt32Reader, _>::try_new(
-            manager,
-            datatype,
-            descr,
-            PrimitiveRowGroupPruner::<_, UnwrapU32>::new(filters),
-        )?),
-        DataType::UInt64 => Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader, _>::try_new(
-            manager,
-            datatype,
-            descr,
-            PrimitiveRowGroupPruner::<_, UnwrapU64>::new(filters),
-        )?),
-        DataType::Float16 => Box::new(ValueColumnReader::<PlainFloat16ValueReader, _>::try_new(
-            manager,
-            datatype,
-            descr,
-            NopRowGroupPruner::default(),
-        )?),
-        DataType::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader, _>::try_new(
-            manager,
-            datatype,
-            descr,
-            NopRowGroupPruner::default(),
-        )?),
-        DataType::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader, _>::try_new(
+        DataTypeId::UInt16 => {
+            Box::new(ValueColumnReader::<CastingInt32ToUInt16Reader, _>::try_new(
+                manager,
+                datatype,
+                descr,
+                PrimitiveRowGroupPruner::<_, UnwrapU16>::new(filters),
+            )?)
+        }
+        DataTypeId::UInt32 => {
+            Box::new(ValueColumnReader::<CastingInt32ToUInt32Reader, _>::try_new(
+                manager,
+                datatype,
+                descr,
+                PrimitiveRowGroupPruner::<_, UnwrapU32>::new(filters),
+            )?)
+        }
+        DataTypeId::UInt64 => {
+            Box::new(ValueColumnReader::<CastingInt64ToUInt64Reader, _>::try_new(
+                manager,
+                datatype,
+                descr,
+                PrimitiveRowGroupPruner::<_, UnwrapU64>::new(filters),
+            )?)
+        }
+        DataTypeId::Float16 => Box::new(ValueColumnReader::<PlainFloat16ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
             NopRowGroupPruner::default(),
         )?),
-        DataType::Date32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
+        DataTypeId::Float32 => Box::new(ValueColumnReader::<PlainFloat32ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
             NopRowGroupPruner::default(),
         )?),
-        DataType::Decimal64(_) => match descr.physical_type() {
+        DataTypeId::Float64 => Box::new(ValueColumnReader::<PlainFloat64ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
+        )?),
+        DataTypeId::Date32 => Box::new(ValueColumnReader::<PlainInt32ValueReader, _>::try_new(
+            manager,
+            datatype,
+            descr,
+            NopRowGroupPruner::default(),
+        )?),
+        DataTypeId::Decimal64 => match descr.physical_type() {
             basic::Type::INT32 => {
                 Box::new(ValueColumnReader::<CastingInt32ToInt64Reader, _>::try_new(
                     manager,
@@ -203,32 +209,35 @@ pub(crate) fn new_column_reader<'a>(
             )?),
             other => not_implemented!("decimal64 reader for physical type: {other:?}"),
         },
-        DataType::Timestamp(m) => match (m.unit, descr.physical_type()) {
-            (TimeUnit::Nanosecond, basic::Type::INT64) => {
-                Box::new(ValueColumnReader::<PlainTsNsValueReader, _>::try_new(
-                    manager,
-                    datatype,
-                    descr,
-                    NopRowGroupPruner::default(),
-                )?)
+        DataTypeId::Timestamp => {
+            let m = datatype.try_get_timestamp_type_meta()?;
+            match (m.unit, descr.physical_type()) {
+                (TimeUnit::Nanosecond, basic::Type::INT64) => {
+                    Box::new(ValueColumnReader::<PlainTsNsValueReader, _>::try_new(
+                        manager,
+                        datatype,
+                        descr,
+                        NopRowGroupPruner::default(),
+                    )?)
+                }
+                (TimeUnit::Nanosecond, basic::Type::INT96) => {
+                    Box::new(ValueColumnReader::<Int96TsReader, _>::try_new(
+                        manager,
+                        datatype,
+                        descr,
+                        NopRowGroupPruner::default(),
+                    )?)
+                }
+                other => not_implemented!("timestamp reader for physical type: {other:?}"),
             }
-            (TimeUnit::Nanosecond, basic::Type::INT96) => {
-                Box::new(ValueColumnReader::<Int96TsReader, _>::try_new(
-                    manager,
-                    datatype,
-                    descr,
-                    NopRowGroupPruner::default(),
-                )?)
-            }
-            other => not_implemented!("timestamp reader for physical type: {other:?}"),
-        },
-        DataType::Utf8 => Box::new(ValueColumnReader::<Utf8ValueReader, _>::try_new(
+        }
+        DataTypeId::Utf8 => Box::new(ValueColumnReader::<Utf8ValueReader, _>::try_new(
             manager,
             datatype,
             descr,
             NopRowGroupPruner::default(),
         )?),
-        DataType::Binary => Box::new(ValueColumnReader::<BinaryValueReader, _>::try_new(
+        DataTypeId::Binary => Box::new(ValueColumnReader::<BinaryValueReader, _>::try_new(
             manager,
             datatype,
             descr,

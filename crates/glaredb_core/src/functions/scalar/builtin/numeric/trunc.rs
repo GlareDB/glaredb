@@ -34,15 +34,15 @@ pub const FUNCTION_SET_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
     functions: &[
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float16], DataTypeId::Float16),
-            &UnaryInputNumericScalar::<PhysicalF16, TruncOp>::new(&DataType::Float16),
+            &UnaryInputNumericScalar::<PhysicalF16, TruncOp>::new(DataType::FLOAT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float32], DataTypeId::Float32),
-            &UnaryInputNumericScalar::<PhysicalF32, TruncOp>::new(&DataType::Float32),
+            &UnaryInputNumericScalar::<PhysicalF32, TruncOp>::new(DataType::FLOAT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-            &UnaryInputNumericScalar::<PhysicalF64, TruncOp>::new(&DataType::Float64),
+            &UnaryInputNumericScalar::<PhysicalF64, TruncOp>::new(DataType::FLOAT64),
         ),
     ],
 };

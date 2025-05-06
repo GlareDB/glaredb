@@ -56,7 +56,7 @@ impl ScalarFunction for EndsWith {
 
         Ok(BindState {
             state: EndsWithState { constant },
-            return_type: DataType::Boolean,
+            return_type: DataType::boolean(),
             inputs,
         })
     }

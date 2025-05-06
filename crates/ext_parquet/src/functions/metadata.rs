@@ -122,11 +122,11 @@ pub struct FileMetadataTableState {
 
 impl MetadataTable for FileMetadataTable {
     const COLUMNS: &[MetadataColumn] = &[
-        MetadataColumn::new("file_name", DataType::Utf8),
-        MetadataColumn::new("version", DataType::Int32),
-        MetadataColumn::new("num_rows", DataType::Int64),
-        MetadataColumn::new("created_by", DataType::Utf8),
-        MetadataColumn::new("num_row_groups", DataType::Int64),
+        MetadataColumn::new("file_name", DataType::utf8()),
+        MetadataColumn::new("version", DataType::int32()),
+        MetadataColumn::new("num_rows", DataType::int64()),
+        MetadataColumn::new("created_by", DataType::utf8()),
+        MetadataColumn::new("num_row_groups", DataType::int64()),
     ];
 
     type State = FileMetadataTableState;
@@ -192,10 +192,10 @@ pub struct RowGroupMetadataTableState {
 
 impl MetadataTable for RowGroupMetadataTable {
     const COLUMNS: &[MetadataColumn] = &[
-        MetadataColumn::new("file_name", DataType::Utf8),
-        MetadataColumn::new("num_rows", DataType::Int64),
-        MetadataColumn::new("num_columns", DataType::Int64),
-        MetadataColumn::new("uncompressed_size", DataType::Int64),
+        MetadataColumn::new("file_name", DataType::utf8()),
+        MetadataColumn::new("num_rows", DataType::int64()),
+        MetadataColumn::new("num_columns", DataType::int64()),
+        MetadataColumn::new("uncompressed_size", DataType::int64()),
     ];
 
     type State = RowGroupMetadataTableState;

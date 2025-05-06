@@ -24,7 +24,7 @@ pub const FUNCTION_SET_COT: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-        &UnaryInputNumericScalar::<PhysicalF64, CotOp>::new(&DataType::Float64),
+        &UnaryInputNumericScalar::<PhysicalF64, CotOp>::new(DataType::FLOAT64),
     )],
 };
 

@@ -184,7 +184,7 @@ mod tests {
         let left = Array::try_from_iter([1, 2, 3]).unwrap();
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -205,7 +205,7 @@ mod tests {
         let left = Array::try_from_iter([Some(1), None, Some(3)]).unwrap();
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -226,7 +226,7 @@ mod tests {
         let left = Array::try_from_iter([1, 2, 3]).unwrap();
         let right = Array::new_constant(&DefaultBufferManager, &4.into(), 3).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -250,7 +250,7 @@ mod tests {
 
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -273,7 +273,7 @@ mod tests {
         left.select(&DefaultBufferManager, [1, 2, 0]).unwrap();
         let right = Array::try_from_iter([4, 5, 6]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 3).unwrap();
 
         BinaryExecutor::execute::<PhysicalI32, PhysicalI32, PhysicalI32, _>(
             &left,
@@ -294,7 +294,7 @@ mod tests {
         let left = Array::try_from_iter([1, 2, 3]).unwrap();
         let right = Array::try_from_iter(["hello", "world", "goodbye!"]).unwrap();
 
-        let mut out = Array::new(&DefaultBufferManager, DataType::Utf8, 3).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::utf8(), 3).unwrap();
 
         let mut string_buf = String::new();
         BinaryExecutor::execute::<PhysicalI32, PhysicalUtf8, PhysicalUtf8, _>(

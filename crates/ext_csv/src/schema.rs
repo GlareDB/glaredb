@@ -115,11 +115,11 @@ enum CandidateType {
 impl CandidateType {
     const fn as_datatype(&self) -> DataType {
         match self {
-            Self::Boolean => DataType::Boolean,
-            Self::Int64 => DataType::Int64,
-            Self::Float64 => DataType::Float64,
-            Self::Timestamp => DataType::Timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
-            Self::Utf8 => DataType::Utf8,
+            Self::Boolean => DataType::boolean(),
+            Self::Int64 => DataType::int64(),
+            Self::Float64 => DataType::float64(),
+            Self::Timestamp => DataType::timestamp(TimestampTypeMeta::new(TimeUnit::Microsecond)),
+            Self::Utf8 => DataType::utf8(),
         }
     }
 
@@ -198,9 +198,9 @@ x,y,z
         assert!(!schema.has_header);
 
         let expected = ColumnSchema::new([
-            Field::new("column0", DataType::Utf8, true),
-            Field::new("column1", DataType::Utf8, true),
-            Field::new("column2", DataType::Utf8, true),
+            Field::new("column0", DataType::utf8(), true),
+            Field::new("column1", DataType::utf8(), true),
+            Field::new("column2", DataType::utf8(), true),
         ]);
         assert_eq!(expected, schema.schema);
     }
@@ -218,9 +218,9 @@ x,5.5,100
         assert!(!schema.has_header);
 
         let expected = ColumnSchema::new([
-            Field::new("column0", DataType::Utf8, true),
-            Field::new("column1", DataType::Float64, true),
-            Field::new("column2", DataType::Int64, true),
+            Field::new("column0", DataType::utf8(), true),
+            Field::new("column1", DataType::float64(), true),
+            Field::new("column2", DataType::int64(), true),
         ]);
         assert_eq!(expected, schema.schema);
     }
@@ -239,9 +239,9 @@ x,5.5,100
         assert!(schema.has_header);
 
         let expected = ColumnSchema::new([
-            Field::new("c1", DataType::Utf8, true),
-            Field::new("c2", DataType::Float64, true),
-            Field::new("c3", DataType::Int64, true),
+            Field::new("c1", DataType::utf8(), true),
+            Field::new("c2", DataType::float64(), true),
+            Field::new("c3", DataType::int64(), true),
         ]);
         assert_eq!(expected, schema.schema);
     }
@@ -260,9 +260,9 @@ x,NaN,100
         assert!(schema.has_header);
 
         let expected = ColumnSchema::new([
-            Field::new("c1", DataType::Utf8, true),
-            Field::new("c2", DataType::Float64, true),
-            Field::new("c3", DataType::Int64, true),
+            Field::new("c1", DataType::utf8(), true),
+            Field::new("c2", DataType::float64(), true),
+            Field::new("c3", DataType::int64(), true),
         ]);
         assert_eq!(expected, schema.schema);
     }

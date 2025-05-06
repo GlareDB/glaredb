@@ -57,7 +57,7 @@ pub fn verify_collections_eq(
         )?;
 
         let mut row_count = 0;
-        let mut out = Array::new(&DefaultBufferManager, DataType::Boolean, batch_size)?;
+        let mut out = Array::new(&DefaultBufferManager, DataType::boolean(), batch_size)?;
 
         loop {
             if left_batch.num_rows() == 0 {
@@ -165,8 +165,8 @@ mod tests {
 
     #[test]
     fn verify_equal() {
-        let c1 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
-        let c2 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+        let c1 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
+        let c2 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
 
         let mut s1 = c1.init_append_state();
         let mut s2 = c2.init_append_state();
@@ -187,8 +187,8 @@ mod tests {
 
     #[test]
     fn verify_equal_with_nulls() {
-        let c1 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
-        let c2 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+        let c1 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
+        let c2 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
 
         let mut s1 = c1.init_append_state();
         let mut s2 = c2.init_append_state();
@@ -211,8 +211,8 @@ mod tests {
     fn verify_equal_different_segment_chunk_size() {
         // Ensure our batch slicing logic works.
 
-        let c1 = ConcurrentColumnCollection::new([DataType::Int32], 2, 16);
-        let c2 = ConcurrentColumnCollection::new([DataType::Int32], 3, 27);
+        let c1 = ConcurrentColumnCollection::new([DataType::int32()], 2, 16);
+        let c2 = ConcurrentColumnCollection::new([DataType::int32()], 3, 27);
 
         let mut s1 = c1.init_append_state();
         let mut s2 = c2.init_append_state();
@@ -231,8 +231,8 @@ mod tests {
 
     #[test]
     fn verify_not_equal_different_number_of_rows() {
-        let c1 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
-        let c2 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+        let c1 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
+        let c2 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
 
         let mut s1 = c1.init_append_state();
         let mut s2 = c2.init_append_state();
@@ -253,8 +253,8 @@ mod tests {
 
     #[test]
     fn verify_not_equal_different_values() {
-        let c1 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
-        let c2 = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 2, 2);
+        let c1 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
+        let c2 = ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 2, 2);
 
         let mut s1 = c1.init_append_state();
         let mut s2 = c2.init_append_state();
@@ -276,8 +276,8 @@ mod tests {
 
     #[test]
     fn verify_not_equal_different_segment_chunk_size_different_row_count() {
-        let c1 = ConcurrentColumnCollection::new([DataType::Int32], 2, 16);
-        let c2 = ConcurrentColumnCollection::new([DataType::Int32], 3, 27);
+        let c1 = ConcurrentColumnCollection::new([DataType::int32()], 2, 16);
+        let c2 = ConcurrentColumnCollection::new([DataType::int32()], 3, 27);
 
         let mut s1 = c1.init_append_state();
         let mut s2 = c2.init_append_state();
@@ -301,8 +301,8 @@ mod tests {
 
     #[test]
     fn verify_not_equal_different_segment_chunk_size_different_values() {
-        let c1 = ConcurrentColumnCollection::new([DataType::Int32], 2, 16);
-        let c2 = ConcurrentColumnCollection::new([DataType::Int32], 3, 27);
+        let c1 = ConcurrentColumnCollection::new([DataType::int32()], 2, 16);
+        let c2 = ConcurrentColumnCollection::new([DataType::int32()], 3, 27);
 
         let mut s1 = c1.init_append_state();
         let mut s2 = c2.init_append_state();

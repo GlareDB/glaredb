@@ -188,7 +188,7 @@ impl AnyArrayBuffer {
         datatype: &DataType,
         capacity: usize,
     ) -> Result<Self> {
-        match datatype.physical_type() {
+        match datatype.physical_type()? {
             PhysicalType::UntypedNull => Ok(Self::new_unique(
                 ScalarBuffer::<UntypedNull>::try_new(manager, capacity)?,
             )),
@@ -648,7 +648,7 @@ mod tests {
     fn downcast_basic() {
         // Sanity check the downcast stuff.
         let buffer =
-            AnyArrayBuffer::new_for_datatype(&DefaultBufferManager, &DataType::Int32, 4).unwrap();
+            AnyArrayBuffer::new_for_datatype(&DefaultBufferManager, &DataType::int32(), 4).unwrap();
         ScalarBuffer::<i32>::downcast_ref(&buffer).unwrap();
     }
 

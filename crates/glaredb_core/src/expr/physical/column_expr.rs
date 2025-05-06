@@ -78,9 +78,9 @@ mod tests {
 
         let expr = PhysicalColumnExpr {
             idx: 1,
-            datatype: DataType::Int32,
+            datatype: DataType::int32(),
         };
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 4).unwrap();
         let sel = Selection::linear(0, 4);
 
         expr.eval(&mut input, &mut ExpressionState::empty(), sel, &mut out)
@@ -100,10 +100,10 @@ mod tests {
 
         let expr = PhysicalColumnExpr {
             idx: 1,
-            datatype: DataType::Int32,
+            datatype: DataType::int32(),
         };
         let mut state = expr.create_state(4).unwrap();
-        let mut out = Array::new(&DefaultBufferManager, DataType::Int32, 4).unwrap();
+        let mut out = Array::new(&DefaultBufferManager, DataType::int32(), 4).unwrap();
         let sel = Selection::slice(&[1, 3]);
 
         expr.eval(&mut input, &mut state, sel, &mut out).unwrap();

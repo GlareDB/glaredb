@@ -3,7 +3,7 @@ use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{PhysicalI32, PhysicalI64};
-use crate::arrays::datatype::{DataType, TimeUnit};
+use crate::arrays::datatype::{DataTypeId, TimeUnit};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal64Type, DecimalType};
@@ -77,8 +77,8 @@ pub fn extract_date_part(
     out: &mut Array,
 ) -> Result<()> {
     let datatype = arr.datatype();
-    match datatype {
-        DataType::Date32 => match part {
+    match datatype.id {
+        DataTypeId::Date32 => match part {
             DatePart::Microseconds => date32_extract_with_fn(arr, sel, extract_microseconds, out),
             DatePart::Milliseconds => date32_extract_with_fn(arr, sel, extract_milliseconds, out),
             DatePart::Second => date32_extract_with_fn(arr, sel, extract_seconds, out),
@@ -93,7 +93,7 @@ pub fn extract_date_part(
             DatePart::Year => date32_extract_with_fn(arr, sel, extract_year, out),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
-        DataType::Date64 => match part {
+        DataTypeId::Date64 => match part {
             DatePart::Microseconds => date64_extract_with_fn(arr, sel, extract_microseconds, out),
             DatePart::Milliseconds => date64_extract_with_fn(arr, sel, extract_milliseconds, out),
             DatePart::Second => date64_extract_with_fn(arr, sel, extract_seconds, out),
@@ -108,27 +108,36 @@ pub fn extract_date_part(
             DatePart::Year => date64_extract_with_fn(arr, sel, extract_year, out),
             other => not_implemented!("Extract {other:?} from {datatype}"),
         },
-        DataType::Timestamp(m) => match part {
-            DatePart::Microseconds => {
-                timestamp_extract_with_fn(m.unit, arr, sel, extract_microseconds, out)
+        DataTypeId::Timestamp => {
+            let m = datatype.try_get_timestamp_type_meta()?;
+            match part {
+                DatePart::Microseconds => {
+                    timestamp_extract_with_fn(m.unit, arr, sel, extract_microseconds, out)
+                }
+                DatePart::Milliseconds => {
+                    timestamp_extract_with_fn(m.unit, arr, sel, extract_milliseconds, out)
+                }
+                DatePart::Second => {
+                    timestamp_extract_with_fn(m.unit, arr, sel, extract_seconds, out)
+                }
+                DatePart::Minute => {
+                    timestamp_extract_with_fn(m.unit, arr, sel, extract_minute, out)
+                }
+                DatePart::DayOfWeek => {
+                    timestamp_extract_with_fn(m.unit, arr, sel, extract_day_of_week, out)
+                }
+                DatePart::IsoDayOfWeek => {
+                    timestamp_extract_with_fn(m.unit, arr, sel, extract_iso_day_of_week, out)
+                }
+                DatePart::Day => timestamp_extract_with_fn(m.unit, arr, sel, extract_day, out),
+                DatePart::Month => timestamp_extract_with_fn(m.unit, arr, sel, extract_month, out),
+                DatePart::Quarter => {
+                    timestamp_extract_with_fn(m.unit, arr, sel, extract_quarter, out)
+                }
+                DatePart::Year => timestamp_extract_with_fn(m.unit, arr, sel, extract_year, out),
+                other => not_implemented!("Extract {other:?} from {datatype}"),
             }
-            DatePart::Milliseconds => {
-                timestamp_extract_with_fn(m.unit, arr, sel, extract_milliseconds, out)
-            }
-            DatePart::Second => timestamp_extract_with_fn(m.unit, arr, sel, extract_seconds, out),
-            DatePart::Minute => timestamp_extract_with_fn(m.unit, arr, sel, extract_minute, out),
-            DatePart::DayOfWeek => {
-                timestamp_extract_with_fn(m.unit, arr, sel, extract_day_of_week, out)
-            }
-            DatePart::IsoDayOfWeek => {
-                timestamp_extract_with_fn(m.unit, arr, sel, extract_iso_day_of_week, out)
-            }
-            DatePart::Day => timestamp_extract_with_fn(m.unit, arr, sel, extract_day, out),
-            DatePart::Month => timestamp_extract_with_fn(m.unit, arr, sel, extract_month, out),
-            DatePart::Quarter => timestamp_extract_with_fn(m.unit, arr, sel, extract_quarter, out),
-            DatePart::Year => timestamp_extract_with_fn(m.unit, arr, sel, extract_year, out),
-            other => not_implemented!("Extract {other:?} from {datatype}"),
-        },
+        }
         other => Err(DbError::new(format!(
             "Unable to extract date part for array with data type {other}"
         ))),

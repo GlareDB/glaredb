@@ -249,7 +249,7 @@ mod tests {
             tracker.set_match(idx);
         }
 
-        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::utf8()], 4).unwrap();
         let mut right = generate_batch!(["a", "b", "c", "d"]);
 
         tracker.right_outer_result(&mut right, &mut output).unwrap();
@@ -263,7 +263,7 @@ mod tests {
         let mut tracker = MatchTracker::empty();
         tracker.ensure_initialized(4);
 
-        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::utf8()], 4).unwrap();
         let mut right = generate_batch!(["a", "b", "c", "d"]);
 
         tracker.right_outer_result(&mut right, &mut output).unwrap();
@@ -284,7 +284,7 @@ mod tests {
         tracker.set_match(1);
         tracker.set_match(3);
 
-        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 4).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::utf8()], 4).unwrap();
         let mut right = generate_batch!(["a", "b", "c", "d"]);
 
         tracker.right_outer_result(&mut right, &mut output).unwrap();
@@ -307,7 +307,7 @@ mod tests {
             tracker.set_match(idx);
         }
 
-        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::utf8()], 2).unwrap();
 
         let mut left = generate_batch!([1, 2]);
         tracker
@@ -332,7 +332,7 @@ mod tests {
         let mut tracker = MatchTracker::empty();
         tracker.ensure_initialized(4);
 
-        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::utf8()], 2).unwrap();
 
         let mut left = generate_batch!([1, 2]);
         tracker
@@ -360,7 +360,7 @@ mod tests {
         // Should produce rows 1 and 3
         tracker.set_matches([0, 2]);
 
-        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::utf8()], 2).unwrap();
 
         let mut left = generate_batch!([1, 2]);
         tracker
@@ -387,7 +387,7 @@ mod tests {
         let mut tracker = MatchTracker::empty();
         tracker.ensure_initialized(4);
 
-        let mut output = Batch::new([DataType::Int32], 2).unwrap();
+        let mut output = Batch::new([DataType::int32()], 2).unwrap();
 
         let mut left = generate_batch!([1, 2]);
         tracker.left_semi_result(0, &mut left, &mut output).unwrap();
@@ -409,7 +409,7 @@ mod tests {
         // Should produce rows 0 and 2
         tracker.set_matches([0, 2]);
 
-        let mut output = Batch::new([DataType::Int32], 2).unwrap();
+        let mut output = Batch::new([DataType::int32()], 2).unwrap();
 
         let mut left = generate_batch!([1, 2]);
         tracker.left_semi_result(0, &mut left, &mut output).unwrap();
@@ -432,7 +432,7 @@ mod tests {
         let mut tracker = MatchTracker::empty();
         tracker.ensure_initialized(4);
 
-        let mut output = Batch::new([DataType::Int32, DataType::Boolean], 2).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::boolean()], 2).unwrap();
 
         let mut left = generate_batch!([1, 2]);
         tracker.left_mark_result(0, &mut left, &mut output).unwrap();
@@ -456,7 +456,7 @@ mod tests {
         // Should produce [true, false, true, false] for matches.
         tracker.set_matches([0, 2]);
 
-        let mut output = Batch::new([DataType::Int32, DataType::Boolean], 2).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::boolean()], 2).unwrap();
 
         let mut left = generate_batch!([1, 2]);
         tracker.left_mark_result(0, &mut left, &mut output).unwrap();

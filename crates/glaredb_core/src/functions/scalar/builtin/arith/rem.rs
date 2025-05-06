@@ -48,76 +48,76 @@ pub const FUNCTION_SET_REM: ScalarFunctionSet = ScalarFunctionSet {
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),
-            &Rem::<PhysicalF16>::new(&DataType::Float16),
+            &Rem::<PhysicalF16>::new(DataType::FLOAT16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Float32, DataTypeId::Float32],
                 DataTypeId::Float32,
             ),
-            &Rem::<PhysicalF32>::new(&DataType::Float32),
+            &Rem::<PhysicalF32>::new(DataType::FLOAT32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
                 DataTypeId::Float64,
             ),
-            &Rem::<PhysicalF64>::new(&DataType::Float64),
+            &Rem::<PhysicalF64>::new(DataType::FLOAT64),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            &Rem::<PhysicalI8>::new(&DataType::Int8),
+            &Rem::<PhysicalI8>::new(DataType::INT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            &Rem::<PhysicalI16>::new(&DataType::Int16),
+            &Rem::<PhysicalI16>::new(DataType::INT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            &Rem::<PhysicalI32>::new(&DataType::Int32),
+            &Rem::<PhysicalI32>::new(DataType::INT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            &Rem::<PhysicalI64>::new(&DataType::Int64),
+            &Rem::<PhysicalI64>::new(DataType::INT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
-            &Rem::<PhysicalI128>::new(&DataType::Int128),
+            &Rem::<PhysicalI128>::new(DataType::INT128),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            &Rem::<PhysicalU8>::new(&DataType::UInt8),
+            &Rem::<PhysicalU8>::new(DataType::UINT8),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            &Rem::<PhysicalU16>::new(&DataType::UInt16),
+            &Rem::<PhysicalU16>::new(DataType::UINT16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            &Rem::<PhysicalU32>::new(&DataType::UInt32),
+            &Rem::<PhysicalU32>::new(DataType::UINT32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            &Rem::<PhysicalU64>::new(&DataType::UInt64),
+            &Rem::<PhysicalU64>::new(DataType::UINT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::UInt128],
                 DataTypeId::UInt128,
             ),
-            &Rem::<PhysicalU128>::new(&DataType::UInt128),
+            &Rem::<PhysicalU128>::new(DataType::UINT128),
         ),
     ],
 };

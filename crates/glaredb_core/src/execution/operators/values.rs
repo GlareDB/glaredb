@@ -174,7 +174,7 @@ mod tests {
             .create_partition_execute_states(&(), props, 1)
             .unwrap();
 
-        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::utf8(), DataType::int32()], 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(1);
 
         let poll = wrapper
@@ -202,7 +202,7 @@ mod tests {
             .create_partition_execute_states(&(), props, 1)
             .unwrap();
 
-        let mut output = Batch::new([DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::int32()], 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(1);
 
         let poll = wrapper
@@ -251,7 +251,7 @@ mod tests {
             .create_partition_execute_states(&(), props, 1)
             .unwrap();
 
-        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::utf8(), DataType::int32()], 1024).unwrap();
         let mut input = Batch::empty_with_num_rows(513);
 
         let poll = wrapper

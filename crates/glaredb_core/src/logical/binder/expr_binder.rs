@@ -687,7 +687,7 @@ impl<'a> BaseExpressionBinder<'a> {
                         let expr = expr::arith(op, interval, expr)?;
                         Ok(expr.into())
                     }
-                    None => Ok(expr::cast(expr, DataType::Interval)?.into()),
+                    None => Ok(expr::cast(expr, DataType::interval())?.into()),
                 }
             }
             ast::Expr::Between {
@@ -895,7 +895,7 @@ impl<'a> BaseExpressionBinder<'a> {
         let return_type = if subquery_type == SubqueryType::Scalar {
             query_return_type.clone()
         } else {
-            DataType::Boolean
+            DataType::boolean()
         };
 
         if matches!(

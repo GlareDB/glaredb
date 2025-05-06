@@ -24,7 +24,7 @@ pub const FUNCTION_SET_COSH: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
-        &UnaryInputNumericScalar::<PhysicalF64, CoshOp>::new(&DataType::Float64),
+        &UnaryInputNumericScalar::<PhysicalF64, CoshOp>::new(DataType::FLOAT64),
     )],
 };
 

@@ -178,11 +178,7 @@ impl Catalog for MemoryCatalog {
         create: CreateTableInfo,
     ) -> Result<PlannedOperator> {
         let schema = self.require_get_schema(schema)?;
-        let operator = PhysicalCreateTableAs {
-            storage: storage.clone(),
-            schema,
-            info: create,
-        };
+        let operator = PhysicalCreateTableAs::new(storage.clone(), schema, create);
 
         Ok(PlannedOperator::new_execute(id_gen.next_id(), operator))
     }

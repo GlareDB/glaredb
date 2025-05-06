@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use ahash::RandomState;
-use glaredb_error::{DbError, Result, not_implemented};
+use glaredb_error::{Result, not_implemented};
 use half::f16;
 
 use crate::arrays::array::Array;
@@ -146,7 +146,7 @@ fn hash_inner<H>(
 where
     H: SetHashOp,
 {
-    match datatype.physical_type() {
+    match datatype.physical_type()? {
         PhysicalType::UntypedNull => {
             hash_typed_inner::<PhysicalUntypedNull, H>(validity, buffer, sel, hashes)
         }
@@ -172,13 +172,8 @@ where
             hash_typed_inner::<PhysicalBinary, H>(validity, buffer, sel, hashes)
         }
         PhysicalType::List => {
-            let inner_type = match datatype {
-                DataType::List(m) => &m.datatype,
-                other => {
-                    return Err(DbError::new(format!("Expected list datatype, got {other}")));
-                }
-            };
-            hash_list_array::<H>(validity, buffer, inner_type, sel, hashes)
+            let m = datatype.try_get_list_type_meta()?;
+            hash_list_array::<H>(validity, buffer, &m.datatype, sel, hashes)
         }
 
         other => not_implemented!("hash physical type: {other:?}"),
@@ -437,12 +432,8 @@ mod tests {
     fn hash_i32_lists() {
         let mut hashes = vec![0; 4];
 
-        let mut lists = Array::new(
-            &DefaultBufferManager,
-            DataType::List(ListTypeMeta::new(DataType::Int32)),
-            4,
-        )
-        .unwrap();
+        let mut lists =
+            Array::new(&DefaultBufferManager, DataType::list(DataType::int32()), 4).unwrap();
         // Rows 0 and 2 have the same list values.
         make_list(
             &[

@@ -25,7 +25,7 @@ pub fn implicit_cast_score(have: DataTypeId, want: DataTypeId) -> Option<u32> {
         return Some(TO_ANY_SCORE);
     }
 
-    if have == DataTypeId::Null && matches!(want, DataTypeId::List(_)) {
+    if have == DataTypeId::Null && matches!(want, DataTypeId::List) {
         return Some(NULL_TO_LIST_SCORE);
     }
 

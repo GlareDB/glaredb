@@ -44,10 +44,10 @@ pub struct NationTable;
 
 impl TpchTable for NationTable {
     const COLUMNS: &[TpchColumn] = &[
-        TpchColumn::new("n_nationkey", DataType::Int32),
-        TpchColumn::new("n_name", DataType::Utf8),
-        TpchColumn::new("n_regionkey", DataType::Int32),
-        TpchColumn::new("n_comment", DataType::Utf8),
+        TpchColumn::new("n_nationkey", DataType::int32()),
+        TpchColumn::new("n_name", DataType::utf8()),
+        TpchColumn::new("n_regionkey", DataType::int32()),
+        TpchColumn::new("n_comment", DataType::utf8()),
     ];
 
     type RowIter = NationGeneratorIterator<'static>;

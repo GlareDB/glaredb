@@ -3,7 +3,7 @@ use glaredb_error::{DbError, Result};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::list_extract::list_extract;
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::DataTypeId;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
@@ -25,10 +25,7 @@ pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
         }),
     }],
     functions: &[RawScalarFunction::new(
-        &Signature::new(
-            &[DataTypeId::List(&DataTypeId::Any), DataTypeId::Int64],
-            DataTypeId::Any,
-        ),
+        &Signature::new(&[DataTypeId::List, DataTypeId::Int64], DataTypeId::Any),
         &ListExtract,
     )],
 };
@@ -55,14 +52,12 @@ impl ScalarFunction for ListExtract {
         // Adjust from 1-based indexing.
         let index = (index - 1) as usize;
 
-        let inner_datatype = match inputs[0].datatype()? {
-            DataType::List(meta) => meta.datatype.as_ref().clone(),
-            other => {
-                return Err(DbError::new(format!(
-                    "Cannot index into non-list type, got {other}",
-                )));
-            }
-        };
+        let inner_datatype = inputs[0]
+            .datatype()?
+            .try_get_list_type_meta()?
+            .datatype
+            .as_ref()
+            .clone();
 
         Ok(BindState {
             state: ListExtractState { index },

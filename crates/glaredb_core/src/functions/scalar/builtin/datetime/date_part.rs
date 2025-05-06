@@ -74,7 +74,7 @@ impl ScalarFunction for DatePart {
 
         Ok(BindState {
             state: DatePartState { part },
-            return_type: DataType::Decimal64(DecimalTypeMeta::new(
+            return_type: DataType::decimal64(DecimalTypeMeta::new(
                 Decimal64Type::MAX_PRECISION,
                 Decimal64Type::DEFAULT_SCALE,
             )),

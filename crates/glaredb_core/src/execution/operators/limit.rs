@@ -173,13 +173,13 @@ mod tests {
         let wrapper = OperatorWrapper::new(PhysicalLimit::new(
             5,
             None,
-            [DataType::Utf8, DataType::Int32],
+            [DataType::utf8(), DataType::int32()],
         ));
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6]);
-        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::utf8(), DataType::int32()], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(&op_state, &mut (), &mut input, &mut output)
@@ -195,13 +195,13 @@ mod tests {
         let wrapper = OperatorWrapper::new(PhysicalLimit::new(
             8,
             None,
-            [DataType::Utf8, DataType::Int32],
+            [DataType::utf8(), DataType::int32()],
         ));
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
-        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::utf8(), DataType::int32()], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(&op_state, &mut (), &mut input, &mut output)
@@ -226,13 +226,13 @@ mod tests {
         let wrapper = OperatorWrapper::new(PhysicalLimit::new(
             2,
             Some(1),
-            [DataType::Utf8, DataType::Int32],
+            [DataType::utf8(), DataType::int32()],
         ));
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e", "f"], [1, 2, 3, 4, 5, 6],);
-        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::utf8(), DataType::int32()], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(&op_state, &mut (), &mut input, &mut output)
@@ -248,13 +248,13 @@ mod tests {
         let wrapper = OperatorWrapper::new(PhysicalLimit::new(
             2,
             Some(6),
-            [DataType::Utf8, DataType::Int32],
+            [DataType::utf8(), DataType::int32()],
         ));
         let props = ExecutionProperties { batch_size: 16 };
         let op_state = wrapper.operator.create_operator_state(props).unwrap();
 
         let mut input = generate_batch!(["a", "b", "c", "d", "e"], [1, 2, 3, 4, 5],);
-        let mut output = Batch::new([DataType::Utf8, DataType::Int32], 1024).unwrap();
+        let mut output = Batch::new([DataType::utf8(), DataType::int32()], 1024).unwrap();
 
         let poll = wrapper
             .poll_execute(&op_state, &mut (), &mut input, &mut output)

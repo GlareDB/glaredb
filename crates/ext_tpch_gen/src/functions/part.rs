@@ -39,18 +39,18 @@ pub struct PartTable;
 
 impl TpchTable for PartTable {
     const COLUMNS: &[TpchColumn] = &[
-        TpchColumn::new("p_partkey", DataType::Int64),
-        TpchColumn::new("p_name", DataType::Utf8),
-        TpchColumn::new("p_mfgr", DataType::Utf8),
-        TpchColumn::new("p_brand", DataType::Utf8),
-        TpchColumn::new("p_type", DataType::Utf8),
-        TpchColumn::new("p_size", DataType::Int32),
-        TpchColumn::new("p_container", DataType::Utf8),
+        TpchColumn::new("p_partkey", DataType::int64()),
+        TpchColumn::new("p_name", DataType::utf8()),
+        TpchColumn::new("p_mfgr", DataType::utf8()),
+        TpchColumn::new("p_brand", DataType::utf8()),
+        TpchColumn::new("p_type", DataType::utf8()),
+        TpchColumn::new("p_size", DataType::int32()),
+        TpchColumn::new("p_container", DataType::utf8()),
         TpchColumn::new(
             "p_retailprice",
-            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(15, 2)),
         ),
-        TpchColumn::new("p_comment", DataType::Utf8),
+        TpchColumn::new("p_comment", DataType::utf8()),
     ];
 
     type RowIter = PartGeneratorIterator<'static>;

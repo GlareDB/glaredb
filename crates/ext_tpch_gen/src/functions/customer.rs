@@ -39,17 +39,17 @@ pub struct CustomerTable;
 
 impl TpchTable for CustomerTable {
     const COLUMNS: &[TpchColumn] = &[
-        TpchColumn::new("c_custkey", DataType::Int64),
-        TpchColumn::new("c_name", DataType::Utf8),
-        TpchColumn::new("c_address", DataType::Utf8),
-        TpchColumn::new("c_nationkey", DataType::Int32),
-        TpchColumn::new("c_phone", DataType::Utf8),
+        TpchColumn::new("c_custkey", DataType::int64()),
+        TpchColumn::new("c_name", DataType::utf8()),
+        TpchColumn::new("c_address", DataType::utf8()),
+        TpchColumn::new("c_nationkey", DataType::int32()),
+        TpchColumn::new("c_phone", DataType::utf8()),
         TpchColumn::new(
             "c_acctbal",
-            DataType::Decimal64(DecimalTypeMeta::new(15, 2)),
+            DataType::decimal64(DecimalTypeMeta::new(15, 2)),
         ),
-        TpchColumn::new("c_mktsegment", DataType::Utf8),
-        TpchColumn::new("c_comment", DataType::Utf8),
+        TpchColumn::new("c_mktsegment", DataType::utf8()),
+        TpchColumn::new("c_comment", DataType::utf8()),
     ];
 
     type RowIter = CustomerGeneratorIterator<'static>;

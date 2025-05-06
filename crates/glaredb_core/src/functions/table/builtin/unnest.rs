@@ -27,7 +27,7 @@ pub const FUNCTION_SET_UNNEST: TableFunctionSet = TableFunctionSet {
     functions: &[
         // unnest(list)
         RawTableFunction::new_execute(
-            &Signature::new(&[DataTypeId::List(&DataTypeId::Any)], DataTypeId::Table),
+            &Signature::new(&[DataTypeId::List], DataTypeId::Table),
             &UnnestList,
         ),
     ],

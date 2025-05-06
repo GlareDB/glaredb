@@ -305,7 +305,8 @@ mod tests {
 
     #[test]
     fn append_scan_simple() {
-        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 16, 16);
+        let collection =
+            ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 16, 16);
         let projections = Projections::new([0, 1]);
 
         let mut append_state = collection.init_append_state();
@@ -315,7 +316,7 @@ mod tests {
         collection.append_batch(&mut append_state, &input).unwrap();
         collection.flush(&mut append_state).unwrap();
 
-        let mut output = Batch::new([DataType::Int32, DataType::Utf8], 16).unwrap();
+        let mut output = Batch::new([DataType::int32(), DataType::utf8()], 16).unwrap();
         collection
             .scan(&projections, &mut scan_state, &mut output)
             .unwrap();
@@ -345,7 +346,7 @@ mod tests {
     fn scan_from_many_chunks() {
         // SEGMENT SIZE: 2 chunks
         // CHUNK CAPACITY: 4 rows
-        let collection = ConcurrentColumnCollection::new([DataType::Int32], 2, 4);
+        let collection = ConcurrentColumnCollection::new([DataType::int32()], 2, 4);
 
         let mut append_state = collection.init_append_state();
         // Insert batches.
@@ -359,7 +360,7 @@ mod tests {
         collection.flush(&mut append_state).unwrap();
 
         // Now read out batches.
-        let mut out = Batch::new([DataType::Int32], 4).unwrap();
+        let mut out = Batch::new([DataType::int32()], 4).unwrap();
         let projections = Projections::new([0]);
         let mut scan_state = collection.init_scan_state();
 
@@ -375,7 +376,8 @@ mod tests {
 
     #[test]
     fn scan_projected_column() {
-        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 16, 16);
+        let collection =
+            ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 16, 16);
         let projections = Projections::new([1]);
 
         let mut append_state = collection.init_append_state();
@@ -385,7 +387,7 @@ mod tests {
         collection.append_batch(&mut append_state, &input).unwrap();
         collection.flush(&mut append_state).unwrap();
 
-        let mut output = Batch::new([DataType::Utf8], 16).unwrap();
+        let mut output = Batch::new([DataType::utf8()], 16).unwrap();
         collection
             .scan(&projections, &mut scan_state, &mut output)
             .unwrap();
@@ -397,7 +399,8 @@ mod tests {
     #[test]
     fn scan_parallel() {
         // Very small segments, chunks.
-        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 1, 2);
+        let collection =
+            ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 1, 2);
 
         let mut append_state = collection.init_append_state();
         // TODO: Currently we allow segments to be larger than the configured
@@ -419,7 +422,7 @@ mod tests {
         let mut states: Vec<_> = collection.init_parallel_scan_states(2).collect();
         assert_eq!(2, states.len());
 
-        let mut output1 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        let mut output1 = Batch::new([DataType::int32(), DataType::utf8()], 2).unwrap();
         collection
             .parallel_scan(&projections, &mut states[0], &mut output1)
             .unwrap();
@@ -427,7 +430,7 @@ mod tests {
         assert_batches_eq(&expected1, &output1);
         assert_eq!(0, states[0].state.relative_scan_offset());
 
-        let mut output2 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        let mut output2 = Batch::new([DataType::int32(), DataType::utf8()], 2).unwrap();
         collection
             .parallel_scan(&projections, &mut states[1], &mut output2)
             .unwrap();
@@ -452,7 +455,8 @@ mod tests {
     #[test]
     fn scan_parallel_exhaust_refill() {
         // Very small segments, chunks.
-        let collection = ConcurrentColumnCollection::new([DataType::Int32, DataType::Utf8], 1, 2);
+        let collection =
+            ConcurrentColumnCollection::new([DataType::int32(), DataType::utf8()], 1, 2);
 
         let projections = Projections::new([0, 1]);
 
@@ -468,7 +472,7 @@ mod tests {
         //
         // Assumes knowledge of internals -- states[0] will read the first
         // segment, states[1] will read the next.
-        let mut out1 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        let mut out1 = Batch::new([DataType::int32(), DataType::utf8()], 2).unwrap();
         collection
             .parallel_scan(&projections, &mut scan_states[0], &mut out1)
             .unwrap();
@@ -477,7 +481,7 @@ mod tests {
         assert_eq!(0, scan_states[0].state.relative_scan_offset());
 
         // Second scan is exhausted immediately.
-        let mut out2 = Batch::new([DataType::Int32, DataType::Utf8], 2).unwrap();
+        let mut out2 = Batch::new([DataType::int32(), DataType::utf8()], 2).unwrap();
         collection
             .parallel_scan(&projections, &mut scan_states[1], &mut out2)
             .unwrap();

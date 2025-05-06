@@ -50,7 +50,7 @@ impl ScalarFunction for LeftPad {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Utf8,
+            return_type: DataType::utf8(),
             inputs,
         })
     }
@@ -130,7 +130,7 @@ impl ScalarFunction for RightPad {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
             state: (),
-            return_type: DataType::Utf8,
+            return_type: DataType::utf8(),
             inputs,
         })
     }

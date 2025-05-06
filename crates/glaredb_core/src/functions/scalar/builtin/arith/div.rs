@@ -48,76 +48,76 @@ pub const FUNCTION_SET_DIV: ScalarFunctionSet = ScalarFunctionSet {
                 &[DataTypeId::Float16, DataTypeId::Float16],
                 DataTypeId::Float16,
             ),
-            &Div::<PhysicalF16>::new(&DataType::Float16),
+            &Div::<PhysicalF16>::new(DataType::FLOAT16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Float32, DataTypeId::Float32],
                 DataTypeId::Float32,
             ),
-            &Div::<PhysicalF32>::new(&DataType::Float32),
+            &Div::<PhysicalF32>::new(DataType::FLOAT32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Float64, DataTypeId::Float64],
                 DataTypeId::Float64,
             ),
-            &Div::<PhysicalF64>::new(&DataType::Float64),
+            &Div::<PhysicalF64>::new(DataType::FLOAT64),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int8, DataTypeId::Int8], DataTypeId::Int8),
-            &Div::<PhysicalI8>::new(&DataType::Int8),
+            &Div::<PhysicalI8>::new(DataType::INT8),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int16, DataTypeId::Int16], DataTypeId::Int16),
-            &Div::<PhysicalI16>::new(&DataType::Int16),
+            &Div::<PhysicalI16>::new(DataType::INT16),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int32, DataTypeId::Int32], DataTypeId::Int32),
-            &Div::<PhysicalI32>::new(&DataType::Int32),
+            &Div::<PhysicalI32>::new(DataType::INT32),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::Int64, DataTypeId::Int64], DataTypeId::Int64),
-            &Div::<PhysicalI64>::new(&DataType::Int64),
+            &Div::<PhysicalI64>::new(DataType::INT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::Int128, DataTypeId::Int128],
                 DataTypeId::Int128,
             ),
-            &Div::<PhysicalI128>::new(&DataType::Int128),
+            &Div::<PhysicalI128>::new(DataType::INT128),
         ),
         RawScalarFunction::new(
             &Signature::new(&[DataTypeId::UInt8, DataTypeId::UInt8], DataTypeId::UInt8),
-            &Div::<PhysicalU8>::new(&DataType::UInt8),
+            &Div::<PhysicalU8>::new(DataType::UINT8),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt16, DataTypeId::UInt16],
                 DataTypeId::UInt16,
             ),
-            &Div::<PhysicalU16>::new(&DataType::UInt16),
+            &Div::<PhysicalU16>::new(DataType::UINT16),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt32, DataTypeId::UInt32],
                 DataTypeId::UInt32,
             ),
-            &Div::<PhysicalU32>::new(&DataType::UInt32),
+            &Div::<PhysicalU32>::new(DataType::UINT32),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt64, DataTypeId::UInt64],
                 DataTypeId::UInt64,
             ),
-            &Div::<PhysicalU64>::new(&DataType::UInt64),
+            &Div::<PhysicalU64>::new(DataType::UINT64),
         ),
         RawScalarFunction::new(
             &Signature::new(
                 &[DataTypeId::UInt128, DataTypeId::UInt128],
                 DataTypeId::UInt128,
             ),
-            &Div::<PhysicalU128>::new(&DataType::UInt128),
+            &Div::<PhysicalU128>::new(DataType::UINT128),
         ),
         // Decimals
         RawScalarFunction::new(
@@ -193,12 +193,12 @@ impl ScalarFunction for DivDecimal {
     fn bind(&self, mut inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         // Wrap decimals in float casts. Then we'll just do the div on floats.
         debug_assert_eq!(2, inputs.len());
-        let right = expr::cast(inputs.pop().unwrap(), DataType::Float64)?.into();
-        let left = expr::cast(inputs.pop().unwrap(), DataType::Float64)?.into();
+        let right = expr::cast(inputs.pop().unwrap(), DataType::float64())?.into();
+        let left = expr::cast(inputs.pop().unwrap(), DataType::float64())?.into();
 
         Ok(BindState {
             state: (),
-            return_type: DataType::Float64,
+            return_type: DataType::float64(),
             inputs: vec![left, right],
         })
     }
