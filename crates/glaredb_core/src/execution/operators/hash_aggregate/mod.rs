@@ -353,21 +353,24 @@ impl ExecuteOperator for PhysicalHashAggregate {
                 debug_assert_eq!(aggregating.inner.states.len(), operator_state.tables.len());
 
                 // Update distinct states.
-                for (distinct, state) in operator_state
-                    .distinct_collections
-                    .iter()
-                    .zip(&mut aggregating.inner.distinct_states)
+                for (distinct_idx, distinct) in
+                    operator_state.distinct_collections.iter().enumerate()
                 {
-                    distinct.insert(state, input)?;
+                    distinct.insert(
+                        &operator_state.distinct_states[distinct_idx],
+                        &mut aggregating.inner.distinct_states[distinct_idx],
+                        input,
+                    )?;
                 }
 
                 // Insert input into each grouping set table.
-                for (table, state) in operator_state
-                    .tables
-                    .iter()
-                    .zip(&mut aggregating.inner.states)
-                {
-                    table.insert_partition_local(state, &self.agg_selection.non_distinct, input)?;
+                for (table_idx, table) in operator_state.tables.iter().enumerate() {
+                    table.insert_partition_local(
+                        &operator_state.table_states[table_idx],
+                        &mut aggregating.inner.states[table_idx],
+                        &self.agg_selection.non_distinct,
+                        input,
+                    )?;
                 }
 
                 Ok(PollExecute::NeedsMore)
@@ -489,6 +492,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
                             // Now insert into our local tables.
                             operator_state.tables[grouping_set_idx]
                                 .insert_partition_local_distinct_values(
+                                    &operator_state.table_states[grouping_set_idx],
                                     &mut aggregating.inner.states[grouping_set_idx],
                                     &agg_sel,
                                     &mut batch,

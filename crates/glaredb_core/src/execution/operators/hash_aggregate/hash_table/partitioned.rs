@@ -29,14 +29,29 @@ pub const fn partition(hash: u64, partitions: usize) -> usize {
 
 #[derive(Debug)]
 pub enum PartitionedHashTablePartitionState {
+    Initializing(LocalInitializingState),
     /// Partition is building its local hash tables.
     Building(LocalBuildingState),
     /// Partition has flushed its local hash tables to the operator state.
-    MergeReady { partition_idx: usize },
+    MergeReady {
+        partition_idx: usize,
+    },
     /// Partition has merged its tables.
-    ScanReady { partition_idx: usize },
+    ScanReady {
+        partition_idx: usize,
+    },
     /// Partition is scanning.
     Scanning(LocalScanningState),
+    /// Unreachable state.
+    Uninit,
+}
+
+#[derive(Debug)]
+pub struct LocalInitializingState {
+    partition_idx: usize,
+    partition_selector: PartitionSelector,
+    groups: Batch,
+    inputs: Batch,
 }
 
 #[derive(Debug)]
@@ -102,6 +117,10 @@ struct InitializedOperatorState {
 }
 
 impl PartitionedHashTableOperatorState {
+    fn partition_count(&self) -> usize {
+        self.get().final_tables.len()
+    }
+
     fn get(&self) -> &InitializedOperatorState {
         unsafe { self.state.get().expect("state to have been initialized") }
     }
@@ -235,17 +254,10 @@ impl PartitionedHashTable {
                     .collect();
                 let inputs = Batch::new(agg_input_types, op_state.batch_size)?;
 
-                let tables = (0..partitions)
-                    .map(|_| BaseHashTable::try_new(self.layout.clone(), op_state.batch_size))
-                    .collect::<Result<Vec<_>>>()?;
-                let states = tables.iter().map(|t| t.init_insert_state()).collect();
-
-                Ok(PartitionedHashTablePartitionState::Building(
-                    LocalBuildingState {
+                Ok(PartitionedHashTablePartitionState::Initializing(
+                    LocalInitializingState {
                         partition_idx,
                         partition_selector: PartitionSelector::new(partitions),
-                        tables,
-                        states,
                         groups,
                         inputs,
                     },
@@ -272,10 +284,12 @@ impl PartitionedHashTable {
     /// The physical column expressions for the grouping set are not consulted.
     pub fn insert_partition_local_distinct_values(
         &self,
+        op_state: &PartitionedHashTableOperatorState,
         state: &mut PartitionedHashTablePartitionState,
         agg_selection: &[usize],
         distinct_input: &mut Batch,
     ) -> Result<()> {
+        self.prepare_build_maybe(op_state, state)?;
         let state = match state {
             PartitionedHashTablePartitionState::Building(building) => building,
             _ => {
@@ -340,12 +354,12 @@ impl PartitionedHashTable {
     /// table using those values.
     pub fn insert_partition_local(
         &self,
+        op_state: &PartitionedHashTableOperatorState,
         state: &mut PartitionedHashTablePartitionState,
         agg_selection: &[usize],
         input: &mut Batch,
     ) -> Result<()> {
-        // SPEC: No lock, we're fine.
-
+        self.prepare_build_maybe(op_state, state)?;
         let state = match state {
             PartitionedHashTablePartitionState::Building(building) => building,
             _ => return Err(DbError::new("Partition in invalid state, cannot insert")),
@@ -454,10 +468,7 @@ impl PartitionedHashTable {
         op_state: &PartitionedHashTableOperatorState,
         state: &mut PartitionedHashTablePartitionState,
     ) -> Result<()> {
-        // SPEC: Unsafe cell, instead of `flushed` arrays each having their own
-        // mutex, we create a `Vec<Option<UnsafeSyncCell<_>>>` for each
-        // partition to write to with locking.
-
+        self.prepare_build_maybe(op_state, state)?; // We may be in the initializing state if this partition didn't actually insert anything.
         let building = match state {
             PartitionedHashTablePartitionState::Building(building) => building,
             _ => {
@@ -705,6 +716,55 @@ impl PartitionedHashTable {
         }
     }
 
+    fn prepare_build_maybe(
+        &self,
+        op_state: &PartitionedHashTableOperatorState,
+        state: &mut PartitionedHashTablePartitionState,
+    ) -> Result<()> {
+        if let PartitionedHashTablePartitionState::Initializing(_) = state {
+            self.prepare_build(op_state, state)?;
+        }
+        Ok(())
+    }
+
+    /// Transitions the partition state form 'initializing' to building.
+    ///
+    /// This is responsible for allocating the partition-local hash tables. We do
+    /// this as a separate step during execution to avoid trying allocate all tables across
+    /// all partitions in a single thread.
+    fn prepare_build(
+        &self,
+        op_state: &PartitionedHashTableOperatorState,
+        state: &mut PartitionedHashTablePartitionState,
+    ) -> Result<()> {
+        let orig = std::mem::replace(state, PartitionedHashTablePartitionState::Uninit);
+        let initializing = match orig {
+            PartitionedHashTablePartitionState::Initializing(init) => init,
+            _ => {
+                return Err(DbError::new(
+                    "Partition in invalid state, cannot prepare build",
+                ));
+            }
+        };
+
+        let tables = (0..op_state.partition_count())
+            .map(|_| BaseHashTable::try_new(self.layout.clone(), op_state.batch_size))
+            .collect::<Result<Vec<_>>>()?;
+        let states = tables.iter().map(|t| t.init_insert_state()).collect();
+
+        *state = PartitionedHashTablePartitionState::Building(LocalBuildingState {
+            partition_idx: initializing.partition_idx,
+            partition_selector: initializing.partition_selector,
+            tables,
+            states,
+            groups: initializing.groups,
+            inputs: initializing.inputs,
+        });
+
+        Ok(())
+    }
+
+    /// Transitions the partition state from 'scan ready' to 'scanning'.
     fn prepare_scan(
         &self,
         op_state: &PartitionedHashTableOperatorState,
@@ -892,7 +952,7 @@ mod tests {
 
         let mut input = generate_batch!(["a", "b", "c", "a"], [1_i64, 2, 3, 4]);
         table
-            .insert_partition_local(&mut part_states[0], &[0], &mut input)
+            .insert_partition_local(&op_state, &mut part_states[0], &[0], &mut input)
             .unwrap();
 
         table.flush(&op_state, &mut part_states[0]).unwrap();
@@ -942,7 +1002,7 @@ mod tests {
             ["gg", "ff", "gg", "ff"]
         );
         table
-            .insert_partition_local(&mut part_states[0], &[0], &mut input)
+            .insert_partition_local(&op_state, &mut part_states[0], &[0], &mut input)
             .unwrap();
 
         table.flush(&op_state, &mut part_states[0]).unwrap();
