@@ -45,7 +45,7 @@ impl Directory {
     const LOAD_NUM: usize = 7;
     const LOAD_DEN: usize = 10;
 
-    pub const DEFAULT_CAPACITY: usize = 512;
+    pub const DEFAULT_CAPACITY: usize = 2048;
 
     pub fn try_with_capacity(capacity: usize) -> Result<Self> {
         let capacity = capacity.next_power_of_two();
