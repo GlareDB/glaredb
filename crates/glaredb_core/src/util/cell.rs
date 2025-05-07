@@ -1,4 +1,4 @@
-use std::cell::{OnceCell, UnsafeCell};
+use std::cell::UnsafeCell;
 
 /// Wrapper around a OnceCell that is also Sync if T is Sync.
 ///

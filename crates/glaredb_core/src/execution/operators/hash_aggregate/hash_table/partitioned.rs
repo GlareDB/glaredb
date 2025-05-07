@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, atomic};
 
 use glaredb_error::{DbError, Result};
@@ -91,6 +91,17 @@ struct InitializedOperatorState {
     flushed: Vec<FlushedTables>,
     /// The final aggregate tables.
     final_tables: Vec<FinalTable>,
+
+    /// Remaining partitions that still need to flush their tables.
+    ///
+    /// This is needed for atomic fencing to ensure the unsynchronized puts to
+    /// the tables vec is visible once the partition starts to merge.
+    remaining_flushers: AtomicUsize,
+    /// Remaining partitions for merging the tables they're responsible for
+    /// merging.
+    ///
+    /// Also needed for fencing.
+    remaining_mergers: AtomicUsize,
 }
 
 impl PartitionedHashTableOperatorState {
@@ -101,10 +112,6 @@ impl PartitionedHashTableOperatorState {
 
 #[derive(Debug)]
 struct FinalTable {
-    /// Indicator for if we've set the final table for this partition.
-    ///
-    /// Used primarily for fencing.
-    ready: AtomicBool,
     /// The final table, set only once the partition has merged all tables it's
     /// responsible for.
     table: UnsafeSyncOnceCell<Arc<BaseHashTable>>,
@@ -113,11 +120,6 @@ struct FinalTable {
 /// Holds the intermediate tables that's been flushed for each partition.
 #[derive(Debug)]
 struct FlushedTables {
-    /// Remaining partitions that still need to flush their tables.
-    ///
-    /// This is needed for atomic fencing to ensure the unsynchronized puts to
-    /// the tables vec is visible once the partition starts to merge.
-    remaining: AtomicUsize,
     /// Flushed tables written by each partition.
     ///
     /// When flushing tables, each partition should write to a unique index as
@@ -200,16 +202,16 @@ impl PartitionedHashTable {
         let init_state = InitializedOperatorState {
             flushed: (0..partitions)
                 .map(|_| FlushedTables {
-                    remaining: AtomicUsize::new(partitions),
                     tables: (0..partitions).map(|_| UnsafeSyncOnceCell::new()).collect(),
                 })
                 .collect(),
             final_tables: (0..partitions)
                 .map(|_| FinalTable {
-                    ready: AtomicBool::new(false),
                     table: UnsafeSyncOnceCell::new(),
                 })
                 .collect(),
+            remaining_flushers: AtomicUsize::new(partitions),
+            remaining_mergers: AtomicUsize::new(partitions),
         };
         unsafe {
             op_state
@@ -492,17 +494,17 @@ impl PartitionedHashTable {
                     .set(table)
                     .expect("partition table to have only been initialized once")
             };
-
-            // Ensure the above is visible with the merging partition.
-            //
-            // TODO: Might be able to remove this. Better to be safe though.
-            atomic::fence(atomic::Ordering::Release);
-            let prev = flushed.remaining.fetch_sub(1, atomic::Ordering::Relaxed);
-            assert_ne!(
-                0, prev,
-                "Atomic remaining count in partitioned hash table must not go negative"
-            );
         }
+
+        // `Release` to ensure visibility of the above tables when merging.
+        let prev = op_state
+            .get()
+            .remaining_flushers
+            .fetch_sub(1, atomic::Ordering::Release);
+        assert_ne!(
+            0, prev,
+            "Atomic remaining count for flushers in partitioned hash table must not go negative"
+        );
 
         *state = PartitionedHashTablePartitionState::MergeReady {
             partition_idx: building.partition_idx,
@@ -535,17 +537,17 @@ impl PartitionedHashTable {
         let flushed = &op_state.get().flushed[partition_idx];
         // This atomic access is for the fence, ensure we see all unsynchronized
         // flushed tables for this partition.
-        let remaining = flushed.remaining.load(atomic::Ordering::Relaxed);
+        let remaining = op_state
+            .get()
+            .remaining_flushers
+            .load(atomic::Ordering::Acquire);
         if remaining != 0 {
             // Means not all partitions flushed.
             return Err(DbError::new(
                 "Attempted to merge into final table, but some tables missing",
             )
-            .with_field("expected", op_state.get().flushed.len())
-            .with_field("got", remaining));
+            .with_field("remaining", remaining));
         }
-        // The fence... after the load.
-        atomic::fence(atomic::Ordering::Acquire);
 
         // Pick arbitrary table to be the global table we merge into.
         assert!(
@@ -576,9 +578,15 @@ impl PartitionedHashTable {
         unsafe { final_table.table.set(Arc::new(global)) }
             .expect("final table to not have been initialized");
 
-        // Fence so other threads see above.
-        atomic::fence(atomic::Ordering::Release);
-        final_table.ready.store(true, atomic::Ordering::Relaxed);
+        // `Release` fence so other threads see above.
+        let prev = op_state
+            .get()
+            .remaining_mergers
+            .fetch_sub(1, atomic::Ordering::Release);
+        assert_ne!(
+            0, prev,
+            "Atomic count for remaining mergers must not go negative"
+        );
 
         *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
 
@@ -718,14 +726,22 @@ impl PartitionedHashTable {
             }
         };
 
+        // Atomic for the fence.
+        let remaining = op_state
+            .get()
+            .remaining_mergers
+            .load(atomic::Ordering::Acquire);
+        if remaining != 0 {
+            // Means not all partitions merged.
+            return Err(DbError::new(
+                "Attempted to read final tables before all partitions finished merging",
+            )
+            .with_field("remaining", remaining));
+        }
+
         // Get a reference to all the global tables.
         let mut tables = Vec::with_capacity(op_state.get().final_tables.len());
         for final_table in &op_state.get().final_tables {
-            // Load then fenc to ensure this thread sees the final tables.
-            let ready = final_table.ready.load(atomic::Ordering::Relaxed);
-            assert!(ready, "Final table must be marked as ready");
-            atomic::fence(atomic::Ordering::Acquire);
-
             // SAFETY: We should only get here if all final tables have been
             // created.
             //
