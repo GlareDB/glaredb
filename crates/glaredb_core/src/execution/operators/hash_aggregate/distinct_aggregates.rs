@@ -202,15 +202,21 @@ impl DistinctCollection {
 
     pub fn insert(
         &self,
+        op_state: &DistinctCollectionOperatorState,
         state: &mut DistinctCollectionPartitionState,
         input: &mut Batch,
     ) -> Result<()> {
         debug_assert_eq!(self.tables.len(), state.states.len());
 
-        for (table, state) in self.tables.iter().zip(&mut state.states) {
+        for (table_idx, table) in self.tables.iter().enumerate() {
             // No agg selection since we don't have any aggs in the hash table.
             // It's just a big GROUP BY.
-            table.table.insert_partition_local(state, &[], input)?;
+            table.table.insert_partition_local(
+                &op_state.states[table_idx],
+                &mut state.states[table_idx],
+                &[],
+                input,
+            )?;
         }
 
         Ok(())
@@ -299,7 +305,9 @@ mod tests {
         assert_eq!(1, part_states.len());
 
         let mut b = generate_batch!([1, 2, 3, 3, 4], ["a", "b", "c", "d", "e"]);
-        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection
+            .insert(&op_state, &mut part_states[0], &mut b)
+            .unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
             .merge_global(&op_state, &mut part_states[0])
@@ -330,7 +338,9 @@ mod tests {
         assert_eq!(1, part_states.len());
 
         let mut b = generate_batch!([1, 2, 3, 3, 4], ["a", "b", "b", "a", "a"]);
-        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection
+            .insert(&op_state, &mut part_states[0], &mut b)
+            .unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
             .merge_global(&op_state, &mut part_states[0])
@@ -361,7 +371,9 @@ mod tests {
         assert_eq!(1, part_states.len());
 
         let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "a"]);
-        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection
+            .insert(&op_state, &mut part_states[0], &mut b)
+            .unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
             .merge_global(&op_state, &mut part_states[0])
@@ -400,7 +412,9 @@ mod tests {
         assert_eq!(1, part_states.len());
 
         let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "c"]);
-        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection
+            .insert(&op_state, &mut part_states[0], &mut b)
+            .unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
             .merge_global(&op_state, &mut part_states[0])
@@ -446,7 +460,9 @@ mod tests {
         assert_eq!(1, part_states.len());
 
         let mut b = generate_batch!([1, 3, 3, 3, 1], ["a", "b", "b", "a", "c"]);
-        collection.insert(&mut part_states[0], &mut b).unwrap();
+        collection
+            .insert(&op_state, &mut part_states[0], &mut b)
+            .unwrap();
         collection.flush(&op_state, &mut part_states[0]).unwrap();
         collection
             .merge_global(&op_state, &mut part_states[0])

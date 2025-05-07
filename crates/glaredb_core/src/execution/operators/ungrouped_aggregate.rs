@@ -281,9 +281,11 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
                 // Update DISTINCT aggregates. This insert into a hash table for
                 // deduplication.
-                operator_state
-                    .distinct_collection
-                    .insert(&mut inner.distinct_state, agg_inputs)?;
+                operator_state.distinct_collection.insert(
+                    &operator_state.distinct_collection_op_state,
+                    &mut inner.distinct_state,
+                    agg_inputs,
+                )?;
 
                 // Update non-DISTINCT aggregates. Updates the aggregate values
                 // directly.
