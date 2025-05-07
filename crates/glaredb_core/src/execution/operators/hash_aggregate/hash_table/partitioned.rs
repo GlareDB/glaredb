@@ -104,6 +104,9 @@ impl PartitionedHashTableOperatorState {
 
 #[derive(Debug)]
 struct FlushedTables {
+    // SPEC: Atomic usize for remaining partition count, for fencing.
+    //
+    // Swap to Vec<Option<UnsafeSyncCell<_>>>.
     /// Tables that have been flush so far.
     tables: Vec<BaseHashTable>,
 }
@@ -454,6 +457,9 @@ impl PartitionedHashTable {
         for (partition_idx, table) in building.tables.drain(..).enumerate() {
             let mut flushed = op_state.get().flushed[partition_idx].lock();
             flushed.tables.push(table);
+
+            // SPEC: Release fence, decrement atomic count relaxed. Assert prev
+            // count not zero.
         }
 
         *state = PartitionedHashTablePartitionState::MergeReady {
@@ -479,6 +485,8 @@ impl PartitionedHashTable {
                 ));
             }
         };
+
+        // SPEC: Acquire load remaining count, assert 0. Acquire fence.
 
         // Merge only the tables for this partition index.
         //
