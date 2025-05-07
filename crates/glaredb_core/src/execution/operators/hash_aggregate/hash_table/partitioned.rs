@@ -474,7 +474,11 @@ impl PartitionedHashTable {
             // When doing the final merge, higher level synchronization ensures
             // that we have no partitions actively flushing their tables, so
             // this shouldn't conflict with `get` during merging.
-            unsafe { flushed.tables[building.partition_idx].set(table) };
+            unsafe {
+                flushed.tables[building.partition_idx]
+                    .set(table)
+                    .expect("partition table to have only been initialized once")
+            };
 
             // Ensure the above is visible with the merging partition.
             //
@@ -530,27 +534,36 @@ impl PartitionedHashTable {
         // The fence... after the load.
         atomic::fence(atomic::Ordering::Acquire);
 
-        unimplemented!()
-        // // Pick arbitrary table to be the global table we merge into.
-        // let mut global = flushed.tables.pop().expect("at least one table");
-        // let mut insert_state = global.init_insert_state();
+        // Pick arbitrary table to be the global table we merge into.
+        assert!(
+            !flushed.tables.is_empty(),
+            "Must have at least one flushed table"
+        );
+        // SAFETY: Each partition is working on their own set of flushed tables.
+        //
+        // This partitions should be the only one accessing this set of flushed
+        // tables.
+        let mut global =
+            unsafe { flushed.tables[0].take() }.expect("first table to have been initialized");
+        let mut insert_state = global.init_insert_state();
 
-        // for mut table in flushed.tables.drain(..) {
-        //     global.merge_from(
-        //         &mut insert_state,
-        //         0..self.layout.aggregates.len(),
-        //         &mut table,
-        //     )?;
-        // }
+        for other in &flushed.tables[1..] {
+            // SAFETY: Same as above, this partition should be the only
+            // partition touching these sets of tables.
+            let other = unsafe { other.get_mut() }.expect("other table to have been initialized");
 
-        // // Now put it in the global state.
-        // let mut final_table = op_state.get().final_tables[partition_idx].lock();
-        // debug_assert!(final_table.is_none());
-        // *final_table = Some(Arc::new(global));
+            // Merge it in.
+            global.merge_from(&mut insert_state, 0..self.layout.aggregates.len(), other)?;
+        }
 
-        // *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
+        // Now put it in the global state.
+        let mut final_table = op_state.get().final_tables[partition_idx].lock();
+        debug_assert!(final_table.is_none());
+        *final_table = Some(Arc::new(global));
 
-        // Ok(())
+        *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
+
+        Ok(())
     }
 
     pub fn scan(
