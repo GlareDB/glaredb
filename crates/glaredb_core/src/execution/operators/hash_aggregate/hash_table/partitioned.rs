@@ -323,6 +323,8 @@ impl PartitionedHashTable {
         agg_selection: &[usize],
         input: &mut Batch,
     ) -> Result<()> {
+        // SPEC: No lock, we're fine.
+
         let state = match state {
             PartitionedHashTablePartitionState::Building(building) => building,
             _ => return Err(DbError::new("Partition in invalid state, cannot insert")),
@@ -434,6 +436,10 @@ impl PartitionedHashTable {
         op_state: &PartitionedHashTableOperatorState,
         state: &mut PartitionedHashTablePartitionState,
     ) -> Result<()> {
+        // SPEC: Unsafe cell, instead of `flushed` arrays each having their own
+        // mutex, we create a `Vec<Option<UnsafeSyncCell<_>>>` for each
+        // partition to write to with locking.
+
         let building = match state {
             PartitionedHashTablePartitionState::Building(building) => building,
             _ => {
