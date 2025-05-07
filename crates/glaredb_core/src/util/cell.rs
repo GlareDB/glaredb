@@ -1,4 +1,4 @@
-use std::cell::OnceCell;
+use std::cell::UnsafeCell;
 
 /// Wrapper around a OnceCell that is also Sync if T is Sync.
 ///
@@ -6,13 +6,13 @@ use std::cell::OnceCell;
 ///
 /// Higher level synchronization is required to ensure that setting and getting
 /// the value does not happen at the same time.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 #[repr(transparent)]
-pub struct UnsafeSyncOnceCell<T>(OnceCell<T>);
+pub struct UnsafeSyncOnceCell<T>(UnsafeCell<Option<T>>);
 
 impl<T> UnsafeSyncOnceCell<T> {
     pub const fn new() -> Self {
-        UnsafeSyncOnceCell(OnceCell::new())
+        UnsafeSyncOnceCell(UnsafeCell::new(None))
     }
 
     /// Set the value of the cell.
@@ -25,7 +25,21 @@ impl<T> UnsafeSyncOnceCell<T> {
     /// `set` must not be called concurrently with other calls to `set` or
     /// `get`.
     pub unsafe fn set(&self, value: T) -> Result<(), T> {
-        self.0.set(value)
+        // Adapted from std::cell::OnceCell
+        unsafe {
+            if self.get().is_some() {
+                return Err(value);
+            }
+
+            // SAFETY: This is the only place where we set the slot, no races
+            // due to reentrancy/concurrency are possible, and we've checked
+            // that slot is currently `None`, so this write maintains the
+            // `inner`'s invariant.
+            let slot = &mut *self.0.get();
+            let _ = slot.insert(value);
+
+            Ok(())
+        }
     }
 
     /// Get the value of the cell, or None if the cell hasn't been initialized.
@@ -36,7 +50,31 @@ impl<T> UnsafeSyncOnceCell<T> {
     ///
     /// `get` may be called concurrently with other calls to `get`.
     pub unsafe fn get(&self) -> Option<&T> {
-        self.0.get()
+        unsafe { &*self.0.get() }.as_ref()
+    }
+
+    /// Get a mutable reference to the cell, or None if the cell hasn't been
+    /// initialized.
+    ///
+    /// # Safety
+    ///
+    /// There must not be any active references to the inner cell value.
+    ///
+    /// Cannot be called concurrently with pretty much all other methods.
+    pub unsafe fn get_mut(&self) -> Option<&mut T> {
+        unsafe { &mut *self.0.get() }.as_mut()
+    }
+
+    /// Take the inner value, or return None if the cell hasn't been
+    /// initialized.
+    ///
+    /// # Safety
+    ///
+    /// There must not be any active references to the inner cell value.
+    ///
+    /// Cannot be called concurrently with pretty much all other methods.
+    pub unsafe fn take(&self) -> Option<T> {
+        unsafe { &mut *self.0.get() }.take()
     }
 }
 
