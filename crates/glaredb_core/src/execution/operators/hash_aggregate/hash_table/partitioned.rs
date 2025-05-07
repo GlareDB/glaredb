@@ -48,9 +48,6 @@ pub struct LocalBuildingState {
     tables: Vec<BaseHashTable>,
     /// Insert for the hash tables.
     states: Vec<BaseHashTableInsertState>,
-    /// Reusable buffer for the row selection when inserting into the
-    /// partitioned tables.
-    row_sel_buf: Vec<usize>,
     /// Batch for holding the grouping columns we're inserting into the table.
     /// Only stores columns for the grouping set.
     groups: Batch,
@@ -249,7 +246,6 @@ impl PartitionedHashTable {
                         partition_selector: PartitionSelector::new(partitions),
                         tables,
                         states,
-                        row_sel_buf: Vec::new(),
                         groups,
                         inputs,
                     },
@@ -429,23 +425,20 @@ impl PartitionedHashTable {
         for (partition_idx, (table, table_state)) in
             state.tables.iter_mut().zip(&mut state.states).enumerate()
         {
-            state
-                .partition_selector
-                .row_indices_for_partition(partition_idx, &mut state.row_sel_buf);
-
-            if state.row_sel_buf.is_empty() {
+            let row_sel = &selector.buckets[partition_idx];
+            if row_sel.is_empty() {
                 // Nothing to input for this partition.
                 continue;
             }
 
             let mut groups = groups.clone()?;
-            groups.select(state.row_sel_buf.iter().copied())?;
+            groups.select(row_sel.iter().copied())?;
 
             let mut inputs = inputs.clone()?;
-            inputs.select(state.row_sel_buf.iter().copied())?;
+            inputs.select(row_sel.iter().copied())?;
 
             let mut hashes_arr = hashes_arr.clone()?;
-            hashes_arr.select(&DefaultBufferManager, state.row_sel_buf.iter().copied())?;
+            hashes_arr.select(&DefaultBufferManager, row_sel.iter().copied())?;
 
             table.insert_with_hashes(table_state, agg_selection, &groups, &inputs, &hashes_arr)?;
         }
@@ -785,49 +778,55 @@ impl PartitionedHashTable {
 
 #[derive(Debug)]
 struct PartitionSelector {
-    /// Partition to use for each row in the input.
+    /// For each row, which partition it belongs to.
     partition_indices: Vec<usize>,
-    /// Total counts for each partition.
+    /// How many rows in each partition.
     counts: Vec<usize>,
+    /// Row‐index buckets per partition.
+    buckets: Vec<Vec<usize>>,
 }
 
 impl PartitionSelector {
-    fn new(partition_count: usize) -> Self {
-        PartitionSelector {
+    pub fn new(partition_count: usize) -> Self {
+        Self {
             partition_indices: Vec::new(),
             counts: vec![0; partition_count],
+            buckets: vec![Vec::new(); partition_count],
         }
     }
 
     /// Resets the selector state by recomputing partitoin indices using the
     /// provided hashes.
     fn reset_using_hashes(&mut self, hashes: &[u64]) {
-        let partition_count = self.counts.len();
+        let pcount = self.counts.len();
+        let counts = &mut self.counts;
+        let buckets = &mut self.buckets;
+
+        // Clear old state
         self.partition_indices.clear();
-        self.partition_indices
-            .extend(hashes.iter().map(|&hash| partition(hash, partition_count)));
-
-        // Compute partition totals.
-        self.counts.as_mut_slice().fill(0);
-        for &idx in &self.partition_indices {
-            self.counts[idx] += 1;
+        counts.fill(0);
+        for bucket in buckets.iter_mut() {
+            bucket.clear();
         }
-    }
 
-    /// Writes the row indices to select for a given partition to the `out`
-    /// buffer.
-    ///
-    /// `out` will be cleared before it gets written to.
-    fn row_indices_for_partition(&self, partition: usize, out: &mut Vec<usize>) {
-        out.clear();
+        // Compute partition indices.
+        for &hash in hashes {
+            let p = partition(hash, pcount);
+            self.partition_indices.push(p);
+            counts[p] += 1;
+        }
 
-        let additional = self.counts[partition].saturating_sub(out.capacity());
-        out.reserve(additional);
+        // Reserve buckets.
+        for (partition, &count) in counts.iter().enumerate() {
+            let bucket = &mut buckets[partition];
 
-        for (row_idx, &partition_for_row) in self.partition_indices.iter().enumerate() {
-            if partition_for_row == partition {
-                out.push(row_idx);
-            }
+            let additional = count.saturating_sub(bucket.capacity());
+            bucket.reserve(additional);
+        }
+
+        // Write to buckets.
+        for (i, &partition) in self.partition_indices.iter().enumerate() {
+            buckets[partition].push(i);
         }
     }
 }
@@ -847,10 +846,8 @@ mod tests {
         let mut selector = PartitionSelector::new(1);
         selector.reset_using_hashes(&[55, 66, 77, 88, 99]);
 
-        let mut rows = Vec::new();
-        selector.row_indices_for_partition(0, &mut rows);
         let expected = vec![0, 1, 2, 3, 4];
-        assert_eq!(expected, rows);
+        assert_eq!(expected, selector.buckets[0]);
     }
 
     #[test]
@@ -859,24 +856,13 @@ mod tests {
         let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(84);
         let hashes: Vec<u64> = (0..10).map(|_| rng.random()).collect();
 
-        println!("hashes: {hashes:?}");
-
         let mut selector = PartitionSelector::new(4);
         selector.reset_using_hashes(&hashes);
 
-        let mut rows0 = Vec::new();
-        selector.row_indices_for_partition(0, &mut rows0);
-        let mut rows1 = Vec::new();
-        selector.row_indices_for_partition(1, &mut rows1);
-        let mut rows2 = Vec::new();
-        selector.row_indices_for_partition(2, &mut rows2);
-        let mut rows3 = Vec::new();
-        selector.row_indices_for_partition(3, &mut rows3);
-
-        assert_eq!(vec![3, 6, 8, 9], rows0);
-        assert_eq!(Vec::<usize>::new(), rows1);
-        assert_eq!(vec![0, 2, 4], rows2);
-        assert_eq!(vec![1, 5, 7], rows3);
+        assert_eq!(vec![3, 6, 8, 9], selector.buckets[0]);
+        assert_eq!(Vec::<usize>::new(), selector.buckets[1]);
+        assert_eq!(vec![0, 2, 4], selector.buckets[2]);
+        assert_eq!(vec![1, 5, 7], selector.buckets[3]);
     }
 
     #[test]

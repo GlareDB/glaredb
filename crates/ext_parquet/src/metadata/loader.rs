@@ -73,7 +73,7 @@ pub fn decode_metadata(buf: &[u8]) -> Result<ParquetMetaData> {
             .context("Could not parse metadata")?;
     let schema = types::schema_from_thrift(&t_file_metadata.schema)?;
     let schema_descr = Arc::new(SchemaDescriptor::new(schema));
-    let mut row_groups = Vec::new();
+    let mut row_groups = Vec::with_capacity(t_file_metadata.row_groups.len());
     for rg in t_file_metadata.row_groups {
         row_groups.push(RowGroupMetaData::from_thrift(schema_descr.clone(), rg)?);
     }

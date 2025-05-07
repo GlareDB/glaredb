@@ -257,8 +257,8 @@ impl RowGroupMetaData {
         }
         let total_byte_size = rg.total_byte_size;
         let num_rows = rg.num_rows;
-        let mut columns = vec![];
-        for (c, d) in rg.columns.drain(0..).zip(schema_descr.columns()) {
+        let mut columns = Vec::with_capacity(rg.columns.len());
+        for (c, d) in rg.columns.drain(..).zip(schema_descr.columns()) {
             let cc = ColumnChunkMetaData::from_thrift(d.clone(), c)?;
             columns.push(cc);
         }
