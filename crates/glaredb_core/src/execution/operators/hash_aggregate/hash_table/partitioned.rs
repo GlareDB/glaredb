@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
-use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::{Arc, atomic};
 
 use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
@@ -88,7 +89,7 @@ struct InitializedOperatorState {
     ///
     /// When partitions are merging, the flushed tables get drained into a final
     /// global table.
-    flushed: Vec<Mutex<FlushedTables>>,
+    flushed: Vec<FlushedTables>,
     /// The final aggregate tables.
     ///
     /// None until a partition builds the final table for a given partition
@@ -104,11 +105,18 @@ impl PartitionedHashTableOperatorState {
 
 #[derive(Debug)]
 struct FlushedTables {
-    // SPEC: Atomic usize for remaining partition count, for fencing.
-    //
-    // Swap to Vec<Option<UnsafeSyncCell<_>>>.
-    /// Tables that have been flush so far.
-    tables: Vec<BaseHashTable>,
+    /// Remaining partitions that still need to flush their tables.
+    ///
+    /// This is needed for atomic fencing to ensure the unsynchronized puts to
+    /// the tables vec is visible once the partition starts to merge.
+    remaining: AtomicUsize,
+    /// Flushed tables written by each partition.
+    ///
+    /// When flushing tables, each partition should write to a unique index as
+    /// specified by its partition idx.
+    ///
+    /// This is exact-sized.
+    tables: Vec<UnsafeSyncOnceCell<BaseHashTable>>,
 }
 
 /// Hash table that partitions based on a row's hash.
@@ -183,10 +191,9 @@ impl PartitionedHashTable {
         // Update operator state.
         let init_state = InitializedOperatorState {
             flushed: (0..partitions)
-                .map(|_| {
-                    Mutex::new(FlushedTables {
-                        tables: Vec::with_capacity(partitions),
-                    })
+                .map(|_| FlushedTables {
+                    remaining: AtomicUsize::new(partitions),
+                    tables: (0..partitions).map(|_| UnsafeSyncOnceCell::new()).collect(),
                 })
                 .collect(),
             final_tables: (0..partitions).map(|_| Mutex::new(None)).collect(),
@@ -455,11 +462,29 @@ impl PartitionedHashTable {
         debug_assert_eq!(building.tables.len(), op_state.get().flushed.len());
 
         for (partition_idx, table) in building.tables.drain(..).enumerate() {
-            let mut flushed = op_state.get().flushed[partition_idx].lock();
-            flushed.tables.push(table);
+            // Get the flushed table for the _output_ partition.
+            let flushed = &op_state.get().flushed[partition_idx];
 
-            // SPEC: Release fence, decrement atomic count relaxed. Assert prev
-            // count not zero.
+            // Write our local table using this partition's index.
+            //
+            // SAFETY: Each partition state was initialized with a unique
+            // partition index. Our set should not conflict with some other
+            // partition trying to set.
+            //
+            // When doing the final merge, higher level synchronization ensures
+            // that we have no partitions actively flushing their tables, so
+            // this shouldn't conflict with `get` during merging.
+            unsafe { flushed.tables[building.partition_idx].set(table) };
+
+            // Ensure the above is visible with the merging partition.
+            //
+            // TODO: Might be able to remove this. Better to be safe though.
+            atomic::fence(atomic::Ordering::Release);
+            let prev = flushed.remaining.fetch_sub(1, atomic::Ordering::Relaxed);
+            assert_ne!(
+                0, prev,
+                "Atomic remaining count in partitioned hash table must not go negative"
+            );
         }
 
         *state = PartitionedHashTablePartitionState::MergeReady {
@@ -486,41 +511,46 @@ impl PartitionedHashTable {
             }
         };
 
-        // SPEC: Acquire load remaining count, assert 0. Acquire fence.
-
         // Merge only the tables for this partition index.
         //
-        // All partitions should be merge an independ set of tables.
-        let mut flushed = op_state.get().flushed[partition_idx].lock();
-        if flushed.tables.len() != op_state.get().flushed.len() {
+        // All partitions should have flushed their tables by this point.
+
+        let flushed = &op_state.get().flushed[partition_idx];
+        // This atomic access is for the fence, ensure we see all unsynchronized
+        // flushed tables for this partition.
+        let remaining = flushed.remaining.load(atomic::Ordering::Relaxed);
+        if remaining != 0 {
             // Means not all partitions flushed.
             return Err(DbError::new(
                 "Attempted to merge into final table, but some tables missing",
             )
             .with_field("expected", op_state.get().flushed.len())
-            .with_field("got", flushed.tables.len()));
+            .with_field("got", remaining));
         }
+        // The fence... after the load.
+        atomic::fence(atomic::Ordering::Acquire);
 
-        // Pick arbitrary table to be the global table we merge into.
-        let mut global = flushed.tables.pop().expect("at least one table");
-        let mut insert_state = global.init_insert_state();
+        unimplemented!()
+        // // Pick arbitrary table to be the global table we merge into.
+        // let mut global = flushed.tables.pop().expect("at least one table");
+        // let mut insert_state = global.init_insert_state();
 
-        for mut table in flushed.tables.drain(..) {
-            global.merge_from(
-                &mut insert_state,
-                0..self.layout.aggregates.len(),
-                &mut table,
-            )?;
-        }
+        // for mut table in flushed.tables.drain(..) {
+        //     global.merge_from(
+        //         &mut insert_state,
+        //         0..self.layout.aggregates.len(),
+        //         &mut table,
+        //     )?;
+        // }
 
-        // Now put it in the global state.
-        let mut final_table = op_state.get().final_tables[partition_idx].lock();
-        debug_assert!(final_table.is_none());
-        *final_table = Some(Arc::new(global));
+        // // Now put it in the global state.
+        // let mut final_table = op_state.get().final_tables[partition_idx].lock();
+        // debug_assert!(final_table.is_none());
+        // *final_table = Some(Arc::new(global));
 
-        *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
+        // *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
 
-        Ok(())
+        // Ok(())
     }
 
     pub fn scan(
