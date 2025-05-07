@@ -1,9 +1,8 @@
 use std::collections::BTreeSet;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Arc, atomic};
 
 use glaredb_error::{DbError, Result};
-use parking_lot::Mutex;
 
 use super::base::{BaseHashTable, BaseHashTableInsertState};
 use crate::arrays::array::Array;
@@ -91,10 +90,7 @@ struct InitializedOperatorState {
     /// global table.
     flushed: Vec<FlushedTables>,
     /// The final aggregate tables.
-    ///
-    /// None until a partition builds the final table for a given partition
-    /// index.
-    final_tables: Vec<Mutex<Option<Arc<BaseHashTable>>>>,
+    final_tables: Vec<FinalTable>,
 }
 
 impl PartitionedHashTableOperatorState {
@@ -103,6 +99,18 @@ impl PartitionedHashTableOperatorState {
     }
 }
 
+#[derive(Debug)]
+struct FinalTable {
+    /// Indicator for if we've set the final table for this partition.
+    ///
+    /// Used primarily for fencing.
+    ready: AtomicBool,
+    /// The final table, set only once the partition has merged all tables it's
+    /// responsible for.
+    table: UnsafeSyncOnceCell<Arc<BaseHashTable>>,
+}
+
+/// Holds the intermediate tables that's been flushed for each partition.
 #[derive(Debug)]
 struct FlushedTables {
     /// Remaining partitions that still need to flush their tables.
@@ -196,7 +204,12 @@ impl PartitionedHashTable {
                     tables: (0..partitions).map(|_| UnsafeSyncOnceCell::new()).collect(),
                 })
                 .collect(),
-            final_tables: (0..partitions).map(|_| Mutex::new(None)).collect(),
+            final_tables: (0..partitions)
+                .map(|_| FinalTable {
+                    ready: AtomicBool::new(false),
+                    table: UnsafeSyncOnceCell::new(),
+                })
+                .collect(),
         };
         unsafe {
             op_state
@@ -557,9 +570,15 @@ impl PartitionedHashTable {
         }
 
         // Now put it in the global state.
-        let mut final_table = op_state.get().final_tables[partition_idx].lock();
-        debug_assert!(final_table.is_none());
-        *final_table = Some(Arc::new(global));
+        let final_table = &op_state.get().final_tables[partition_idx];
+        // SAFETY: As above, this partition should be the only one initialing
+        // this final table.
+        unsafe { final_table.table.set(Arc::new(global)) }
+            .expect("final table to not have been initialized");
+
+        // Fence so other threads see above.
+        atomic::fence(atomic::Ordering::Release);
+        final_table.ready.store(true, atomic::Ordering::Relaxed);
 
         *state = PartitionedHashTablePartitionState::ScanReady { partition_idx };
 
@@ -702,11 +721,21 @@ impl PartitionedHashTable {
         // Get a reference to all the global tables.
         let mut tables = Vec::with_capacity(op_state.get().final_tables.len());
         for final_table in &op_state.get().final_tables {
-            let final_table = final_table.lock();
-            match final_table.as_ref() {
-                Some(table) => tables.push(table.clone()),
-                None => return Err(DbError::new("Missing final table")),
-            }
+            // Load then fenc to ensure this thread sees the final tables.
+            let ready = final_table.ready.load(atomic::Ordering::Relaxed);
+            assert!(ready, "Final table must be marked as ready");
+            atomic::fence(atomic::Ordering::Acquire);
+
+            // SAFETY: We should only get here if all final tables have been
+            // created.
+            //
+            // The `get` may be happening concurrently with other threads, but
+            // that's fine.
+            let table = unsafe { final_table.table.get() }
+                .expect("table to have been set")
+                .clone();
+
+            tables.push(table);
         }
 
         let num_partitions = tables.len();
