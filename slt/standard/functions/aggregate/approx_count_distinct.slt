@@ -26,7 +26,7 @@ SELECT approx > 950 AND approx < 1050 FROM (
 ----
 true
 
-query B
+query IB
 SELECT group, approx > 400 AND approx < 600 FROM (
     SELECT a%2, approx_count_distinct(a) FROM
         generate_series(1, 1000) g1(a), generate_series(1, 20) g2(b)
