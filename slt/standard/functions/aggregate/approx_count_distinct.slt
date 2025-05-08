@@ -27,6 +27,16 @@ SELECT approx > 950 AND approx < 1050 FROM (
 true
 
 query B
+SELECT group, approx > 400 AND approx < 600 FROM (
+    SELECT a%2, approx_count_distinct(a) FROM
+        generate_series(1, 1000) g1(a), generate_series(1, 20) g2(b)
+        GROUP BY a%2
+) s(group, approx) ORDER BY 1;
+----
+0 true
+1 true
+
+query B
 SELECT approx > 900 AND approx < 1100 FROM (
     SELECT approx_count_distinct(a::text) FROM
         generate_series(1, 1000) g1(a), generate_series(1, 20) g2(b)
