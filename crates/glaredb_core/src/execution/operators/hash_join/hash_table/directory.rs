@@ -31,6 +31,7 @@ impl Directory {
     /// Mask to use when determining the position for an entry in the hash
     /// table.
     pub const fn capacity_mask(&self) -> u64 {
+        debug_assert!(self.entries.len().is_power_of_two());
         self.entries.len() as u64 - 1
     }
 

@@ -3,7 +3,7 @@ mod hash_table;
 use std::task::Context;
 
 use glaredb_error::Result;
-use hash_table::{HashJoinCondition, HashTableBuildState, JoinHashTable};
+use hash_table::{HashJoinCondition, HashTableBuildPartitionState, JoinHashTable};
 
 use super::{
     BaseOperator,
@@ -26,7 +26,7 @@ pub struct HashJoinOperatorState {
 
 #[derive(Debug)]
 pub struct HashJoinPartitionBuildState {
-    _build_state: HashTableBuildState,
+    _build_state: HashTableBuildPartitionState,
 }
 
 #[derive(Debug)]

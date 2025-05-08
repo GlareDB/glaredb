@@ -21,6 +21,7 @@ use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
+use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
 
 /// Join condition between left and right batches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,18 +36,39 @@ pub struct HashJoinCondition {
 
 /// State provided during hash table build.
 #[derive(Debug)]
-pub struct HashTableBuildState {
+pub struct HashTableBuildPartitionState {
+    /// Index of the partition.
+    partition_idx: usize,
     /// Initial values to use for left/outer joins for a "match".
     ///
     /// When we insert into the hash table, we'll use these values (all false)
     /// to initialize matches.
+    // wtf is this?
     match_init: Array,
     /// State for appending rows to the collection.
     row_append: RowAppendState,
 }
 
 #[derive(Debug)]
-pub struct HashTableOperatorState {}
+pub struct HashTableOperatorState {
+    /// Row collections for each partition, indexed by partition idx.
+    ///
+    /// During the build phase, each partition will insert to its own row
+    /// collection.
+    partitioned_row_collection: Vec<UnsafeSyncCell<RowCollection>>,
+    /// The merged row collection consists of all blocks from the partitioned
+    /// row collections.
+    ///
+    /// Once the build side completes, a single partitions will be responsible
+    /// for moving the blocks from the partitioned collection into this
+    /// collection (and also create the directory).
+    merged_row_collection: RowCollection,
+    /// Directory containing the hashes and row pointers.
+    ///
+    /// Intialized by a single partition at the same time we merge the
+    /// collections.
+    directory: UnsafeSyncOnceCell<Directory>,
+}
 
 /// Chained hash table for joins.
 ///
@@ -161,14 +183,30 @@ impl JoinHashTable {
         })
     }
 
+    /// Create the operator state that gets shared with all partitions, build
+    /// and probe side.
+    pub fn create_operator_state(&self) -> Result<HashTableOperatorState> {
+        unimplemented!()
+    }
+
+    /// Create the partition states for the build side of the join.
+    pub fn create_build_partition_states(
+        &self,
+        op_state: &HashTableOperatorState,
+        partitions: usize,
+    ) -> Result<Vec<HashTableBuildPartitionState>> {
+        unimplemented!()
+    }
+
     /// Initializes a build state for this hash table.
     #[allow(unused)]
-    pub fn init_build_state(&self) -> HashTableBuildState {
-        HashTableBuildState {
-            match_init: Array::new_constant(&DefaultBufferManager, &false.into(), self.batch_size)
-                .expect("constant array to build"),
-            row_append: self.data.init_append(),
-        }
+    pub fn init_build_state(&self) -> HashTableBuildPartitionState {
+        unimplemented!()
+        // HashTableBuildPartitionState {
+        //     match_init: Array::new_constant(&DefaultBufferManager, &false.into(), self.batch_size)
+        //         .expect("constant array to build"),
+        //     row_append: self.data.init_append(),
+        // }
     }
 
     /// Get the row count for the build side of the hash table.
@@ -200,7 +238,11 @@ impl JoinHashTable {
     /// This will hash the key columns and insert batches into the row
     /// collection.
     #[allow(unused)]
-    pub fn collect_build(&mut self, state: &mut HashTableBuildState, input: &Batch) -> Result<()> {
+    pub fn collect_build(
+        &mut self,
+        state: &mut HashTableBuildPartitionState,
+        input: &Batch,
+    ) -> Result<()> {
         let cap = input.arrays.len() + self.extra_column_count();
         let mut build_arrays = Vec::with_capacity(cap);
 
