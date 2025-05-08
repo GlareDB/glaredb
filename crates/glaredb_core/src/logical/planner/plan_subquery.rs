@@ -27,7 +27,7 @@ use crate::logical::logical_materialization::{
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::planner::plan_query::QueryPlanner;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub struct SubqueryPlanner;

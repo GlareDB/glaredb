@@ -12,6 +12,7 @@ pub mod logical;
 pub mod optimizer;
 pub mod runtime;
 pub mod shell;
+pub mod statistics;
 pub mod storage;
 
 pub mod util;

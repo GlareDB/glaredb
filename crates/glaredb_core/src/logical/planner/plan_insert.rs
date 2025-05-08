@@ -6,7 +6,7 @@ use crate::logical::binder::bind_insert::BoundInsert;
 use crate::logical::logical_insert::LogicalInsert;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub struct InsertPlanner;

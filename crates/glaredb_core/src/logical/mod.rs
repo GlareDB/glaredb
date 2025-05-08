@@ -37,7 +37,6 @@
 //! Walks the bound statement and produces a logical plan.
 
 pub mod operator;
-pub mod statistics;
 
 pub mod binder;
 pub mod planner;

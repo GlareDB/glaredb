@@ -11,7 +11,7 @@ use crate::logical::logical_project::LogicalProject;
 use crate::logical::logical_setop::LogicalSetop;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_query::QueryPlanner;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub struct SetOpPlanner;

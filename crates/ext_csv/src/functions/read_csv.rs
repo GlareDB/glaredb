@@ -13,7 +13,6 @@ use glaredb_core::functions::table::{
     TableFunctionBindState,
     TableFunctionInput,
 };
-use glaredb_core::logical::statistics::StatisticsValue;
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
 use glaredb_core::runtime::filesystem::{
@@ -23,6 +22,7 @@ use glaredb_core::runtime::filesystem::{
     FileSystemWithState,
     OpenFlags,
 };
+use glaredb_core::statistics::value::StatisticsValue;
 use glaredb_core::storage::projections::Projections;
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};

@@ -4,7 +4,7 @@ use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalOperator, Node};
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 
 /// Propagates estimated cardinalities from the bottom up.

@@ -20,7 +20,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::field::ColumnSchema;
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize, PollPull};
 use crate::expr::Expression;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::Projections;
 use crate::storage::scan_filter::PhysicalScanFilter;
 

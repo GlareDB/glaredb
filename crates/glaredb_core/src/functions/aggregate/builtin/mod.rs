@@ -1,3 +1,4 @@
+pub mod approx_count_distinct;
 pub mod avg;
 pub mod bit_and;
 pub mod bit_or;

@@ -6,7 +6,7 @@ use crate::catalog::create::OnConflict;
 use crate::logical::logical_create::LogicalCreateSchema;
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::ResolvedMeta;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub struct CreateSchemaBinder {

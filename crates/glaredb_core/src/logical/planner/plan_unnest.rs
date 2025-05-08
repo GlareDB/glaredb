@@ -7,7 +7,7 @@ use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_unnest::LogicalUnnest;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 // TODO: This should be extended to support arbitrary table functions.
 //

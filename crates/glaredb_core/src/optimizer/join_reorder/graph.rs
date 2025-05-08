@@ -43,7 +43,7 @@ use crate::logical::logical_join::{
     LogicalCrossJoin,
 };
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 use crate::logical::statistics::assumptions::DEFAULT_SELECTIVITY;
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;
 use crate::util::fmt::displayable::IntoDisplayableSlice;

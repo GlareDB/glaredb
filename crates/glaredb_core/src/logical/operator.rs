@@ -34,9 +34,9 @@ use super::logical_setop::LogicalSetop;
 use super::logical_single_row::LogicalSingleRow;
 use super::logical_unnest::LogicalUnnest;
 use super::logical_window::LogicalWindow;
-use super::statistics::StatisticsValue;
 use crate::explain::explainable::{ExplainConfig, ExplainEntry, ExplainValue, Explainable};
 use crate::expr::Expression;
+use crate::statistics::value::StatisticsValue;
 
 /// Requirement for where a node in the plan needs to be executed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
