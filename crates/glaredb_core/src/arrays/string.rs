@@ -31,6 +31,13 @@ pub struct StringViewReference {
     pub offset: i32,
 }
 
+const _: () = {
+    assert!(
+        std::mem::size_of::<StringView>() == 16,
+        "string view must be 16 bytes"
+    );
+};
+
 impl StringView {
     pub const EMPTY: Self = StringView {
         inline: StringViewInline {
@@ -38,8 +45,6 @@ impl StringView {
             inline: [0; 12],
         },
     };
-
-    const _SIZE_ASSERTION: () = assert!(std::mem::size_of::<Self>() == 16);
 
     /// Creates a new inline view.
     ///
@@ -178,6 +183,13 @@ pub struct StringPtrReference {
     pub ptr: *const u8,
 }
 
+const _: () = {
+    assert!(
+        std::mem::size_of::<StringPtr>() == 16,
+        "string ptr must be 16 bytes"
+    );
+};
+
 impl StringPtr {
     pub const EMPTY: Self = StringPtr {
         inline: StringPtrInline {
@@ -185,8 +197,6 @@ impl StringPtr {
             inline: [0; 12],
         },
     };
-
-    const _SIZE_ASSERTION: () = assert!(std::mem::size_of::<Self>() == 16);
 
     /// Creates a new inline view.
     ///

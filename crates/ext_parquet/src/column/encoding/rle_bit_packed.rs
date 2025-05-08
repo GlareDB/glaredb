@@ -76,7 +76,7 @@ impl RleBoolDecoder {
 #[derive(Debug, Clone, Copy, Default)]
 struct RealSizedBoolReader;
 
-const _BOOL_SIZE_ASSERTION: () = assert!(std::mem::size_of::<bool>() == std::mem::size_of::<u8>());
+const _: () = assert!(std::mem::size_of::<bool>() == std::mem::size_of::<u8>());
 
 impl ValueReader for RealSizedBoolReader {
     type Storage = PhysicalBool;
