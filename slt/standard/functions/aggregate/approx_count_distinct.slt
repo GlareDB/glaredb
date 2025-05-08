@@ -1,0 +1,49 @@
+# approx_count_distinct tests
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query I
+SELECT approx_count_distinct(a) FROM (VALUES (3), (NULL), (4)) v(a);
+----
+2
+
+query I
+SELECT approx_count_distinct(NULL) FROM generate_series(1, 1000);
+----
+0
+
+query I
+SELECT approx_count_distinct(4) FROM generate_series(1, 1000);
+----
+1
+
+query B
+SELECT approx > 950 AND approx < 1050 FROM (
+    SELECT approx_count_distinct(a) FROM
+        generate_series(1, 1000) g1(a), generate_series(1, 20) g2(b)
+) s(approx);
+----
+true
+
+query B
+SELECT approx > 900 AND approx < 1100 FROM (
+    SELECT approx_count_distinct(a::text) FROM
+        generate_series(1, 1000) g1(a), generate_series(1, 20) g2(b)
+) s(approx);
+----
+true
+
+query B
+SELECT approx > 19000 AND approx < 21000 FROM (
+    SELECT approx_count_distinct(repeat(a::text, b)) FROM
+        generate_series(1, 1000) g1(a), generate_series(1, 20) g2(b)
+) s(approx);
+----
+true
+
+query I
+SELECT approx_count_distinct(a % 2) FROM
+    generate_series(1, 1000) g1(a), generate_series(1, 20) g2(b)
+----
+2

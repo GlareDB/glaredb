@@ -98,6 +98,9 @@ impl SetHashOp for CombineHash {
 ///
 /// Length of selection and hashes slice must be the same.
 ///
+/// The input array will be ordered in its logical order. The hashed value for a
+/// value at index `idx` will be written to `hashes[idx]`.
+///
 /// This will overwrite hashes.
 pub fn hash_array(
     arr: &Array,

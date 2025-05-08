@@ -1,13 +1,24 @@
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
+use crate::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalI64,
+    PhysicalU64,
+};
+use crate::arrays::compute::hash::hash_array;
 use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::executor::PutBuffer;
+use crate::arrays::executor::aggregate::AggregateState;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::aggregate::{AggregateFunction, RawAggregateFunction};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::AggregateFunctionSet;
+use crate::statistics::hll::HyperLogLog;
 
 pub const FUNCTION_SET_APPROX_COUNT_DISTINCT: AggregateFunctionSet = AggregateFunctionSet {
     name: "approx_count_distinct",
@@ -39,35 +50,106 @@ impl AggregateFunction for ApproxCountDistinct {
         })
     }
 
-    fn new_aggregate_state(state: &Self::BindState) -> Self::GroupState {
-        unimplemented!()
+    fn new_aggregate_state(_state: &Self::BindState) -> Self::GroupState {
+        ApproxDistinctState {
+            hll: HyperLogLog::new(HyperLogLog::DEFAULT_P),
+        }
     }
 
     fn update(
-        state: &Self::BindState,
+        _state: &Self::BindState,
         inputs: &[Array],
         num_rows: usize,
         states: &mut [*mut Self::GroupState],
     ) -> Result<()> {
-        unimplemented!()
+        let input = &inputs[0];
+        if num_rows != states.len() {
+            return Err(DbError::new(
+                "Invalid number of states for selection in count agggregate executor",
+            )
+            .with_field("num_rows", num_rows)
+            .with_field("states_len", states.len()));
+        }
+
+        let validity = &input.validity;
+
+        let mut hashes_arr = Array::new(&DefaultBufferManager, DataType::uint64(), num_rows)?;
+        let hashes = PhysicalU64::buffer_downcast_mut(&mut hashes_arr.data)?;
+        let hashes = &mut hashes.buffer.as_slice_mut()[0..num_rows];
+        hash_array(input, 0..num_rows, hashes)?;
+
+        // Only update update states for non-null input values.
+        for (idx, (&mut state_ptr, hash)) in states.iter_mut().zip(hashes).enumerate() {
+            if !validity.is_valid(idx) {
+                continue;
+            }
+            let state = unsafe { &mut *state_ptr };
+            state.hll.insert(*hash);
+        }
+
+        Ok(())
     }
 
     fn combine(
-        state: &Self::BindState,
+        _state: &Self::BindState,
         src: &mut [&mut Self::GroupState],
         dest: &mut [&mut Self::GroupState],
     ) -> Result<()> {
-        unimplemented!()
+        if src.len() != dest.len() {
+            return Err(
+                DbError::new("Source and destination have different number of states")
+                    .with_field("source", src.len())
+                    .with_field("dest", dest.len()),
+            );
+        }
+
+        for (src, dest) in src.iter_mut().zip(dest) {
+            dest.merge(&(), src)?;
+        }
+
+        Ok(())
     }
 
     fn finalize(
-        state: &Self::BindState,
+        _state: &Self::BindState,
         states: &mut [&mut Self::GroupState],
         output: &mut Array,
     ) -> Result<()> {
-        unimplemented!()
+        let buffer = &mut PhysicalI64::get_addressable_mut(&mut output.data)?;
+        let validity = &mut output.validity;
+
+        for (idx, state) in states.iter_mut().enumerate() {
+            state.finalize(&(), PutBuffer::new(idx, buffer, validity))?;
+        }
+
+        Ok(())
     }
 }
 
 #[derive(Debug)]
-pub struct ApproxDistinctState {}
+pub struct ApproxDistinctState {
+    hll: HyperLogLog,
+}
+
+impl AggregateState<&u64, i64> for ApproxDistinctState {
+    type BindState = ();
+
+    fn merge(&mut self, _state: &Self::BindState, other: &mut Self) -> Result<()> {
+        self.hll.merge(&other.hll);
+        Ok(())
+    }
+
+    fn update(&mut self, _state: &Self::BindState, &input: &u64) -> Result<()> {
+        self.hll.insert(input);
+        Ok(())
+    }
+
+    fn finalize<M>(&mut self, _state: &Self::BindState, output: PutBuffer<M>) -> Result<()>
+    where
+        M: AddressableMut<T = i64>,
+    {
+        let est = self.hll.count();
+        output.put(&(est as i64));
+        Ok(())
+    }
+}

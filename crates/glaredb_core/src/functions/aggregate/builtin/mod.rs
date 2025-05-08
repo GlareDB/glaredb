@@ -17,6 +17,7 @@ pub mod stddev;
 pub mod string_agg;
 pub mod sum;
 
+use approx_count_distinct::FUNCTION_SET_APPROX_COUNT_DISTINCT;
 use avg::FUNCTION_SET_AVG;
 use bit_and::FUNCTION_SET_BIT_AND;
 use bit_or::FUNCTION_SET_BIT_OR;
@@ -66,4 +67,5 @@ pub const BUILTIN_AGGREGATE_FUNCTION_SETS: &[AggregateFunctionSet] = &[
     FUNCTION_SET_BOOL_OR,
     FUNCTION_SET_BIT_AND,
     FUNCTION_SET_BIT_OR,
+    FUNCTION_SET_APPROX_COUNT_DISTINCT,
 ];
