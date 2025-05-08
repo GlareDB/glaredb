@@ -6,7 +6,7 @@ use crate::logical::binder::bind_query::BoundQuery;
 use crate::logical::logical_expression_list::LogicalExpressionList;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_select::SelectPlanner;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub struct QueryPlanner;

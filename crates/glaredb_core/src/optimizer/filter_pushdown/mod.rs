@@ -31,7 +31,7 @@ use crate::logical::logical_order::LogicalOrder;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 // TODO: ExtractedFilter seems to not be entirely worth it here. There's
 // frequent convert to/from it.

@@ -10,7 +10,7 @@ use crate::logical::logical_attach::{LogicalAttachDatabase, LogicalDetachDatabas
 use crate::logical::operator::{LocationRequirement, Node};
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub enum BoundAttach {

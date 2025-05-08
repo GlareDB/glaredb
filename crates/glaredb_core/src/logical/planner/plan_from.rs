@@ -28,8 +28,8 @@ use crate::logical::logical_scan::{
 };
 use crate::logical::logical_single_row::LogicalSingleRow;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
-use crate::logical::statistics::StatisticsValue;
 use crate::optimizer::filter_pushdown::condition_extractor::JoinConditionExtractor;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub struct FromPlanner;

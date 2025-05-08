@@ -14,7 +14,7 @@ use crate::logical::logical_window::LogicalWindow;
 use crate::logical::operator::{LocationRequirement, LogicalOperator, Node};
 use crate::logical::planner::plan_from::FromPlanner;
 use crate::logical::planner::plan_subquery::SubqueryPlanner;
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 #[derive(Debug)]
 pub struct SelectPlanner;

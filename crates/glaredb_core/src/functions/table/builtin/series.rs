@@ -14,7 +14,7 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::execute::TableExecuteFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
-use crate::logical::statistics::StatisticsValue;
+use crate::statistics::value::StatisticsValue;
 
 pub const FUNCTION_SET_GENERATE_SERIES: TableFunctionSet = TableFunctionSet {
     name: "generate_series",
