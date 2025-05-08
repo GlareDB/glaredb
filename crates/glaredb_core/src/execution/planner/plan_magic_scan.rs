@@ -1,8 +1,10 @@
 use glaredb_error::{DbError, Result, ResultExt};
 
 use super::OperatorPlanState;
+use crate::execution::operators::hash_aggregate::{Aggregates, PhysicalHashAggregate};
 use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
+use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_materialization::LogicalMagicMaterializationScan;
 use crate::logical::operator::Node;
 
@@ -35,6 +37,14 @@ impl OperatorPlanState<'_> {
             .plan_scalars(materialized_refs, &scan.node.projections)
             .context("Failed to plan projections out of materialization")?;
 
+        // Generate distinct exprs from the projection, added to the hash
+        // aggregate after the projection to preserve set semantics.
+        let distinct_exprs: Vec<_> = projections
+            .iter()
+            .enumerate()
+            .map(|(idx, proj)| PhysicalColumnExpr::new(idx, proj.datatype()))
+            .collect();
+
         let proj_op = PlannedOperatorWithChildren {
             operator: PlannedOperator::new_execute(
                 self.id_gen.next_id(),
@@ -43,8 +53,21 @@ impl OperatorPlanState<'_> {
             children: vec![scan_op],
         };
 
-        // TODO: Distinct the projection.
+        // Add a distinct operator...
+        let grouping_set = (0..distinct_exprs.len()).collect();
+        let aggregates = Aggregates {
+            groups: distinct_exprs,
+            grouping_functions: Vec::new(),
+            aggregates: Vec::new(),
+        };
+        // Ouput has GROUP_VALS first, so the projection ordering is preserved.
+        let agg = PhysicalHashAggregate::new(aggregates, vec![grouping_set]);
 
-        Ok(proj_op)
+        let agg_op = PlannedOperatorWithChildren {
+            operator: PlannedOperator::new_execute(self.id_gen.next_id(), agg),
+            children: vec![proj_op],
+        };
+
+        Ok(agg_op)
     }
 }

@@ -90,6 +90,7 @@ impl ExecuteOperator for PhysicalValues {
             return Ok(PollExecute::Exhausted);
         }
 
+        output.reset_for_write()?;
         let capacity = output.write_capacity()?;
         loop {
             let out_rem = capacity - output.num_rows();
