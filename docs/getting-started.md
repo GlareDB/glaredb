@@ -33,7 +33,7 @@ pip install glaredb
 
 Then simply import `glaredb` inside your Python script.
 
-# Supported Platforms
+## Supported Platforms
 
 GlareDB supports the following platforms:
 

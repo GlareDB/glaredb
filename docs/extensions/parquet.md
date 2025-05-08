@@ -35,9 +35,9 @@ This returns a table with the name and data type of each column.
 For S3 sources, additional parameters can be provided:
 
 ```sql
-SELECT * FROM read_parquet('s3://bucket-name/path/to/file.parquet', 
-                          region='us-east-1', 
-                          access_key_id='YOUR_ACCESS_KEY', 
+SELECT * FROM read_parquet('s3://bucket-name/path/to/file.parquet',
+                          region='us-east-1',
+                          access_key_id='YOUR_ACCESS_KEY',
                           secret_access_key='YOUR_SECRET_KEY');
 ```
 
@@ -48,8 +48,6 @@ Parquet files can also be queried directly by using the file path or URI in the 
 ```sql
 SELECT * FROM 'cities.parquet';
 ```
-
-
 
 ### `parquet_file_metadata`
 
