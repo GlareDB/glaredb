@@ -1,7 +1,9 @@
+mod hash_table;
+
 use std::task::Context;
 
 use glaredb_error::Result;
-use join_hash_table::{BuildState, HashJoinCondition, JoinHashTable};
+use hash_table::{HashJoinCondition, HashTableBuildState, JoinHashTable};
 
 use super::{
     BaseOperator,
@@ -17,9 +19,6 @@ use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::logical_join::JoinType;
 
-mod hash_table_scan;
-mod join_hash_table;
-
 #[derive(Debug)]
 pub struct HashJoinOperatorState {
     _table: JoinHashTable,
@@ -27,7 +26,7 @@ pub struct HashJoinOperatorState {
 
 #[derive(Debug)]
 pub struct HashJoinPartitionBuildState {
-    _build_state: BuildState,
+    _build_state: HashTableBuildState,
 }
 
 #[derive(Debug)]

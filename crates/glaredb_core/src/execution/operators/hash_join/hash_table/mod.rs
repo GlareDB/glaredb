@@ -1,8 +1,13 @@
+pub mod scan;
+
+mod directory;
+
 use std::sync::atomic::{self, AtomicBool, AtomicPtr};
 
+use directory::Directory;
 use glaredb_error::Result;
+use scan::HashTableScanState;
 
-use super::hash_table_scan::HashTableScanState;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::array::selection::Selection;
@@ -14,7 +19,6 @@ use crate::arrays::row::row_collection::{RowAppendState, RowCollection};
 use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::buffer::buffer_manager::DefaultBufferManager;
-use crate::buffer::db_vec::DbVec;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
 
@@ -28,6 +32,21 @@ pub struct HashJoinCondition {
     /// The comparison operator.
     pub op: ComparisonOperator,
 }
+
+/// State provided during hash table build.
+#[derive(Debug)]
+pub struct HashTableBuildState {
+    /// Initial values to use for left/outer joins for a "match".
+    ///
+    /// When we insert into the hash table, we'll use these values (all false)
+    /// to initialize matches.
+    match_init: Array,
+    /// State for appending rows to the collection.
+    row_append: RowAppendState,
+}
+
+#[derive(Debug)]
+pub struct HashTableOperatorState {}
 
 /// Chained hash table for joins.
 ///
@@ -144,8 +163,8 @@ impl JoinHashTable {
 
     /// Initializes a build state for this hash table.
     #[allow(unused)]
-    pub fn init_build_state(&self) -> BuildState {
-        BuildState {
+    pub fn init_build_state(&self) -> HashTableBuildState {
+        HashTableBuildState {
             match_init: Array::new_constant(&DefaultBufferManager, &false.into(), self.batch_size)
                 .expect("constant array to build"),
             row_append: self.data.init_append(),
@@ -181,7 +200,7 @@ impl JoinHashTable {
     /// This will hash the key columns and insert batches into the row
     /// collection.
     #[allow(unused)]
-    pub fn collect_build(&mut self, state: &mut BuildState, input: &Batch) -> Result<()> {
+    pub fn collect_build(&mut self, state: &mut HashTableBuildState, input: &Batch) -> Result<()> {
         let cap = input.arrays.len() + self.extra_column_count();
         let mut build_arrays = Vec::with_capacity(cap);
 
@@ -488,70 +507,6 @@ impl JoinHashTable {
             next_ent_ptr.read_unaligned()
         }
     }
-}
-
-/// (Chained) hash table directory.
-///
-/// Each entry is a row pointer pointing to the front of a chain. Each row will
-/// point to the next entry in the chain through a serialized pointer. The end
-/// of a chain is denoted by a null pointer.
-#[derive(Debug)]
-pub struct Directory {
-    entries: DbVec<*mut u8>,
-}
-
-// `*mut u8` pointing to heap blocks.
-unsafe impl Sync for Directory {}
-unsafe impl Send for Directory {}
-
-impl Directory {
-    const MIN_SIZE: usize = 256;
-    const LOAD_FACTOR: f64 = 0.7;
-
-    /// Mask to use when determining the position for an entry in the hash
-    /// table.
-    const fn capacity_mask(&self) -> u64 {
-        self.entries.len() as u64 - 1
-    }
-
-    /// Create a new directory for the given number of rows.
-    ///
-    /// This will ensure the hash table is an appropriate size and that the size
-    /// is a power of two for efficient computing of offsets.
-    fn new_for_num_rows(num_rows: usize) -> Result<Self> {
-        let desired = (num_rows as f64 / Self::LOAD_FACTOR) as usize;
-        let actual = usize::max(desired.next_power_of_two(), Self::MIN_SIZE);
-
-        let entries = DbVec::with_value(&DefaultBufferManager, actual, std::ptr::null_mut())?;
-
-        Ok(Directory { entries })
-    }
-
-    fn get_entry(&self, idx: usize) -> *const u8 {
-        debug_assert!(idx < self.entries.len());
-        let ptr = unsafe { self.entries.as_ptr().add(idx) };
-        unsafe { *ptr }
-    }
-
-    fn get_entry_atomic(&self, idx: usize) -> &AtomicPtr<u8> {
-        debug_assert!(idx < self.entries.len());
-        // TODO: Need to figure out the mutability for the directory.
-        let ptr = self.entries.as_ptr().cast_mut();
-        let ptr = unsafe { ptr.add(idx) };
-        unsafe { AtomicPtr::from_ptr(ptr) }
-    }
-}
-
-/// State provided during hash table build.
-#[derive(Debug)]
-pub struct BuildState {
-    /// Initial values to use for left/outer joins for a "match".
-    ///
-    /// When we insert into the hash table, we'll use these values (all false)
-    /// to initialize matches.
-    match_init: Array,
-    /// State for appending rows to the collection.
-    row_append: RowAppendState,
 }
 
 #[cfg(test)]

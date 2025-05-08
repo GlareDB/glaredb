@@ -1,6 +1,6 @@
 use glaredb_error::Result;
 
-use super::join_hash_table::JoinHashTable;
+use super::JoinHashTable;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
