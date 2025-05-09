@@ -1,0 +1,29 @@
+# Ensure correlated subqueries follow set semantics on the joining side.
+#
+# <https://github.com/GlareDB/glaredb/issues/3621>
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Input already follow "set semantics"
+query II
+SELECT a, (SELECT a + 1) FROM (VALUES (1), (2)) v(a) ORDER BY 1;
+----
+1  2
+2  3
+
+# Input _doesn't_ follow set semantics, ensure we properly distinct it.
+#
+# If we didn't distinct, then the oupur would have 4 rows instead of 2.
+query II
+SELECT a, (SELECT a + 1) FROM (VALUES (1), (1)) v(a);
+----
+1  2
+1  2
+
+# Results would be 10_000 instead of 1_000 if we didn't deduplicate.
+query II
+SELECT count(a), count((SELECT a + 1)) FROM
+  (SELECT * FROM generate_series(1, 100) g1, generate_series(1, 10) g2) s(a, b);
+----
+1000  1000
