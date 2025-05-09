@@ -13,7 +13,7 @@ opt-level = 3
 codegen-units = 1
 
 [workspace.dependencies]
-ahash = { version = "0.8.11", default-features = false }
+ahash = { version = "0.8.12", default-features = false }
 chrono = { version = "0.4.41" }
 futures = "0.3.30"
 hashbrown = "0.14.5"
@@ -21,7 +21,7 @@ parking_lot = "0.12"
 rand = "0.9.1"
 rayon = "1.10.0"
 num_cpus = "1.16.0"
-tokio = { version = "1.44.2", default-features = false }
+tokio = { version = "1.45.0", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
 regex = "1.10.5"
 url = "2.5.1"
