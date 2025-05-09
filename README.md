@@ -1,10 +1,10 @@
 # GlareDB
 
-GlareDB is a fast, lightweight SQL database for running analytics across diverse
-data sources.
+GlareDB is a fast, lightweight SQL database for running analytics.
 
-Whether you're querying local files or cloud data, GlareDB makes it easy to
-analyze everything using familiar SQL.
+```sh
+curl -fsSL https://glaredb.com/install.sh | sh
+```
 
 ## Getting Started
 
