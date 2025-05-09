@@ -1,6 +1,6 @@
 use glaredb_error::Result;
 
-use super::JoinHashTable;
+use super::{HashTableOperatorState, JoinHashTable};
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
@@ -19,7 +19,7 @@ use crate::logical::logical_join::JoinType;
 /// This gets updated after a single probe to the hash table. `scan_next` should
 /// be called with the same join keys until we produce a result with zero rows.
 #[derive(Debug)]
-pub struct HashTableScanState {
+pub struct HashTablePartitionScanState {
     /// Selection for the rows we're still scanning. Applies to both the row
     /// pointers and keys.
     ///
@@ -47,16 +47,16 @@ pub struct HashTableScanState {
     pub block_read: BlockScanState,
 }
 
-impl HashTableScanState {
-    #[allow(unused)]
+impl HashTablePartitionScanState {
     pub fn scan_next(
         &mut self,
         table: &JoinHashTable,
+        op_state: &HashTableOperatorState,
         rhs: &mut Batch,
         output: &mut Batch,
     ) -> Result<()> {
         match table.join_type {
-            JoinType::Inner => self.scan_next_inner_join(table, rhs, output),
+            JoinType::Inner => self.scan_next_inner_join(table, op_state, rhs, output),
             _ => unimplemented!(),
         }
     }
@@ -64,6 +64,7 @@ impl HashTableScanState {
     fn scan_next_inner_join(
         &mut self,
         table: &JoinHashTable,
+        op_state: &HashTableOperatorState,
         rhs: &mut Batch,
         output: &mut Batch,
     ) -> Result<()> {
@@ -105,12 +106,13 @@ impl HashTableScanState {
 
         // Get LHS data from the table. Skips trying to read hashes or the
         // matches column.
-        let lhs_col_count = table.data.layout().num_columns() - table.extra_column_count();
+        let data = unsafe { op_state.merged_row_collection.get() };
+        let lhs_col_count = table.layout.num_columns() - table.extra_column_count();
         debug_assert_eq!(lhs_col_count + rhs.arrays.len(), output.arrays.len());
 
         let lhs_arrays = (0..lhs_col_count).zip(&mut output.arrays);
         // SAFETY: ...
-        unsafe { table.data.scan_raw(&self.block_read, lhs_arrays, 0) }?;
+        unsafe { data.scan_raw(&self.block_read, lhs_arrays, 0) }?;
 
         // Select rhs data.
         let rhs_out = &mut output.arrays[lhs_col_count..];
@@ -151,7 +153,7 @@ impl HashTableScanState {
             self.not_matched.clear(); // Not yet used.
 
             let match_count = table.row_matcher.find_matches(
-                table.data.layout(),
+                &table.layout,
                 lhs_rows,
                 &table.build_comparison_columns,
                 comparison_cols,

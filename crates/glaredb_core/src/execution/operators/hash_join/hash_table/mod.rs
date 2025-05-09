@@ -6,7 +6,7 @@ use std::sync::atomic::{self, AtomicBool, AtomicPtr};
 
 use directory::Directory;
 use glaredb_error::Result;
-use scan::HashTableScanState;
+use scan::HashTablePartitionScanState;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
@@ -51,23 +51,30 @@ pub struct HashTableBuildPartitionState {
 
 #[derive(Debug)]
 pub struct HashTableOperatorState {
+    // SPEC: Need atomic remaining count for fenching.
     /// Row collections for each partition, indexed by partition idx.
     ///
     /// During the build phase, each partition will insert to its own row
     /// collection.
-    partitioned_row_collection: Vec<UnsafeSyncCell<RowCollection>>,
+    pub(super) partitioned_row_collection: Vec<UnsafeSyncCell<RowCollection>>,
     /// The merged row collection consists of all blocks from the partitioned
     /// row collections.
     ///
     /// Once the build side completes, a single partitions will be responsible
     /// for moving the blocks from the partitioned collection into this
     /// collection (and also create the directory).
-    merged_row_collection: RowCollection,
+    pub(super) merged_row_collection: UnsafeSyncCell<RowCollection>,
     /// Directory containing the hashes and row pointers.
     ///
     /// Intialized by a single partition at the same time we merge the
     /// collections.
-    directory: UnsafeSyncOnceCell<Directory>,
+    pub(super) directory: UnsafeSyncOnceCell<Directory>,
+}
+
+impl HashTableOperatorState {
+    fn partition_count(&self) -> usize {
+        self.partitioned_row_collection.len()
+    }
 }
 
 /// Chained hash table for joins.
@@ -91,12 +98,6 @@ pub struct HashTableOperatorState {
 pub struct JoinHashTable {
     /// Join type this hash table is for.
     pub join_type: JoinType,
-    /// Collected data for the hash table.
-    pub data: RowCollection,
-    /// Hash table entries pointing to rows in the data collection.
-    ///
-    /// Initialize after we collect all data.
-    pub directory: Option<Directory>,
     /// Column indices on the input batch for keys on the build side.
     pub build_key_columns: Vec<usize>,
     /// Column indices for all columns on the probe side that need to be
@@ -115,6 +116,7 @@ pub struct JoinHashTable {
     pub batch_size: usize,
     /// Matcher for evaluating predicates on the rows.
     pub row_matcher: PredicateRowMatcher,
+    pub layout: RowLayout,
 }
 
 impl JoinHashTable {
@@ -167,12 +169,9 @@ impl JoinHashTable {
 
         let layout = RowLayout::try_new(left_datatypes)?;
         let build_hash_byte_offset = layout.offsets[hash_col];
-        let data = RowCollection::new(layout, batch_size);
 
         Ok(JoinHashTable {
             join_type,
-            data,
-            directory: None,
             build_key_columns,
             build_comparison_columns,
             probe_key_columns,
@@ -180,6 +179,7 @@ impl JoinHashTable {
             build_hash_byte_offset,
             batch_size,
             row_matcher,
+            layout,
         })
     }
 
@@ -198,29 +198,12 @@ impl JoinHashTable {
         unimplemented!()
     }
 
-    /// Initializes a build state for this hash table.
-    #[allow(unused)]
-    pub fn init_build_state(&self) -> HashTableBuildPartitionState {
-        unimplemented!()
-        // HashTableBuildPartitionState {
-        //     match_init: Array::new_constant(&DefaultBufferManager, &false.into(), self.batch_size)
-        //         .expect("constant array to build"),
-        //     row_append: self.data.init_append(),
-        // }
-    }
-
-    /// Get the row count for the build side of the hash table.
-    #[allow(unused)]
-    pub fn row_count(&self) -> usize {
-        self.data.row_count()
-    }
-
     /// Get the column index for the hash in the row collection.
     fn hash_column_idx(&self) -> usize {
         if self.join_type.produce_all_build_side_rows() {
-            self.data.layout().num_columns() - 2 // Hash second to last.
+            self.layout.num_columns() - 2 // Hash second to last.
         } else {
-            self.data.layout().num_columns() - 1 // Hash is last column.
+            self.layout.num_columns() - 1 // Hash is last column.
         }
     }
 
@@ -237,9 +220,9 @@ impl JoinHashTable {
     ///
     /// This will hash the key columns and insert batches into the row
     /// collection.
-    #[allow(unused)]
     pub fn collect_build(
-        &mut self,
+        &self,
+        op_state: &HashTableOperatorState,
         state: &mut HashTableBuildPartitionState,
         input: &Batch,
     ) -> Result<()> {
@@ -250,11 +233,11 @@ impl JoinHashTable {
         build_arrays.extend(self.build_key_columns.iter().map(|&idx| &input.arrays[idx]));
 
         let mut hashes = Array::new(&DefaultBufferManager, DataType::uint64(), input.num_rows())?;
-        let hash_vals = PhysicalU64::get_addressable_mut(&mut hashes.data)?;
+        let hash_vals = PhysicalU64::buffer_downcast_mut(&mut hashes.data)?;
         hash_many_arrays(
             build_arrays.iter().copied(),
             0..input.num_rows(),
-            hash_vals.slice,
+            &mut hash_vals.buffer.as_slice_mut()[0..input.num_rows()],
         )?;
 
         // Now just get all build-side arrays.
@@ -274,49 +257,76 @@ impl JoinHashTable {
             build_arrays.push(&state.match_init);
         }
 
-        // Append to row collection
-        self.data
-            .append_arrays(&mut state.row_append, &build_arrays, input.num_rows())?;
+        // Append to row collection.
+        //
+        // SAFETY: This is writing the row collection this partition is
+        // responsible for. No other partition should be reading/writing it.
+        let row_collection =
+            unsafe { op_state.partitioned_row_collection[state.partition_idx].get_mut() };
+        row_collection.append_arrays(&mut state.row_append, &build_arrays, input.num_rows())?;
 
         Ok(())
     }
 
-    /// Initialize the directory for the hash table.
+    /// Initialize the directory for the hash table and move all row blocks into
+    /// a single collection.
     ///
-    /// This should only be done once and after all build-side data has been
+    /// # Safety
+    ///
+    /// This must only be done once and after all build-side data has been
     /// collected.
-    #[allow(unused)]
-    pub fn init_directory(&mut self) -> Result<()> {
-        let num_rows = self.data.row_count();
-        let directory = Directory::new_for_num_rows(num_rows)?;
-        self.directory = Some(directory);
+    ///
+    /// We're going to be touching some operator-level variables here.
+    pub unsafe fn init_directory(&self, op_state: &HashTableOperatorState) -> Result<()> {
+        // First merge the row collections.
+        let op_row_collection = unsafe { op_state.merged_row_collection.get_mut() };
+
+        for row_collection in &op_state.partitioned_row_collection {
+            let row_collection = unsafe { row_collection.get_mut() };
+            op_row_collection.merge_from(row_collection)?;
+        }
+
+        // Now init the directory using an exact size. We won't be resizing the
+        // directory.
+        let row_count = op_row_collection.row_count();
+
+        let directory = Directory::new_for_num_rows(row_count)?;
+        unsafe { op_state.directory.set(directory) }
+            .expect("directory to be initialized only once");
 
         Ok(())
     }
 
-    /// Inserts hashes for the given blocks into the hash table.
+    /// Processes hashes for the given blocks into the hash table.
     ///
     /// This should be called after all data has been collected for the build
     /// side, and the directory having been initialized.
     ///
-    /// Each thread will have a set of blocks that it's responsible for
-    /// inserting. All blocks need to be handled prior to probing the hash
-    /// table.
-    ///
-    /// This can be called concurrently by multiple threads. Entries in the hash
-    /// table are atomically updated.
-    #[allow(unused)]
-    pub fn insert_hashes_for_blocks(
+    /// All partitions are expected to call this, and each partition will be
+    /// responsible for processing disjoint block indices for insertion into the
+    /// hash table.
+    pub unsafe fn process_hashes(
         &self,
-        block_indices: impl IntoIterator<Item = usize>,
+        op_state: &HashTableOperatorState,
+        state: &mut HashTableBuildPartitionState,
     ) -> Result<()> {
+        let data = unsafe { op_state.merged_row_collection.get() };
+        let num_blocks = data.blocks().num_row_blocks();
+
+        // Ensure we work on dijoint sets of blocks.
+        let partition_block_indices =
+            (state.partition_idx..num_blocks).step_by(op_state.partition_count());
+
         let mut hashes = Array::new(&DefaultBufferManager, DataType::uint64(), self.batch_size)?;
-        let mut scan_state = self.data.init_partial_scan(block_indices);
+        let mut scan_state = data.init_partial_scan(partition_block_indices);
 
         let scan_cols = &[self.hash_column_idx()];
 
+        let directory =
+            unsafe { op_state.directory.get() }.expect("directory to have been initialized");
+
         loop {
-            let count = self.data.scan_columns(
+            let count = data.scan_columns(
                 &mut scan_state,
                 scan_cols,
                 &mut [&mut hashes],
@@ -334,20 +344,20 @@ impl JoinHashTable {
             let hashes = PhysicalU64::get_addressable(&hashes.data)?;
             let hashes = &hashes.slice[0..count];
 
-            self.insert_hashes(hashes, scan_state.scanned_row_pointers())?;
+            self.insert_hashes(directory, hashes, scan_state.scanned_row_pointers())?;
         }
 
         Ok(())
     }
 
     /// Inserts hashes into the hash table.
-    fn insert_hashes(&self, hashes: &[u64], row_pointers: &[*const u8]) -> Result<()> {
+    fn insert_hashes(
+        &self,
+        directory: &Directory,
+        hashes: &[u64],
+        row_pointers: &[*const u8],
+    ) -> Result<()> {
         debug_assert_eq!(hashes.len(), row_pointers.len());
-
-        let directory = &self
-            .directory
-            .as_ref()
-            .expect("directory to be initialized");
 
         // Compute positions for each entry using the hashes.
         let pos_mask = directory.capacity_mask();
@@ -377,8 +387,8 @@ impl JoinHashTable {
     }
 
     #[allow(unused)]
-    pub fn init_scan_state(&self) -> HashTableScanState {
-        HashTableScanState {
+    pub fn init_scan_state(&self) -> HashTablePartitionScanState {
+        HashTablePartitionScanState {
             selection: Vec::new(),
             not_matched: Vec::new(),
             row_pointers: Vec::new(),
@@ -390,8 +400,12 @@ impl JoinHashTable {
     /// Probe the hash table with the given keys.
     ///
     /// The scan state will be updated for scanning.
-    #[allow(unused)]
-    pub fn probe(&self, state: &mut HashTableScanState, rhs: &Batch) -> Result<()> {
+    pub fn probe(
+        &self,
+        op_state: &HashTableOperatorState,
+        state: &mut HashTablePartitionScanState,
+        rhs: &Batch,
+    ) -> Result<()> {
         // TODO: Reuse array.
         let keys: Vec<_> = self
             .probe_key_columns
@@ -407,10 +421,8 @@ impl JoinHashTable {
         // overwritten in the below loop.
         state.row_pointers.resize(rhs.num_rows, std::ptr::null());
 
-        let directory = &self
-            .directory
-            .as_ref()
-            .expect("directory to be initialized");
+        let directory =
+            unsafe { op_state.directory.get() }.expect("directory to have been initialized");
 
         // Compute positions for each entry using the hashes.
         let pos_mask = directory.capacity_mask();
@@ -512,12 +524,7 @@ impl JoinHashTable {
     /// even when executing predicates.
     pub unsafe fn write_rows_matched(&self, row_ptrs: impl IntoIterator<Item = *const u8>) {
         unsafe {
-            let match_offset = *self
-                .data
-                .layout()
-                .offsets
-                .last()
-                .expect("match offset to exist");
+            let match_offset = *self.layout.offsets.last().expect("match offset to exist");
 
             for row_ptr in row_ptrs {
                 // Note the morsels paper says it's advantageous to check the bool
@@ -559,7 +566,7 @@ mod tests {
 
     #[test]
     fn inner_join_single_eq_predicate() {
-        let mut table = JoinHashTable::try_new(
+        let table = JoinHashTable::try_new(
             JoinType::Inner,
             [DataType::utf8(), DataType::int32()],
             [DataType::int32()],
@@ -571,17 +578,24 @@ mod tests {
             16,
         )
         .unwrap();
-        let mut build_state = table.init_build_state();
+        let op_state = table.create_operator_state().unwrap();
+        let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 4]);
-        table.collect_build(&mut build_state, &input).unwrap();
+        table
+            .collect_build(&op_state, &mut build_states[0], &input)
+            .unwrap();
 
-        table.init_directory().unwrap();
-        table.insert_hashes_for_blocks([0]).unwrap();
+        unsafe { table.init_directory(&op_state).unwrap() };
+        unsafe {
+            table
+                .process_hashes(&op_state, &mut build_states[0])
+                .unwrap()
+        };
 
         let mut state = table.init_scan_state();
         let mut rhs = generate_batch!([2, 3, 5]);
-        table.probe(&mut state, &rhs).unwrap();
+        table.probe(&op_state, &mut state, &rhs).unwrap();
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
@@ -593,7 +607,7 @@ mod tests {
 
     #[test]
     fn inner_join_single_eq_predicate_chained() {
-        let mut table = JoinHashTable::try_new(
+        let table = JoinHashTable::try_new(
             JoinType::Inner,
             [DataType::utf8(), DataType::int32()],
             [DataType::int32()],
@@ -605,17 +619,24 @@ mod tests {
             16,
         )
         .unwrap();
-        let mut build_state = table.init_build_state();
+        let op_state = table.create_operator_state().unwrap();
+        let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 3]);
-        table.collect_build(&mut build_state, &input).unwrap();
+        table
+            .collect_build(&op_state, &mut build_states[0], &input)
+            .unwrap();
 
-        table.init_directory().unwrap();
-        table.insert_hashes_for_blocks([0]).unwrap();
+        unsafe { table.init_directory(&op_state).unwrap() };
+        unsafe {
+            table
+                .process_hashes(&op_state, &mut build_states[0])
+                .unwrap()
+        };
 
         let mut state = table.init_scan_state();
         let mut rhs = generate_batch!([2, 4, 3, 5]);
-        table.probe(&mut state, &rhs).unwrap();
+        table.probe(&op_state, &mut state, &rhs).unwrap();
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
