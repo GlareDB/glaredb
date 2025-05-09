@@ -15,6 +15,7 @@ pub struct SessionConfig {
     pub partitions: u64,
     pub batch_size: u64,
     pub verify_optimized_plan: bool,
+    pub enable_hash_joins: bool,
     pub enable_function_chaining: bool,
     pub per_partition_counts: bool,
 }
@@ -31,6 +32,7 @@ impl SessionConfig {
             partitions: executor.default_partitions() as u64,
             batch_size: DEFAULT_BATCH_SIZE as u64,
             verify_optimized_plan: false,
+            enable_hash_joins: true,
             enable_function_chaining: true,
             per_partition_counts: false,
         }
@@ -282,6 +284,23 @@ impl SessionSetting for PerPartitionCounts {
     }
 }
 
+pub struct EnableHashJoins;
+
+impl SessionSetting for EnableHashJoins {
+    const NAME: &'static str = "enable_hash_joins";
+    const DESCRIPTION: &'static str = "If hash joins are enabled.";
+
+    fn set_from_scalar(scalar: BorrowedScalarValue, conf: &mut SessionConfig) -> Result<()> {
+        let val = scalar.try_as_bool()?;
+        conf.enable_hash_joins = val;
+        Ok(())
+    }
+
+    fn get_as_scalar(conf: &SessionConfig) -> ScalarValue {
+        conf.enable_hash_joins.into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,6 +312,7 @@ mod tests {
             partitions: 8,
             batch_size: 4096,
             verify_optimized_plan: false,
+            enable_hash_joins: false,
             enable_function_chaining: true,
             per_partition_counts: false,
         }

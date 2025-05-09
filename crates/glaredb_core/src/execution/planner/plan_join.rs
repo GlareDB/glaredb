@@ -4,8 +4,10 @@ use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::context_display::ContextDisplayWrapper;
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
+use crate::functions::scalar::builtin::comparison::ComparisonOperation;
 use crate::logical::logical_join::{
     JoinType,
     LogicalArbitraryJoin,
@@ -39,19 +41,16 @@ impl OperatorPlanState<'_> {
     ) -> Result<PlannedOperatorWithChildren> {
         let location = join.location;
 
-        // let equality_indices: Vec<_> = join
-        //     .node
-        //     .conditions
-        //     .iter()
-        //     .enumerate()
-        //     .filter_map(|(idx, cond)| {
-        //         if cond.op == ComparisonOperator::Eq {
-        //             Some(idx)
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .collect();
+        let has_equality = join
+            .node
+            .conditions
+            .iter()
+            .any(|condition| condition.op == ComparisonOperator::Eq);
+
+        if has_equality && self.config.enable_hash_joins {
+            // Plan has join.
+            unimplemented!()
+        }
 
         // Need to fall back to nested loop join.
 
