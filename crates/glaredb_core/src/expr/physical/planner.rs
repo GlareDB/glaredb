@@ -7,6 +7,7 @@ use super::column_expr::PhysicalColumnExpr;
 use super::conjunction_expr::PhysicalConjunctionExpr;
 use super::literal_expr::PhysicalLiteralExpr;
 use super::scalar_function_expr::PhysicalScalarFunctionExpr;
+use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::case_expr::PhysicalWhenThen;
 use crate::expr::{AsScalarFunctionSet, Expression};

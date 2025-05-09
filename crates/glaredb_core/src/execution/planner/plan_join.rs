@@ -39,8 +39,6 @@ impl OperatorPlanState<'_> {
         &mut self,
         mut join: Node<LogicalComparisonJoin>,
     ) -> Result<PlannedOperatorWithChildren> {
-        let location = join.location;
-
         let has_equality = join
             .node
             .conditions
@@ -48,11 +46,12 @@ impl OperatorPlanState<'_> {
             .any(|condition| condition.op == ComparisonOperator::Eq);
 
         if has_equality && self.config.enable_hash_joins {
-            // Plan has join.
-            unimplemented!()
+            // Plan hash join.
+            return self.plan_comparison_join_as_hash_join(join);
         }
 
         // Need to fall back to nested loop join.
+        let location = join.location;
 
         let [left, right] = join.take_two_children_exact()?;
         let left_refs = left.get_output_table_refs(self.bind_context);
@@ -61,9 +60,7 @@ impl OperatorPlanState<'_> {
         let condition = if join.node.conditions.is_empty() {
             None
         } else {
-            // TODO: `main` branch had nl join use the table refs from the
-            // output of the nl join, not from the children... Unsure if that's
-            // a bug, or I had a reason for that.
+            // Condition expression has access to both sides of the join.
             let table_refs: Vec<_> = left_refs
                 .iter()
                 .cloned()
@@ -87,6 +84,13 @@ impl OperatorPlanState<'_> {
             self.plan_nested_loop_join(location, left, right, condition, join.node.join_type)?;
 
         Ok(op)
+    }
+
+    fn plan_comparison_join_as_hash_join(
+        &mut self,
+        mut join: Node<LogicalComparisonJoin>,
+    ) -> Result<PlannedOperatorWithChildren> {
+        unimplemented!()
     }
 
     pub fn plan_arbitrary_join(

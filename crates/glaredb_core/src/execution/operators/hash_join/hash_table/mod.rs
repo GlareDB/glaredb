@@ -120,7 +120,6 @@ pub struct JoinHashTable {
 }
 
 impl JoinHashTable {
-    #[allow(unused)]
     pub fn try_new(
         join_type: JoinType,
         left_datatypes: impl IntoIterator<Item = DataType>,
@@ -599,7 +598,9 @@ mod tests {
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
-        state.scan_next(&table, &mut rhs, &mut out).unwrap();
+        state
+            .scan_next(&table, &op_state, &mut rhs, &mut out)
+            .unwrap();
 
         let expected = generate_batch!(["b", "c"], [2, 3], [2, 3]);
         assert_batches_eq(&expected, &out);
@@ -640,7 +641,9 @@ mod tests {
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
-        state.scan_next(&table, &mut rhs, &mut out).unwrap();
+        state
+            .scan_next(&table, &op_state, &mut rhs, &mut out)
+            .unwrap();
 
         let expected = generate_batch!(["b", "d"], [2, 3], [2, 3]);
         assert_batches_eq(&expected, &out);
@@ -648,7 +651,9 @@ mod tests {
         // Continue to next, following the chain.
         // TODO: We should modify the scan to try to read up to the capacity of
         // the output batch.
-        state.scan_next(&table, &mut rhs, &mut out).unwrap();
+        state
+            .scan_next(&table, &op_state, &mut rhs, &mut out)
+            .unwrap();
 
         let expected = generate_batch!(["c"], [3], [3]);
         assert_batches_eq(&expected, &out);
