@@ -336,6 +336,7 @@ impl ExecuteOperator for PhysicalHashJoin {
         if state.rhs_needs_probe {
             // New RHS batch, refresh scan state.
             table.probe(table_state, &mut state.scan_state, input)?;
+            state.rhs_needs_probe = false;
             // Continue...
         }
 
