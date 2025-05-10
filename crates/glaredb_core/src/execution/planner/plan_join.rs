@@ -4,10 +4,9 @@ use super::OperatorPlanState;
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::context_display::ContextDisplayWrapper;
-use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
-use crate::functions::scalar::builtin::comparison::ComparisonOperation;
 use crate::logical::logical_join::{
     JoinType,
     LogicalArbitraryJoin,
@@ -67,8 +66,14 @@ impl OperatorPlanState<'_> {
                 .chain(right_refs.iter().cloned())
                 .collect();
 
-            let condition: Expression =
-                expr::and(join.node.conditions.into_iter().map(Expression::Comparison))?.into();
+            let condition: Expression = expr::and(join.node.conditions.into_iter().map(|cond| {
+                Expression::Comparison(ComparisonExpr {
+                    left: cond.left,
+                    right: cond.right,
+                    op: cond.op,
+                })
+            }))?
+            .into();
             let condition = self
                 .expr_planner
                 .plan_scalar(&table_refs, &condition)
@@ -90,6 +95,15 @@ impl OperatorPlanState<'_> {
         &mut self,
         mut join: Node<LogicalComparisonJoin>,
     ) -> Result<PlannedOperatorWithChildren> {
+        let [left, right] = join.take_two_children_exact()?;
+        let left_refs = left.get_output_table_refs(self.bind_context);
+        let right_refs = right.get_output_table_refs(self.bind_context);
+
+        let join = join.node;
+
+        // Figure out if there's any non-column ref expressions. If so, we'll
+        // need to add projection nodes as the children of this node.
+
         unimplemented!()
     }
 

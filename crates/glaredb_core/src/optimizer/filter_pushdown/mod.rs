@@ -491,7 +491,7 @@ impl FilterPushdown {
             JoinType::Inner => {
                 // Convert to cross join, push down on cross join.
                 for cond in plan.node.conditions {
-                    self.add_filters([Expression::Comparison(cond)]);
+                    self.add_filters([Expression::Comparison(cond.into())]);
                 }
 
                 let plan = Node {
