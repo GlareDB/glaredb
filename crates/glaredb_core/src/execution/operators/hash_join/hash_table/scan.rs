@@ -20,6 +20,7 @@ use crate::logical::logical_join::JoinType;
 /// be called with the same join keys until we produce a result with zero rows.
 #[derive(Debug)]
 pub struct HashTablePartitionScanState {
+    pub partition_idx: usize,
     /// Selection for the rows we're still scanning. Applies to both the row
     /// pointers and keys.
     ///

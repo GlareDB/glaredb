@@ -279,7 +279,8 @@ impl JoinHashTable {
         partitions: usize,
     ) -> Result<Vec<HashTablePartitionScanState>> {
         let states = (0..partitions)
-            .map(|_| HashTablePartitionScanState {
+            .map(|partition_idx| HashTablePartitionScanState {
+                partition_idx,
                 selection: Vec::new(),
                 not_matched: Vec::new(),
                 row_pointers: Vec::new(),

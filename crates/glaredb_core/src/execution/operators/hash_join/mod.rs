@@ -58,10 +58,16 @@ struct SharedState {
 
 #[derive(Debug)]
 pub struct HashJoinPartitionBuildState {
-    /// Bool indicating if we're in the hash inserting phase of finalizing.
-    finalizing_hash_insert: bool,
+    /// Which phase we're in for finalizing the build.
+    finalize_phase: BuildFinalizePhase,
     /// State used for inserting into the hash table.
     build_state: HashTableBuildPartitionState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BuildFinalizePhase {
+    Collecting,
+    InsertingHashes,
 }
 
 #[derive(Debug)]
@@ -70,6 +76,12 @@ pub struct HashJoinPartitionProbeState {
     ///
     /// If false, must check shared state before continuing.
     scan_ready: bool,
+    /// Indicator if we should probe for RHS.
+    ///
+    /// A single probe may produce outputs that are larger than our output
+    /// batch, requiring multiple scans. In such cases, multiple polls will be
+    /// used for a single probe.
+    rhs_needs_probe: bool,
     /// Scan state for the hash table.
     scan_state: HashTablePartitionScanState,
 }
@@ -172,7 +184,7 @@ impl PushOperator for PhysicalHashJoin {
         let states = states
             .into_iter()
             .map(|state| HashJoinPartitionBuildState {
-                finalizing_hash_insert: false,
+                finalize_phase: BuildFinalizePhase::Collecting,
                 build_state: state,
             })
             .collect();
@@ -205,60 +217,65 @@ impl PushOperator for PhysicalHashJoin {
         let table_state = &operator_state.table_state;
 
         loop {
-            if state.finalizing_hash_insert {
-                // We're in the hash inserting phase.
-                let mut shared = operator_state.shared.lock();
-                if !shared.hash_inserts_ready {
-                    // We're not ready to insert the hashes (directory not
-                    // ready). Come back later.
-                    shared
-                        .pending_hash_inserters
-                        .store(cx.waker(), state.build_state.partition_idx);
-                    return Ok(PollFinalize::Pending);
+            match state.finalize_phase {
+                BuildFinalizePhase::Collecting => {
+                    // We're finalizing our build.
+                    let is_last = table.finish_build(table_state, &mut state.build_state)?;
+
+                    // Next call to finalize will be for inserting the hashes.
+                    state.finalize_phase = BuildFinalizePhase::InsertingHashes;
+
+                    if is_last {
+                        // We're the last partition. Init the directory.
+                        unsafe { table.init_directory(table_state)? };
+
+                        // Now wake up all pending hash inserters.
+                        let mut shared = operator_state.shared.lock();
+                        shared.hash_inserts_ready = true;
+                        shared.pending_hash_inserters.wake_all();
+
+                        // Jump directly to inserting.
+                        continue;
+                    } else {
+                        // Other partitions still building, we'll need to wait until we
+                        // can insert the hashes.
+                        let mut shared = operator_state.shared.lock();
+                        shared
+                            .pending_hash_inserters
+                            .store(cx.waker(), state.build_state.partition_idx);
+
+                        return Ok(PollFinalize::Pending);
+                    }
                 }
-                std::mem::drop(shared);
-
-                // SAFETY: We've indicated that hash inserts are ready, so we should
-                // have the directory available.
-                //
-                // Parallel inserts from multiple partitions is ok.
-                unsafe { table.process_hashes(table_state, &mut state.build_state)? }
-
-                let mut shared = operator_state.shared.lock();
-                let remaining = shared.remaining_hash_inserters.dec_by_one()?;
-                if remaining == 0 {
-                    // We're the last partition to complete inserting hashes.
-                    // Wake up all pending probers.
-                    shared.scan_ready = true;
-                    shared.pending_probers.wake_all();
-                }
-
-                return Ok(PollFinalize::Finalized);
-            } else {
-                // We're finalizing our build.
-                state.finalizing_hash_insert = true;
-                let is_last = table.finish_build(table_state, &mut state.build_state)?;
-
-                if is_last {
-                    // We're the last partition. Init the directory.
-                    unsafe { table.init_directory(table_state)? };
-
-                    // Now wake up all pending hash inserters.
+                BuildFinalizePhase::InsertingHashes => {
+                    // We're in the hash inserting phase.
                     let mut shared = operator_state.shared.lock();
-                    shared.hash_inserts_ready = true;
-                    shared.pending_hash_inserters.wake_all();
+                    if !shared.hash_inserts_ready {
+                        // We're not ready to insert the hashes (directory not
+                        // ready). Come back later.
+                        shared
+                            .pending_hash_inserters
+                            .store(cx.waker(), state.build_state.partition_idx);
+                        return Ok(PollFinalize::Pending);
+                    }
+                    std::mem::drop(shared);
 
-                    // Jump directly to inserting.
-                    continue;
-                } else {
-                    // Other partitions still building, we'll need to wait until we
-                    // can insert the hashes.
+                    // SAFETY: We've indicated that hash inserts are ready, so we should
+                    // have the directory available.
+                    //
+                    // Parallel inserts from multiple partitions is ok.
+                    unsafe { table.process_hashes(table_state, &mut state.build_state)? }
+
                     let mut shared = operator_state.shared.lock();
-                    shared
-                        .pending_hash_inserters
-                        .store(cx.waker(), state.build_state.partition_idx);
+                    let remaining = shared.remaining_hash_inserters.dec_by_one()?;
+                    if remaining == 0 {
+                        // We're the last partition to complete inserting hashes.
+                        // Wake up all pending probers.
+                        shared.scan_ready = true;
+                        shared.pending_probers.wake_all();
+                    }
 
-                    return Ok(PollFinalize::Pending);
+                    return Ok(PollFinalize::Finalized);
                 }
             }
         }
@@ -282,6 +299,7 @@ impl ExecuteOperator for PhysicalHashJoin {
             .into_iter()
             .map(|state| HashJoinPartitionProbeState {
                 scan_ready: false,
+                rhs_needs_probe: true,
                 scan_state: state,
             })
             .collect();
@@ -291,13 +309,53 @@ impl ExecuteOperator for PhysicalHashJoin {
 
     fn poll_execute(
         &self,
-        _cx: &mut Context,
-        _operator_state: &Self::OperatorState,
-        _state: &mut Self::PartitionExecuteState,
-        _input: &mut Batch,
-        _output: &mut Batch,
+        cx: &mut Context,
+        operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
+        input: &mut Batch,
+        output: &mut Batch,
     ) -> Result<PollExecute> {
-        unimplemented!()
+        if !state.scan_ready {
+            // Check global state to see if we're actually ready for scanning.
+            let mut shared = operator_state.shared.lock();
+            if !shared.scan_ready {
+                // Come back later.
+                shared
+                    .pending_probers
+                    .store(cx.waker(), state.scan_state.partition_idx);
+                return Ok(PollExecute::Pending);
+            }
+
+            // We're ready, continue on...
+            state.scan_ready = true;
+        }
+
+        let table = &operator_state.table;
+        let table_state = &operator_state.table_state;
+
+        if state.rhs_needs_probe {
+            // New RHS batch, refresh scan state.
+            table.probe(table_state, &mut state.scan_state, input)?;
+            // Continue...
+        }
+
+        // Scan it...
+        state
+            .scan_state
+            .scan_next(table, table_state, input, output)?;
+
+        if output.num_rows() == 0 {
+            // We scanned nothing. Either no matches or we've completely drained
+            // the state. Indicate we need a new RHS.
+            //
+            // Next RHS will trigger a probe.
+            state.rhs_needs_probe = true;
+            return Ok(PollExecute::NeedsMore);
+        }
+
+        // Otherwise we produced output. Keep polling with the same RHS as we
+        // may have more matches to drain.
+        Ok(PollExecute::HasMore)
     }
 
     fn poll_finalize_execute(
@@ -306,7 +364,8 @@ impl ExecuteOperator for PhysicalHashJoin {
         _operator_state: &Self::OperatorState,
         _state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
-        unimplemented!()
+        // TODO: Drainers
+        Ok(PollFinalize::Finalized)
     }
 }
 
