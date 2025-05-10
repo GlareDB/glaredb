@@ -216,9 +216,14 @@ where
 
         // If we're verifying the query, go ahead and plan it with optimization
         // disabled, and attach to this portal.
+        //
+        // Also disable hash joins during a verification run to exercise other
+        // joins as well.
         if self.config.verify_optimized_plan && is_query {
             let orig_optimizer = self.config.enable_optimizer;
+            let orig_hash_joins = self.config.enable_hash_joins;
             self.config.enable_optimizer = false;
+            self.config.enable_hash_joins = false;
 
             let stmt = self.get_prepared_by_name(prepared_name)?;
 
@@ -231,6 +236,7 @@ where
                 .bind_prepared(PlanningProfile::default(), stmt.clone())
                 .await;
             self.config.enable_optimizer = orig_optimizer;
+            self.config.enable_hash_joins = orig_hash_joins;
 
             let verify_portal = result?;
             debug_assert!(
@@ -375,6 +381,7 @@ where
                 let planner = OperatorPlanner::new(
                     OperatorPlanConfig {
                         per_partition_counts: self.config.per_partition_counts,
+                        enable_hash_joins: self.config.enable_hash_joins,
                     },
                     query_id,
                 );

@@ -5,7 +5,7 @@ use glaredb_error::{DbError, Result, not_implemented};
 use crate::arrays::datatype::DataType;
 use crate::expr::aggregate_expr::AggregateExpr;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::negate_expr::NegateOperator;
 use crate::expr::subquery_expr::{SubqueryExpr, SubqueryType};
 use crate::expr::{self, Expression, bind_aggregate_function};
@@ -14,6 +14,7 @@ use crate::functions::aggregate::builtin::first::FUNCTION_SET_FIRST;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{
+    JoinCondition,
     JoinType,
     LogicalComparisonJoin,
     LogicalCrossJoin,
@@ -50,7 +51,7 @@ impl SubqueryPlanner {
         left: LogicalOperator,
         mut right: LogicalOperator,
         join_type: JoinType,
-        mut conditions: Vec<ComparisonExpr>,
+        mut conditions: Vec<JoinCondition>,
         lateral_columns: Vec<CorrelatedColumn>,
     ) -> Result<LogicalOperator> {
         // Very similar to planning correlated subqueries (becuase it is), just
@@ -98,7 +99,7 @@ impl SubqueryPlanner {
                 }),
             )?;
 
-            conditions.push(condition);
+            conditions.push(condition.into());
         }
 
         // Produce the output join with additional comparison conditions.
@@ -240,7 +241,7 @@ impl SubqueryPlanner {
                 )?;
 
                 let condition = expr::compare(*op, expr.as_ref().clone(), right_out)?;
-                conditions.push(condition);
+                conditions.push(condition.into());
 
                 *plan = LogicalOperator::MagicJoin(Node {
                     node: LogicalMagicJoin {
@@ -275,11 +276,7 @@ impl SubqueryPlanner {
         bind_context: &mut BindContext,
         subquery: &mut SubqueryExpr,
         plan: LogicalOperator,
-    ) -> Result<(
-        [LogicalOperator; 2],
-        Vec<ComparisonExpr>,
-        MaterializationRef,
-    )> {
+    ) -> Result<([LogicalOperator; 2], Vec<JoinCondition>, MaterializationRef)> {
         let mut subquery_plan =
             QueryPlanner.plan(bind_context, subquery.subquery.as_ref().clone())?;
 
@@ -348,7 +345,7 @@ impl SubqueryPlanner {
                     datatype: bind_context.get_column_type(right)?,
                 }),
             )?;
-            conditions.push(condition);
+            conditions.push(condition.into());
         }
 
         Ok(([left, subquery_plan], conditions, mat_ref))
@@ -573,7 +570,7 @@ impl SubqueryPlanner {
                         join_type: JoinType::LeftMark {
                             table_ref: mark_table,
                         },
-                        conditions: vec![condition],
+                        conditions: vec![condition.into()],
                     },
                     location: LocationRequirement::Any,
                     children: vec![orig, subquery_plan],

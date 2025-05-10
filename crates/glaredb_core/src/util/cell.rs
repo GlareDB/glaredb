@@ -87,17 +87,73 @@ impl<T> Default for UnsafeSyncOnceCell<T> {
     }
 }
 
+/// An unsafe cell that implements `Sync` if `T` is `Sync`.
+///
+/// See the nightly only `SyncUnsafeCell` in std::cell.
+///
+/// # Safety
+///
+/// Higher level synchronization is needed to ensure mutables accessed do not
+/// happen concurrently with each other or any other accesses.
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct UnsafeSyncCell<T>(UnsafeCell<T>);
+
+impl<T> UnsafeSyncCell<T> {
+    pub const fn new(val: T) -> Self {
+        UnsafeSyncCell(UnsafeCell::new(val))
+    }
+
+    /// Get a reference to the underlying object.
+    ///
+    /// # Safety
+    ///
+    /// Must ensure that there's no outstanding mutable references to the
+    /// object.
+    ///
+    /// This is safe to call concurrentl with other calls to `get`.
+    pub unsafe fn get(&self) -> &T {
+        // SAFETY: The pointer deref is safe since we initialized this object
+        // with a non-null value.
+        unsafe { &*self.0.get() }
+    }
+
+    /// Get a mutable reference to the underlying object.
+    ///
+    /// # Safety
+    ///
+    /// Must ensure there's no existing references to the underlying object.
+    ///
+    /// Cannot be called concurrently with other calls to `get_mut` (or `get`).
+    ///
+    /// The clippy lint is valid. The above must be upheld.
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn get_mut(&self) -> &mut T {
+        // SAFETY: Same as `get`.
+        unsafe { &mut *self.0.get() }
+    }
+}
+
+unsafe impl<T: Send> Send for UnsafeSyncCell<T> {}
+unsafe impl<T: Sync> Sync for UnsafeSyncCell<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn check_sync_send(_s: impl Sync + Send) {
+        // Nothing, just ensure that it compiles.
+    }
+
+    #[test]
+    fn once_cell_is_sync_send() {
+        let cell = UnsafeSyncOnceCell::<i32>::new();
+        check_sync_send(cell);
+    }
+
     #[test]
     fn cell_is_sync_send() {
-        fn check_sync_send(_s: impl Sync + Send) {
-            // Nothing, just ensure that it compiles.
-        }
-
-        let cell = UnsafeSyncOnceCell::<i32>::new();
+        let cell = UnsafeSyncCell::<i32>::new(4);
         check_sync_send(cell);
     }
 }

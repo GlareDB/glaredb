@@ -207,14 +207,14 @@ impl RowCollection {
     /// Merges `other` into self.
     ///
     /// Both collections must have the same layout.
-    pub fn merge(&mut self, other: Self) -> Result<()> {
+    pub fn merge_from(&mut self, other: &mut Self) -> Result<()> {
         if self.layout() != other.layout() {
             return Err(DbError::new(
                 "Attemped to merge row collections with different layouts",
             ));
         }
 
-        self.blocks.merge_blocks(other.blocks);
+        self.blocks.merge_blocks_from(&mut other.blocks);
 
         Ok(())
     }
@@ -403,7 +403,7 @@ mod tests {
             )
             .unwrap();
 
-        collection1.merge(collection2).unwrap();
+        collection1.merge_from(&mut collection2).unwrap();
 
         let mut output = Batch::new([DataType::utf8()], 16).unwrap();
         let mut state = collection1.init_full_scan();

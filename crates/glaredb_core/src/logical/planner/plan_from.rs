@@ -4,7 +4,6 @@ use super::plan_query::QueryPlanner;
 use super::plan_subquery::SubqueryPlanner;
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
-use crate::expr::comparison_expr::ComparisonExpr;
 use crate::expr::literal_expr::LiteralExpr;
 use crate::expr::{self, Expression};
 use crate::functions::table::TableFunctionType;
@@ -13,6 +12,7 @@ use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, Bo
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_inout::LogicalTableExecute;
 use crate::logical::logical_join::{
+    JoinCondition,
     JoinType,
     LogicalArbitraryJoin,
     LogicalComparisonJoin,
@@ -320,7 +320,7 @@ impl FromPlanner {
     pub fn plan_join_from_conditions(
         &self,
         join_type: JoinType,
-        comparisons: Vec<ComparisonExpr>,
+        comparisons: Vec<JoinCondition>,
         arbitrary: Vec<Expression>,
         left: LogicalOperator,
         right: LogicalOperator,
@@ -335,7 +335,7 @@ impl FromPlanner {
         if use_arbitrary_join {
             let mut expressions = arbitrary;
             for condition in comparisons {
-                expressions.push(Expression::Comparison(condition));
+                expressions.push(Expression::Comparison(condition.into()));
             }
 
             // Possible if we were able to push filters to left/right

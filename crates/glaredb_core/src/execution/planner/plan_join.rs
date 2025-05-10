@@ -1,9 +1,11 @@
 use glaredb_error::{Result, ResultExt};
 
 use super::OperatorPlanState;
+use crate::execution::operators::hash_join::{HashJoinCondition, PhysicalHashJoin};
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::context_display::ContextDisplayWrapper;
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
 use crate::logical::logical_join::{
@@ -37,23 +39,19 @@ impl OperatorPlanState<'_> {
         &mut self,
         mut join: Node<LogicalComparisonJoin>,
     ) -> Result<PlannedOperatorWithChildren> {
-        let location = join.location;
+        let has_equality = join
+            .node
+            .conditions
+            .iter()
+            .any(|condition| condition.op == ComparisonOperator::Eq);
 
-        // let equality_indices: Vec<_> = join
-        //     .node
-        //     .conditions
-        //     .iter()
-        //     .enumerate()
-        //     .filter_map(|(idx, cond)| {
-        //         if cond.op == ComparisonOperator::Eq {
-        //             Some(idx)
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .collect();
+        if has_equality && self.config.enable_hash_joins {
+            // Plan hash join.
+            return self.plan_comparison_join_as_hash_join(join);
+        }
 
         // Need to fall back to nested loop join.
+        let location = join.location;
 
         let [left, right] = join.take_two_children_exact()?;
         let left_refs = left.get_output_table_refs(self.bind_context);
@@ -62,17 +60,20 @@ impl OperatorPlanState<'_> {
         let condition = if join.node.conditions.is_empty() {
             None
         } else {
-            // TODO: `main` branch had nl join use the table refs from the
-            // output of the nl join, not from the children... Unsure if that's
-            // a bug, or I had a reason for that.
+            // Condition expression has access to both sides of the join.
             let table_refs: Vec<_> = left_refs
                 .iter()
                 .cloned()
                 .chain(right_refs.iter().cloned())
                 .collect();
 
-            let condition: Expression =
-                expr::and(join.node.conditions.into_iter().map(Expression::Comparison))?.into();
+            let condition: Expression = expr::and(
+                join.node
+                    .conditions
+                    .into_iter()
+                    .map(|cond| Expression::Comparison(cond.into())),
+            )?
+            .into();
             let condition = self
                 .expr_planner
                 .plan_scalar(&table_refs, &condition)
@@ -88,6 +89,44 @@ impl OperatorPlanState<'_> {
             self.plan_nested_loop_join(location, left, right, condition, join.node.join_type)?;
 
         Ok(op)
+    }
+
+    fn plan_comparison_join_as_hash_join(
+        &mut self,
+        mut join: Node<LogicalComparisonJoin>,
+    ) -> Result<PlannedOperatorWithChildren> {
+        let [left, right] = join.take_two_children_exact()?;
+        let left_refs = left.get_output_table_refs(self.bind_context);
+        let right_refs = right.get_output_table_refs(self.bind_context);
+
+        let join = join.node;
+
+        let mut conditions = Vec::with_capacity(join.conditions.len());
+        for condition in join.conditions {
+            let left = self.expr_planner.plan_scalar(&left_refs, &condition.left)?;
+            let right = self
+                .expr_planner
+                .plan_scalar(&right_refs, &condition.right)?;
+
+            conditions.push(HashJoinCondition {
+                left,
+                right,
+                op: condition.op,
+            });
+        }
+
+        let left = self.plan(left)?;
+        let right = self.plan(right)?;
+
+        let left_types = left.operator.call_output_types();
+        let right_types = right.operator.call_output_types();
+
+        let hash_join = PhysicalHashJoin::new(join.join_type, left_types, right_types, conditions)?;
+
+        Ok(PlannedOperatorWithChildren {
+            operator: PlannedOperator::new_push_execute(self.id_gen.next_id(), hash_join),
+            children: vec![left, right],
+        })
     }
 
     pub fn plan_arbitrary_join(
