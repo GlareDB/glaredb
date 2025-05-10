@@ -5,9 +5,10 @@ use glaredb_error::Result;
 use super::binder::bind_context::{BindContext, MaterializationRef};
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
+use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
-use crate::expr::comparison_expr::ComparisonExpr;
+use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JoinType {
@@ -90,9 +91,57 @@ impl fmt::Display for JoinType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JoinCondition {
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
+    pub op: ComparisonOperator,
+}
+
+impl JoinCondition {
+    /// Flips the sides of the condition, including flipping the operatator.
+    ///
+    /// E.g. 'a >= b' becomes 'b <= a'
+    pub fn flip_sides(&mut self) {
+        self.op = self.op.flip();
+        std::mem::swap(&mut self.left, &mut self.right);
+    }
+}
+
+impl From<ComparisonExpr> for JoinCondition {
+    fn from(expr: ComparisonExpr) -> Self {
+        JoinCondition {
+            left: expr.left,
+            right: expr.right,
+            op: expr.op,
+        }
+    }
+}
+
+impl ContextDisplay for JoinCondition {
+    fn fmt_using_context(
+        &self,
+        mode: ContextDisplayMode,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            ContextDisplayWrapper::with_mode(self.left.as_ref(), mode),
+            self.op,
+            ContextDisplayWrapper::with_mode(self.right.as_ref(), mode),
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalComparisonJoin {
     pub join_type: JoinType,
-    pub conditions: Vec<ComparisonExpr>,
+    /// Conditions for the join.
+    ///
+    /// Left/right references must be preserved. The expression on the left
+    /// should only reference the left side. The expression on the right should
+    /// reference the right side.
+    pub conditions: Vec<JoinCondition>,
 }
 
 impl Explainable for LogicalComparisonJoin {
@@ -159,7 +208,7 @@ pub struct LogicalMagicJoin {
     /// The join type, behaves the same as a comparison join.
     pub join_type: JoinType,
     /// Conditions, same as comparison join.
-    pub conditions: Vec<ComparisonExpr>,
+    pub conditions: Vec<JoinCondition>,
 }
 
 impl Explainable for LogicalMagicJoin {

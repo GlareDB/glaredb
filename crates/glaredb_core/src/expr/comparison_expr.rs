@@ -13,6 +13,7 @@ use crate::functions::scalar::builtin::comparison::{
     FUNCTION_SET_LT_EQ,
     FUNCTION_SET_NEQ,
 };
+use crate::logical::logical_join::JoinCondition;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComparisonOperator {
@@ -98,6 +99,16 @@ impl ComparisonExpr {
     pub fn flip_sides(&mut self) {
         self.op = self.op.flip();
         std::mem::swap(&mut self.left, &mut self.right);
+    }
+}
+
+impl From<JoinCondition> for ComparisonExpr {
+    fn from(cond: JoinCondition) -> Self {
+        ComparisonExpr {
+            left: cond.left,
+            right: cond.right,
+            op: cond.op,
+        }
     }
 }
 

@@ -1,7 +1,9 @@
+mod hash_table;
+
 use std::task::Context;
 
 use glaredb_error::Result;
-use join_hash_table::{BuildState, HashJoinCondition, JoinHashTable};
+use hash_table::{HashJoinCondition, HashTableBuildPartitionState, JoinHashTable};
 
 use super::{
     BaseOperator,
@@ -15,10 +17,8 @@ use super::{
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::logical::logical_join::JoinType;
-
-mod hash_table_scan;
-mod join_hash_table;
 
 #[derive(Debug)]
 pub struct HashJoinOperatorState {
@@ -27,7 +27,7 @@ pub struct HashJoinOperatorState {
 
 #[derive(Debug)]
 pub struct HashJoinPartitionBuildState {
-    _build_state: BuildState,
+    _build_state: HashTableBuildPartitionState,
 }
 
 #[derive(Debug)]
@@ -35,10 +35,21 @@ pub struct HashJoinPartitionProbeState {}
 
 #[derive(Debug)]
 pub struct PhysicalHashJoin {
-    pub(crate) _join_type: JoinType,
-    pub(crate) _left_types: Vec<DataType>,
-    pub(crate) _right_types: Vec<DataType>,
-    pub(crate) _conditions: Vec<HashJoinCondition>,
+    pub(crate) join_type: JoinType,
+    pub(crate) left_types: Vec<DataType>,
+    pub(crate) right_types: Vec<DataType>,
+    pub(crate) output_types: Vec<DataType>,
+    pub(crate) conditions: Vec<HashJoinCondition>,
+}
+
+impl PhysicalHashJoin {
+    pub fn new(
+        join_type: JoinType,
+        left_types: impl IntoIterator<Item = DataType>,
+        right_types: impl IntoIterator<Item = DataType>,
+    ) -> Result<Self> {
+        unimplemented!()
+    }
 }
 
 impl BaseOperator for PhysicalHashJoin {
@@ -51,7 +62,7 @@ impl BaseOperator for PhysicalHashJoin {
     }
 
     fn output_types(&self) -> &[DataType] {
-        unimplemented!()
+        &self.output_types
     }
 }
 
