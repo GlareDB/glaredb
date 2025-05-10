@@ -66,13 +66,12 @@ impl OperatorPlanState<'_> {
                 .chain(right_refs.iter().cloned())
                 .collect();
 
-            let condition: Expression = expr::and(join.node.conditions.into_iter().map(|cond| {
-                Expression::Comparison(ComparisonExpr {
-                    left: cond.left,
-                    right: cond.right,
-                    op: cond.op,
-                })
-            }))?
+            let condition: Expression = expr::and(
+                join.node
+                    .conditions
+                    .into_iter()
+                    .map(|cond| Expression::Comparison(cond.into())),
+            )?
             .into();
             let condition = self
                 .expr_planner
@@ -103,6 +102,14 @@ impl OperatorPlanState<'_> {
 
         // Figure out if there's any non-column ref expressions. If so, we'll
         // need to add projection nodes as the children of this node.
+        let left_needs_project = join
+            .conditions
+            .iter()
+            .any(|cond| !cond.left.is_column_expr());
+        let right_needs_project = join
+            .conditions
+            .iter()
+            .any(|cond| !cond.left.is_column_expr());
 
         unimplemented!()
     }

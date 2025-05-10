@@ -2,7 +2,7 @@ pub mod scan;
 
 mod directory;
 
-use std::sync::atomic::{self, AtomicBool, AtomicPtr};
+use std::sync::atomic::{self, AtomicBool, AtomicPtr, AtomicUsize};
 
 use directory::Directory;
 use glaredb_error::Result;
@@ -20,16 +20,17 @@ use crate::arrays::row::row_layout::RowLayout;
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_join::JoinType;
 use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
 
 /// Join condition between left and right batches.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct HashJoinCondition {
-    /// Index of the column on the left (build) side.
-    pub left: usize,
-    /// Index of the column on the right (probe) side.
-    pub right: usize,
+    /// Expression for the left side.
+    pub left: PhysicalScalarExpression,
+    /// Expression for the right side.
+    pub right: PhysicalScalarExpression,
     /// The comparison operator.
     pub op: ComparisonOperator,
 }
@@ -51,12 +52,12 @@ pub struct HashTableBuildPartitionState {
 
 #[derive(Debug)]
 pub struct HashTableOperatorState {
-    // SPEC: Need atomic remaining count for fenching.
-    /// Row collections for each partition, indexed by partition idx.
+    /// Batch size to use for row blocks.
+    batch_size: usize,
+    /// Row collections per partition.
     ///
-    /// During the build phase, each partition will insert to its own row
-    /// collection.
-    pub(super) partitioned_row_collection: Vec<UnsafeSyncCell<RowCollection>>,
+    /// Initialized when we create partition states.
+    partitioned_row_collection: UnsafeSyncOnceCell<PartitionedRowCollecton>,
     /// The merged row collection consists of all blocks from the partitioned
     /// row collections.
     ///
@@ -71,9 +72,26 @@ pub struct HashTableOperatorState {
     pub(super) directory: UnsafeSyncOnceCell<Directory>,
 }
 
+#[derive(Debug)]
+struct PartitionedRowCollecton {
+    /// Remaining number of partitions still pushing to their collections.
+    ///
+    /// Used for fencing.
+    remaining: AtomicUsize,
+    /// Row collections for each partition, indexed by partition idx.
+    ///
+    /// During the build phase, each partition will insert to its own row
+    /// collection.
+    collections: Vec<UnsafeSyncCell<RowCollection>>,
+}
+
 impl HashTableOperatorState {
     fn partition_count(&self) -> usize {
-        self.partitioned_row_collection.len()
+        self.partitioned_row_collection().collections.len()
+    }
+
+    fn partitioned_row_collection(&self) -> &PartitionedRowCollecton {
+        unsafe { self.partitioned_row_collection.get().unwrap() }
     }
 }
 
@@ -116,6 +134,7 @@ pub struct JoinHashTable {
     pub batch_size: usize,
     /// Matcher for evaluating predicates on the rows.
     pub row_matcher: PredicateRowMatcher,
+    /// Layout for the build side.
     pub layout: RowLayout,
 }
 
@@ -137,19 +156,28 @@ impl JoinHashTable {
         let mut matcher_conditions = Vec::new();
 
         for condition in conditions {
+            // Add columns as keys.
+            let (left, _left_dt) = match condition.left {
+                PhysicalScalarExpression::Column(c) => (c.idx, c.datatype),
+                _ => unimplemented!(), // TODO
+            };
+            let (right, _right_dt) = match condition.right {
+                PhysicalScalarExpression::Column(c) => (c.idx, c.datatype),
+                _ => unimplemented!(), // TODO
+            };
+
             if condition.op == ComparisonOperator::Eq {
-                // Add columns as keys.
-                build_key_columns.push(condition.left);
-                probe_key_columns.push(condition.right);
+                build_key_columns.push(left);
+                probe_key_columns.push(right);
             }
 
-            let phys_type = left_datatypes[condition.left].physical_type()?;
-            debug_assert_eq!(phys_type, right_datatypes[condition.right].physical_type()?);
+            let phys_type = left_datatypes[left].physical_type()?;
+            debug_assert_eq!(phys_type, right_datatypes[right].physical_type()?);
 
             matcher_conditions.push((phys_type, condition.op));
 
-            build_comparison_columns.push(condition.left);
-            probe_comparison_columns.push(condition.right);
+            build_comparison_columns.push(left);
+            probe_comparison_columns.push(right);
         }
 
         debug_assert!(!build_key_columns.is_empty());
@@ -184,8 +212,18 @@ impl JoinHashTable {
 
     /// Create the operator state that gets shared with all partitions, build
     /// and probe side.
-    pub fn create_operator_state(&self) -> Result<HashTableOperatorState> {
-        unimplemented!()
+    pub fn create_operator_state(&self, batch_size: usize) -> Result<HashTableOperatorState> {
+        let state = HashTableOperatorState {
+            batch_size,
+            partitioned_row_collection: UnsafeSyncOnceCell::new(),
+            merged_row_collection: UnsafeSyncCell::new(RowCollection::new(
+                self.layout.clone(),
+                batch_size,
+            )),
+            directory: UnsafeSyncOnceCell::new(),
+        };
+
+        Ok(state)
     }
 
     /// Create the partition states for the build side of the join.
@@ -194,7 +232,43 @@ impl JoinHashTable {
         op_state: &HashTableOperatorState,
         partitions: usize,
     ) -> Result<Vec<HashTableBuildPartitionState>> {
-        unimplemented!()
+        // Init partitioned row collection.
+        unsafe {
+            op_state
+                .partitioned_row_collection
+                .set(PartitionedRowCollecton {
+                    remaining: AtomicUsize::new(partitions),
+                    collections: (0..partitions)
+                        .map(|_| {
+                            UnsafeSyncCell::new(RowCollection::new(
+                                self.layout.clone(),
+                                op_state.batch_size,
+                            ))
+                        })
+                        .collect(),
+                })
+                .expect("partitioned row collection to be initialized once")
+        };
+
+        let states = op_state
+            .partitioned_row_collection()
+            .collections
+            .iter()
+            .enumerate()
+            .map(|(partition_idx, collection)| {
+                Ok(HashTableBuildPartitionState {
+                    partition_idx,
+                    match_init: Array::new_constant(
+                        &DefaultBufferManager,
+                        &false.into(),
+                        op_state.batch_size,
+                    )?,
+                    row_append: unsafe { collection.get() }.init_append(),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(states)
     }
 
     /// Get the column index for the hash in the row collection.
@@ -260,8 +334,9 @@ impl JoinHashTable {
         //
         // SAFETY: This is writing the row collection this partition is
         // responsible for. No other partition should be reading/writing it.
-        let row_collection =
-            unsafe { op_state.partitioned_row_collection[state.partition_idx].get_mut() };
+        let row_collection = unsafe {
+            op_state.partitioned_row_collection().collections[state.partition_idx].get_mut()
+        };
         row_collection.append_arrays(&mut state.row_append, &build_arrays, input.num_rows())?;
 
         Ok(())
@@ -280,7 +355,7 @@ impl JoinHashTable {
         // First merge the row collections.
         let op_row_collection = unsafe { op_state.merged_row_collection.get_mut() };
 
-        for row_collection in &op_state.partitioned_row_collection {
+        for row_collection in &op_state.partitioned_row_collection().collections {
             let row_collection = unsafe { row_collection.get_mut() };
             op_row_collection.merge_from(row_collection)?;
         }
@@ -570,14 +645,16 @@ mod tests {
             [DataType::utf8(), DataType::int32()],
             [DataType::int32()],
             [HashJoinCondition {
-                left: 1,
-                right: 0,
+                // Column index 1 from the left.
+                left: PhysicalScalarExpression::Column((1, DataType::int32()).into()),
+                // Column index 0 from the right.
+                right: PhysicalScalarExpression::Column((0, DataType::int32()).into()),
                 op: ComparisonOperator::Eq,
             }],
             16,
         )
         .unwrap();
-        let op_state = table.create_operator_state().unwrap();
+        let op_state = table.create_operator_state(16).unwrap();
         let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 4]);
@@ -613,14 +690,16 @@ mod tests {
             [DataType::utf8(), DataType::int32()],
             [DataType::int32()],
             [HashJoinCondition {
-                left: 1,
-                right: 0,
+                // Column index 1 from the left.
+                left: PhysicalScalarExpression::Column((1, DataType::int32()).into()),
+                // Column index 0 from the right.
+                right: PhysicalScalarExpression::Column((0, DataType::int32()).into()),
                 op: ComparisonOperator::Eq,
             }],
             16,
         )
         .unwrap();
-        let op_state = table.create_operator_state().unwrap();
+        let op_state = table.create_operator_state(16).unwrap();
         let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 3]);
