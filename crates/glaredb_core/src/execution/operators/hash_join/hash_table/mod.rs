@@ -39,12 +39,11 @@ pub struct HashJoinCondition {
 #[derive(Debug)]
 pub struct HashTableBuildPartitionState {
     /// Index of the partition.
-    partition_idx: usize,
-    /// Initial values to use for left/outer joins for a "match".
+    pub partition_idx: usize,
+    /// Constant initial values to use for left/outer joins for a "match".
     ///
     /// When we insert into the hash table, we'll use these values (all false)
     /// to initialize matches.
-    // wtf is this?
     match_init: Array,
     /// State for appending rows to the collection.
     row_append: RowAppendState,
@@ -52,11 +51,9 @@ pub struct HashTableBuildPartitionState {
 
 #[derive(Debug)]
 pub struct HashTableOperatorState {
-    /// Batch size to use for row blocks.
-    batch_size: usize,
     /// Row collections per partition.
     ///
-    /// Initialized when we create partition states.
+    /// Initialized when we create the build-side partition states.
     partitioned_row_collection: UnsafeSyncOnceCell<PartitionedRowCollecton>,
     /// The merged row collection consists of all blocks from the partitioned
     /// row collections.
@@ -64,7 +61,7 @@ pub struct HashTableOperatorState {
     /// Once the build side completes, a single partitions will be responsible
     /// for moving the blocks from the partitioned collection into this
     /// collection (and also create the directory).
-    pub(super) merged_row_collection: UnsafeSyncCell<RowCollection>,
+    merged_row_collection: UnsafeSyncCell<RowCollection>,
     /// Directory containing the hashes and row pointers.
     ///
     /// Intialized by a single partition at the same time we merge the
@@ -130,7 +127,7 @@ pub struct JoinHashTable {
     ///
     /// Precomputed from layout.
     pub build_hash_byte_offset: usize,
-    /// Configured batch size for the join operator.
+    /// Batch size to use for row blocks.
     pub batch_size: usize,
     /// Matcher for evaluating predicates on the rows.
     pub row_matcher: PredicateRowMatcher,
@@ -212,13 +209,12 @@ impl JoinHashTable {
 
     /// Create the operator state that gets shared with all partitions, build
     /// and probe side.
-    pub fn create_operator_state(&self, batch_size: usize) -> Result<HashTableOperatorState> {
+    pub fn create_operator_state(&self) -> Result<HashTableOperatorState> {
         let state = HashTableOperatorState {
-            batch_size,
             partitioned_row_collection: UnsafeSyncOnceCell::new(),
             merged_row_collection: UnsafeSyncCell::new(RowCollection::new(
                 self.layout.clone(),
-                batch_size,
+                self.batch_size,
             )),
             directory: UnsafeSyncOnceCell::new(),
         };
@@ -242,7 +238,7 @@ impl JoinHashTable {
                         .map(|_| {
                             UnsafeSyncCell::new(RowCollection::new(
                                 self.layout.clone(),
-                                op_state.batch_size,
+                                self.batch_size,
                             ))
                         })
                         .collect(),
@@ -250,6 +246,7 @@ impl JoinHashTable {
                 .expect("partitioned row collection to be initialized once")
         };
 
+        // Init partition states.
         let states = op_state
             .partitioned_row_collection()
             .collections
@@ -261,12 +258,35 @@ impl JoinHashTable {
                     match_init: Array::new_constant(
                         &DefaultBufferManager,
                         &false.into(),
-                        op_state.batch_size,
+                        self.batch_size,
                     )?,
+                    // SAFETY: Only a single thread should be creating the
+                    // partition states. There's no other accessess to to these
+                    // collections at this point.
                     row_append: unsafe { collection.get() }.init_append(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
+
+        debug_assert_eq!(partitions, states.len());
+
+        Ok(states)
+    }
+
+    pub fn create_probe_partition_states(
+        &self,
+        _op_state: &HashTableOperatorState,
+        partitions: usize,
+    ) -> Result<Vec<HashTablePartitionScanState>> {
+        let states = (0..partitions)
+            .map(|_| HashTablePartitionScanState {
+                selection: Vec::new(),
+                not_matched: Vec::new(),
+                row_pointers: Vec::new(),
+                hashes: Vec::new(),
+                block_read: BlockScanState::empty(),
+            })
+            .collect();
 
         Ok(states)
     }
@@ -342,6 +362,32 @@ impl JoinHashTable {
         Ok(())
     }
 
+    /// Indicates that this partition is finished building.
+    ///
+    /// Should be called for all partitions, and before we initialized the
+    /// directory.
+    ///
+    /// Returns `true` if this was the last partition to finish, inidicating it
+    /// should create the directory.
+    pub fn finish_build(
+        &self,
+        op_state: &HashTableOperatorState,
+        _state: &mut HashTableBuildPartitionState,
+    ) -> Result<bool> {
+        // We're just using this fencing. We'll have a single partition at the
+        // end do the directory init and moving everything into a single
+        // collection.
+        let remaining = &op_state.partitioned_row_collection().remaining;
+        let prev = remaining.fetch_sub(1, atomic::Ordering::Release);
+        assert_ne!(
+            0, prev,
+            "Atomic count for remaining partitions must not go negative"
+        );
+
+        // Current count is zero.
+        Ok(prev == 1)
+    }
+
     /// Initialize the directory for the hash table and move all row blocks into
     /// a single collection.
     ///
@@ -352,6 +398,16 @@ impl JoinHashTable {
     ///
     /// We're going to be touching some operator-level variables here.
     pub unsafe fn init_directory(&self, op_state: &HashTableOperatorState) -> Result<()> {
+        // Ensure we see everything.
+        let remaining = op_state
+            .partitioned_row_collection()
+            .remaining
+            .load(atomic::Ordering::Acquire);
+        assert_eq!(
+            0, remaining,
+            "Atomic count for partitions must be zero before initializing directory"
+        );
+
         // First merge the row collections.
         let op_row_collection = unsafe { op_state.merged_row_collection.get_mut() };
 
@@ -379,6 +435,11 @@ impl JoinHashTable {
     /// All partitions are expected to call this, and each partition will be
     /// responsible for processing disjoint block indices for insertion into the
     /// hash table.
+    ///
+    /// # Safety
+    ///
+    /// May be called concurrently, but only after the directory has been
+    /// initialized.
     pub unsafe fn process_hashes(
         &self,
         op_state: &HashTableOperatorState,
@@ -458,17 +519,6 @@ impl JoinHashTable {
         }
 
         Ok(())
-    }
-
-    #[allow(unused)]
-    pub fn init_scan_state(&self) -> HashTablePartitionScanState {
-        HashTablePartitionScanState {
-            selection: Vec::new(),
-            not_matched: Vec::new(),
-            row_pointers: Vec::new(),
-            hashes: Vec::new(),
-            block_read: BlockScanState::empty(),
-        }
     }
 
     /// Probe the hash table with the given keys.
@@ -654,13 +704,15 @@ mod tests {
             16,
         )
         .unwrap();
-        let op_state = table.create_operator_state(16).unwrap();
+        let op_state = table.create_operator_state().unwrap();
         let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 4]);
         table
             .collect_build(&op_state, &mut build_states[0], &input)
             .unwrap();
+        let is_last = table.finish_build(&op_state, &mut build_states[0]).unwrap();
+        assert!(is_last);
 
         unsafe { table.init_directory(&op_state).unwrap() };
         unsafe {
@@ -669,13 +721,13 @@ mod tests {
                 .unwrap()
         };
 
-        let mut state = table.init_scan_state();
+        let mut scan_states = table.create_probe_partition_states(&op_state, 1).unwrap();
         let mut rhs = generate_batch!([2, 3, 5]);
-        table.probe(&op_state, &mut state, &rhs).unwrap();
+        table.probe(&op_state, &mut scan_states[0], &rhs).unwrap();
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
-        state
+        scan_states[0]
             .scan_next(&table, &op_state, &mut rhs, &mut out)
             .unwrap();
 
@@ -699,13 +751,15 @@ mod tests {
             16,
         )
         .unwrap();
-        let op_state = table.create_operator_state(16).unwrap();
+        let op_state = table.create_operator_state().unwrap();
         let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
         let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 3]);
         table
             .collect_build(&op_state, &mut build_states[0], &input)
             .unwrap();
+        let is_last = table.finish_build(&op_state, &mut build_states[0]).unwrap();
+        assert!(is_last);
 
         unsafe { table.init_directory(&op_state).unwrap() };
         unsafe {
@@ -714,13 +768,13 @@ mod tests {
                 .unwrap()
         };
 
-        let mut state = table.init_scan_state();
+        let mut scan_states = table.create_probe_partition_states(&op_state, 1).unwrap();
         let mut rhs = generate_batch!([2, 4, 3, 5]);
-        table.probe(&op_state, &mut state, &rhs).unwrap();
+        table.probe(&op_state, &mut scan_states[0], &rhs).unwrap();
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
-        state
+        scan_states[0]
             .scan_next(&table, &op_state, &mut rhs, &mut out)
             .unwrap();
 
@@ -730,7 +784,7 @@ mod tests {
         // Continue to next, following the chain.
         // TODO: We should modify the scan to try to read up to the capacity of
         // the output batch.
-        state
+        scan_states[0]
             .scan_next(&table, &op_state, &mut rhs, &mut out)
             .unwrap();
 

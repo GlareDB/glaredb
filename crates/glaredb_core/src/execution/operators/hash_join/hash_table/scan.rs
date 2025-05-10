@@ -47,6 +47,10 @@ pub struct HashTablePartitionScanState {
     pub block_read: BlockScanState,
 }
 
+// SAFETY: The `Vec<*mut u8>` is just a buffer for storing row pointers.
+unsafe impl Send for HashTablePartitionScanState {}
+unsafe impl Sync for HashTablePartitionScanState {}
+
 impl HashTablePartitionScanState {
     pub fn scan_next(
         &mut self,
