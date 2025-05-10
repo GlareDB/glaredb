@@ -5,7 +5,7 @@ mod directory;
 use std::sync::atomic::{self, AtomicBool, AtomicPtr, AtomicUsize};
 
 use directory::Directory;
-use glaredb_error::{Result, not_implemented};
+use glaredb_error::Result;
 use scan::HashTablePartitionScanState;
 
 use super::HashJoinCondition;
@@ -22,6 +22,7 @@ use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
+use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::logical::logical_join::JoinType;
 use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
 
@@ -37,6 +38,10 @@ pub struct HashTableBuildPartitionState {
     match_init: Array,
     /// State for appending rows to the collection.
     row_append: RowAppendState,
+    /// Evaluating for producing join keys for the build side.
+    join_keys_evaluator: ExpressionEvaluator,
+    /// Batch for holding the keys we're joining on.
+    join_keys: Batch,
 }
 
 #[derive(Debug)]
@@ -84,10 +89,11 @@ impl HashTableOperatorState {
 
 /// Chained hash table for joins.
 ///
-/// Build side layout: [columns, hash/next_entry, matches]
+/// Build side layout: [columns, keys, hash/next_entry, matches]
 ///
 /// - 'columns': The columns from the build side batches. Retains the same order
 ///   they were provided in.
+///   'keys': The computed join keys.
 /// - 'hash/next_entry': During build, this column stores 64-bit hashes. Once we
 ///   finalize the hash table and build the directory, this will change to store
 ///   pointers to the next row in the chain.
@@ -103,16 +109,6 @@ impl HashTableOperatorState {
 pub struct JoinHashTable {
     /// Join type this hash table is for.
     pub join_type: JoinType,
-    /// Column indices on the input batch for keys on the build side.
-    pub build_key_columns: Vec<usize>,
-    /// Column indices for all columns on the probe side that need to be
-    /// compared (not just equality checked).
-    pub build_comparison_columns: Vec<usize>,
-    /// Column indices on the input batch for keys on the probe side.
-    pub probe_key_columns: Vec<usize>,
-    /// Column indices for all columns on the probe side that need to be
-    /// compared (not just equality checked).
-    pub probe_comparison_columns: Vec<usize>,
     /// Byte offset into a row for where the hash/next entry value is stored.
     ///
     /// Precomputed from layout.
@@ -122,78 +118,103 @@ pub struct JoinHashTable {
     /// Matcher for evaluating predicates on the rows.
     pub row_matcher: PredicateRowMatcher,
     /// Layout for the build side.
+    ///
+    /// Includes both the original columns as well as any computed join keys.
     pub layout: RowLayout,
+    /// Number of columns in the original left-side input. Used to slice of the
+    /// extra join keys during scans.
+    pub data_column_count: usize,
+    /// Column indices in the encoded row layout that are part of the keys being
+    /// compared.
+    pub encoded_key_columns: Vec<usize>,
+    /// Column indices **relative to the join keys** that are being compared by
+    /// equality.
+    pub equality_columns: Vec<usize>,
+    /// Expressions for producing build side keys.
+    pub build_side_exprs: Vec<PhysicalScalarExpression>,
+    /// Expressions for producing probe side keys.
+    pub probe_side_exprs: Vec<PhysicalScalarExpression>,
 }
 
 impl JoinHashTable {
     pub fn try_new(
         join_type: JoinType,
         left_datatypes: impl IntoIterator<Item = DataType>,
-        right_datatypes: impl IntoIterator<Item = DataType>,
+        _right_datatypes: impl IntoIterator<Item = DataType>,
         conditions: impl IntoIterator<Item = HashJoinCondition>,
         batch_size: usize,
     ) -> Result<Self> {
-        let mut left_datatypes: Vec<_> = left_datatypes.into_iter().collect();
-        let right_datatypes: Vec<_> = right_datatypes.into_iter().collect();
+        let left_datatypes: Vec<_> = left_datatypes.into_iter().collect();
+        let data_column_count = left_datatypes.len();
 
-        let mut build_key_columns = Vec::new();
-        let mut build_comparison_columns = Vec::new();
-        let mut probe_key_columns = Vec::new();
-        let mut probe_comparison_columns = Vec::new();
+        // Exprs for build/probe side that produce the join keys.
+        let mut build_side_exprs = Vec::new();
+        let mut probe_side_exprs = Vec::new();
+
         let mut matcher_conditions = Vec::new();
 
+        let mut encoded_types = left_datatypes;
+        let mut encoded_key_columns = Vec::new();
+        let mut equality_columns = Vec::new();
+
+        // TODO: This will currently double-encode columns. We should instead
+        // allow picking columns from the compute join keys or the original
+        // columns when matching rows.
         for condition in conditions {
-            // Add columns as keys.
-            let (left, _left_dt) = match condition.left {
-                PhysicalScalarExpression::Column(c) => (c.idx, c.datatype),
-                _ => not_implemented!("non-col exprs"), // TODO
-            };
-            let (right, _right_dt) = match condition.right {
-                PhysicalScalarExpression::Column(c) => (c.idx, c.datatype),
-                _ => not_implemented!("non-col exprs"), // TODO
-            };
+            let datatype = condition.left.datatype();
+            let phys_type = datatype.physical_type()?;
+            debug_assert_eq!(
+                phys_type,
+                condition.right.datatype().physical_type().unwrap()
+            );
+
+            build_side_exprs.push(condition.left);
+            probe_side_exprs.push(condition.right);
+
+            let encode_idx = encoded_types.len();
+            encoded_types.push(datatype);
+            encoded_key_columns.push(encode_idx);
 
             if condition.op == ComparisonOperator::Eq {
-                build_key_columns.push(left);
-                probe_key_columns.push(right);
+                let equality_idx = equality_columns.len();
+                equality_columns.push(equality_idx);
             }
 
-            let phys_type = left_datatypes[left].physical_type()?;
-            debug_assert_eq!(phys_type, right_datatypes[right].physical_type()?);
-
             matcher_conditions.push((phys_type, condition.op));
-
-            build_comparison_columns.push(left);
-            probe_comparison_columns.push(right);
         }
 
-        debug_assert!(!build_key_columns.is_empty());
-        debug_assert!(!probe_key_columns.is_empty());
+        debug_assert!(!build_side_exprs.is_empty());
+        debug_assert!(!probe_side_exprs.is_empty());
+        debug_assert!(
+            !equality_columns.is_empty(),
+            "Missing equality for join hash table"
+        );
 
         let row_matcher = PredicateRowMatcher::new(matcher_conditions);
 
         // Add hash to build types.
-        let hash_col = left_datatypes.len();
-        left_datatypes.push(DataType::uint64());
+        let hash_col = encoded_types.len();
+        encoded_types.push(DataType::uint64());
 
         if join_type.produce_all_build_side_rows() {
             // Add 'matches' column, we're dealing with LEFT/OUTER join.
-            left_datatypes.push(DataType::boolean());
+            encoded_types.push(DataType::boolean());
         }
 
-        let layout = RowLayout::try_new(left_datatypes)?;
+        let layout = RowLayout::try_new(encoded_types)?;
         let build_hash_byte_offset = layout.offsets[hash_col];
 
         Ok(JoinHashTable {
             join_type,
-            build_key_columns,
-            build_comparison_columns,
-            probe_key_columns,
-            probe_comparison_columns,
             build_hash_byte_offset,
             batch_size,
             row_matcher,
             layout,
+            data_column_count,
+            encoded_key_columns,
+            equality_columns,
+            build_side_exprs,
+            probe_side_exprs,
         })
     }
 
@@ -250,6 +271,14 @@ impl JoinHashTable {
                         &false.into(),
                         self.batch_size,
                     )?,
+                    join_keys: Batch::new(
+                        self.build_side_exprs.iter().map(|expr| expr.datatype()),
+                        self.batch_size,
+                    )?,
+                    join_keys_evaluator: ExpressionEvaluator::try_new(
+                        self.build_side_exprs.clone(),
+                        self.batch_size,
+                    )?,
                     // SAFETY: Only a single thread should be creating the
                     // partition states. There's no other accessess to to these
                     // collections at this point.
@@ -269,15 +298,25 @@ impl JoinHashTable {
         partitions: usize,
     ) -> Result<Vec<HashTablePartitionScanState>> {
         let states = (0..partitions)
-            .map(|partition_idx| HashTablePartitionScanState {
-                partition_idx,
-                selection: Vec::new(),
-                not_matched: Vec::new(),
-                row_pointers: Vec::new(),
-                hashes: Vec::new(),
-                block_read: BlockScanState::empty(),
+            .map(|partition_idx| {
+                Ok(HashTablePartitionScanState {
+                    partition_idx,
+                    selection: Vec::new(),
+                    not_matched: Vec::new(),
+                    row_pointers: Vec::new(),
+                    hashes: Vec::new(),
+                    block_read: BlockScanState::empty(),
+                    join_keys: Batch::new(
+                        self.probe_side_exprs.iter().map(|expr| expr.datatype()),
+                        self.batch_size,
+                    )?,
+                    join_keys_evaluator: ExpressionEvaluator::try_new(
+                        self.probe_side_exprs.clone(),
+                        self.batch_size,
+                    )?,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(states)
     }
@@ -308,26 +347,39 @@ impl JoinHashTable {
         &self,
         op_state: &HashTableOperatorState,
         state: &mut HashTableBuildPartitionState,
-        input: &Batch,
+        input: &mut Batch,
     ) -> Result<()> {
-        let cap = input.arrays.len() + self.extra_column_count();
-        let mut build_arrays = Vec::with_capacity(cap);
+        // Generate build-side keys.
+        state
+            .join_keys_evaluator
+            .eval_batch(input, input.selection(), &mut state.join_keys)?;
 
-        // Get build keys from the left for hashing.
-        build_arrays.extend(self.build_key_columns.iter().map(|&idx| &input.arrays[idx]));
+        let mut build_inputs: Vec<&Array> = Vec::with_capacity(
+            input.num_arrays() + state.join_keys.num_arrays() + self.extra_column_count(),
+        );
+
+        // [columns, join keys]
+        build_inputs.extend(input.arrays.iter().chain(&state.join_keys.arrays));
+
+        // Get hash inputs.
+        let hash_inputs = self.equality_columns.iter().map(|&idx| {
+            // Equality index is relative to the keys.
+            let idx = self.encoded_key_columns[idx];
+            // Build inputs contains all columns we'll be encoding, except for
+            // the hashes and matches.
+            build_inputs[idx]
+        });
 
         let mut hashes = Array::new(&DefaultBufferManager, DataType::uint64(), input.num_rows())?;
         let hash_vals = PhysicalU64::buffer_downcast_mut(&mut hashes.data)?;
         hash_many_arrays(
-            build_arrays.iter().copied(),
+            hash_inputs,
             0..input.num_rows(),
             &mut hash_vals.buffer.as_slice_mut()[0..input.num_rows()],
         )?;
 
-        // Now just get all build-side arrays.
-        build_arrays.clear();
-        build_arrays.extend(input.arrays.iter());
-        build_arrays.push(&hashes);
+        // Add hashes to arrays we'll be encoding.
+        build_inputs.push(&hashes);
 
         // Ensure we include the "matches" initial values.
         if self.join_type.produce_all_build_side_rows() {
@@ -338,7 +390,7 @@ impl JoinHashTable {
             )?;
 
             // And add to the arrays we'll be appending.
-            build_arrays.push(&state.match_init);
+            build_inputs.push(&state.match_init);
         }
 
         // Append to row collection.
@@ -348,7 +400,7 @@ impl JoinHashTable {
         let row_collection = unsafe {
             op_state.partitioned_row_collection().collections[state.partition_idx].get_mut()
         };
-        row_collection.append_arrays(&mut state.row_append, &build_arrays, input.num_rows())?;
+        row_collection.append_arrays(&mut state.row_append, &build_inputs, input.num_rows())?;
 
         Ok(())
     }
@@ -519,18 +571,23 @@ impl JoinHashTable {
         &self,
         op_state: &HashTableOperatorState,
         state: &mut HashTablePartitionScanState,
-        rhs: &Batch,
+        rhs: &mut Batch,
     ) -> Result<()> {
-        // TODO: Reuse array.
-        let keys: Vec<_> = self
-            .probe_key_columns
-            .iter()
-            .map(|&idx| &rhs.arrays[idx])
-            .collect();
+        // Generate probe keys.
+        state
+            .join_keys_evaluator
+            .eval_batch(rhs, rhs.selection(), &mut state.join_keys)?;
+
+        // Get equality keys from the rhs.
+        let hash_input = self.equality_columns.iter().map(|&idx| {
+            // Equality index relative to join keys. We can just index directly
+            // into the computed join keys.
+            &state.join_keys.arrays[idx]
+        });
 
         // Hash keys.
         state.hashes.resize(rhs.num_rows, 0);
-        hash_many_arrays(keys, 0..rhs.num_rows, &mut state.hashes)?;
+        hash_many_arrays(hash_input, 0..rhs.num_rows, &mut state.hashes)?;
 
         // Resize entries to number of keys we're probing with. These will be
         // overwritten in the below loop.
@@ -698,9 +755,9 @@ mod tests {
         let op_state = table.create_operator_state().unwrap();
         let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
-        let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 4]);
+        let mut input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 4]);
         table
-            .collect_build(&op_state, &mut build_states[0], &input)
+            .collect_build(&op_state, &mut build_states[0], &mut input)
             .unwrap();
         let is_last = table.finish_build(&op_state, &mut build_states[0]).unwrap();
         assert!(is_last);
@@ -714,7 +771,9 @@ mod tests {
 
         let mut scan_states = table.create_probe_partition_states(&op_state, 1).unwrap();
         let mut rhs = generate_batch!([2, 3, 5]);
-        table.probe(&op_state, &mut scan_states[0], &rhs).unwrap();
+        table
+            .probe(&op_state, &mut scan_states[0], &mut rhs)
+            .unwrap();
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();
@@ -745,9 +804,9 @@ mod tests {
         let op_state = table.create_operator_state().unwrap();
         let mut build_states = table.create_build_partition_states(&op_state, 1).unwrap();
 
-        let input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 3]);
+        let mut input = generate_batch!(["a", "b", "c", "d"], [1, 2, 3, 3]);
         table
-            .collect_build(&op_state, &mut build_states[0], &input)
+            .collect_build(&op_state, &mut build_states[0], &mut input)
             .unwrap();
         let is_last = table.finish_build(&op_state, &mut build_states[0]).unwrap();
         assert!(is_last);
@@ -761,7 +820,9 @@ mod tests {
 
         let mut scan_states = table.create_probe_partition_states(&op_state, 1).unwrap();
         let mut rhs = generate_batch!([2, 4, 3, 5]);
-        table.probe(&op_state, &mut scan_states[0], &rhs).unwrap();
+        table
+            .probe(&op_state, &mut scan_states[0], &mut rhs)
+            .unwrap();
 
         let mut out =
             Batch::new([DataType::utf8(), DataType::int32(), DataType::int32()], 16).unwrap();

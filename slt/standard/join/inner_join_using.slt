@@ -24,27 +24,27 @@ c  Int32
 b  Int32
 c  Int32
 
-query IIIII rowsort
-SELECT * FROM t1 INNER JOIN t2 USING (a);
+query IIIII
+SELECT * FROM t1 INNER JOIN t2 USING (a) ORDER BY 5;
 ----
 1  2  3  2  3
 1  2  3  2  4
 
-query IIIII rowsort
-SELECT * FROM t1 INNER JOIN t2 USING (b);
+query IIIII
+SELECT * FROM t1 INNER JOIN t2 USING (b) ORDER BY 4,5;
 ----
 2  1  3  1  3
 2  1  3  1  4
 2  1  3  2  3
 
-query III rowsort
+query III
 SELECT t1.* FROM t1 INNER JOIN t2 USING (a);
 ----
 1  2  3
 1  2  3
 
-query III rowsort
-SELECT t2.* FROM t1 INNER JOIN t2 USING (a);
+query III
+SELECT t2.* FROM t1 INNER JOIN t2 USING (a) ORDER BY 3;
 ----
 1  2  3
 1  2  4

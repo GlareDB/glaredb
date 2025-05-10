@@ -125,6 +125,9 @@ impl<T> UnsafeSyncCell<T> {
     /// Must ensure there's no existing references to the underlying object.
     ///
     /// Cannot be called concurrently with other calls to `get_mut` (or `get`).
+    ///
+    /// The clippy lint is valid. The above must be upheld.
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut(&self) -> &mut T {
         // SAFETY: Same as `get`.
         unsafe { &mut *self.0.get() }

@@ -5,7 +5,7 @@ use crate::execution::operators::hash_join::{HashJoinCondition, PhysicalHashJoin
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::context_display::ContextDisplayWrapper;
-use crate::expr::comparison_expr::{ComparisonExpr, ComparisonOperator};
+use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
 use crate::logical::logical_join::{

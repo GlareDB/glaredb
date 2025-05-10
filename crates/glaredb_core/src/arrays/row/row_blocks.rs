@@ -119,8 +119,8 @@ where
     ///
     /// This does not verify or update any data inside the blocks.
     pub fn merge_blocks_from(&mut self, other: &mut Self) {
-        self.row_blocks.extend(other.row_blocks.drain(..));
-        self.heap_blocks.extend(other.heap_blocks.drain(..));
+        self.row_blocks.append(&mut other.row_blocks);
+        self.heap_blocks.append(&mut other.heap_blocks);
     }
 
     /// Allocates a new fixed-sized block based on the configure row width and
