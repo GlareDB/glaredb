@@ -91,6 +91,12 @@ pub struct HashJoinPartitionProbeState {
     ///
     /// If false, must check shared state before continuing.
     scan_ready: bool,
+    /// Indicator if we should probe for RHS.
+    ///
+    /// A single probe may produce outputs that are larger than our output
+    /// batch, requiring multiple scans. In such cases, multiple polls will be
+    /// used for a single probe.
+    rhs_needs_probe: bool,
     /// Scan state for the hash table.
     scan_state: HashTablePartitionScanState,
 }
@@ -317,6 +323,7 @@ impl ExecuteOperator for PhysicalHashJoin {
             .into_iter()
             .map(|state| HashJoinPartitionProbeState {
                 scan_ready: false,
+                rhs_needs_probe: true,
                 scan_state: state,
             })
             .collect();
@@ -350,9 +357,10 @@ impl ExecuteOperator for PhysicalHashJoin {
         let table = &operator_state.table;
         let table_state = &operator_state.table_state;
 
-        if state.scan_state.needs_probe() {
+        if state.rhs_needs_probe {
             // New RHS batch, refresh scan state.
             table.probe(table_state, &mut state.scan_state, input)?;
+            state.rhs_needs_probe = false;
             // Continue...
         }
 
@@ -364,6 +372,9 @@ impl ExecuteOperator for PhysicalHashJoin {
         if output.num_rows() == 0 {
             // We scanned nothing. Either no matches or we've completely drained
             // the state. Indicate we need a new RHS.
+            //
+            // Next RHS will trigger a probe.
+            state.rhs_needs_probe = true;
             return Ok(PollExecute::NeedsMore);
         }
 

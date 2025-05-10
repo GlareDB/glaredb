@@ -303,6 +303,7 @@ impl JoinHashTable {
                     partition_idx,
                     selection: Vec::new(),
                     not_matched: Vec::new(),
+                    right_matches: Vec::new(),
                     row_pointers: Vec::new(),
                     hashes: Vec::new(),
                     block_read: BlockScanState::empty(),
