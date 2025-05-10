@@ -1,4 +1,4 @@
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 
 use super::{HashTableOperatorState, JoinHashTable};
 use crate::arrays::array::Array;
@@ -62,7 +62,7 @@ impl HashTablePartitionScanState {
     ) -> Result<()> {
         match table.join_type {
             JoinType::Inner => self.scan_next_inner_join(table, op_state, rhs, output),
-            _ => unimplemented!(),
+            other => not_implemented!("scan join type: {other}"),
         }
     }
 

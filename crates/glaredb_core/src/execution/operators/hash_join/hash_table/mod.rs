@@ -5,9 +5,10 @@ mod directory;
 use std::sync::atomic::{self, AtomicBool, AtomicPtr, AtomicUsize};
 
 use directory::Directory;
-use glaredb_error::Result;
+use glaredb_error::{Result, not_implemented};
 use scan::HashTablePartitionScanState;
 
+use super::HashJoinCondition;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, PhysicalU64, ScalarStorage};
 use crate::arrays::array::selection::Selection;
@@ -23,17 +24,6 @@ use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_join::JoinType;
 use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
-
-/// Join condition between left and right batches.
-#[derive(Debug, Clone)]
-pub struct HashJoinCondition {
-    /// Expression for the left side.
-    pub left: PhysicalScalarExpression,
-    /// Expression for the right side.
-    pub right: PhysicalScalarExpression,
-    /// The comparison operator.
-    pub op: ComparisonOperator,
-}
 
 /// State provided during hash table build.
 #[derive(Debug)]
@@ -156,11 +146,11 @@ impl JoinHashTable {
             // Add columns as keys.
             let (left, _left_dt) = match condition.left {
                 PhysicalScalarExpression::Column(c) => (c.idx, c.datatype),
-                _ => unimplemented!(), // TODO
+                _ => not_implemented!("non-col exprs"), // TODO
             };
             let (right, _right_dt) = match condition.right {
                 PhysicalScalarExpression::Column(c) => (c.idx, c.datatype),
-                _ => unimplemented!(), // TODO
+                _ => not_implemented!("non-col exprs"), // TODO
             };
 
             if condition.op == ComparisonOperator::Eq {

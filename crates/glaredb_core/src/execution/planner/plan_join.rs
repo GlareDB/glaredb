@@ -1,6 +1,7 @@
 use glaredb_error::{Result, ResultExt};
 
 use super::OperatorPlanState;
+use crate::execution::operators::hash_join::{HashJoinCondition, PhysicalHashJoin};
 use crate::execution::operators::nested_loop_join::PhysicalNestedLoopJoin;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::context_display::ContextDisplayWrapper;
@@ -100,18 +101,32 @@ impl OperatorPlanState<'_> {
 
         let join = join.node;
 
-        // Figure out if there's any non-column ref expressions. If so, we'll
-        // need to add projection nodes as the children of this node.
-        let left_needs_project = join
-            .conditions
-            .iter()
-            .any(|cond| !cond.left.is_column_expr());
-        let right_needs_project = join
-            .conditions
-            .iter()
-            .any(|cond| !cond.left.is_column_expr());
+        let mut conditions = Vec::with_capacity(join.conditions.len());
+        for condition in join.conditions {
+            let left = self.expr_planner.plan_scalar(&left_refs, &condition.left)?;
+            let right = self
+                .expr_planner
+                .plan_scalar(&right_refs, &condition.right)?;
 
-        unimplemented!()
+            conditions.push(HashJoinCondition {
+                left,
+                right,
+                op: condition.op,
+            });
+        }
+
+        let left = self.plan(left)?;
+        let right = self.plan(right)?;
+
+        let left_types = left.operator.call_output_types();
+        let right_types = right.operator.call_output_types();
+
+        let hash_join = PhysicalHashJoin::new(join.join_type, left_types, right_types, conditions)?;
+
+        Ok(PlannedOperatorWithChildren {
+            operator: PlannedOperator::new_push_execute(self.id_gen.next_id(), hash_join),
+            children: vec![left, right],
+        })
     }
 
     pub fn plan_arbitrary_join(

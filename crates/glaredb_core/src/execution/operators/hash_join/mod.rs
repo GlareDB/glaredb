@@ -4,12 +4,7 @@ use std::task::Context;
 
 use glaredb_error::Result;
 use hash_table::scan::HashTablePartitionScanState;
-use hash_table::{
-    HashJoinCondition,
-    HashTableBuildPartitionState,
-    HashTableOperatorState,
-    JoinHashTable,
-};
+use hash_table::{HashTableBuildPartitionState, HashTableOperatorState, JoinHashTable};
 use parking_lot::Mutex;
 
 use super::util::delayed_count::DelayedPartitionCount;
@@ -26,7 +21,20 @@ use super::{
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::expr::comparison_expr::ComparisonOperator;
+use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_join::JoinType;
+
+/// Join condition between left and right batches.
+#[derive(Debug, Clone)]
+pub struct HashJoinCondition {
+    /// Expression for the left side.
+    pub left: PhysicalScalarExpression,
+    /// Expression for the right side.
+    pub right: PhysicalScalarExpression,
+    /// The comparison operator.
+    pub op: ComparisonOperator,
+}
 
 #[derive(Debug)]
 pub struct HashJoinOperatorState {
@@ -177,6 +185,12 @@ impl PushOperator for PhysicalHashJoin {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionPushState>> {
+        let mut shared = operator_state.shared.lock();
+        shared.remaining_hash_inserters.set(partitions)?;
+        shared
+            .pending_hash_inserters
+            .init_for_partitions(partitions);
+
         let table = &operator_state.table;
         let table_state = &operator_state.table_state;
 
@@ -291,6 +305,9 @@ impl ExecuteOperator for PhysicalHashJoin {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionExecuteState>> {
+        let mut shared = operator_state.shared.lock();
+        shared.pending_probers.init_for_partitions(partitions);
+
         let table = &operator_state.table;
         let table_state = &operator_state.table_state;
 
