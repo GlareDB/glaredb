@@ -6,6 +6,7 @@ use crate::arrays::cache::NopCache;
 use crate::arrays::row::block_scan::BlockScanState;
 use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::DefaultBufferManager;
+use crate::execution::operators::hash_join::hash_table::needs_match_column;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::logical::logical_join::JoinType;
 
@@ -84,6 +85,9 @@ impl HashTablePartitionScanState {
                 // Same as right join, internally marks which left rows we
                 // visited. And we'll drain at the end.
                 self.scan_next_right_join(table, op_state, rhs, output)
+            }
+            JoinType::LeftMark { .. } => {
+                self.scan_next_left_mark_join(table, op_state, rhs, output)
             }
             other => not_implemented!("scan join type: {other}"),
         }
@@ -175,7 +179,7 @@ impl HashTablePartitionScanState {
         );
 
         // Update 'matches' column if needed.
-        if table.join_type.produce_all_build_side_rows() {
+        if needs_match_column(table.join_type) {
             // SAFTEY: Assumes that the row pointers we have actually point the
             // rows.
             unsafe {
@@ -215,6 +219,48 @@ impl HashTablePartitionScanState {
         self.follow_next_in_chain(table);
 
         Ok(())
+    }
+
+    /// "Scans" the next mark join results.
+    ///
+    /// This will always return an output batch with zero rows. When we "scan"
+    /// here, we're just marking visited rows on the left.
+    fn scan_next_left_mark_join(
+        &mut self,
+        table: &JoinHashTable,
+        _op_state: &HashTableOperatorState,
+        _rhs: &mut Batch,
+        output: &mut Batch,
+    ) -> Result<()> {
+        if self.selection.is_empty() {
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        loop {
+            let match_count = self.match_inner_join(table, false)?;
+            if match_count == 0 {
+                // All chains at the end, found no matches.
+                output.set_num_rows(0)?;
+                return Ok(());
+            }
+
+            debug_assert!(
+                needs_match_column(table.join_type),
+                "Left mark always needs match column"
+            );
+
+            // SAFTEY: Assumes that the row pointers we have actually point the
+            // rows.
+            unsafe {
+                table.write_rows_matched(self.block_read.row_pointers.iter().copied());
+            }
+
+            // Move to next in chain.
+            self.follow_next_in_chain(table);
+            // Continue... we'll keep looping until we've followed all chains to
+            // the end.
+        }
     }
 
     /// Find the rows from `rhs_keys` that match the predicates.

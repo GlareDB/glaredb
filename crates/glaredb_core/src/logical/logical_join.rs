@@ -50,16 +50,6 @@ impl JoinType {
         }
     }
 
-    /// If this join produces all rows from the build side.
-    ///
-    /// Assumes "left" is the build side.
-    pub const fn produce_all_build_side_rows(&self) -> bool {
-        match self {
-            JoinType::Left | JoinType::Full | JoinType::LeftAnti | JoinType::LeftSemi => true,
-            JoinType::Inner | JoinType::Right | JoinType::LeftMark { .. } => false,
-        }
-    }
-
     /// Helper for determining the output refs for a given node type.
     fn output_refs<T>(self, node: &Node<T>, bind_context: &BindContext) -> Vec<TableRef> {
         if let JoinType::LeftMark { table_ref } = self {

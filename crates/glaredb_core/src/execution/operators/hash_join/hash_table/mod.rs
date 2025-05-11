@@ -26,6 +26,15 @@ use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::logical::logical_join::JoinType;
 use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
 
+/// If this join type requires that we encode an extra 'matches' column in the
+/// hash table.
+pub const fn needs_match_column(join_type: JoinType) -> bool {
+    match join_type {
+        JoinType::Left | JoinType::Full | JoinType::LeftMark { .. } => true,
+        JoinType::Right | JoinType::Inner | JoinType::LeftSemi | JoinType::LeftAnti => false,
+    }
+}
+
 /// State provided during hash table build.
 #[derive(Debug)]
 pub struct HashTableBuildPartitionState {
@@ -196,7 +205,7 @@ impl JoinHashTable {
         let hash_col = encoded_types.len();
         encoded_types.push(DataType::uint64());
 
-        if join_type.produce_all_build_side_rows() {
+        if needs_match_column(join_type) {
             // Add 'matches' column, we're dealing with LEFT/OUTER join.
             encoded_types.push(DataType::boolean());
         }
@@ -324,7 +333,7 @@ impl JoinHashTable {
 
     /// Get the column index for the hash in the row collection.
     fn hash_column_idx(&self) -> usize {
-        if self.join_type.produce_all_build_side_rows() {
+        if needs_match_column(self.join_type) {
             self.layout.num_columns() - 2 // Hash second to last.
         } else {
             self.layout.num_columns() - 1 // Hash is last column.
@@ -333,7 +342,7 @@ impl JoinHashTable {
 
     /// Return the number of extra columns on the build side.
     pub const fn extra_column_count(&self) -> usize {
-        if self.join_type.produce_all_build_side_rows() {
+        if needs_match_column(self.join_type) {
             2 // Hashes + matches
         } else {
             1 // Hashes
@@ -383,7 +392,7 @@ impl JoinHashTable {
         build_inputs.push(&hashes);
 
         // Ensure we include the "matches" initial values.
-        if self.join_type.produce_all_build_side_rows() {
+        if needs_match_column(self.join_type) {
             // Resize to match the input rows.
             state.match_init.select(
                 &DefaultBufferManager,
