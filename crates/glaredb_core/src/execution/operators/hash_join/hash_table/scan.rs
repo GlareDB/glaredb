@@ -240,8 +240,8 @@ impl HashTablePartitionScanState {
         }
 
         loop {
-            let match_sel = self.chase_until_match_or_exhaust(table, false)?;
-            if match_sel.is_empty() {
+            let matched_sel = self.chase_until_match_or_exhaust(table, false)?;
+            if matched_sel.is_empty() {
                 // All chains at the end, found no matches.
                 output.set_num_rows(0)?;
                 return Ok(());
@@ -251,6 +251,11 @@ impl HashTablePartitionScanState {
                 needs_match_column(table.join_type),
                 "Left mark always needs match column"
             );
+
+            self.block_read.clear();
+            self.block_read
+                .row_pointers
+                .extend(matched_sel.iter().map(|&idx| self.row_pointers[idx]));
 
             // SAFTEY: Assumes that the row pointers we have actually point the
             // rows.

@@ -79,6 +79,8 @@ impl HashTablePartitionDrainState {
                 .read_arrays(self.row_pointers.iter().copied(), arr_iter, 0)?
         };
 
+        output.set_num_rows(self.row_pointers.len())?;
+
         Ok(())
     }
 
@@ -114,6 +116,8 @@ impl HashTablePartitionDrainState {
             right_arr.swap(&mut const_null)?;
         }
 
+        output.set_num_rows(self.row_pointers.len())?;
+
         Ok(())
     }
 
@@ -139,6 +143,8 @@ impl HashTablePartitionDrainState {
             )?
         };
 
+        output.set_num_rows(self.row_pointers.len())?;
+
         Ok(())
     }
 
@@ -155,14 +161,13 @@ impl HashTablePartitionDrainState {
     ) -> Result<()> {
         let out_cap = output.write_capacity()?;
 
-        let matches_byte_offset =
-            table.layout.offsets[table.matches_column_idx().expect("matches column to exist")];
+        let match_offset = *table.layout.offsets.last().expect("match offset to exist");
 
         self.row_pointers.clear();
 
         loop {
             let collection = unsafe { op_state.merged_row_collection.get() };
-            if collection.blocks().row_blocks.len() >= self.curr_block_idx {
+            if self.curr_block_idx >= collection.blocks().row_blocks.len() {
                 // No more blocks for us.
                 break;
             }
@@ -171,12 +176,10 @@ impl HashTablePartitionDrainState {
             let block_ptr = collection.blocks().row_blocks[self.curr_block_idx].as_ptr();
 
             for row_idx in (self.curr_row)..row_count {
-                let row_ptr = unsafe { block_ptr.byte_add(table.layout.row_width) };
+                let row_ptr = unsafe { block_ptr.byte_add(table.layout.row_width * row_idx) };
                 let did_match = unsafe {
-                    row_ptr
-                        .byte_add(matches_byte_offset)
-                        .cast::<bool>()
-                        .read_unaligned()
+                    let match_ptr = row_ptr.byte_add(match_offset).cast::<bool>();
+                    match_ptr.read_unaligned()
                 };
                 if !match_fn(did_match) {
                     continue;
