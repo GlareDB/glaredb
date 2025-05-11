@@ -32,7 +32,7 @@ impl SessionConfig {
             partitions: executor.default_partitions() as u64,
             batch_size: DEFAULT_BATCH_SIZE as u64,
             verify_optimized_plan: false,
-            enable_hash_joins: false,
+            enable_hash_joins: true,
             enable_function_chaining: true,
             per_partition_counts: false,
         }

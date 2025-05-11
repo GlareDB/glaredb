@@ -599,6 +599,10 @@ impl JoinHashTable {
         state.hashes.resize(rhs.num_rows, 0);
         hash_many_arrays(hash_input, 0..rhs.num_rows, &mut state.hashes)?;
 
+        // Reset right side matches.
+        state.right_matches.clear();
+        state.right_matches.resize(rhs.num_rows, false);
+
         // Resize entries to number of keys we're probing with. These will be
         // overwritten in the below loop.
         state.row_pointers.resize(rhs.num_rows, std::ptr::null());

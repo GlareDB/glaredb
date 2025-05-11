@@ -43,7 +43,6 @@ pub struct HashTablePartitionScanState {
     pub row_pointers: Vec<*const u8>,
     /// Reusable hashes buffer. Filled when we probe the hash table with
     /// rhs_keys.
-    #[allow(unused)]
     pub hashes: Vec<u64>,
     /// State used to read rows for the build side.
     pub block_read: BlockScanState,
@@ -65,6 +64,10 @@ unsafe impl Send for HashTablePartitionScanState {}
 unsafe impl Sync for HashTablePartitionScanState {}
 
 impl HashTablePartitionScanState {
+    /// Scan the next batch.
+    ///
+    /// This should continually be called with the same RHS batch until output
+    /// has zero rows.
     pub fn scan_next(
         &mut self,
         table: &JoinHashTable,
@@ -120,6 +123,11 @@ impl HashTablePartitionScanState {
                 // Everything on the right matched, nothing we should do.
                 return Ok(());
             }
+
+            // Only run the selection once, this will short circuit the next
+            // scan right.
+            // TODO: Definitely jank.
+            self.right_matches.clear();
 
             // Mark all left arrays as NULL.
             let left_arrs = &mut output.arrays[0..left_arr_len];

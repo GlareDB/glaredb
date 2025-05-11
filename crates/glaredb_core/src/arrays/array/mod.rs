@@ -317,7 +317,7 @@ impl Array {
         Ok(())
     }
 
-    /// Selects indice from the array.
+    /// Selects indices from the array.
     ///
     /// This will convert the underlying array buffer into a dictionary buffer.
     pub fn select(
