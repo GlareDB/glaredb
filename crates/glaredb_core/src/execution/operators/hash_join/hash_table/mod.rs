@@ -1,3 +1,4 @@
+pub mod drain;
 pub mod scan;
 
 mod directory;
@@ -87,7 +88,8 @@ struct PartitionedRowCollecton {
 }
 
 impl HashTableOperatorState {
-    fn partition_count(&self) -> usize {
+    // TODO: Safety...
+    pub fn partition_count(&self) -> usize {
         self.partitioned_row_collection().collections.len()
     }
 
@@ -346,6 +348,14 @@ impl JoinHashTable {
             2 // Hashes + matches
         } else {
             1 // Hashes
+        }
+    }
+
+    pub fn matches_column_idx(&self) -> Option<usize> {
+        if needs_match_column(self.join_type) {
+            Some(self.layout.num_columns() - 1)
+        } else {
+            None
         }
     }
 
