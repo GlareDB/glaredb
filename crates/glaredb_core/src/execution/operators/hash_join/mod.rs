@@ -107,7 +107,7 @@ pub enum HashJoinPartitionExecuteState {
         /// used for a single probe.
         rhs_needs_probe: bool,
         /// Scan state for the hash table.
-        scan_state: HashTablePartitionScanState,
+        scan_state: Box<HashTablePartitionScanState>,
     },
     /// Right side is draining.
     ///
@@ -350,7 +350,7 @@ impl ExecuteOperator for PhysicalHashJoin {
             .map(|state| HashJoinPartitionExecuteState::Probing {
                 scan_ready: false,
                 rhs_needs_probe: true,
-                scan_state: state,
+                scan_state: Box::new(state),
             })
             .collect();
 
