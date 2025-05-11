@@ -7,6 +7,7 @@ use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{Result, ResultExt};
 use glaredb_http::filesystem::HttpFileSystem;
+use glaredb_http::gcs::filesystem::GcsFileSystem;
 use glaredb_http::s3::filesystem::S3FileSystem;
 use tokio::runtime::Handle as TokioHandle;
 
@@ -101,8 +102,12 @@ impl NativeSystemRuntime {
         // Register s3 filesystem.
         // TODO: Same or different client? Also probably want to scope these to
         // per session.
-        let s3_fs = S3FileSystem::new(client, "us-east-1");
+        let s3_fs = S3FileSystem::new(client.clone(), "us-east-1");
         dispatch.register_filesystem(s3_fs);
+
+        // TODO: Client?
+        let gcs_fs = GcsFileSystem::new(client);
+        dispatch.register_filesystem(gcs_fs);
 
         // Register normal local filesystem.
         dispatch.register_filesystem(LocalFileSystem {});

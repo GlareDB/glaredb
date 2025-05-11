@@ -205,7 +205,9 @@ where
 
     fn poll_write(&mut self, _cx: &mut Context, _buf: &[u8]) -> Poll<Result<usize>> {
         // yet
-        Poll::Ready(Err(DbError::new("S3FileHandle does not support writing")))
+        Poll::Ready(Err(DbError::new(
+            "S3FileHandle does not yest support writing",
+        )))
     }
 
     fn poll_seek(&mut self, cx: &mut Context, seek: SeekFrom) -> Poll<Result<()>> {
@@ -214,7 +216,9 @@ where
 
     fn poll_flush(&mut self, _cx: &mut Context) -> Poll<Result<()>> {
         // yet
-        Poll::Ready(Err(DbError::new("S3FileHandle does not support flushing")))
+        Poll::Ready(Err(DbError::new(
+            "S3FileHandle does not yet support flushing",
+        )))
     }
 }
 

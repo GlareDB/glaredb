@@ -8,6 +8,7 @@ use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::Result;
 use glaredb_http::filesystem::HttpFileSystem;
+use glaredb_http::gcs::filesystem::GcsFileSystem;
 use glaredb_http::s3::filesystem::S3FileSystem;
 use parking_lot::Mutex;
 use tracing::debug;
@@ -32,8 +33,11 @@ impl WasmSystemRuntime {
         dispatch.register_filesystem(http_fs);
 
         // Register s3 filesystem.
-        let s3_fs = S3FileSystem::new(client, "us-east-1");
+        let s3_fs = S3FileSystem::new(client.clone(), "us-east-1");
         dispatch.register_filesystem(s3_fs);
+
+        let gcs_fs = GcsFileSystem::new(client);
+        dispatch.register_filesystem(gcs_fs);
 
         // TODO: When it works, aka we need web workers.
         // // Register origin filesystem.
