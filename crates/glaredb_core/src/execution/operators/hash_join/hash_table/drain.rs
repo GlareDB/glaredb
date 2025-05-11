@@ -8,8 +8,12 @@ use crate::logical::logical_join::JoinType;
 
 pub const fn needs_drain(join_type: JoinType) -> bool {
     match join_type {
-        JoinType::Left | JoinType::LeftSemi | JoinType::Full | JoinType::LeftMark { .. } => true,
-        _ => false, // TODO
+        JoinType::Left
+        | JoinType::LeftSemi
+        | JoinType::LeftAnti
+        | JoinType::Full
+        | JoinType::LeftMark { .. } => true,
+        JoinType::Inner | JoinType::Right => false,
     }
 }
 
