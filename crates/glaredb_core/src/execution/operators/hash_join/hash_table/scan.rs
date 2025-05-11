@@ -1,20 +1,14 @@
 use glaredb_error::{Result, not_implemented};
 
 use super::{HashTableOperatorState, JoinHashTable};
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::row::block_scan::BlockScanState;
-use crate::arrays::scalar::ScalarValue;
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::execution::operators::hash_join::hash_table::needs_match_column;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::logical::logical_join::JoinType;
-
-// TODO:
-// - [ ] LEFT/OUTER drain
-// - [ ] RIGHT
-// - [ ] SEMI/ANTI
-// - [ ] MARK
 
 /// Scan state for resuming probes of the hash table.
 ///
@@ -132,11 +126,12 @@ impl HashTablePartitionScanState {
             // Mark all left arrays as NULL.
             let left_arrs = &mut output.arrays[0..left_arr_len];
             for left_arr in left_arrs {
-                left_arr.set_value(0, &ScalarValue::Null)?;
-                left_arr.select(
+                let mut const_null = Array::new_null(
                     &DefaultBufferManager,
-                    std::iter::repeat_n(0, not_match_sel.len()),
+                    left_arr.datatype().clone(),
+                    not_match_sel.len(),
                 )?;
+                left_arr.swap(&mut const_null)?;
             }
 
             let right_out_arrs = &mut output.arrays[left_arr_len..];
