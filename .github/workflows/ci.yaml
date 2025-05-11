@@ -82,6 +82,10 @@ jobs:
           AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt/s3/private
 
+      - name: File System - GCS public (SLT)
+        if: always()
+        run: cargo test slt/gcs/public
+
       - name: Bench (truncated) - ClickBench
         if: always()
         run: |
