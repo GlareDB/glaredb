@@ -21,8 +21,6 @@ pub struct HashTablePartitionScanState {
     /// pointers and keys.
     ///
     /// Once this is empty, we know we're done scanning this set of keys.
-    ///
-    /// Updated by the predicate row matcher.
     pub selection: Vec<usize>,
     /// Indicator for rows in the right batch that matched.
     ///
@@ -83,9 +81,16 @@ impl HashTablePartitionScanState {
                 // visited. And we'll drain at the end.
                 self.scan_next_right_join(table, op_state, rhs, output)
             }
-            JoinType::LeftMark { .. } => {
-                self.scan_next_left_mark_join(table, op_state, rhs, output)
+            JoinType::LeftSemi => {
+                // We're not going to be producing any batches until we drain.
+                // Just mark the left rows as visited.
+                //
+                // LEFT SEMI join will one (and only one) row for visited left
+                // side rows. We can only guarantee we return one row during
+                // draining.
+                self.scan_next_left_mark(table, op_state, rhs, output)
             }
+            JoinType::LeftMark { .. } => self.scan_next_left_mark(table, op_state, rhs, output),
             other => not_implemented!("scan join type: {other}"),
         }
     }
@@ -166,8 +171,8 @@ impl HashTablePartitionScanState {
             return Ok(());
         }
 
-        let match_count = self.match_inner_join(table, track_right)?;
-        if match_count == 0 {
+        let matched_sel = self.chase_until_match_or_exhaust(table, track_right)?;
+        if matched_sel.is_empty() {
             // All chains at the end, found no matches.
             output.set_num_rows(0)?;
             return Ok(());
@@ -175,11 +180,9 @@ impl HashTablePartitionScanState {
 
         // Store pointers to the matched rows.
         self.block_read.clear();
-        self.block_read.row_pointers.extend(
-            self.selection
-                .iter()
-                .map(|&pred_idx| self.row_pointers[pred_idx]),
-        );
+        self.block_read
+            .row_pointers
+            .extend(matched_sel.iter().map(|&idx| self.row_pointers[idx]));
 
         // Update 'matches' column if needed.
         if needs_match_column(table.join_type) {
@@ -199,6 +202,9 @@ impl HashTablePartitionScanState {
             "Output should only contain columns for the original inputs to left and right",
         );
 
+        // TODO: Allow doing this more selectively.
+        output.reset_for_write()?;
+
         // Only decode the original inputs from the left side.
         let lhs_arrays = (0..table.data_column_count).zip(&mut output.arrays);
         // SAFETY: ...
@@ -210,25 +216,25 @@ impl HashTablePartitionScanState {
             rhs_out.select_from_other(
                 &DefaultBufferManager,
                 rhs,
-                self.selection.iter().copied(),
+                matched_sel.iter().copied(),
                 &mut NopCache,
             )?;
         }
 
-        output.set_num_rows(match_count)?;
+        output.set_num_rows(matched_sel.len())?;
 
         // Go to next entries in the chain, next call to scan will then match
         // against those entries.
-        self.follow_next_in_chain(table);
+        Self::follow_next_in_chain(table, &mut self.row_pointers, &mut self.selection);
 
         Ok(())
     }
 
-    /// "Scans" the next mark join results.
+    /// "Scans" the next join results.
     ///
     /// This will always return an output batch with zero rows. When we "scan"
     /// here, we're just marking visited rows on the left.
-    fn scan_next_left_mark_join(
+    fn scan_next_left_mark(
         &mut self,
         table: &JoinHashTable,
         _op_state: &HashTableOperatorState,
@@ -241,8 +247,8 @@ impl HashTablePartitionScanState {
         }
 
         loop {
-            let match_count = self.match_inner_join(table, false)?;
-            if match_count == 0 {
+            let matched_sel = self.chase_until_match_or_exhaust(table, false)?;
+            if matched_sel.is_empty() {
                 // All chains at the end, found no matches.
                 output.set_num_rows(0)?;
                 return Ok(());
@@ -250,8 +256,13 @@ impl HashTablePartitionScanState {
 
             debug_assert!(
                 needs_match_column(table.join_type),
-                "Left mark always needs match column"
+                "Left mark(-like) join always needs match column"
             );
+
+            self.block_read.clear();
+            self.block_read
+                .row_pointers
+                .extend(matched_sel.iter().map(|&idx| self.row_pointers[idx]));
 
             // SAFTEY: Assumes that the row pointers we have actually point the
             // rows.
@@ -260,83 +271,85 @@ impl HashTablePartitionScanState {
             }
 
             // Move to next in chain.
-            self.follow_next_in_chain(table);
+            Self::follow_next_in_chain(table, &mut self.row_pointers, &mut self.selection);
             // Continue... we'll keep looping until we've followed all chains to
             // the end.
         }
     }
 
-    /// Find the rows from `rhs_keys` that match the predicates.
-    ///
-    /// Outputs will be placed in `predicated_matched` vector, and the number of
-    /// matches returned.
-    ///
-    /// This will follow the pointer chain if the current set of pointers
-    /// produces no matches. If zero is returned, we're at the end of all of the
-    /// chains.
-    fn match_inner_join(&mut self, table: &JoinHashTable, track_right: bool) -> Result<usize> {
-        loop {
-            let lhs_rows = &self.row_pointers;
+    /// Find the selected rows from the left that match the join keys.
+    fn chase_until_match_or_exhaust(
+        &mut self,
+        table: &JoinHashTable,
+        track_right: bool,
+    ) -> Result<Vec<usize>> {
+        while !self.selection.is_empty() {
+            // Try to match all of active at their current pointers
+            let mut sel = self.selection.clone();
 
             debug_assert_eq!(table.encoded_key_columns.len(), self.join_keys.arrays.len());
 
             self.not_matched.clear(); // Not used.
 
             // Compare the encoded keys with the keys we generated for the RHS.
-            let match_count = table.row_matcher.find_matches(
+            let _ = table.row_matcher.find_matches(
                 &table.layout,
-                lhs_rows,
+                &self.row_pointers,
                 &table.encoded_key_columns,
                 &self.join_keys.arrays,
-                &mut self.selection,
+                &mut sel,
                 &mut self.not_matched,
             )?;
 
             if track_right {
                 // Mark right rows matched.
-                for &sel_idx in &self.selection {
+                for &sel_idx in &sel {
                     self.right_matches[sel_idx] = true;
                 }
             }
 
-            if match_count > 0 {
-                // Predicates matched, need to produce output.
-                return Ok(match_count);
+            // If we got any, we’re done.
+            if !sel.is_empty() {
+                return Ok(sel);
             }
 
-            // Otherwise none of the predicates matched, move to next entries.
-            self.follow_next_in_chain(table);
-            if self.selection.is_empty() {
-                // We're at the end of all chains, nothing more to read.
-                return Ok(0);
-            }
+            // Otherwise none of the predicates matched, move pointers to next
+            // in chain, pruning indices as needed.
+            Self::follow_next_in_chain(table, &mut self.row_pointers, &mut self.selection);
         }
+
+        // All chains exhausted, no matches.
+        Ok(Vec::new())
     }
 
-    /// For each entry in the current scan state, follow the chain to load the
-    /// next entry to read from.
+    /// For each selected row pointer, update it to move to the next in the
+    /// chain.
     ///
-    /// The selection will be updated to only point to non-null pointers.
-    fn follow_next_in_chain(&mut self, table: &JoinHashTable) {
+    /// The `selection` will be updated to only point to non-null row pointers.
+    fn follow_next_in_chain(
+        table: &JoinHashTable,
+        row_pointers: &mut [*const u8],
+        selection: &mut Vec<usize>,
+    ) {
         let mut new_count = 0;
 
         // SAFETY: Assumes row_pointers contains valid addresses and that
         // read_next_entry_ptr safely reads the next pointer in the chain.
-        for i in 0..self.selection.len() {
-            let idx = self.selection[i];
-            let ent = &mut self.row_pointers[idx];
+        for idx in 0..selection.len() {
+            let ptr_idx = selection[idx];
+            let ent = &mut row_pointers[ptr_idx];
 
             // Advance to the next pointer in the chain
             *ent = unsafe { table.read_next_entry_ptr(*ent) };
 
             // Keep only non-null entries
             if !ent.is_null() {
-                self.selection[new_count] = idx;
+                selection[new_count] = ptr_idx;
                 new_count += 1;
             }
         }
 
         // Truncate selection to remove unused entries
-        self.selection.truncate(new_count);
+        selection.truncate(new_count);
     }
 }

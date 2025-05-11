@@ -11,36 +11,28 @@ INSERT INTO t1 VALUES (1), (2), (3), (NULL);
 
 # Cross join -> comparison join
 
-query II rowsort
-SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i;
-----
-1  1
-2  2
-3  3
-
-query II rowsort
-SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a1.i > 1;
-----
-2  2
-3  3
-
-query II rowsort
-SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a2.i > 1;
-----
-2  2
-3  3
-
-query II rowsort
-SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a2.i > 1 AND 1 = 1;
-----
-2  2
-3  3
-
-# Should work with ORDER BY clause
-query II rowsort
+query II
 SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i ORDER BY 1;
 ----
 1  1
+2  2
+3  3
+
+query II
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a1.i > 1 ORDER BY 1;
+----
+2  2
+3  3
+
+query II
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a2.i > 1 ORDER BY 1;
+----
+2  2
+3  3
+
+query II
+SELECT * FROM t1 a1, t1 a2 WHERE a1.i = a2.i AND a2.i > 1 AND 1 = 1 ORDER BY 1;
+----
 2  2
 3  3
 
@@ -68,7 +60,7 @@ SELECT * FROM (
 3  3  3
 
 # Partially push down filter, 's > 2' still needs to be applied to output.
-query III rowsort
+query III
 SELECT * FROM (
   SELECT sum(a) as s, a, b
     FROM t1 AS alias1(a), t1 AS alias2(b)

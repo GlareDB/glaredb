@@ -15,11 +15,13 @@ CREATE TEMP TABLE t2 (b INT);
 statement ok
 INSERT INTO t2 VALUES (1), (2), (3), (NULL);
 
-query IIII rowsort
-SELECT * FROM
-  (SELECT * FROM t1, t2) alias1,
-  (SELECT * FROM t1, t2) alias2
-WHERE alias1.a = alias1.b AND alias2.a = alias2.b AND alias1.a = alias2.a;
+query IIII
+SELECT *
+  FROM
+    (SELECT * FROM t1, t2) alias1,
+    (SELECT * FROM t1, t2) alias2
+  WHERE alias1.a = alias1.b AND alias2.a = alias2.b AND alias1.a = alias2.a
+  ORDER BY 1;
 ----
 1  1  1  1
 2  2  2  2

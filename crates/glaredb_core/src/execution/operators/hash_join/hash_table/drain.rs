@@ -1,13 +1,19 @@
 use glaredb_error::{DbError, Result};
 
 use super::{HashTableOperatorState, JoinHashTable};
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::logical::logical_join::JoinType;
 
 pub const fn needs_drain(join_type: JoinType) -> bool {
     match join_type {
-        JoinType::Left | JoinType::LeftSemi | JoinType::Full | JoinType::LeftMark { .. } => true,
-        _ => false, // TODO
+        JoinType::Left
+        | JoinType::LeftSemi
+        | JoinType::LeftAnti
+        | JoinType::Full
+        | JoinType::LeftMark { .. } => true,
+        JoinType::Inner | JoinType::Right => false,
     }
 }
 
@@ -36,6 +42,7 @@ impl HashTablePartitionDrainState {
         match table.join_type {
             JoinType::LeftSemi => self.drain_left_semi(table, op_state, output),
             JoinType::LeftMark { .. } => self.drain_left_mark(table, op_state, output),
+            JoinType::Left => self.drain_left(table, op_state, output),
             other => Err(DbError::new(format!(
                 "Unexpected join type for drain: {other}"
             ))),
@@ -76,6 +83,46 @@ impl HashTablePartitionDrainState {
                 .read_arrays(self.row_pointers.iter().copied(), arr_iter, 0)?
         };
 
+        output.set_num_rows(self.row_pointers.len())?;
+
+        Ok(())
+    }
+
+    fn drain_left(
+        &mut self,
+        table: &JoinHashTable,
+        op_state: &HashTableOperatorState,
+        output: &mut Batch,
+    ) -> Result<()> {
+        output.reset_for_write()?;
+
+        // We want to drain unmatched rows.
+        self.load_row_ptrs(table, op_state, output, |did_match| !did_match)?;
+        let output_count = self.row_pointers.len();
+
+        // Scan in values for the left.
+        let left_arrs = &mut output.arrays[0..table.data_column_count];
+        unsafe {
+            table.layout.read_arrays(
+                self.row_pointers.iter().copied(),
+                left_arrs.iter_mut().enumerate(),
+                0,
+            )?
+        };
+
+        // Set right arrays to null.
+        let right_arrs = &mut output.arrays[table.data_column_count..];
+        for right_arr in right_arrs {
+            let mut const_null = Array::new_null(
+                &DefaultBufferManager,
+                right_arr.datatype().clone(),
+                output_count,
+            )?;
+            right_arr.swap(&mut const_null)?;
+        }
+
+        output.set_num_rows(output_count)?;
+
         Ok(())
     }
 
@@ -87,8 +134,9 @@ impl HashTablePartitionDrainState {
     ) -> Result<()> {
         output.reset_for_write()?;
 
-        // We want to drain unmatched rows.
-        self.load_row_ptrs(table, op_state, output, |did_match| !did_match)?;
+        // We want to drain matched rows. This guarantees we're only producing a
+        // single row per visited row.
+        self.load_row_ptrs(table, op_state, output, |did_match| did_match)?;
 
         debug_assert_eq!(output.arrays.len(), table.data_column_count);
 
@@ -100,6 +148,8 @@ impl HashTablePartitionDrainState {
                 0,
             )?
         };
+
+        output.set_num_rows(self.row_pointers.len())?;
 
         Ok(())
     }
@@ -117,14 +167,13 @@ impl HashTablePartitionDrainState {
     ) -> Result<()> {
         let out_cap = output.write_capacity()?;
 
-        let matches_byte_offset =
-            table.layout.offsets[table.matches_column_idx().expect("matches column to exist")];
+        let match_offset = *table.layout.offsets.last().expect("match offset to exist");
 
         self.row_pointers.clear();
 
         loop {
             let collection = unsafe { op_state.merged_row_collection.get() };
-            if collection.blocks().row_blocks.len() >= self.curr_block_idx {
+            if self.curr_block_idx >= collection.blocks().row_blocks.len() {
                 // No more blocks for us.
                 break;
             }
@@ -133,12 +182,10 @@ impl HashTablePartitionDrainState {
             let block_ptr = collection.blocks().row_blocks[self.curr_block_idx].as_ptr();
 
             for row_idx in (self.curr_row)..row_count {
-                let row_ptr = unsafe { block_ptr.byte_add(table.layout.row_width) };
+                let row_ptr = unsafe { block_ptr.byte_add(table.layout.row_width * row_idx) };
                 let did_match = unsafe {
-                    row_ptr
-                        .byte_add(matches_byte_offset)
-                        .cast::<bool>()
-                        .read_unaligned()
+                    let match_ptr = row_ptr.byte_add(match_offset).cast::<bool>();
+                    match_ptr.read_unaligned()
                 };
                 if !match_fn(did_match) {
                     continue;

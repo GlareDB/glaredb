@@ -32,8 +32,12 @@ use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
 /// hash table.
 pub const fn needs_match_column(join_type: JoinType) -> bool {
     match join_type {
-        JoinType::Left | JoinType::Full | JoinType::LeftMark { .. } => true,
-        JoinType::Right | JoinType::Inner | JoinType::LeftSemi | JoinType::LeftAnti => false,
+        JoinType::Left
+        | JoinType::Full
+        | JoinType::LeftSemi
+        | JoinType::LeftAnti
+        | JoinType::LeftMark { .. } => true,
+        JoinType::Right | JoinType::Inner => false,
     }
 }
 
@@ -737,14 +741,14 @@ impl JoinHashTable {
     /// this function. This should hold as probing never touches this column,
     /// even when executing predicates.
     pub unsafe fn write_rows_matched(&self, row_ptrs: impl IntoIterator<Item = *const u8>) {
-        unsafe {
-            let match_offset = *self.layout.offsets.last().expect("match offset to exist");
+        let match_offset = *self.layout.offsets.last().expect("match offset to exist");
 
-            for row_ptr in row_ptrs {
-                // Note the morsels paper says it's advantageous to check the bool
-                // before setting it to avoid contention. I'm assuming they mean
-                // without atomic access. That's technically UB, and miri would
-                // complain. So just do it atomically.
+        for row_ptr in row_ptrs {
+            // Note the morsels paper says it's advantageous to check the bool
+            // before setting it to avoid contention. I'm assuming they mean
+            // without atomic access. That's technically UB, and miri would
+            // complain. So just do it atomically.
+            unsafe {
                 let match_ptr = row_ptr.byte_add(match_offset).cast_mut().cast::<bool>();
                 let match_bool = AtomicBool::from_ptr(match_ptr);
                 match_bool.store(true, atomic::Ordering::Relaxed);

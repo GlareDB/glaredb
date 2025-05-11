@@ -287,6 +287,15 @@ impl PushOperator for PhysicalHashJoin {
                         // Other partitions still building, we'll need to wait until we
                         // can insert the hashes.
                         let mut shared = operator_state.shared.lock();
+                        if shared.hash_inserts_ready {
+                            // We raced with the last partition. Directory was
+                            // initialize before we could actually insert our
+                            // waker.
+                            //
+                            // Continue to inserting hashes.
+                            continue;
+                        }
+
                         shared
                             .pending_hash_inserters
                             .store(cx.waker(), state.build_state.partition_idx);
@@ -320,6 +329,12 @@ impl PushOperator for PhysicalHashJoin {
                         // Wake up all pending probers.
                         shared.scan_ready = true;
                         shared.pending_probers.wake_all();
+                        // If right side never actually produces batches, it's
+                        // possible that all partitions finalize (and jump to
+                        // the drain state) before the left side completes.
+                        //
+                        // Go ahead and wake up drainers.
+                        shared.pending_drainers.wake_all();
                     }
 
                     return Ok(PollFinalize::Finalized);
@@ -419,8 +434,16 @@ impl ExecuteOperator for PhysicalHashJoin {
                 if !*drain_ready {
                     // Check global state to see if we're ready to drain.
                     let mut shared = operator_state.shared.lock();
-                    if !shared.drain_ready {
-                        // Come back later.
+                    if !(shared.drain_ready && shared.scan_ready) {
+                        // `drain_ready` gets set by right side, `scan_ready`
+                        // gets set by left. Both must be true before we can
+                        // actually drain, as that indicates the hash table has
+                        // been completely build _and_ probed.
+                        //
+                        // If either is false, come back later.
+                        //
+                        // TODO: Might be worthwile to make the finalize pending
+                        // if the left side hasn't been built yet.
                         shared
                             .pending_drainers
                             .store(cx.waker(), drain_state.partition_idx);
