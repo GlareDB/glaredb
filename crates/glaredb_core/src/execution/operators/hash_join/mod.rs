@@ -287,6 +287,15 @@ impl PushOperator for PhysicalHashJoin {
                         // Other partitions still building, we'll need to wait until we
                         // can insert the hashes.
                         let mut shared = operator_state.shared.lock();
+                        if shared.hash_inserts_ready {
+                            // We raced with the last partition. Directory was
+                            // initialize before we could actually insert our
+                            // waker.
+                            //
+                            // Continue to inserting hashes.
+                            continue;
+                        }
+
                         shared
                             .pending_hash_inserters
                             .store(cx.waker(), state.build_state.partition_idx);
