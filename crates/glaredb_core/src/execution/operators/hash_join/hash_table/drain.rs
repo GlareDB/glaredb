@@ -4,6 +4,13 @@ use super::{HashTableOperatorState, JoinHashTable};
 use crate::arrays::batch::Batch;
 use crate::logical::logical_join::JoinType;
 
+pub const fn needs_drain(join_type: JoinType) -> bool {
+    match join_type {
+        JoinType::Left | JoinType::LeftSemi | JoinType::Full | JoinType::LeftMark { .. } => true,
+        _ => false, // TODO
+    }
+}
+
 /// Drain state for LEFT/OUTER/MARK joins.
 #[derive(Debug)]
 pub struct HashTablePartitionDrainState {
@@ -27,7 +34,7 @@ impl HashTablePartitionDrainState {
         output: &mut Batch,
     ) -> Result<()> {
         match table.join_type {
-            JoinType::Left => self.drain_left(table, op_state, output),
+            JoinType::LeftSemi => self.drain_left_semi(table, op_state, output),
             JoinType::LeftMark { .. } => self.drain_left_mark(table, op_state, output),
             other => Err(DbError::new(format!(
                 "Unexpected join type for drain: {other}"
@@ -72,7 +79,7 @@ impl HashTablePartitionDrainState {
         Ok(())
     }
 
-    fn drain_left(
+    fn drain_left_semi(
         &mut self,
         table: &JoinHashTable,
         op_state: &HashTableOperatorState,
@@ -125,7 +132,7 @@ impl HashTablePartitionDrainState {
             let row_count = collection.blocks().rows_in_row_block(self.curr_block_idx);
             let block_ptr = collection.blocks().row_blocks[self.curr_block_idx].as_ptr();
 
-            for row_idx in (self.curr_row)..(self.curr_row + row_count) {
+            for row_idx in (self.curr_row)..row_count {
                 let row_ptr = unsafe { block_ptr.byte_add(table.layout.row_width) };
                 let did_match = unsafe {
                     row_ptr

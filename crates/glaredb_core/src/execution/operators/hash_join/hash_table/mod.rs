@@ -6,6 +6,7 @@ mod directory;
 use std::sync::atomic::{self, AtomicBool, AtomicPtr, AtomicUsize};
 
 use directory::Directory;
+use drain::HashTablePartitionDrainState;
 use glaredb_error::Result;
 use scan::HashTablePartitionScanState;
 
@@ -331,6 +332,23 @@ impl JoinHashTable {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(states)
+    }
+
+    pub fn create_drain_state_from_scan_state(
+        &self,
+        _op_state: &HashTableOperatorState,
+        state: &mut HashTablePartitionScanState,
+    ) -> Result<HashTablePartitionDrainState> {
+        let row_pointers = std::mem::take(&mut state.row_pointers);
+
+        Ok(HashTablePartitionDrainState {
+            partition_idx: state.partition_idx,
+            row_pointers,
+            // Drain state has logic to increment this by partition count,
+            // ensure each partition scans disjoint blocks.
+            curr_block_idx: state.partition_idx,
+            curr_row: 0,
+        })
     }
 
     /// Get the column index for the hash in the row collection.
