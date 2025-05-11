@@ -1,0 +1,45 @@
+# Tests reading from 'gs://glaredb-public/userdata0.parquet'
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE 'gs://glaredb-public/userdata0.parquet';
+----
+registration_dttm  Timestamp(ns)
+id                 Int32
+first_name         Utf8
+last_name          Utf8
+email              Utf8
+gender             Utf8
+ip_address         Utf8
+cc                 Utf8
+country            Utf8
+birthdate          Utf8
+salary             Float64
+title              Utf8
+comments           Utf8
+
+query I
+SELECT count(*) FROM 'gs://glaredb-public/userdata0.parquet';
+----
+1000
+
+# Min/max on timestamp
+query ??
+SELECT min(registration_dttm), max(registration_dttm) FROM 'gs://glaredb-public/userdata0.parquet';
+----
+2016-02-03 00:01:00 UTC    2016-02-03 23:59:55 UTC
+
+# Make sure we're properly reading null values
+query I
+SELECT count(*) FROM 'gs://glaredb-public/userdata0.parquet' WHERE salary IS NULL;
+----
+68
+
+# TODO: TBD on the path we display here (same note for s3)
+query ?????
+SELECT * FROM parquet_file_metadata('gs://glaredb-public/userdata0.parquet')
+----
+https://storage.googleapis.com/glaredb-public/userdata0.parquet  1  1000  parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)  1
+

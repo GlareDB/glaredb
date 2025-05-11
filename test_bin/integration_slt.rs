@@ -40,8 +40,8 @@ pub fn main() -> Result<()> {
     // Private S3 with CSV, parquet
     run_with_all_thread_configurations::<S3PrivateSetup>("../slt/s3/private", "slt_s3_private")?;
 
-    // TODO: Benchmarks should probably just create a view on the parquet files
-    // instead of referencing them directly in the query.
+    // Public GCS with CSV, parquet
+    run_with_all_thread_configurations::<GcsPublicSetup>("../slt/gcs/public", "slt_gcs_public")?;
 
     // Clickbench queries on a truncated dataset
     run_with_all_thread_configurations::<ClickBenchSetup>("../slt/clickbench", "slt_clickbench")?;
@@ -195,6 +195,26 @@ where
         Ok(RunConfig {
             engine,
             vars,
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(15),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GcsPublicSetup;
+
+impl<E, R> EngineSetup<E, R> for GcsPublicSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+        engine.register_extension(CsvExtension)?;
+        engine.register_extension(ParquetExtension)?;
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
         })
