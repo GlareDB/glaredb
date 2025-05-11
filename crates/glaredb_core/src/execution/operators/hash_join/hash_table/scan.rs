@@ -158,8 +158,6 @@ impl HashTablePartitionScanState {
         output: &mut Batch,
         track_right: bool,
     ) -> Result<()> {
-        output.reset_for_write()?;
-
         if self.selection.is_empty() {
             // Done, need new rhs.
             output.set_num_rows(0)?;
@@ -196,6 +194,9 @@ impl HashTablePartitionScanState {
             output.arrays.len(),
             "Output should only contain columns for the original inputs to left and right",
         );
+
+        // TODO: Allow doing this more selectively.
+        output.reset_for_write()?;
 
         // Only decode the original inputs from the left side.
         let lhs_arrays = (0..table.data_column_count).zip(&mut output.arrays);
@@ -270,13 +271,9 @@ impl HashTablePartitionScanState {
         table: &JoinHashTable,
         track_right: bool,
     ) -> Result<Vec<usize>> {
-        // Start from whatever probes are still outstanding.
-        let mut active = self.selection.clone();
-
-        while !active.is_empty() {
-            // Try to match all of `active` at their current pointers
-            let mut sel = active.clone();
-            let mut not_matched = Vec::new();
+        while !self.selection.is_empty() {
+            // Try to match all of active at their current pointers
+            let mut sel = self.selection.clone();
 
             debug_assert_eq!(table.encoded_key_columns.len(), self.join_keys.arrays.len());
 
@@ -289,7 +286,7 @@ impl HashTablePartitionScanState {
                 &table.encoded_key_columns,
                 &self.join_keys.arrays,
                 &mut sel,
-                &mut not_matched,
+                &mut self.not_matched,
             )?;
 
             if track_right {
@@ -304,9 +301,9 @@ impl HashTablePartitionScanState {
                 return Ok(sel);
             }
 
-            // Otherwise none of the predicates matched, move to next in active
-            // selection.
-            Self::follow_next_in_chain(table, &mut self.row_pointers, &mut active);
+            // Otherwise none of the predicates matched, move pointers to next
+            // in chain, pruning indices as needed.
+            Self::follow_next_in_chain(table, &mut self.row_pointers, &mut self.selection);
         }
 
         // All chains exhausted, no matches.
