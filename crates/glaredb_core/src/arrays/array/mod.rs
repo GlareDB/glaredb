@@ -112,6 +112,23 @@ impl Array {
         })
     }
 
+    pub fn new_null(manager: &impl BufferManager, datatype: DataType, len: usize) -> Result<Self> {
+        let arr = Self::new(manager, datatype, 1)?;
+        let buffer = ConstantBuffer {
+            row_idx: 0,
+            len,
+            buffer: arr.data,
+        };
+
+        let validity = Validity::new_all_invalid(len);
+
+        Ok(Array {
+            datatype: arr.datatype,
+            validity,
+            data: AnyArrayBuffer::new_unique(buffer),
+        })
+    }
+
     /// Create a new array backed by a constant value.
     ///
     /// This internally creates an array of size 1 with all values pointing to
@@ -317,7 +334,7 @@ impl Array {
         Ok(())
     }
 
-    /// Selects indice from the array.
+    /// Selects indices from the array.
     ///
     /// This will convert the underlying array buffer into a dictionary buffer.
     pub fn select(

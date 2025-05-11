@@ -3,7 +3,8 @@ mod hash_table;
 use std::fmt;
 use std::task::Context;
 
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
+use hash_table::drain::{HashTablePartitionDrainState, needs_drain};
 use hash_table::scan::HashTablePartitionScanState;
 use hash_table::{HashTableBuildPartitionState, HashTableOperatorState, JoinHashTable};
 use parking_lot::Mutex;
@@ -59,16 +60,22 @@ struct SharedState {
     /// If we've collected everything from the build side and have the directory
     /// initialized.
     scan_ready: bool,
+    /// If all probers have completed probing.
+    drain_ready: bool,
     /// Number of partitions still inserting hashes.
     ///
     /// Once zero, we can begin scanning.
     remaining_hash_inserters: DelayedPartitionCount,
+    /// Number of partitions still probing.
+    remaining_probers: DelayedPartitionCount,
     /// Partition wakers for build-side partitions that have completed inserting
     /// into the table, and are waiting for the directory to be initialized to
     /// begin inserting hashes.
     pending_hash_inserters: PartitionWakers,
     /// Partition wakers for the probe side if the scan isn't ready.
     pending_probers: PartitionWakers,
+    /// Partition wakers on the probe side waiting to drain.
+    pending_drainers: PartitionWakers,
 }
 
 #[derive(Debug)]
@@ -86,13 +93,33 @@ enum BuildFinalizePhase {
 }
 
 #[derive(Debug)]
-pub struct HashJoinPartitionProbeState {
-    /// If we're actually ready for scanning.
+pub enum HashJoinPartitionExecuteState {
+    /// Right side is probing.
+    Probing {
+        /// If we're actually ready for scanning.
+        ///
+        /// If false, must check shared state before continuing.
+        scan_ready: bool,
+        /// Indicator if we should probe for RHS.
+        ///
+        /// A single probe may produce outputs that are larger than our output
+        /// batch, requiring multiple scans. In such cases, multiple polls will be
+        /// used for a single probe.
+        rhs_needs_probe: bool,
+        /// Scan state for the hash table.
+        scan_state: Box<HashTablePartitionScanState>,
+    },
+    /// Right side is draining.
     ///
-    /// If false, must check shared state before continuing.
-    scan_ready: bool,
-    /// Scan state for the hash table.
-    scan_state: HashTablePartitionScanState,
+    /// Only applicable to some join types.
+    Draining {
+        /// If draining is ready (all probers completed).
+        ///
+        /// If false, must check shared state before continuing.
+        drain_ready: bool,
+        /// Drain state for the hash table.
+        drain_state: HashTablePartitionDrainState,
+    },
 }
 
 #[derive(Debug)]
@@ -165,9 +192,12 @@ impl BaseOperator for PhysicalHashJoin {
             shared: Mutex::new(SharedState {
                 hash_inserts_ready: false,
                 scan_ready: false,
+                drain_ready: false,
                 remaining_hash_inserters: DelayedPartitionCount::uninit(),
+                remaining_probers: DelayedPartitionCount::uninit(),
                 pending_hash_inserters: PartitionWakers::empty(),
                 pending_probers: PartitionWakers::empty(),
+                pending_drainers: PartitionWakers::empty(),
             }),
         })
     }
@@ -188,9 +218,11 @@ impl PushOperator for PhysicalHashJoin {
     ) -> Result<Vec<Self::PartitionPushState>> {
         let mut shared = operator_state.shared.lock();
         shared.remaining_hash_inserters.set(partitions)?;
+        shared.remaining_probers.set(partitions)?;
         shared
             .pending_hash_inserters
             .init_for_partitions(partitions);
+        shared.pending_drainers.init_for_partitions(partitions);
 
         let table = &operator_state.table;
         let table_state = &operator_state.table_state;
@@ -298,7 +330,7 @@ impl PushOperator for PhysicalHashJoin {
 }
 
 impl ExecuteOperator for PhysicalHashJoin {
-    type PartitionExecuteState = HashJoinPartitionProbeState;
+    type PartitionExecuteState = HashJoinPartitionExecuteState;
 
     fn create_partition_execute_states(
         &self,
@@ -315,9 +347,10 @@ impl ExecuteOperator for PhysicalHashJoin {
         let states = table.create_probe_partition_states(table_state, partitions)?;
         let states = states
             .into_iter()
-            .map(|state| HashJoinPartitionProbeState {
+            .map(|state| HashJoinPartitionExecuteState::Probing {
                 scan_ready: false,
-                scan_state: state,
+                rhs_needs_probe: true,
+                scan_state: Box::new(state),
             })
             .collect();
 
@@ -332,54 +365,121 @@ impl ExecuteOperator for PhysicalHashJoin {
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {
-        if !state.scan_ready {
-            // Check global state to see if we're actually ready for scanning.
-            let mut shared = operator_state.shared.lock();
-            if !shared.scan_ready {
-                // Come back later.
-                shared
-                    .pending_probers
-                    .store(cx.waker(), state.scan_state.partition_idx);
-                return Ok(PollExecute::Pending);
-            }
-
-            // We're ready, continue on...
-            state.scan_ready = true;
-        }
-
         let table = &operator_state.table;
         let table_state = &operator_state.table_state;
 
-        if state.scan_state.needs_probe() {
-            // New RHS batch, refresh scan state.
-            table.probe(table_state, &mut state.scan_state, input)?;
-            // Continue...
+        match state {
+            HashJoinPartitionExecuteState::Probing {
+                scan_ready,
+                rhs_needs_probe,
+                scan_state,
+            } => {
+                if !*scan_ready {
+                    // Check global state to see if we're actually ready for scanning.
+                    let mut shared = operator_state.shared.lock();
+                    if !shared.scan_ready {
+                        // Come back later.
+                        shared
+                            .pending_probers
+                            .store(cx.waker(), scan_state.partition_idx);
+                        return Ok(PollExecute::Pending);
+                    }
+
+                    // We're ready, continue on...
+                    *scan_ready = true;
+                }
+
+                if *rhs_needs_probe {
+                    // New RHS batch, refresh scan state.
+                    table.probe(table_state, scan_state, input)?;
+                    *rhs_needs_probe = false;
+                    // Continue...
+                }
+
+                // Scan it...
+                scan_state.scan_next(table, table_state, input, output)?;
+
+                if output.num_rows() == 0 {
+                    // We scanned nothing. Either no matches or we've completely drained
+                    // the state. Indicate we need a new RHS.
+                    //
+                    // Next RHS will trigger a probe.
+                    *rhs_needs_probe = true;
+                    return Ok(PollExecute::NeedsMore);
+                }
+
+                // Otherwise we produced output. Keep polling with the same RHS as we
+                // may have more matches to drain.
+                Ok(PollExecute::HasMore)
+            }
+            HashJoinPartitionExecuteState::Draining {
+                drain_ready,
+                drain_state,
+            } => {
+                if !*drain_ready {
+                    // Check global state to see if we're ready to drain.
+                    let mut shared = operator_state.shared.lock();
+                    if !shared.drain_ready {
+                        // Come back later.
+                        shared
+                            .pending_drainers
+                            .store(cx.waker(), drain_state.partition_idx);
+                        return Ok(PollExecute::Pending);
+                    }
+
+                    // We're read, continue on...
+                    *drain_ready = true;
+                }
+
+                drain_state.drain_next(table, table_state, output)?;
+                if output.num_rows() == 0 {
+                    // We're done.
+                    return Ok(PollExecute::Exhausted);
+                }
+
+                // Keep draining.
+                Ok(PollExecute::HasMore)
+            }
         }
-
-        // Scan it...
-        state
-            .scan_state
-            .scan_next(table, table_state, input, output)?;
-
-        if output.num_rows() == 0 {
-            // We scanned nothing. Either no matches or we've completely drained
-            // the state. Indicate we need a new RHS.
-            return Ok(PollExecute::NeedsMore);
-        }
-
-        // Otherwise we produced output. Keep polling with the same RHS as we
-        // may have more matches to drain.
-        Ok(PollExecute::HasMore)
     }
 
     fn poll_finalize_execute(
         &self,
         _cx: &mut Context,
-        _operator_state: &Self::OperatorState,
-        _state: &mut Self::PartitionExecuteState,
+        operator_state: &Self::OperatorState,
+        state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
-        // TODO: Drainers
-        Ok(PollFinalize::Finalized)
+        let table = &operator_state.table;
+        let table_state = &operator_state.table_state;
+
+        if needs_drain(table.join_type) {
+            // Need to drain, update our state.
+            let scan_state = match state {
+                HashJoinPartitionExecuteState::Probing { scan_state, .. } => scan_state,
+                _ => return Err(DbError::new("Prober in unexpected state")),
+            };
+
+            let drain_state = table.create_drain_state_from_scan_state(table_state, scan_state)?;
+
+            *state = HashJoinPartitionExecuteState::Draining {
+                drain_ready: false,
+                drain_state,
+            };
+
+            let mut shared = operator_state.shared.lock();
+            let remaining = shared.remaining_probers.dec_by_one()?;
+            if remaining == 0 {
+                // We're the last partition to finish probing, wake up all
+                // drainers.
+                shared.drain_ready = true;
+                shared.pending_drainers.wake_all();
+            }
+
+            Ok(PollFinalize::NeedsDrain)
+        } else {
+            // We're done.
+            Ok(PollFinalize::Finalized)
+        }
     }
 }
 

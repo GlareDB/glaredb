@@ -1,3 +1,4 @@
+pub mod drain;
 pub mod scan;
 
 mod directory;
@@ -5,6 +6,7 @@ mod directory;
 use std::sync::atomic::{self, AtomicBool, AtomicPtr, AtomicUsize};
 
 use directory::Directory;
+use drain::HashTablePartitionDrainState;
 use glaredb_error::Result;
 use scan::HashTablePartitionScanState;
 
@@ -25,6 +27,15 @@ use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
 use crate::logical::logical_join::JoinType;
 use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
+
+/// If this join type requires that we encode an extra 'matches' column in the
+/// hash table.
+pub const fn needs_match_column(join_type: JoinType) -> bool {
+    match join_type {
+        JoinType::Left | JoinType::Full | JoinType::LeftMark { .. } => true,
+        JoinType::Right | JoinType::Inner | JoinType::LeftSemi | JoinType::LeftAnti => false,
+    }
+}
 
 /// State provided during hash table build.
 #[derive(Debug)]
@@ -78,7 +89,8 @@ struct PartitionedRowCollecton {
 }
 
 impl HashTableOperatorState {
-    fn partition_count(&self) -> usize {
+    // TODO: Safety...
+    pub fn partition_count(&self) -> usize {
         self.partitioned_row_collection().collections.len()
     }
 
@@ -196,7 +208,7 @@ impl JoinHashTable {
         let hash_col = encoded_types.len();
         encoded_types.push(DataType::uint64());
 
-        if join_type.produce_all_build_side_rows() {
+        if needs_match_column(join_type) {
             // Add 'matches' column, we're dealing with LEFT/OUTER join.
             encoded_types.push(DataType::boolean());
         }
@@ -303,6 +315,7 @@ impl JoinHashTable {
                     partition_idx,
                     selection: Vec::new(),
                     not_matched: Vec::new(),
+                    right_matches: Vec::new(),
                     row_pointers: Vec::new(),
                     hashes: Vec::new(),
                     block_read: BlockScanState::empty(),
@@ -321,9 +334,26 @@ impl JoinHashTable {
         Ok(states)
     }
 
+    pub fn create_drain_state_from_scan_state(
+        &self,
+        _op_state: &HashTableOperatorState,
+        state: &mut HashTablePartitionScanState,
+    ) -> Result<HashTablePartitionDrainState> {
+        let row_pointers = std::mem::take(&mut state.row_pointers);
+
+        Ok(HashTablePartitionDrainState {
+            partition_idx: state.partition_idx,
+            row_pointers,
+            // Drain state has logic to increment this by partition count,
+            // ensure each partition scans disjoint blocks.
+            curr_block_idx: state.partition_idx,
+            curr_row: 0,
+        })
+    }
+
     /// Get the column index for the hash in the row collection.
     fn hash_column_idx(&self) -> usize {
-        if self.join_type.produce_all_build_side_rows() {
+        if needs_match_column(self.join_type) {
             self.layout.num_columns() - 2 // Hash second to last.
         } else {
             self.layout.num_columns() - 1 // Hash is last column.
@@ -332,10 +362,18 @@ impl JoinHashTable {
 
     /// Return the number of extra columns on the build side.
     pub const fn extra_column_count(&self) -> usize {
-        if self.join_type.produce_all_build_side_rows() {
+        if needs_match_column(self.join_type) {
             2 // Hashes + matches
         } else {
             1 // Hashes
+        }
+    }
+
+    pub fn matches_column_idx(&self) -> Option<usize> {
+        if needs_match_column(self.join_type) {
+            Some(self.layout.num_columns() - 1)
+        } else {
+            None
         }
     }
 
@@ -382,7 +420,7 @@ impl JoinHashTable {
         build_inputs.push(&hashes);
 
         // Ensure we include the "matches" initial values.
-        if self.join_type.produce_all_build_side_rows() {
+        if needs_match_column(self.join_type) {
             // Resize to match the input rows.
             state.match_init.select(
                 &DefaultBufferManager,
@@ -588,6 +626,10 @@ impl JoinHashTable {
         // Hash keys.
         state.hashes.resize(rhs.num_rows, 0);
         hash_many_arrays(hash_input, 0..rhs.num_rows, &mut state.hashes)?;
+
+        // Reset right side matches.
+        state.right_matches.clear();
+        state.right_matches.resize(rhs.num_rows, false);
 
         // Resize entries to number of keys we're probing with. These will be
         // overwritten in the below loop.

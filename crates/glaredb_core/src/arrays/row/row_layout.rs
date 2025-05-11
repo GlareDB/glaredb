@@ -220,6 +220,10 @@ impl RowLayout {
         }
     }
 
+    /// Reads arrays from the provided row pointers.
+    ///
+    /// The `arrays` iterator indices which columns to scan, and the associate
+    /// array to write the result to.
     pub(crate) unsafe fn read_arrays<'a, A>(
         &self,
         row_ptrs: impl IntoIterator<Item = *const u8> + Clone,
@@ -251,7 +255,7 @@ impl RowLayout {
 pub(crate) const fn row_encoding_requires_heap(phys_type: PhysicalType) -> bool {
     matches!(
         phys_type,
-        PhysicalType::Utf8 | PhysicalType::Binary | PhysicalType::List
+        PhysicalType::Utf8 | PhysicalType::Binary | PhysicalType::List | PhysicalType::Struct
     )
 }
 
