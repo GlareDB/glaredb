@@ -24,15 +24,15 @@ c  Int32
 b  Int32
 c  Int32
 
-query IIIII rowsort
-SELECT * FROM t1 LEFT JOIN t2 USING (a);
+query IIIII
+SELECT * FROM t1 LEFT JOIN t2 USING (a) ORDER BY 1,5;
 ----
 1  2  3  2  3
 1  2  3  2  4
 
 # t1, t2 flipped
-query IIIII rowsort
-SELECT * FROM t2 LEFT JOIN t1 USING (a)
+query IIIII
+SELECT * FROM t2 LEFT JOIN t1 USING (a) ORDER BY 1, 3, 4;
 ----
 1  2  3  2     3
 1  2  4  2     3

@@ -1,6 +1,4 @@
-# Avoid NLJ for this
-# statement ok
-# SET verify_optimized_plan TO true;
+# No verify, we don't want to use nlj.
 
 statement ok
 SET enable_hash_joins TO true;

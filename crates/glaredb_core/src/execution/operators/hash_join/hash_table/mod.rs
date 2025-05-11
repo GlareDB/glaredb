@@ -32,8 +32,12 @@ use crate::util::cell::{UnsafeSyncCell, UnsafeSyncOnceCell};
 /// hash table.
 pub const fn needs_match_column(join_type: JoinType) -> bool {
     match join_type {
-        JoinType::Left | JoinType::Full | JoinType::LeftMark { .. } => true,
-        JoinType::Right | JoinType::Inner | JoinType::LeftSemi | JoinType::LeftAnti => false,
+        JoinType::Left
+        | JoinType::Full
+        | JoinType::LeftSemi
+        | JoinType::LeftAnti
+        | JoinType::LeftMark { .. } => true,
+        JoinType::Right | JoinType::Inner => false,
     }
 }
 

@@ -94,6 +94,7 @@ impl HashTablePartitionDrainState {
 
         // We want to drain unmatched rows.
         self.load_row_ptrs(table, op_state, output, |did_match| !did_match)?;
+        let output_count = self.row_pointers.len();
 
         // Scan in values for the left.
         let left_arrs = &mut output.arrays[0..table.data_column_count];
@@ -111,12 +112,12 @@ impl HashTablePartitionDrainState {
             let mut const_null = Array::new_null(
                 &DefaultBufferManager,
                 right_arr.datatype().clone(),
-                output.num_rows,
+                output_count,
             )?;
             right_arr.swap(&mut const_null)?;
         }
 
-        output.set_num_rows(self.row_pointers.len())?;
+        output.set_num_rows(output_count)?;
 
         Ok(())
     }
@@ -129,8 +130,9 @@ impl HashTablePartitionDrainState {
     ) -> Result<()> {
         output.reset_for_write()?;
 
-        // We want to drain unmatched rows.
-        self.load_row_ptrs(table, op_state, output, |did_match| !did_match)?;
+        // We want to drain matched rows. This guarantees we're only producing a
+        // single row per visited row.
+        self.load_row_ptrs(table, op_state, output, |did_match| did_match)?;
 
         debug_assert_eq!(output.arrays.len(), table.data_column_count);
 

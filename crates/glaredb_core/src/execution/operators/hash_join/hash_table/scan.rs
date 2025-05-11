@@ -81,9 +81,16 @@ impl HashTablePartitionScanState {
                 // visited. And we'll drain at the end.
                 self.scan_next_right_join(table, op_state, rhs, output)
             }
-            JoinType::LeftMark { .. } => {
-                self.scan_next_left_mark_join(table, op_state, rhs, output)
+            JoinType::LeftSemi => {
+                // We're not going to be producing any batches until we drain.
+                // Just mark the left rows as visited.
+                //
+                // LEFT SEMI join will one (and only one) row for visited left
+                // side rows. We can only guarantee we return one row during
+                // draining.
+                self.scan_next_left_mark(table, op_state, rhs, output)
             }
+            JoinType::LeftMark { .. } => self.scan_next_left_mark(table, op_state, rhs, output),
             other => not_implemented!("scan join type: {other}"),
         }
     }
@@ -223,11 +230,11 @@ impl HashTablePartitionScanState {
         Ok(())
     }
 
-    /// "Scans" the next mark join results.
+    /// "Scans" the next join results.
     ///
     /// This will always return an output batch with zero rows. When we "scan"
     /// here, we're just marking visited rows on the left.
-    fn scan_next_left_mark_join(
+    fn scan_next_left_mark(
         &mut self,
         table: &JoinHashTable,
         _op_state: &HashTableOperatorState,
@@ -249,7 +256,7 @@ impl HashTablePartitionScanState {
 
             debug_assert!(
                 needs_match_column(table.join_type),
-                "Left mark always needs match column"
+                "Left mark(-like) join always needs match column"
             );
 
             self.block_read.clear();

@@ -73,8 +73,8 @@ impl fmt::Display for JoinType {
             Self::Left => write!(f, "LEFT"),
             Self::Right => write!(f, "RIGHT"),
             Self::Full => write!(f, "FULL"),
-            Self::LeftSemi => write!(f, "SEMI"),
-            Self::LeftAnti => write!(f, "ANTI"),
+            Self::LeftSemi => write!(f, "LEFT SEMI"),
+            Self::LeftAnti => write!(f, "LEFT ANTI"),
             Self::LeftMark { table_ref } => write!(f, "LEFT MARK (ref = {table_ref})"),
         }
     }
