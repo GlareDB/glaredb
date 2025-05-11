@@ -110,6 +110,7 @@ static GET_SET_FUNCTIONS: LazyLock<HashMap<&'static str, SettingFunctions>> = La
     insert_setting::<VerifyOptimizedPlan>(&mut map);
     insert_setting::<EnableFunctionChaining>(&mut map);
     insert_setting::<PerPartitionCounts>(&mut map);
+    insert_setting::<EnableHashJoins>(&mut map);
 
     map
 });

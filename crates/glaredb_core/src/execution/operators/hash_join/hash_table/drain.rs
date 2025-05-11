@@ -1,7 +1,9 @@
 use glaredb_error::{DbError, Result};
 
 use super::{HashTableOperatorState, JoinHashTable};
+use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
+use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::logical::logical_join::JoinType;
 
 pub const fn needs_drain(join_type: JoinType) -> bool {
@@ -36,6 +38,7 @@ impl HashTablePartitionDrainState {
         match table.join_type {
             JoinType::LeftSemi => self.drain_left_semi(table, op_state, output),
             JoinType::LeftMark { .. } => self.drain_left_mark(table, op_state, output),
+            JoinType::Left => self.drain_left(table, op_state, output),
             other => Err(DbError::new(format!(
                 "Unexpected join type for drain: {other}"
             ))),
@@ -75,6 +78,41 @@ impl HashTablePartitionDrainState {
                 .layout
                 .read_arrays(self.row_pointers.iter().copied(), arr_iter, 0)?
         };
+
+        Ok(())
+    }
+
+    fn drain_left(
+        &mut self,
+        table: &JoinHashTable,
+        op_state: &HashTableOperatorState,
+        output: &mut Batch,
+    ) -> Result<()> {
+        output.reset_for_write()?;
+
+        // We want to drain unmatched rows.
+        self.load_row_ptrs(table, op_state, output, |did_match| !did_match)?;
+
+        // Scan in values for the left.
+        let left_arrs = &mut output.arrays[0..table.data_column_count];
+        unsafe {
+            table.layout.read_arrays(
+                self.row_pointers.iter().copied(),
+                left_arrs.iter_mut().enumerate(),
+                0,
+            )?
+        };
+
+        // Set right arrays to null.
+        let right_arrs = &mut output.arrays[table.data_column_count..];
+        for right_arr in right_arrs {
+            let mut const_null = Array::new_null(
+                &DefaultBufferManager,
+                right_arr.datatype().clone(),
+                output.num_rows,
+            )?;
+            right_arr.swap(&mut const_null)?;
+        }
 
         Ok(())
     }
