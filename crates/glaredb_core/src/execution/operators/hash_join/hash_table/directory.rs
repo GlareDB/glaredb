@@ -12,7 +12,7 @@ use crate::buffer::db_vec::DbVec;
 /// of a chain is denoted by a null pointer.
 #[derive(Debug)]
 pub struct Directory {
-    entries: DbVec<*mut u8>,
+    pub entries: DbVec<*mut u8>,
 }
 
 // `*mut u8` pointing to heap blocks.
