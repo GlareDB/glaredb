@@ -1,0 +1,17 @@
+# Error cases.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Missing creds
+# TODO: Could detect the 403 and add something a bit more actionable.
+statement error Unexpected status code: 403 Forbidden
+SELECT * FROM 'gs://glaredb-private/userdata0.parquet';
+
+# Invalid service account.
+statement error Failed to deserialize json service account key
+SELECT * FROM read_parquet('gs://glaredb-private/userdata0.parquet', service_account = '{"type": "service_account", "somefield": "hello"}')
+
+# Valid service account, missing file.
+statement error Missing file for path 'gs://glaredb-private/file_does_not_exist_483.parquet'
+SELECT * FROM read_parquet('gs://glaredb-private/file_does_not_exist_483.parquet', service_account = '__GCP_SERVICE_ACCOUNT__');
