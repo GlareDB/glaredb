@@ -1,4 +1,5 @@
 use std::io::SeekFrom;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use glaredb_core::runtime::filesystem::{
@@ -10,10 +11,11 @@ use glaredb_core::runtime::filesystem::{
     OpenFlags,
 };
 use glaredb_error::{DbError, OptionExt, Result, ResultExt, not_implemented};
-use reqwest::header::CONTENT_LENGTH;
+use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, HeaderValue};
 use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
+use super::credentials::{AccessToken, ServiceAccount};
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::{HttpFileHandle, RequestSigner};
 
@@ -53,7 +55,7 @@ where
 
 #[derive(Debug, Clone)]
 pub struct GcsFileSystemState {
-    // TODO: Creds
+    service_account: Option<Arc<ServiceAccount>>,
 }
 
 impl<C> FileSystem for GcsFileSystem<C>
@@ -63,12 +65,21 @@ where
     type File = GcsFileHandle<C>;
     type State = GcsFileSystemState;
 
-    fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
-        // TODO: Creds
-        Ok(GcsFileSystemState {})
+    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
+        let service_account = context.get_value("service_account")?;
+        let service_account = match service_account {
+            Some(s) => {
+                let s = s.try_as_str()?;
+                let service_account = ServiceAccount::try_from_str(s)?;
+                Some(Arc::new(service_account))
+            }
+            None => None,
+        };
+
+        Ok(GcsFileSystemState { service_account })
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, _state: &Self::State) -> Result<Self::File> {
+    async fn open(&self, flags: OpenFlags, path: &str, state: &Self::State) -> Result<Self::File> {
         if flags.is_write() {
             not_implemented!("write support for gcs filesystem")
         }
@@ -76,9 +87,21 @@ where
             not_implemented!("create support for gcs filesystem")
         }
 
+        // Fetch token if we have a service account.
+        let token = match state.service_account.as_ref() {
+            Some(sa) => {
+                let token = sa.fetch_access_token(&self.client).await?;
+                Some(token)
+            }
+            None => None,
+        };
+
         let url = self.gcs_url_from_path(path)?;
-        let request = Request::new(Method::HEAD, url.clone());
-        // TODO: Creds
+        let mut request = Request::new(Method::HEAD, url.clone());
+        // Authorize request.
+        if let Some(tok) = &token {
+            request = authorize_request(tok, request)?;
+        }
 
         let resp = self.client.do_request(request).await?;
         let len = match resp.headers().get(CONTENT_LENGTH) {
@@ -90,17 +113,29 @@ where
             None => return Err(DbError::new("Missing Content-Length header for file")),
         };
 
-        let signer = GcsRequestSigner {};
+        let signer = GcsRequestSigner { token };
         let handle = HttpFileHandle::new(url, len, self.client.clone(), signer);
 
         Ok(GcsFileHandle { handle })
     }
 
-    async fn stat(&self, path: &str, _state: &Self::State) -> Result<Option<FileStat>> {
+    async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
         let url = self.gcs_url_from_path(path)?;
 
-        let request = Request::new(Method::HEAD, url.clone());
-        // TODO: Creds
+        // TODO: Possibly make state mutable to store the fetched token?
+        let token = match state.service_account.as_ref() {
+            Some(sa) => {
+                let token = sa.fetch_access_token(&self.client).await?;
+                Some(token)
+            }
+            None => None,
+        };
+
+        let mut request = Request::new(Method::HEAD, url.clone());
+        if let Some(tok) = &token {
+            request = authorize_request(tok, request)?;
+        }
+
         let resp = self.client.do_request(request).await?;
 
         let status = resp.status();
@@ -130,13 +165,15 @@ where
 
 #[derive(Debug)]
 pub struct GcsRequestSigner {
-    // TODO: Creds
+    token: Option<AccessToken>,
 }
 
 impl RequestSigner for GcsRequestSigner {
     fn sign(&self, request: Request) -> Result<Request> {
-        // TODO: Sign if creds
-        Ok(request)
+        match self.token.as_ref() {
+            Some(tok) => authorize_request(tok, request),
+            None => Ok(request),
+        }
     }
 }
 
@@ -176,4 +213,14 @@ where
             "GcsFileHandle does not yet support flushing",
         )))
     }
+}
+
+fn authorize_request(token: &AccessToken, mut request: Request) -> Result<Request> {
+    request.headers_mut().insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {}", token.access_token))
+            .context("Failed to set AUTHORIZATION header value")?,
+    );
+
+    Ok(request)
 }

@@ -42,6 +42,24 @@ where
     Ok(())
 }
 
+/// Helper to set a form body on this request.
+///
+/// Overwrites the existing body and 'Content-Type' of the request.
+pub fn set_form_body<T>(request: &mut Request, body: &T) -> Result<()>
+where
+    T: Serialize + ?Sized,
+{
+    let body = serde_urlencoded::to_string(body)
+        .context("Failed to serialize request body to url encoded form")?;
+    *request.body_mut() = Some(body.into());
+    request.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("application/x-www-form-urlencoded"),
+    );
+
+    Ok(())
+}
+
 /// Helper to read a json response from a byte stream.
 ///
 /// This will collect the full response before trying to deserialize it.

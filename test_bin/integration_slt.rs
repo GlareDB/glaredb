@@ -43,6 +43,9 @@ pub fn main() -> Result<()> {
     // Public GCS with CSV, parquet
     run_with_all_thread_configurations::<GcsPublicSetup>("../slt/gcs/public", "slt_gcs_public")?;
 
+    // Private GCS with CSV, parquet
+    run_with_all_thread_configurations::<GcsPrivateSetup>("../slt/gcs/private", "slt_gcs_private")?;
+
     // Clickbench queries on a truncated dataset
     run_with_all_thread_configurations::<ClickBenchSetup>("../slt/clickbench", "slt_clickbench")?;
 
@@ -215,6 +218,34 @@ where
         Ok(RunConfig {
             engine,
             vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(15),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GcsPrivateSetup;
+
+impl<E, R> EngineSetup<E, R> for GcsPrivateSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+        engine.register_extension(CsvExtension)?;
+        engine.register_extension(ParquetExtension)?;
+
+        let mut vars = ReplacementVars::default();
+
+        vars.add_var(
+            "GCP_SERVICE_ACCOUNT",
+            VarValue::sensitive_from_env("GCP_SERVICE_ACCOUNT"),
+        );
+
+        Ok(RunConfig {
+            engine,
+            vars,
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
         })
