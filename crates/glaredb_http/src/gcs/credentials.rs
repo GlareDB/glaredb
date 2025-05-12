@@ -1,6 +1,6 @@
 use base64::Engine;
 use base64::prelude::BASE64_URL_SAFE_NO_PAD;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use glaredb_error::{DbError, Result, ResultExt};
 use reqwest::{Method, Request};
 use ring::signature::RsaKeyPair;
