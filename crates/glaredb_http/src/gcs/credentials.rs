@@ -13,6 +13,7 @@ use crate::client::{HttpClient, HttpResponse, read_json_response, set_form_body}
 const READ_ONLY_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_only";
 
 #[derive(Debug, Deserialize)]
+#[allow(unused)]
 pub struct ServiceAccount {
     project_id: String,
     private_key_id: String,
