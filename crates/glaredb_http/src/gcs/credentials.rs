@@ -41,9 +41,9 @@ struct JwtClaims<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    expires_in: u64,
+pub struct AccessToken {
+    pub access_token: String,
+    pub expires_in: u64,
 }
 
 impl ServiceAccount {
@@ -52,7 +52,7 @@ impl ServiceAccount {
     }
 
     /// Fetch an access token using this service account.
-    pub async fn fetch_access_token<C>(&self, client: &C) -> Result<String>
+    pub async fn fetch_access_token<C>(&self, client: &C) -> Result<AccessToken>
     where
         C: HttpClient,
     {
@@ -118,8 +118,8 @@ impl ServiceAccount {
         set_form_body(&mut request, &params)?;
 
         let resp_stream = client.do_request(request).await?.into_bytes_stream();
-        let tok_resp: TokenResponse = read_json_response(resp_stream).await?;
+        let tok_resp: AccessToken = read_json_response(resp_stream).await?;
 
-        Ok(tok_resp.access_token)
+        Ok(tok_resp)
     }
 }

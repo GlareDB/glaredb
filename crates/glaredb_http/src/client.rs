@@ -42,6 +42,9 @@ where
     Ok(())
 }
 
+/// Helper to set a form body on this request.
+///
+/// Overwrites the existing body and 'Content-Type' of the request.
 pub fn set_form_body<T>(request: &mut Request, body: &T) -> Result<()>
 where
     T: Serialize + ?Sized,
