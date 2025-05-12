@@ -21,4 +21,10 @@ percent-encoding = "2.3.1"
 quick-xml = { version = "0.37.5", default-features = false, features = ["serialize"] }
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 rustls-pemfile = "2.2.0"
-ring = { workspace = true }
+rand = { workspace = true }
+# Sets the 'js' feature flag for getrandom 2.*
+#
+# Elsewhere we're using getrandom 3.* but ring still on the old version.
+#
+# See <https://github.com/briansmith/ring/issues/2341>
+ring = { workspace = true, features = ["wasm32_unknown_unknown_js"] }
