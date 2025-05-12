@@ -59,26 +59,30 @@ allow browser-based requests.
 
 To configure CORS for your GCS bucket:
 
-1. Navigate to your GCS bucket in the Google Cloud Console
-2. Go to **Permissions** -> **CORS configuration**
-3. Add the following JSON configuration:
+1. Create a JSON file (e.g., `cors.json`) with the following configuration:
 
 ```json
 [
     {
         "origin": ["*"],
         "method": ["GET", "HEAD"],
-        "responseHeader": ["Content-Type"],
+        "responseHeader": ["*"],
         "maxAgeSeconds": 3600
     }
 ]
+```
+
+2. Apply the configuration using the `gsutil` command-line tool:
+
+```
+gsutil cors set cors.json gs://<my-bucket>
 ```
 
 This configuration allows GET and HEAD requests from any origin, which is
 required for GlareDB's WebAssembly bindings to access your GCS bucket.
 
 For more information about CORS configuration for GCS, see the [Google Cloud
-documentation](https://cloud.google.com/storage/docs/configuring-cors).
+documentation](https://cloud.google.com/storage/docs/using-cors).
 
 ## Notes
 
