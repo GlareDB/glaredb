@@ -200,7 +200,7 @@ where
 
     fn poll_write(&mut self, _cx: &mut Context, _buf: &[u8]) -> Poll<Result<usize>> {
         Poll::Ready(Err(DbError::new(
-            "GcsFileHandle does not yest support writing",
+            "GcsFileHandle does not yet support writing",
         )))
     }
 

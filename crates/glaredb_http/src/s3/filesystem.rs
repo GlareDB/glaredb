@@ -94,7 +94,6 @@ where
         Ok(S3FileSystemState { creds, region })
     }
 
-    // TODO: Need a way to pass in region.
     async fn open(&self, flags: OpenFlags, path: &str, state: &Self::State) -> Result<Self::File> {
         if flags.is_write() {
             not_implemented!("write support for s3 filesystem")
@@ -206,7 +205,7 @@ where
     fn poll_write(&mut self, _cx: &mut Context, _buf: &[u8]) -> Poll<Result<usize>> {
         // yet
         Poll::Ready(Err(DbError::new(
-            "S3FileHandle does not yest support writing",
+            "S3FileHandle does not yet support writing",
         )))
     }
 
