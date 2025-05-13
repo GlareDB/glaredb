@@ -2,6 +2,7 @@ use std::io::SeekFrom;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use glaredb_core::runtime::filesystem::file_list::NotImplementedFileList;
 use glaredb_core::runtime::filesystem::{
     File,
     FileOpenContext,
@@ -64,6 +65,7 @@ where
 {
     type File = GcsFileHandle<C>;
     type State = GcsFileSystemState;
+    type FileList = NotImplementedFileList;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
         let service_account = context.get_value("service_account")?;
@@ -150,6 +152,10 @@ where
         }
 
         Err(DbError::new(format!("Unexpected status code: {status}")))
+    }
+
+    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
+        NotImplementedFileList
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

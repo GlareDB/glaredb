@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use file_ext::FileExt;
+use file_list::FileList;
 use glaredb_error::{DbError, Result};
 
 use crate::arrays::scalar::ScalarValue;
@@ -270,6 +271,9 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Extra state used when opening or statting a single file.
     type State: Sync + Send;
 
+    /// File list used for prefix listing.
+    type FileList: FileList;
+
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State>;
 
     /// Open a file at a given path.
@@ -289,6 +293,8 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         path: &str,
         state: &Self::State,
     ) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
+
+    fn list_prefix(&self, prefix: &str, state: &Self::State) -> Self::FileList;
 
     /// Returns if this filesystem is able to handle the provided path.
     fn can_handle_path(&self, path: &str) -> bool;

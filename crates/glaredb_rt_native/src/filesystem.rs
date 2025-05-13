@@ -2,6 +2,7 @@ use std::fs::{self, File as StdFile, OpenOptions};
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::task::{Context, Poll};
 
+use glaredb_core::runtime::filesystem::file_list::NotImplementedFileList;
 use glaredb_core::runtime::filesystem::{
     File,
     FileOpenContext,
@@ -56,6 +57,7 @@ pub struct LocalFileSystem {}
 impl FileSystem for LocalFileSystem {
     type File = LocalFile;
     type State = ();
+    type FileList = NotImplementedFileList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
@@ -93,6 +95,10 @@ impl FileSystem for LocalFileSystem {
         };
 
         Ok(Some(FileStat { file_type }))
+    }
+
+    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
+        NotImplementedFileList
     }
 
     fn can_handle_path(&self, _path: &str) -> bool {

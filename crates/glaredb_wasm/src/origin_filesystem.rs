@@ -1,6 +1,7 @@
 use std::io;
 use std::task::{Context, Poll};
 
+use glaredb_core::runtime::filesystem::file_list::NotImplementedFileList;
 use glaredb_core::runtime::filesystem::{
     File,
     FileOpenContext,
@@ -194,6 +195,7 @@ impl OriginFileSystem {
 impl FileSystem for OriginFileSystem {
     type File = OriginFileHandle;
     type State = ();
+    type FileList = NotImplementedFileList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
@@ -252,6 +254,10 @@ impl FileSystem for OriginFileSystem {
             })),
             None => Ok(None),
         }
+    }
+
+    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
+        NotImplementedFileList
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

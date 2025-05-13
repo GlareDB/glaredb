@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 pub trait FileList: Debug + Sync + Send {
     /// List file paths, appending them to `paths`.
@@ -10,6 +10,17 @@ pub trait FileList: Debug + Sync + Send {
     /// Returns the number of paths appended. Returns 0 once there's nothing
     /// left to list.
     fn poll_list(&mut self, cx: &mut Context, paths: &mut Vec<String>) -> Poll<Result<usize>>;
+}
+
+#[derive(Debug)]
+pub struct NotImplementedFileList;
+
+impl FileList for NotImplementedFileList {
+    fn poll_list(&mut self, _cx: &mut Context, _paths: &mut Vec<String>) -> Poll<Result<usize>> {
+        Poll::Ready(Err(DbError::new(
+            "File listing is not implemented for this filesystem",
+        )))
+    }
 }
 
 pub trait FileListExt: FileList {

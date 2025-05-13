@@ -5,6 +5,7 @@ use std::task::{Context, Poll};
 
 use glaredb_error::{DbError, Result, not_implemented};
 
+use super::file_list::NotImplementedFileList;
 use super::{File, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 use crate::buffer::db_vec::DbVec;
@@ -30,6 +31,7 @@ impl MemoryFileSystem {
 impl FileSystem for MemoryFileSystem {
     type File = MemoryFileHandle;
     type State = ();
+    type FileList = NotImplementedFileList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
@@ -66,6 +68,10 @@ impl FileSystem for MemoryFileSystem {
         Ok(Some(FileStat {
             file_type: FileType::File,
         }))
+    }
+
+    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
+        NotImplementedFileList
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
