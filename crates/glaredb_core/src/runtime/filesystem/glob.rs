@@ -77,8 +77,8 @@ where
         cx: &mut Context,
         expanded: &mut Vec<String>,
     ) -> Poll<Result<ExpandResult>> {
-        // TODO: Probably need to track when we clear. List could be using it as a
-        // scratch buffer...
+        // TODO: Probably need to track when we clear. List could be using it as
+        // a scratch buffer... which would be weird.
         self.list_buf.clear();
         let n = match self.list.poll_list(cx, &mut self.list_buf)? {
             Poll::Ready(n) => n,

@@ -296,6 +296,9 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         state: &Self::State,
     ) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
 
+    /// List pathst with the given prefix.
+    ///
+    /// This should return paths in lexicographical order.
     fn list_prefix(&self, prefix: &str, state: &Self::State) -> Self::FileList;
 
     fn list_glob(&self, glob: &str, state: &Self::State) -> Result<GlobList<Self::FileList>> {

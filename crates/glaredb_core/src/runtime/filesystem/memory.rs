@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use glaredb_error::{DbError, Result, not_implemented};
 
-use super::file_list::NotImplementedFileList;
+use super::file_list::{FileList, NotImplementedFileList};
 use super::{File, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 use crate::buffer::db_vec::DbVec;
@@ -13,7 +13,6 @@ use crate::buffer::db_vec::DbVec;
 #[derive(Debug)]
 pub struct MemoryFileSystem {
     /// Manager to use for allocating file buffers.
-    #[allow(unused)] // Will be used for creates
     buffer_manager: RawBufferManager,
     /// Simple mapping of a flat name to byte buffer.
     files: scc::HashMap<String, Arc<DbVec<u8>>>,
@@ -26,12 +25,22 @@ impl MemoryFileSystem {
             files: scc::HashMap::new(),
         }
     }
+
+    // TODO: Probably remove when proper fs write support is in.
+    //
+    // This is mostly useful for testing right now.
+    pub fn insert(&self, path: impl Into<String>, file: impl AsRef<[u8]>) -> Result<()> {
+        let bs = DbVec::new_from_slice(&self.buffer_manager, file)?;
+        self.files.upsert(path.into(), Arc::new(bs));
+
+        Ok(())
+    }
 }
 
 impl FileSystem for MemoryFileSystem {
     type File = MemoryFileHandle;
     type State = ();
-    type FileList = NotImplementedFileList;
+    type FileList = MemoryFileList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
@@ -70,14 +79,38 @@ impl FileSystem for MemoryFileSystem {
         }))
     }
 
-    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
-        NotImplementedFileList
+    fn list_prefix(&self, prefix: &str, _state: &Self::State) -> Self::FileList {
+        let mut paths = Vec::new();
+        self.files.scan(|path, _| {
+            if path.starts_with(prefix) {
+                paths.push(path.clone());
+            }
+        });
+
+        // TODO: Probably need to dedup, scc hash map can scan duplicates in
+        // case of concurrent resizes.
+        paths.sort_unstable();
+
+        MemoryFileList { paths }
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
         let path = Path::new(path);
         // TODO: Have separate function that doesn't return error.
         get_normalized_file_name(path).is_ok()
+    }
+}
+
+#[derive(Debug)]
+pub struct MemoryFileList {
+    paths: Vec<String>,
+}
+
+impl FileList for MemoryFileList {
+    fn poll_list(&mut self, _cx: &mut Context, paths: &mut Vec<String>) -> Poll<Result<usize>> {
+        let n = self.paths.len();
+        paths.append(&mut self.paths);
+        Poll::Ready(Ok(n))
     }
 }
 
@@ -195,6 +228,8 @@ mod tests {
 
     use super::*;
     use crate::buffer::buffer_manager::DefaultBufferManager;
+    use crate::runtime::filesystem::file_list::FileListExt;
+    use crate::util::future::block_on;
     use crate::util::task::noop_context;
 
     #[test]
@@ -260,5 +295,71 @@ mod tests {
             .poll_read(&mut noop_context(), &mut out)
             .map(|r| r.unwrap());
         assert_eq!(Poll::Ready(0), poll);
+    }
+
+    #[test]
+    fn memory_list_prefix() {
+        let fs = MemoryFileSystem::new(&DefaultBufferManager);
+
+        fs.insert("file_a.parquet", []).unwrap();
+        fs.insert("file_b.parquet", []).unwrap();
+        fs.insert("temp_a.parquet", []).unwrap();
+        fs.insert("file_c.parquet", []).unwrap();
+        fs.insert("file_d.parquet", []).unwrap();
+
+        let mut paths = Vec::new();
+        block_on(fs.list_prefix("file_", &()).list_all(&mut paths)).unwrap();
+
+        let expected = [
+            "file_a.parquet".to_string(),
+            "file_b.parquet".to_string(),
+            "file_c.parquet".to_string(),
+            "file_d.parquet".to_string(),
+        ];
+        assert_eq!(&expected, paths.as_slice());
+    }
+
+    #[test]
+    fn memory_list_glob() {
+        let fs = MemoryFileSystem::new(&DefaultBufferManager);
+
+        fs.insert("file_a.parquet", []).unwrap();
+        fs.insert("file_b.parquet", []).unwrap();
+        fs.insert("temp_a.parquet", []).unwrap();
+        fs.insert("file_c.parquet", []).unwrap();
+        fs.insert("file_d.parquet", []).unwrap();
+
+        let mut paths = Vec::new();
+        block_on(
+            fs.list_glob("file_*.parquet", &())
+                .unwrap()
+                .expand_all(&mut paths),
+        )
+        .unwrap();
+
+        let expected = [
+            "file_a.parquet".to_string(),
+            "file_b.parquet".to_string(),
+            "file_c.parquet".to_string(),
+            "file_d.parquet".to_string(),
+        ];
+        assert_eq!(&expected, paths.as_slice());
+
+        let mut paths = Vec::new();
+        block_on(
+            fs.list_glob("*.parquet", &())
+                .unwrap()
+                .expand_all(&mut paths),
+        )
+        .unwrap();
+
+        let expected = [
+            "file_a.parquet".to_string(),
+            "file_b.parquet".to_string(),
+            "file_c.parquet".to_string(),
+            "file_d.parquet".to_string(),
+            "temp_a.parquet".to_string(),
+        ];
+        assert_eq!(&expected, paths.as_slice());
     }
 }
