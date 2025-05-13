@@ -256,7 +256,7 @@ impl FileSystem for OriginFileSystem {
         }
     }
 
-    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
+    fn prefix_list(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
         NotImplementedFileList
     }
 

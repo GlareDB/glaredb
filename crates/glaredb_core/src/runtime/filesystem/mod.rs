@@ -1,6 +1,7 @@
 pub mod dispatch;
 pub mod file_ext;
 pub mod file_list;
+pub mod file_provider;
 pub mod glob;
 pub mod memory;
 
@@ -14,6 +15,7 @@ use std::task::{Context, Poll};
 
 use file_ext::FileExt;
 use file_list::FileList;
+use file_provider::FileProvider;
 use glaredb_error::{DbError, Result};
 use glob::GlobList;
 
@@ -299,9 +301,9 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// List pathst with the given prefix.
     ///
     /// This should return paths in lexicographical order.
-    fn list_prefix(&self, prefix: &str, state: &Self::State) -> Self::FileList;
+    fn prefix_list(&self, prefix: &str, state: &Self::State) -> Self::FileList;
 
-    fn list_glob(&self, glob: &str, state: &Self::State) -> Result<GlobList<Self::FileList>> {
+    fn glob_list(&self, glob: &str, state: &Self::State) -> Result<GlobList<Self::FileList>> {
         GlobList::try_new(glob, self, state)
     }
 
@@ -349,6 +351,14 @@ impl FileSystemWithState {
 
     pub fn stat<'a>(&'a self, path: &'a str) -> FileSystemFuture<'a, Result<Option<FileStat>>> {
         (self.fs.vtable.stat_fn)(self.fs.filesystem.as_ref(), path, self.state.0.as_ref())
+    }
+
+    pub fn glob_list_file_provider(&self, glob: &str) -> Result<Box<dyn FileProvider>> {
+        (self.fs.vtable.glob_list_file_provider_fn)(
+            self.fs.filesystem.as_ref(),
+            glob,
+            self.state.0.as_ref(),
+        )
     }
 }
 
@@ -412,6 +422,12 @@ pub(crate) struct RawFileSystemVTable {
         state: &'a dyn Any,
     ) -> FileSystemFuture<'a, Result<Option<FileStat>>>,
 
+    glob_list_file_provider_fn: for<'a> fn(
+        fs: &'a dyn Any,
+        glob: &'a str,
+        state: &'a dyn Any,
+    ) -> Result<Box<dyn FileProvider>>,
+
     can_handle_path_fn: fn(fs: &dyn Any, path: &str) -> bool,
 }
 
@@ -452,6 +468,13 @@ where
             let fs = fs.downcast_ref::<Self>().unwrap();
             let state = state.downcast_ref::<S::State>().unwrap();
             Box::pin(async { fs.stat(path, state).await })
+        },
+
+        glob_list_file_provider_fn: |fs, glob, state| {
+            let fs = fs.downcast_ref::<Self>().unwrap();
+            let state = state.downcast_ref::<S::State>().unwrap();
+            let glob = fs.glob_list(glob, state)?;
+            Ok(Box::new(glob))
         },
 
         can_handle_path_fn: |fs, path| {

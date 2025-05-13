@@ -96,7 +96,7 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
+    fn prefix_list(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
         NotImplementedFileList
     }
 

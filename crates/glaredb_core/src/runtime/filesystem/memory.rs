@@ -79,7 +79,7 @@ impl FileSystem for MemoryFileSystem {
         }))
     }
 
-    fn list_prefix(&self, prefix: &str, _state: &Self::State) -> Self::FileList {
+    fn prefix_list(&self, prefix: &str, _state: &Self::State) -> Self::FileList {
         let mut paths = Vec::new();
         self.files.scan(|path, _| {
             if path.starts_with(prefix) {
@@ -308,7 +308,7 @@ mod tests {
         fs.insert("file_d.parquet", []).unwrap();
 
         let mut paths = Vec::new();
-        block_on(fs.list_prefix("file_", &()).list_all(&mut paths)).unwrap();
+        block_on(fs.prefix_list("file_", &()).list_all(&mut paths)).unwrap();
 
         let expected = [
             "file_a.parquet".to_string(),
@@ -331,7 +331,7 @@ mod tests {
 
         let mut paths = Vec::new();
         block_on(
-            fs.list_glob("file_*.parquet", &())
+            fs.glob_list("file_*.parquet", &())
                 .unwrap()
                 .expand_all(&mut paths),
         )
@@ -347,7 +347,7 @@ mod tests {
 
         let mut paths = Vec::new();
         block_on(
-            fs.list_glob("*.parquet", &())
+            fs.glob_list("*.parquet", &())
                 .unwrap()
                 .expand_all(&mut paths),
         )

@@ -6,16 +6,7 @@ use globset::{GlobBuilder, GlobMatcher};
 
 use super::FileSystem;
 use super::file_list::FileList;
-
-/// Result of attempting to expand the next batch of paths.
-///
-/// Needed since we may receive a batch of paths all don't match the glob. We
-/// need to differentiate between that case, and being truely exhausted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExpandResult {
-    Expanded(usize),
-    Exhausted,
-}
+use super::file_provider::FileProvider;
 
 #[derive(Debug)]
 pub struct GlobList<L: FileList> {
@@ -41,7 +32,7 @@ where
         // exhausted.
 
         let (prefix, pattern) = split_prefix_glob(glob);
-        let list = fs.list_prefix(prefix, state);
+        let list = fs.prefix_list(prefix, state);
 
         let matcher = GlobBuilder::new(pattern)
             .literal_separator(true) // Do not allow '*' or '?' to match path separators.
@@ -76,27 +67,44 @@ where
         &mut self,
         cx: &mut Context,
         expanded: &mut Vec<String>,
-    ) -> Poll<Result<ExpandResult>> {
-        // TODO: Probably need to track when we clear. List could be using it as
-        // a scratch buffer... which would be weird.
-        self.list_buf.clear();
-        let n = match self.list.poll_list(cx, &mut self.list_buf)? {
-            Poll::Ready(n) => n,
-            Poll::Pending => return Poll::Pending,
-        };
-        if n == 0 {
-            return Poll::Ready(Ok(ExpandResult::Exhausted));
+    ) -> Poll<Result<usize>> {
+        loop {
+            // TODO: Probably need to track when we clear. List could be using it as
+            // a scratch buffer... which would be weird.
+            self.list_buf.clear();
+            let n = match self.list.poll_list(cx, &mut self.list_buf)? {
+                Poll::Ready(n) => n,
+                Poll::Pending => return Poll::Pending,
+            };
+            if n == 0 {
+                return Poll::Ready(Ok(0));
+            }
+
+            let out_len = expanded.len();
+            // Extend `out` with only paths that pass the glob matcher.
+            expanded.extend(self.list_buf.drain(..).filter(|path| {
+                let rel = &path[self.prefix_len..];
+                self.matcher.is_match(rel)
+            }));
+            let append_count = expanded.len() - out_len;
+
+            if append_count > 0 {
+                // We have paths, return them.
+                return Poll::Ready(Ok(append_count));
+            }
+
+            // We filtered everything out. Read the next batch of paths.
+            continue;
         }
+    }
+}
 
-        let out_len = expanded.len();
-        // Extend `out` with only paths that pass the glob matcher.
-        expanded.extend(self.list_buf.drain(..).filter(|path| {
-            let rel = &path[self.prefix_len..];
-            self.matcher.is_match(rel)
-        }));
-        let append_count = expanded.len() - out_len;
-
-        Poll::Ready(Ok(ExpandResult::Expanded(append_count)))
+impl<L> FileProvider for GlobList<L>
+where
+    L: FileList,
+{
+    fn poll_next(&mut self, cx: &mut Context, out: &mut Vec<String>) -> Poll<Result<usize>> {
+        self.poll_expand(cx, out)
     }
 }
 
@@ -110,7 +118,7 @@ impl<'a, L> Future for ExpandNext<'a, L>
 where
     L: FileList,
 {
-    type Output = Result<ExpandResult>;
+    type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
@@ -135,21 +143,26 @@ where
         let this = self.get_mut();
 
         loop {
-            let expand_res = match this.glob.poll_expand(cx, this.expanded) {
+            let n = match this.glob.poll_expand(cx, this.expanded) {
                 Poll::Ready(Ok(n)) => n,
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
             };
 
-            match expand_res {
-                ExpandResult::Expanded(n) => {
-                    this.total += n; // 'n' may be zero.
-                    // Continue... keep expanding.
-                }
-                ExpandResult::Exhausted => return Poll::Ready(Ok(this.total)),
+            this.total += n;
+            if n == 0 {
+                // We've read everything.
+                return Poll::Ready(Ok(n));
             }
+
+            // Continue... keep expanding.
         }
     }
+}
+
+/// If we should consider the given path a glob.
+pub fn is_glob(path: &str) -> bool {
+    path.contains(['*', '?', '[', '{'])
 }
 
 /// Returns (prefix, glob) where prefix is a static prefix.

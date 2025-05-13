@@ -8,6 +8,7 @@ pub mod read_text;
 pub mod series;
 pub mod unnest;
 
+use glob::FUNCTION_SET_GLOB;
 use list_databases::FUNCTION_SET_LIST_DATABASES;
 use list_entries::{
     FUNCTION_SET_LIST_FUNCTIONS,
@@ -46,4 +47,5 @@ pub const BUILTIN_TABLE_FUNCTION_SETS: &[TableFunctionSet] = &[
     FUNCTION_SET_MEMORY_SCAN,
     // File functions.
     FUNCTION_SET_READ_TEXT,
+    FUNCTION_SET_GLOB,
 ];

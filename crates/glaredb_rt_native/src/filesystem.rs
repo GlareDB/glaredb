@@ -97,7 +97,7 @@ impl FileSystem for LocalFileSystem {
         Ok(Some(FileStat { file_type }))
     }
 
-    fn list_prefix(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
+    fn prefix_list(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
         NotImplementedFileList
     }
 
