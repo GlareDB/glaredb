@@ -24,6 +24,13 @@ impl FileList for NotImplementedFileList {
 }
 
 pub trait FileListExt: FileList {
+    /// List the next set of files.
+    ///
+    /// Resolves to 0 once there are not more files to list.
+    fn list<'a>(&'a mut self, paths: &'a mut Vec<String>) -> List<'a, Self> {
+        List { list: self, paths }
+    }
+
     /// List all files, appending them to `paths`.
     ///
     /// The future will resolve to the total number of items appended to the
@@ -34,6 +41,26 @@ pub trait FileListExt: FileList {
             paths,
             total: 0,
         }
+    }
+}
+
+impl<L> FileListExt for L where L: FileList {}
+
+#[derive(Debug)]
+pub struct List<'a, L: FileList + ?Sized> {
+    list: &'a mut L,
+    paths: &'a mut Vec<String>,
+}
+
+impl<'a, L> Future for List<'a, L>
+where
+    L: FileList + ?Sized,
+{
+    type Output = Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        this.list.poll_list(cx, this.paths)
     }
 }
 

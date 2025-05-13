@@ -2,12 +2,20 @@ use glaredb_error::{Result, ResultExt};
 use globset::{GlobBuilder, GlobMatcher};
 
 use super::FileSystem;
-use super::file_list::FileList;
+use super::file_list::{FileList, FileListExt};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExpandResult {
+    Expanded(usize),
+    Exhausted,
+}
 
 #[derive(Debug)]
 pub struct GlobList<L: FileList> {
     list: L,
     matcher: GlobMatcher,
+    list_buf: Vec<String>,
+    prefix_len: usize,
 }
 
 impl<L> GlobList<L>
@@ -34,7 +42,30 @@ where
             .context("Failed to build glob matcher")?
             .compile_matcher();
 
-        Ok(GlobList { list, matcher })
+        Ok(GlobList {
+            list,
+            matcher,
+            list_buf: Vec::new(),
+            prefix_len: prefix.len(),
+        })
+    }
+
+    pub async fn expand_next(&mut self, out: &mut Vec<String>) -> Result<ExpandResult> {
+        self.list_buf.clear();
+        let n = self.list.list(&mut self.list_buf).await?;
+        if n == 0 {
+            return Ok(ExpandResult::Exhausted);
+        }
+
+        let out_len = out.len();
+        // Extend `out` with only paths that pass the glob matcher.
+        out.extend(self.list_buf.drain(..).filter(|path| {
+            let rel = &path[self.prefix_len..];
+            self.matcher.is_match(rel)
+        }));
+        let append_count = out.len() - out_len;
+
+        Ok(ExpandResult::Expanded(append_count))
     }
 }
 
