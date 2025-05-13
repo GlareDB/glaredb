@@ -422,6 +422,7 @@ pub(crate) struct RawFileSystemVTable {
         state: &'a dyn Any,
     ) -> FileSystemFuture<'a, Result<Option<FileStat>>>,
 
+    // TODO: ... Doesn't really fit being a "vtable" with this.
     glob_list_file_provider_fn: for<'a> fn(
         fs: &'a dyn Any,
         glob: &'a str,
