@@ -1,6 +1,7 @@
 pub mod dispatch;
 pub mod file_ext;
 pub mod file_list;
+pub mod glob;
 pub mod memory;
 
 use std::any::Any;
@@ -14,6 +15,7 @@ use std::task::{Context, Poll};
 use file_ext::FileExt;
 use file_list::FileList;
 use glaredb_error::{DbError, Result};
+use glob::GlobList;
 
 use crate::arrays::scalar::ScalarValue;
 use crate::catalog::context::DatabaseContext;
@@ -295,6 +297,10 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     ) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
 
     fn list_prefix(&self, prefix: &str, state: &Self::State) -> Self::FileList;
+
+    fn list_glob(&self, glob: &str, state: &Self::State) -> Result<GlobList<Self::FileList>> {
+        GlobList::try_new(glob, self, state)
+    }
 
     /// Returns if this filesystem is able to handle the provided path.
     fn can_handle_path(&self, path: &str) -> bool;
