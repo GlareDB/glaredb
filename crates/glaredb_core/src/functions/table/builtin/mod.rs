@@ -1,3 +1,4 @@
+pub mod glob;
 pub mod list_databases;
 pub mod list_entries;
 pub mod list_schemas;
