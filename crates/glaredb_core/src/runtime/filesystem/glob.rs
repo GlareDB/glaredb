@@ -1,9 +1,16 @@
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use glaredb_error::{Result, ResultExt};
 use globset::{GlobBuilder, GlobMatcher};
 
 use super::FileSystem;
-use super::file_list::{FileList, FileListExt};
+use super::file_list::FileList;
 
+/// Result of attempting to expand the next batch of paths.
+///
+/// Needed since we may receive a batch of paths all don't match the glob. We
+/// need to differentiate between that case, and being truely exhausted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExpandResult {
     Expanded(usize),
@@ -27,9 +34,9 @@ where
         F: FileSystem<FileList = L> + ?Sized,
     {
         // TODO: This will only do a single list which will likely iterate more
-        // paths that we want.
+        // paths than we want.
         //
-        // Instead we should be incrementing building up the prefix to use, or
+        // Instead we should be incrementally building up the prefix to use, or
         // use some sort of "prefix stack" to keep listing until we're
         // exhausted.
 
@@ -50,22 +57,98 @@ where
         })
     }
 
-    pub async fn expand_next(&mut self, out: &mut Vec<String>) -> Result<ExpandResult> {
+    pub fn expand_next<'a>(&'a mut self, expanded: &'a mut Vec<String>) -> ExpandNext<'a, L> {
+        ExpandNext {
+            glob: self,
+            expanded,
+        }
+    }
+
+    pub fn expand_all<'a>(&'a mut self, expanded: &'a mut Vec<String>) -> ExpandAll<'a, L> {
+        ExpandAll {
+            glob: self,
+            expanded,
+            total: 0,
+        }
+    }
+
+    pub fn poll_expand(
+        &mut self,
+        cx: &mut Context,
+        expanded: &mut Vec<String>,
+    ) -> Poll<Result<ExpandResult>> {
+        // TODO: Probably need to track when we clear. List could be using it as a
+        // scratch buffer...
         self.list_buf.clear();
-        let n = self.list.list(&mut self.list_buf).await?;
+        let n = match self.list.poll_list(cx, &mut self.list_buf)? {
+            Poll::Ready(n) => n,
+            Poll::Pending => return Poll::Pending,
+        };
         if n == 0 {
-            return Ok(ExpandResult::Exhausted);
+            return Poll::Ready(Ok(ExpandResult::Exhausted));
         }
 
-        let out_len = out.len();
+        let out_len = expanded.len();
         // Extend `out` with only paths that pass the glob matcher.
-        out.extend(self.list_buf.drain(..).filter(|path| {
+        expanded.extend(self.list_buf.drain(..).filter(|path| {
             let rel = &path[self.prefix_len..];
             self.matcher.is_match(rel)
         }));
-        let append_count = out.len() - out_len;
+        let append_count = expanded.len() - out_len;
 
-        Ok(ExpandResult::Expanded(append_count))
+        Poll::Ready(Ok(ExpandResult::Expanded(append_count)))
+    }
+}
+
+#[derive(Debug)]
+pub struct ExpandNext<'a, L: FileList> {
+    glob: &'a mut GlobList<L>,
+    expanded: &'a mut Vec<String>,
+}
+
+impl<'a, L> Future for ExpandNext<'a, L>
+where
+    L: FileList,
+{
+    type Output = Result<ExpandResult>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        this.glob.poll_expand(cx, this.expanded)
+    }
+}
+
+#[derive(Debug)]
+pub struct ExpandAll<'a, L: FileList> {
+    glob: &'a mut GlobList<L>,
+    expanded: &'a mut Vec<String>,
+    total: usize,
+}
+
+impl<'a, L> Future for ExpandAll<'a, L>
+where
+    L: FileList,
+{
+    type Output = Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        loop {
+            let expand_res = match this.glob.poll_expand(cx, this.expanded) {
+                Poll::Ready(Ok(n)) => n,
+                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                Poll::Pending => return Poll::Pending,
+            };
+
+            match expand_res {
+                ExpandResult::Expanded(n) => {
+                    this.total += n; // 'n' may be zero.
+                    // Continue... keep expanding.
+                }
+                ExpandResult::Exhausted => return Poll::Ready(Ok(this.total)),
+            }
+        }
     }
 }
 
