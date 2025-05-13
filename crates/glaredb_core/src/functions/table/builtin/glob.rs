@@ -144,7 +144,7 @@ impl TableScanFunction for Glob {
                         ProjectedColumn::Data(0) => {
                             let mut buf = PhysicalUtf8::get_addressable_mut(&mut arr.data)?;
                             loop {
-                                if *curr_count > cap {
+                                if *curr_count >= cap {
                                     return Ok(());
                                 }
 

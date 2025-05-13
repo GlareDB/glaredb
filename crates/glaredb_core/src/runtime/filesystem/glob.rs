@@ -1,28 +1,28 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use glaredb_error::{Result, ResultExt};
+use glaredb_error::{DbError, Result, ResultExt};
 use globset::{GlobBuilder, GlobMatcher};
 
 use super::FileSystem;
-use super::file_list::FileList;
+use super::dir_list::{DirEntry, DirList};
 use super::file_provider::FileProvider;
 
 #[derive(Debug)]
-pub struct GlobList<L: FileList> {
-    list: L,
+pub struct GlobList<L: DirList> {
     matcher: GlobMatcher,
-    list_buf: Vec<String>,
-    prefix_len: usize,
+    list_buf: Vec<DirEntry>,
+    /// (dir, dir_list)
+    stack: Vec<(String, L)>,
 }
 
 impl<L> GlobList<L>
 where
-    L: FileList,
+    L: DirList,
 {
-    pub fn try_new<F>(glob: &str, fs: &F, state: &F::State) -> Result<Self>
+    pub fn try_new<F>(fs: &F, state: &F::State, glob: &str) -> Result<Self>
     where
-        F: FileSystem<FileList = L> + ?Sized,
+        F: FileSystem<DirList = L> + ?Sized,
     {
         // TODO: This will only do a single list which will likely iterate more
         // paths than we want.
@@ -31,21 +31,30 @@ where
         // use some sort of "prefix stack" to keep listing until we're
         // exhausted.
 
-        let (prefix, pattern) = split_prefix_glob(glob);
-        let list = fs.prefix_list(prefix, state);
+        let mut segments = split_segments(glob);
+        if segments.is_empty() {
+            return Err(DbError::new("Missing segments for glob"));
+        }
 
-        let matcher = GlobBuilder::new(pattern)
-            .literal_separator(true) // Do not allow '*' or '?' to match path separators.
+        // Find the root dir to use.
+        let mut root = Vec::new();
+        while !segments.is_empty() && !is_glob(&segments[0]) {
+            root.push(segments.remove(0));
+        }
+
+        // TODO: Probably needs to be os/filesystem specific.
+        //
+        // E.g. for s3, always use '/'. If local and windows, use '\'.
+        let root = root.join("/");
+
+        // Build matcher for original glob.
+        let matcher = GlobBuilder::new(glob)
+            .literal_separator(true)
             .build()
             .context("Failed to build glob matcher")?
             .compile_matcher();
 
-        Ok(GlobList {
-            list,
-            matcher,
-            list_buf: Vec::new(),
-            prefix_len: prefix.len(),
-        })
+        unimplemented!()
     }
 
     pub fn expand_next<'a>(&'a mut self, expanded: &'a mut Vec<String>) -> ExpandNext<'a, L> {
@@ -69,39 +78,40 @@ where
         expanded: &mut Vec<String>,
     ) -> Poll<Result<usize>> {
         loop {
-            // TODO: Probably need to track when we clear. List could be using it as
-            // a scratch buffer... which would be weird.
-            self.list_buf.clear();
-            let n = match self.list.poll_list(cx, &mut self.list_buf)? {
-                Poll::Ready(n) => n,
-                Poll::Pending => return Poll::Pending,
-            };
-            if n == 0 {
-                return Poll::Ready(Ok(0));
-            }
+            unimplemented!()
+            // // TODO: Probably need to track when we clear. List could be using it as
+            // // a scratch buffer... which would be weird.
+            // self.list_buf.clear();
+            // let n = match self.list.poll_list(cx, &mut self.list_buf)? {
+            //     Poll::Ready(n) => n,
+            //     Poll::Pending => return Poll::Pending,
+            // };
+            // if n == 0 {
+            //     return Poll::Ready(Ok(0));
+            // }
 
-            let out_len = expanded.len();
-            // Extend `out` with only paths that pass the glob matcher.
-            expanded.extend(self.list_buf.drain(..).filter(|path| {
-                let rel = &path[self.prefix_len..];
-                self.matcher.is_match(rel)
-            }));
-            let append_count = expanded.len() - out_len;
+            // let out_len = expanded.len();
+            // // Extend `out` with only paths that pass the glob matcher.
+            // expanded.extend(self.list_buf.drain(..).filter(|path| {
+            //     let rel = &path[self.prefix_len..];
+            //     self.matcher.is_match(rel)
+            // }));
+            // let append_count = expanded.len() - out_len;
 
-            if append_count > 0 {
-                // We have paths, return them.
-                return Poll::Ready(Ok(append_count));
-            }
+            // if append_count > 0 {
+            //     // We have paths, return them.
+            //     return Poll::Ready(Ok(append_count));
+            // }
 
-            // We filtered everything out. Read the next batch of paths.
-            continue;
+            // // We filtered everything out. Read the next batch of paths.
+            // continue;
         }
     }
 }
 
 impl<L> FileProvider for GlobList<L>
 where
-    L: FileList,
+    L: DirList,
 {
     fn poll_next(&mut self, cx: &mut Context, out: &mut Vec<String>) -> Poll<Result<usize>> {
         self.poll_expand(cx, out)
@@ -109,14 +119,14 @@ where
 }
 
 #[derive(Debug)]
-pub struct ExpandNext<'a, L: FileList> {
+pub struct ExpandNext<'a, L: DirList> {
     glob: &'a mut GlobList<L>,
     expanded: &'a mut Vec<String>,
 }
 
 impl<'a, L> Future for ExpandNext<'a, L>
 where
-    L: FileList,
+    L: DirList,
 {
     type Output = Result<usize>;
 
@@ -127,7 +137,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ExpandAll<'a, L: FileList> {
+pub struct ExpandAll<'a, L: DirList> {
     glob: &'a mut GlobList<L>,
     expanded: &'a mut Vec<String>,
     total: usize,
@@ -135,7 +145,7 @@ pub struct ExpandAll<'a, L: FileList> {
 
 impl<'a, L> Future for ExpandAll<'a, L>
 where
-    L: FileList,
+    L: DirList,
 {
     type Output = Result<usize>;
 
@@ -165,18 +175,15 @@ pub fn is_glob(path: &str) -> bool {
     path.contains(['*', '?', '[', '{'])
 }
 
-/// Returns (prefix, glob) where prefix is a static prefix.
-fn split_prefix_glob(pattern: &str) -> (&str, &str) {
-    let glob_pos = pattern
-        .find(|c| c == '*' || c == '?' || c == '[' || c == '{')
-        .unwrap_or(pattern.len());
-    // Find last path separator before that glob char.
-    let slash_pos = pattern[..glob_pos]
-        .rfind(|c| c == '/' || c == '\\')
-        .map(|i| i + 1)
-        .unwrap_or(0);
-
-    (&pattern[..slash_pos], &pattern[slash_pos..])
+/// Split a glob like "data/2025-*/file-*.parquet" into ["data", "2025-*",
+/// "file-*.parquet"]
+fn split_segments<'a>(pattern: &'a str) -> Vec<&'a str> {
+    // TODO: '\' on windows?
+    pattern
+        .trim_start_matches("./")
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 #[cfg(test)]
@@ -184,40 +191,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn split_prefix_tests() {
+    fn split_segments_tests() {
         struct TestCase {
             input: &'static str,
-            prefix: &'static str,
-            pattern: &'static str,
+            segments: Vec<&'static str>,
         }
 
         let cases = [
             TestCase {
                 input: "*.parquet",
-                prefix: "",
-                pattern: "*.parquet",
+                segments: vec!["*.parquet"],
             },
             TestCase {
                 input: "./*.parquet",
-                prefix: "./",
-                pattern: "*.parquet",
+                segments: vec!["*.parquet"],
             },
             TestCase {
-                input: "s3://bucket/*.parquet",
-                prefix: "s3://bucket/",
-                pattern: "*.parquet",
+                input: "dir/**/file.parquet",
+                segments: vec!["dir", "**", "file.parquet"],
             },
             TestCase {
-                input: "s3://bucket/**/file.parquet",
-                prefix: "s3://bucket/",
-                pattern: "**/file.parquet",
+                input: "data/2025-*/file-*.parquet",
+                segments: vec!["data", "2025-*", "file-*.parquet"],
             },
         ];
 
         for case in cases {
-            let (prefix, pattern) = split_prefix_glob(&case.input);
-            assert_eq!(case.prefix, prefix);
-            assert_eq!(case.pattern, pattern);
+            let segments: Vec<_> = split_segments(case.input);
+            assert_eq!(case.segments, segments);
         }
     }
 }

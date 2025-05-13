@@ -1,4 +1,4 @@
-use glaredb_core::runtime::filesystem::file_list::NotImplementedFileList;
+use glaredb_core::runtime::filesystem::file_list::NotImplementedDirList;
 use glaredb_core::runtime::filesystem::{
     FileOpenContext,
     FileStat,
@@ -43,7 +43,7 @@ where
 {
     type File = HttpFileHandle<C, NopRequestSigner>;
     type State = ();
-    type FileList = NotImplementedFileList;
+    type DirList = NotImplementedDirList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
@@ -96,8 +96,8 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn prefix_list(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
-        NotImplementedFileList
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::DirList {
+        NotImplementedDirList
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

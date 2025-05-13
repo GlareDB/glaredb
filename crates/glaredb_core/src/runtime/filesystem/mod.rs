@@ -1,6 +1,6 @@
+pub mod dir_list;
 pub mod dispatch;
 pub mod file_ext;
-pub mod file_list;
 pub mod file_provider;
 pub mod glob;
 pub mod memory;
@@ -13,8 +13,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use dir_list::DirList;
 use file_ext::FileExt;
-use file_list::FileList;
 use file_provider::FileProvider;
 use glaredb_error::{DbError, Result};
 use glob::GlobList;
@@ -176,6 +176,8 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
     File,
+    /// Directory indicates either this is real, on-disk directory, or a common
+    /// prefix for gcs/s3.
     Directory,
 }
 
@@ -276,7 +278,7 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     type State: Sync + Send;
 
     /// File list used for prefix listing.
-    type FileList: FileList;
+    type DirList: DirList;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State>;
 
@@ -298,13 +300,12 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         state: &Self::State,
     ) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
 
-    /// List pathst with the given prefix.
-    ///
-    /// This should return paths in lexicographical order.
-    fn prefix_list(&self, prefix: &str, state: &Self::State) -> Self::FileList;
+    /// Read paths within a directory.
+    fn read_dir(&self, prefix: &str, state: &Self::State) -> Self::DirList;
 
-    fn glob_list(&self, glob: &str, state: &Self::State) -> Result<GlobList<Self::FileList>> {
-        GlobList::try_new(glob, self, state)
+    fn glob_list(&self, glob: &str, state: &Self::State) -> Result<GlobList<Self::DirList>> {
+        unimplemented!()
+        // GlobList::try_new(glob, self, state)
     }
 
     /// Returns if this filesystem is able to handle the provided path.

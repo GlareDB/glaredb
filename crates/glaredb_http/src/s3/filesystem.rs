@@ -2,7 +2,7 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 use chrono::Utc;
-use glaredb_core::runtime::filesystem::file_list::NotImplementedFileList;
+use glaredb_core::runtime::filesystem::file_list::NotImplementedDirList;
 use glaredb_core::runtime::filesystem::{
     File,
     FileOpenContext,
@@ -73,7 +73,7 @@ where
 {
     type File = S3FileHandle<C>;
     type State = S3FileSystemState;
-    type FileList = NotImplementedFileList;
+    type DirList = NotImplementedDirList;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
         let key_id = context.get_value("access_key_id")?;
@@ -152,8 +152,8 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn prefix_list(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
-        NotImplementedFileList
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::DirList {
+        NotImplementedDirList
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

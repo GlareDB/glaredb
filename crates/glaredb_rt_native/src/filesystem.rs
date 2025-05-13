@@ -1,8 +1,9 @@
 use std::fs::{self, File as StdFile, OpenOptions};
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 use std::task::{Context, Poll};
 
-use glaredb_core::runtime::filesystem::file_list::NotImplementedFileList;
+use glaredb_core::runtime::filesystem::file_list::{DirList, NotImplementedDirList};
 use glaredb_core::runtime::filesystem::{
     File,
     FileOpenContext,
@@ -57,7 +58,7 @@ pub struct LocalFileSystem {}
 impl FileSystem for LocalFileSystem {
     type File = LocalFile;
     type State = ();
-    type FileList = NotImplementedFileList;
+    type DirList = LocalDirList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
@@ -97,12 +98,56 @@ impl FileSystem for LocalFileSystem {
         Ok(Some(FileStat { file_type }))
     }
 
-    fn prefix_list(&self, _prefix: &str, _state: &Self::State) -> Self::FileList {
-        NotImplementedFileList
+    fn read_dir(&self, prefix: &str, _state: &Self::State) -> Self::DirList {
+        LocalDirList {
+            root: PathBuf::from(prefix),
+            exhausted: false,
+        }
     }
 
     fn can_handle_path(&self, _path: &str) -> bool {
         // yes
         true
+    }
+}
+
+#[derive(Debug)]
+pub struct LocalDirList {
+    root: PathBuf,
+    exhausted: bool,
+}
+
+impl LocalDirList {
+    fn list_inner(&mut self, paths: &mut Vec<String>) -> Result<usize> {
+        if self.exhausted {
+            return Ok(0);
+        }
+
+        fn inner(dir: &Path, paths: &mut Vec<String>) -> Result<()> {
+            if dir.is_dir() {
+                for entry in fs::read_dir(dir).context("Failed to read directory")? {
+                    let entry = entry.context("Failed to get entry")?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        inner(&path, paths)?;
+                    } else {
+                        paths.push(path.to_string_lossy().to_string());
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        let n = paths.len();
+        inner(&self.root, paths)?;
+        self.exhausted = true;
+
+        Ok(paths.len() - n)
+    }
+}
+
+impl DirList for LocalDirList {
+    fn poll_list(&mut self, _cx: &mut Context, paths: &mut Vec<String>) -> Poll<Result<usize>> {
+        Poll::Ready(self.list_inner(paths))
     }
 }
