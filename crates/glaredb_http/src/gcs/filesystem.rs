@@ -2,7 +2,6 @@ use std::io::SeekFrom;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
 use glaredb_core::runtime::filesystem::{
     FileHandle,
     FileOpenContext,
@@ -17,6 +16,7 @@ use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
 use super::credentials::{AccessToken, ServiceAccount};
+use super::directory::GcsDirHandle;
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::{HttpFileHandle, RequestSigner};
 
@@ -66,7 +66,7 @@ where
     const NAME: &str = "GCS";
 
     type FileHandle = GcsFileHandle<C>;
-    type ReadDirHandle = DirHandleNotImplemented;
+    type ReadDirHandle = GcsDirHandle<C>;
     type State = GcsFileSystemState;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {

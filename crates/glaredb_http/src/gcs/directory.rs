@@ -2,8 +2,17 @@ use std::task::{Context, Poll};
 
 use glaredb_core::runtime::filesystem::directory::{DirEntry, ReadDirHandle};
 use glaredb_error::Result;
+use url::Url;
 
 use crate::client::HttpClient;
+
+#[derive(Debug)]
+pub struct GcsDirAccess {
+    /// JSON api url.
+    ///
+    /// 'https://storage.googleapis.com/storage/v1/b/bucket/o'
+    url: Url,
+}
 
 #[derive(Debug)]
 pub struct GcsDirHandle<C: HttpClient> {

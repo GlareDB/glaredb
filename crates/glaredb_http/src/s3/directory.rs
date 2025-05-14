@@ -12,7 +12,64 @@ use url::Url;
 use super::filesystem::{S3Location, S3RequestSigner};
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::RequestSigner;
+use crate::list::List;
 use crate::s3::list::S3ListResponse;
+
+#[derive(Debug)]
+pub struct S3List {
+    access: Arc<S3DirAccess>,
+    /// The current prefix we're listing on.
+    ///
+    /// Should include the trailing '/' if the prefix isn't empty.
+    prefix: String,
+}
+
+impl List for S3List {
+    fn create_request(&mut self, continuation: Option<String>) -> Result<Request> {
+        let mut url = self.access.url.clone();
+        url.query_pairs_mut()
+            .append_pair("list-type", "2")
+            .append_pair("prefix", &self.prefix)
+            .append_pair("delimiter", "/");
+
+        if let Some(continuation) = continuation {
+            url.query_pairs_mut()
+                .append_pair("continuation-token", &continuation);
+        }
+
+        let request = Request::new(Method::GET, url);
+        let request = self.access.signer.sign(request)?;
+
+        Ok(request)
+    }
+
+    fn parse_response(
+        &mut self,
+        response: &[u8],
+        entries: &mut Vec<DirEntry>,
+    ) -> Result<Option<String>> {
+        let list_resp: S3ListResponse = quick_xml::de::from_reader(Cursor::new(response))
+            .context("Failed to deserialize list response")?;
+
+        // For all content objects, treat them as files.
+        if let Some(contents) = list_resp.contents {
+            entries.extend(contents.into_iter().map(|content| {
+                DirEntry::new_file(format!("s3://{}/{}", self.access.bucket, content.key))
+            }))
+        }
+
+        // Now treat common prefixes as subdirs.
+        if let Some(common_prefixes) = list_resp.common_prefixes {
+            entries.extend(common_prefixes.into_iter().map(|prefix| {
+                // No need to prepend, the full prefix is
+                // returned.
+                DirEntry::new_dir(prefix.prefix)
+            }));
+        }
+
+        Ok(list_resp.next_continuation_token)
+    }
+}
 
 #[derive(Debug)]
 pub struct S3DirAccess {
