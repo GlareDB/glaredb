@@ -131,7 +131,9 @@ where
                             // And we don’t emit anything at this stage unless
                             // '**' is the last segmentt, in which case
                             // "everything under here" is a match.
-                            if seg_idx + 1 == self.segments.len() {
+                            if seg_idx + 1 == self.segments.len() && ent.file_type.is_file() {
+                                // TODO: Same as below, optionally emit
+                                // directories?
                                 expanded.push(ent.path.clone());
                             }
 
