@@ -11,13 +11,16 @@ pub struct DirEntry {
     pub file_type: FileType,
 }
 
+/// Handle for "reading a directory". Polling will internally move some cursor
+/// forward until exhaustion.
 pub trait ReadDirHandle: Debug + Sync + Send + Sized + 'static {
     /// List entries in the current directory.
     fn poll_list(&mut self, cx: &mut Context, ents: &mut Vec<DirEntry>) -> Poll<Result<usize>>;
 
     /// Descends into another directory relative to this one.
     ///
-    /// This will return a new handle and will not modify this handle.
+    /// This will return a new handle and will not modify this handle. The new
+    /// handle should start from a fresh "listing" state.
     fn change_dir(&mut self, relative: impl Into<String>) -> Result<Self>;
 }
 
