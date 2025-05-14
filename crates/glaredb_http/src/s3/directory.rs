@@ -36,6 +36,24 @@ pub struct S3DirHandle<C: HttpClient> {
     state: ListRequestState<C>,
 }
 
+impl<C> S3DirHandle<C>
+where
+    C: HttpClient,
+{
+    pub fn new(mut prefix: String, client: C, access: S3DirAccess) -> Self {
+        if !prefix.ends_with('/') {
+            prefix.push('/');
+        }
+
+        S3DirHandle {
+            client,
+            access: Arc::new(access),
+            prefix,
+            state: ListRequestState::DoRequest { continuation: None },
+        }
+    }
+}
+
 enum ListRequestState<C: HttpClient> {
     /// We're not currently doing a request.
     DoRequest {
@@ -189,6 +207,11 @@ where
             new_prefix.push('/');
         }
 
-        unimplemented!()
+        Ok(S3DirHandle {
+            client: self.client.clone(),
+            access: self.access.clone(),
+            prefix: new_prefix,
+            state: ListRequestState::DoRequest { continuation: None },
+        })
     }
 }

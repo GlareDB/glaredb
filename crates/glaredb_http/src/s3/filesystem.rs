@@ -20,6 +20,7 @@ use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
 use super::directory::S3DirHandle;
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::{HttpFileHandle, RequestSigner};
+use crate::s3::directory::S3DirAccess;
 
 pub const AWS_ENDPOINT: &str = "amazonaws.com";
 
@@ -161,8 +162,29 @@ where
     }
 
     fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
-        // let location = self.s3_location_from_path(dir, state)?;
-        unimplemented!()
+        // Location includes path, we'll be slicing off the path and use it as
+        // the prefix.
+        let mut location = self.s3_location_from_path(dir, state)?;
+
+        // We want to trim off the leading '/' for the path.
+        //
+        // When parsing an http url, path will always have at least a '/' even
+        // if there's no path in the url.
+        let prefix = location.path()[1..].to_string();
+
+        // We don't need the path in the url now.
+        location.set_path("");
+
+        let access = S3DirAccess {
+            url: location,
+            signer: S3RequestSigner {
+                region: state.region.clone(),
+                creds: state.creds.clone(),
+            },
+        };
+        let dir = S3DirHandle::new(prefix, self.client.clone(), access);
+
+        Ok(dir)
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
