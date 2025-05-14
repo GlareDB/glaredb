@@ -39,6 +39,13 @@ SELECT * FROM glob('../testdata/csv/glob_numbers/**') ORDER BY 1;
 ../testdata/csv/glob_numbers/nested2/400.csv
 ../testdata/csv/glob_numbers/nested2/500.csv
 
+# Ensure the glob handle gets moved forward even if we're not projecting out any
+# of the columns.
+query I
+SELECT count(*) FROM glob('../testdata/csv/glob_numbers/**');
+----
+27
+
 query T
 SELECT * FROM glob('../testdata/csv/glob_numbers/*.csv') ORDER BY 1;
 ----

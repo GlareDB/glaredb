@@ -17,7 +17,7 @@ use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::runtime::filesystem::file_provider::MultiFileProvider;
 use crate::runtime::filesystem::{FileOpenContext, FileSystemWithState};
 use crate::statistics::value::StatisticsValue;
-use crate::storage::projections::{ProjectedColumn, Projections};
+use crate::storage::projections::Projections;
 use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_GLOB: TableFunctionSet = TableFunctionSet {
@@ -135,43 +135,33 @@ impl TableScanFunction for Glob {
                 curr_count,
             } => {
                 let cap = output.write_capacity()?;
-                let mut is_pending = false;
                 let mut is_exhausted = false;
 
-                op_state
-                    .projections
-                    .for_each_column(output, &mut |col, arr| match col {
-                        ProjectedColumn::Data(0) => {
-                            let mut buf = PhysicalUtf8::get_addressable_mut(&mut arr.data)?;
-                            loop {
-                                if *curr_count >= cap {
-                                    return Ok(());
-                                }
+                let mut filename_buf = if op_state.projections.has_data_column(0) {
+                    Some(PhysicalUtf8::get_addressable_mut(
+                        &mut output.arrays[0].data,
+                    )?)
+                } else {
+                    None
+                };
 
-                                match provider.poll_get_nth(cx, *n) {
-                                    Poll::Ready(Ok(Some(path))) => {
-                                        buf.put(*curr_count, path);
-                                        *curr_count += 1;
-                                        *n += 1;
-                                    }
-                                    Poll::Ready(Ok(None)) => {
-                                        // No more files.
-                                        is_exhausted = true;
-                                        return Ok(());
-                                    }
-                                    Poll::Ready(Err(e)) => return Err(e),
-                                    Poll::Pending => {
-                                        is_pending = true;
-                                        return Ok(());
-                                    }
-                                }
+                while *curr_count < cap {
+                    match provider.poll_get_nth(cx, *n) {
+                        Poll::Ready(Ok(Some(path))) => {
+                            if let Some(buf) = &mut filename_buf {
+                                buf.put(*curr_count, path);
                             }
+                            *curr_count += 1;
+                            *n += 1;
                         }
-                        other => panic!("invalid projection index: {other:?}"),
-                    })?;
-
-                if is_pending {
-                    return Ok(PollPull::Pending);
+                        Poll::Ready(Ok(None)) => {
+                            // No more files.
+                            is_exhausted = true;
+                            break;
+                        }
+                        Poll::Ready(Err(e)) => return Err(e),
+                        Poll::Pending => return Ok(PollPull::Pending),
+                    }
                 }
 
                 output.set_num_rows(*curr_count)?;
