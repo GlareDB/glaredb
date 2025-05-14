@@ -5,14 +5,14 @@ use std::task::{Context, Poll};
 
 use glaredb_error::{DbError, Result, not_implemented};
 
-use super::{File, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
+use super::directory::DirHandleNotImplemented;
+use super::{FileHandle, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 use crate::buffer::db_vec::DbVec;
 
 #[derive(Debug)]
 pub struct MemoryFileSystem {
     /// Manager to use for allocating file buffers.
-    #[allow(unused)] // Will be used for creates
     buffer_manager: RawBufferManager,
     /// Simple mapping of a flat name to byte buffer.
     files: scc::HashMap<String, Arc<DbVec<u8>>>,
@@ -25,17 +25,28 @@ impl MemoryFileSystem {
             files: scc::HashMap::new(),
         }
     }
+
+    // TODO: Probably remove when proper fs write support is in.
+    //
+    // This is mostly useful for testing right now.
+    pub fn insert(&self, path: impl Into<String>, file: impl AsRef<[u8]>) -> Result<()> {
+        let bs = DbVec::new_from_slice(&self.buffer_manager, file)?;
+        self.files.upsert(path.into(), Arc::new(bs));
+
+        Ok(())
+    }
 }
 
 impl FileSystem for MemoryFileSystem {
-    type File = MemoryFileHandle;
+    type FileHandle = MemoryFileHandle;
+    type ReadDirHandle = DirHandleNotImplemented;
     type State = ();
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::File> {
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::FileHandle> {
         if flags.is_write() {
             not_implemented!("write support for memory filesystem")
         }
@@ -66,6 +77,10 @@ impl FileSystem for MemoryFileSystem {
         Ok(Some(FileStat {
             file_type: FileType::File,
         }))
+    }
+
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
+        DirHandleNotImplemented
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
@@ -101,7 +116,7 @@ impl MemoryFileHandle {
     }
 }
 
-impl File for MemoryFileHandle {
+impl FileHandle for MemoryFileHandle {
     fn path(&self) -> &str {
         &self.path
     }
@@ -255,4 +270,70 @@ mod tests {
             .map(|r| r.unwrap());
         assert_eq!(Poll::Ready(0), poll);
     }
+
+    // #[test]
+    // fn memory_list_prefix() {
+    //     let fs = MemoryFileSystem::new(&DefaultBufferManager);
+
+    //     fs.insert("file_a.parquet", []).unwrap();
+    //     fs.insert("file_b.parquet", []).unwrap();
+    //     fs.insert("temp_a.parquet", []).unwrap();
+    //     fs.insert("file_c.parquet", []).unwrap();
+    //     fs.insert("file_d.parquet", []).unwrap();
+
+    //     let mut paths = Vec::new();
+    //     block_on(fs.read_dir("file_", &()).list_all(&mut paths)).unwrap();
+
+    //     let expected = [
+    //         "file_a.parquet".to_string(),
+    //         "file_b.parquet".to_string(),
+    //         "file_c.parquet".to_string(),
+    //         "file_d.parquet".to_string(),
+    //     ];
+    //     assert_eq!(&expected, paths.as_slice());
+    // }
+
+    // #[test]
+    // fn memory_list_glob() {
+    //     let fs = MemoryFileSystem::new(&DefaultBufferManager);
+
+    //     fs.insert("file_a.parquet", []).unwrap();
+    //     fs.insert("file_b.parquet", []).unwrap();
+    //     fs.insert("temp_a.parquet", []).unwrap();
+    //     fs.insert("file_c.parquet", []).unwrap();
+    //     fs.insert("file_d.parquet", []).unwrap();
+
+    //     let mut paths = Vec::new();
+    //     block_on(
+    //         fs.glob_list("file_*.parquet", &())
+    //             .unwrap()
+    //             .expand_all(&mut paths),
+    //     )
+    //     .unwrap();
+
+    //     let expected = [
+    //         "file_a.parquet".to_string(),
+    //         "file_b.parquet".to_string(),
+    //         "file_c.parquet".to_string(),
+    //         "file_d.parquet".to_string(),
+    //     ];
+    //     assert_eq!(&expected, paths.as_slice());
+
+    //     let mut paths = Vec::new();
+    //     block_on(
+    //         fs.glob_list("*.parquet", &())
+    //             .unwrap()
+    //             .expand_all(&mut paths),
+    //     )
+    //     .unwrap();
+
+    //     let expected = [
+    //         "file_a.parquet".to_string(),
+    //         "file_b.parquet".to_string(),
+    //         "file_c.parquet".to_string(),
+    //         "file_d.parquet".to_string(),
+    //         "temp_a.parquet".to_string(),
+    //     ];
+    //     assert_eq!(&expected, paths.as_slice());
+    // }
 }

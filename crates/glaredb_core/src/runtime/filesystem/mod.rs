@@ -1,5 +1,8 @@
+pub mod directory;
 pub mod dispatch;
 pub mod file_ext;
+pub mod file_provider;
+pub mod glob;
 pub mod memory;
 
 use std::any::Any;
@@ -10,8 +13,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use directory::ReadDirHandle;
 use file_ext::FileExt;
+use file_provider::FileProvider;
 use glaredb_error::{DbError, Result};
+use glob::GlobHandle;
 
 use crate::arrays::scalar::ScalarValue;
 use crate::catalog::context::DatabaseContext;
@@ -19,7 +25,7 @@ use crate::expr::Expression;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
-pub trait File: Debug + Sync + Send + 'static {
+pub trait FileHandle: Debug + Sync + Send + 'static {
     /// Get the path of this file.
     fn path(&self) -> &str;
 
@@ -53,7 +59,7 @@ pub struct AnyFile {
 impl AnyFile {
     pub fn from_file<F>(file: F) -> Self
     where
-        F: File,
+        F: FileHandle,
     {
         AnyFile {
             vtable: F::VTABLE,
@@ -122,7 +128,7 @@ trait FileVTable {
 
 impl<F> FileVTable for F
 where
-    F: File,
+    F: FileHandle,
 {
     const VTABLE: &'static RawFileVTable = &RawFileVTable {
         path_fn: |file| {
@@ -170,6 +176,8 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
     File,
+    /// Directory indicates either this is real, on-disk directory, or a common
+    /// prefix for gcs/s3.
     Directory,
 }
 
@@ -264,7 +272,9 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     //
     // This would allow us to return different kinds of file handles depending
     // on the open flags used.
-    type File: File;
+    type FileHandle: FileHandle;
+
+    type ReadDirHandle: ReadDirHandle;
 
     /// Extra state used when opening or statting a single file.
     type State: Sync + Send;
@@ -277,7 +287,7 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         flags: OpenFlags,
         path: &str,
         state: &Self::State,
-    ) -> impl Future<Output = Result<Self::File>> + Sync + Send;
+    ) -> impl Future<Output = Result<Self::FileHandle>> + Sync + Send;
 
     /// Stat the file.
     ///
@@ -288,6 +298,16 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         path: &str,
         state: &Self::State,
     ) -> impl Future<Output = Result<Option<FileStat>>> + Sync + Send;
+
+    fn read_dir(&self, dir: &str, state: &Self::State) -> Self::ReadDirHandle;
+
+    fn read_glob(
+        &self,
+        glob: &str,
+        state: &Self::State,
+    ) -> Result<GlobHandle<Self::ReadDirHandle>> {
+        GlobHandle::try_new(self, state, glob)
+    }
 
     /// Returns if this filesystem is able to handle the provided path.
     fn can_handle_path(&self, path: &str) -> bool;
@@ -333,6 +353,10 @@ impl FileSystemWithState {
 
     pub fn stat<'a>(&'a self, path: &'a str) -> FileSystemFuture<'a, Result<Option<FileStat>>> {
         (self.fs.vtable.stat_fn)(self.fs.filesystem.as_ref(), path, self.state.0.as_ref())
+    }
+
+    pub fn read_glob(&self, glob: &str) -> Result<Box<dyn FileProvider>> {
+        (self.fs.vtable.read_glob_fn)(self.fs.filesystem.as_ref(), glob, self.state.0.as_ref())
     }
 }
 
@@ -396,6 +420,13 @@ pub(crate) struct RawFileSystemVTable {
         state: &'a dyn Any,
     ) -> FileSystemFuture<'a, Result<Option<FileStat>>>,
 
+    // TODO: ... Doesn't really fit being a "vtable" with this.
+    read_glob_fn: for<'a> fn(
+        fs: &'a dyn Any,
+        glob: &'a str,
+        state: &'a dyn Any,
+    ) -> Result<Box<dyn FileProvider>>,
+
     can_handle_path_fn: fn(fs: &dyn Any, path: &str) -> bool,
 }
 
@@ -436,6 +467,13 @@ where
             let fs = fs.downcast_ref::<Self>().unwrap();
             let state = state.downcast_ref::<S::State>().unwrap();
             Box::pin(async { fs.stat(path, state).await })
+        },
+
+        read_glob_fn: |fs, glob, state| {
+            let fs = fs.downcast_ref::<Self>().unwrap();
+            let state = state.downcast_ref::<S::State>().unwrap();
+            let glob = fs.read_glob(glob, state)?;
+            Ok(Box::new(glob))
         },
 
         can_handle_path_fn: |fs, path| {

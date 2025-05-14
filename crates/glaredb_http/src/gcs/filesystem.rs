@@ -2,8 +2,9 @@ use std::io::SeekFrom;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
 use glaredb_core::runtime::filesystem::{
-    File,
+    FileHandle,
     FileOpenContext,
     FileStat,
     FileSystem,
@@ -62,7 +63,8 @@ impl<C> FileSystem for GcsFileSystem<C>
 where
     C: HttpClient,
 {
-    type File = GcsFileHandle<C>;
+    type FileHandle = GcsFileHandle<C>;
+    type ReadDirHandle = DirHandleNotImplemented;
     type State = GcsFileSystemState;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
@@ -79,7 +81,12 @@ where
         Ok(GcsFileSystemState { service_account })
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, state: &Self::State) -> Result<Self::File> {
+    async fn open(
+        &self,
+        flags: OpenFlags,
+        path: &str,
+        state: &Self::State,
+    ) -> Result<Self::FileHandle> {
         if flags.is_write() {
             not_implemented!("write support for gcs filesystem")
         }
@@ -152,6 +159,10 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
+        DirHandleNotImplemented
+    }
+
     fn can_handle_path(&self, path: &str) -> bool {
         match Url::parse(path) {
             Ok(url) => {
@@ -182,7 +193,7 @@ pub struct GcsFileHandle<C: HttpClient> {
     handle: HttpFileHandle<C, GcsRequestSigner>,
 }
 
-impl<C> File for GcsFileHandle<C>
+impl<C> FileHandle for GcsFileHandle<C>
 where
     C: HttpClient,
 {

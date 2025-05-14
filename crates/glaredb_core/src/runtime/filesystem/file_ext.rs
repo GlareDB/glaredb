@@ -5,10 +5,10 @@ use std::task::{Context, Poll};
 use futures::FutureExt;
 use glaredb_error::{DbError, Result};
 
-use super::File;
+use super::FileHandle;
 
 /// Extension trait for `File` providing some utility async methods.
-pub trait FileExt: File {
+pub trait FileExt: FileHandle {
     /// Read into the provided buffer, returning the amount of bytes read.
     ///
     /// `0` may be returned on EOF, or if the provided buffer's length is zero.
@@ -45,17 +45,17 @@ pub trait FileExt: File {
     }
 }
 
-impl<F> FileExt for F where F: File {}
+impl<F> FileExt for F where F: FileHandle {}
 
 #[derive(Debug)]
-pub struct Read<'a, F: File + ?Sized> {
+pub struct Read<'a, F: FileHandle + ?Sized> {
     file: &'a mut F,
     buf: &'a mut [u8],
 }
 
 impl<F> Future for Read<'_, F>
 where
-    F: File + ?Sized,
+    F: FileHandle + ?Sized,
 {
     type Output = Result<usize>;
 
@@ -66,7 +66,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadFill<'a, F: File + ?Sized> {
+pub struct ReadFill<'a, F: FileHandle + ?Sized> {
     file: &'a mut F,
     read_count: usize,
     buf: &'a mut [u8],
@@ -74,7 +74,7 @@ pub struct ReadFill<'a, F: File + ?Sized> {
 
 impl<F> Future for ReadFill<'_, F>
 where
-    F: File + ?Sized,
+    F: FileHandle + ?Sized,
 {
     type Output = Result<usize>;
 
@@ -108,13 +108,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadExact<'a, F: File + ?Sized> {
+pub struct ReadExact<'a, F: FileHandle + ?Sized> {
     fill: ReadFill<'a, F>,
 }
 
 impl<F> Future for ReadExact<'_, F>
 where
-    F: File + ?Sized,
+    F: FileHandle + ?Sized,
 {
     type Output = Result<()>;
 
@@ -138,14 +138,14 @@ where
 }
 
 #[derive(Debug)]
-pub struct Seek<'a, F: File + ?Sized> {
+pub struct Seek<'a, F: FileHandle + ?Sized> {
     seek: io::SeekFrom,
     file: &'a mut F,
 }
 
 impl<F> Future for Seek<'_, F>
 where
-    F: File + ?Sized,
+    F: FileHandle + ?Sized,
 {
     type Output = Result<()>;
 

@@ -1,8 +1,9 @@
 use std::io;
 use std::task::{Context, Poll};
 
+use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
 use glaredb_core::runtime::filesystem::{
-    File,
+    FileHandle,
     FileOpenContext,
     FileStat,
     FileSystem,
@@ -46,7 +47,7 @@ pub struct OriginFileHandle {
 unsafe impl Sync for OriginFileHandle {}
 unsafe impl Send for OriginFileHandle {}
 
-impl File for OriginFileHandle {
+impl FileHandle for OriginFileHandle {
     fn path(&self) -> &str {
         &self.path
     }
@@ -192,14 +193,20 @@ impl OriginFileSystem {
 }
 
 impl FileSystem for OriginFileSystem {
-    type File = OriginFileHandle;
+    type FileHandle = OriginFileHandle;
+    type ReadDirHandle = DirHandleNotImplemented;
     type State = ();
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, _state: &Self::State) -> Result<Self::File> {
+    async fn open(
+        &self,
+        flags: OpenFlags,
+        path: &str,
+        _state: &Self::State,
+    ) -> Result<Self::FileHandle> {
         if flags.is_write() {
             // yet
             return Err(DbError::new("Write not supported"));
@@ -252,6 +259,10 @@ impl FileSystem for OriginFileSystem {
             })),
             None => Ok(None),
         }
+    }
+
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
+        DirHandleNotImplemented
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
