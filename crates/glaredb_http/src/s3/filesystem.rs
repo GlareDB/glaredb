@@ -198,7 +198,7 @@ where
     fn glob_segments(glob: &str) -> Result<GlobSegments> {
         let trimmed = match glob.strip_prefix("s3://") {
             Some(trimmed) => trimmed,
-            None => return Err(DbError::new("Glob missing 's3://' scheme: {glob}")),
+            None => return Err(DbError::new(format!("Glob missing 's3://' scheme: {glob}"))),
         };
 
         // Now we parse the segments from the trimmed string

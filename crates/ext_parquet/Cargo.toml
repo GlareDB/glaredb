@@ -23,6 +23,9 @@ keywords = ["arrow", "parquet", "hadoop"]
 readme = "README.md"
 edition = { workspace = true }
 
+[lints]
+workspace = true
+
 [dependencies]
 glaredb_error = { path = "../glaredb_error" }
 glaredb_core = { path = "../glaredb_core" }

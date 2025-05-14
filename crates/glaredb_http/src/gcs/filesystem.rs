@@ -206,7 +206,7 @@ where
         // TODO: Duplicated with s3
         let trimmed = match glob.strip_prefix("gs://") {
             Some(trimmed) => trimmed,
-            None => return Err(DbError::new("Glob missing 'gs://' scheme: {glob}")),
+            None => return Err(DbError::new(format!("Glob missing 'gs://' scheme: {glob}"))),
         };
 
         // Now we parse the segments from the trimmed string
