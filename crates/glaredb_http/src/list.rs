@@ -100,6 +100,8 @@ where
                     };
 
                     if resp.status() != StatusCode::OK {
+                        // use futures::TryStreamExt;
+                        // use glaredb_core::util::future::block_on;
                         // let text_res: Result<String> = block_on(async move {
                         //     let mut stream = resp.into_bytes_stream();
                         //     let mut buf = Vec::new();
@@ -109,6 +111,7 @@ where
                         //     Ok(String::from_utf8_lossy(&buf).to_string())
                         // });
                         // let text = text_res.unwrap_or(String::new());
+                        // println!("ERROR TEXT: {text}");
                         // TODO: Probably want to read the body for the error
                         // message...
                         return Poll::Ready(Err(DbError::new("Failed to make list request")));

@@ -2,6 +2,7 @@ use std::io::SeekFrom;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use glaredb_core::runtime::filesystem::glob::{GlobSegments, is_glob};
 use glaredb_core::runtime::filesystem::{
     FileHandle,
     FileOpenContext,
@@ -34,8 +35,17 @@ where
     pub fn new(client: C) -> Self {
         GcsFileSystem { client }
     }
+}
 
-    fn gcs_url_from_path(&self, path: &str) -> Result<Url> {
+#[derive(Debug)]
+pub struct GcsLocation {
+    pub(crate) bucket: String,
+    pub(crate) object: String,
+    pub(crate) endpoint: String,
+}
+
+impl GcsLocation {
+    pub(crate) fn from_path(path: &str, _state: &GcsFileSystemState) -> Result<Self> {
         let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
 
         // Assumes gsutil format: 'gs://bucket/file.csv'
@@ -43,13 +53,35 @@ where
             url::Host::Domain(host) => host,
             other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
         };
-        let object = url.path(); // Should include leading '/';
+        let object = &url.path()[1..]; // Path includes a leading slash, slice it off.
         let endpoint = STORAGE_API_ENDPOINT;
+
+        Ok(GcsLocation {
+            bucket: bucket.to_string(),
+            object: object.to_string(),
+            endpoint: endpoint.to_string(),
+        })
+    }
+
+    // <https://cloud.google.com/storage/docs/xml-api/overview>
+    pub(crate) fn object_scoped_xml_api_url(&self) -> Result<Url> {
+        let bucket = &self.bucket;
+        let endpoint = &self.endpoint;
+        let object = &self.object;
 
         // - bucket: The bucket containing the object (no leading '/')
         // - endpoint: The gcs endpoint to use.
-        // - object: Path to the object, this should include a leading '/'.
-        let formatted = format!("https://{endpoint}/{bucket}{object}");
+        // - object: Path to the object, this should not include a leading '/'.
+        let formatted = format!("https://{endpoint}/{bucket}/{object}");
+        Url::parse(&formatted).context_fn(|| format!("Failed to parse '{formatted}' into url"))
+    }
+
+    // <https://cloud.google.com/storage/docs/json_api>
+    pub(crate) fn bucket_scoped_json_api_url(&self) -> Result<Url> {
+        let bucket = &self.bucket;
+        let endpoint = &self.endpoint;
+        let formatted = format!("https://{endpoint}/storage/v1/b/{bucket}/o");
+
         Url::parse(&formatted).context_fn(|| format!("Failed to parse '{formatted}' into url"))
     }
 }
@@ -105,7 +137,7 @@ where
             None => None,
         };
 
-        let url = self.gcs_url_from_path(path)?;
+        let url = GcsLocation::from_path(path, state)?.object_scoped_xml_api_url()?;
         let mut request = Request::new(Method::HEAD, url.clone());
         // Authorize request.
         if let Some(tok) = &token {
@@ -129,7 +161,7 @@ where
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
-        let url = self.gcs_url_from_path(path)?;
+        let url = GcsLocation::from_path(path, state)?.object_scoped_xml_api_url()?;
 
         // TODO: Possibly make state mutable to store the fetched token?
         let token = match state.service_account.as_ref() {
@@ -159,6 +191,51 @@ where
         }
 
         Err(DbError::new(format!("Unexpected status code: {status}")))
+    }
+
+    fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
+        let location = GcsLocation::from_path(dir, state)?;
+        let signer = GcsRequestSigner {
+            token: None, // TODO
+        };
+
+        GcsDirHandle::try_new(self.client.clone(), location, signer)
+    }
+
+    fn glob_segments(glob: &str) -> Result<GlobSegments> {
+        // TODO: Copy pasted from s3.
+        let url = Url::parse(glob).context_fn(|| format!("Failed to parse '{glob}' as a URL"))?;
+
+        // Assumes gsutil format: 'gs://bucket/file.csv'
+        let bucket = match url.host().required("Missing host on url")? {
+            url::Host::Domain(host) => host,
+            other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
+        };
+
+        // Now we parse the segments from the the path.
+        let mut segments: Vec<_> = url
+            .path()
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+        if segments.is_empty() {
+            return Err(DbError::new("Missing segments for glob"));
+        }
+
+        // Find the root dir relative to the bucket to use.
+        let mut root_dir_rel = Vec::new();
+        while !segments.is_empty() && !is_glob(segments[0]) {
+            root_dir_rel.push(segments.remove(0));
+        }
+
+        let root_dir_rel = root_dir_rel.join("/");
+        // Now put it back into the 'gs://...' format.
+        let root_dir = format!("gs://{bucket}/{root_dir_rel}");
+
+        let segments = segments.into_iter().map(|s| s.to_string()).collect();
+
+        Ok(GlobSegments { root_dir, segments })
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
