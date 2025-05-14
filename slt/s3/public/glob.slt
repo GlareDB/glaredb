@@ -43,3 +43,52 @@ query I
 SELECT count(*) FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/**');
 ----
 27
+
+query T
+SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/*.csv') ORDER BY 1;
+----
+s3://glaredb-public/testdata/csv/glob_numbers/100.csv
+s3://glaredb-public/testdata/csv/glob_numbers/200.csv
+s3://glaredb-public/testdata/csv/glob_numbers/300.csv
+s3://glaredb-public/testdata/csv/glob_numbers/400.csv
+s3://glaredb-public/testdata/csv/glob_numbers/500.csv
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/{200,300}.csv') ORDER BY 1;
+# ----
+
+# TODO: Panic
+# query T
+# SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/?00.csv') ORDER BY 1;
+# ----
+
+# TODO: Panic
+# query T
+# SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/?.csv') ORDER BY 1;
+# ----
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/**/{3,5}00.csv') ORDER BY 1;
+# ----
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/**/nested{1,4}/{3,5}00.csv') ORDER BY 1;
+# ----
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/**/nested{1,4}/**') ORDER BY 1;
+# ----
+
+# TODO: Not matching the readme.
+# query T
+# SELECT * FROM glob('../testdata/csv/glob_numbers/**/*.md') ORDER BY 1;
+# ----
+
+query T
+SELECT * FROM glob('s3://glaredb-public/testdata/csv/glob_numbers/**/my_favorite_numbers.csv') ORDER BY 1;
+----
+s3://glaredb-public/testdata/csv/glob_numbers/deep/my_favorite_numbers.csv
