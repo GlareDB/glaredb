@@ -9,8 +9,8 @@ pub struct GcsListResponse {
     /// Always "storage#objects".
     pub kind: String,
     pub next_page_token: Option<String>,
-    pub prefixes: Vec<String>,
-    pub items: Vec<GcsObjectResource>,
+    pub prefixes: Option<Vec<String>>,
+    pub items: Option<Vec<GcsObjectResource>>,
 }
 
 // TODO: More fields, see <https://cloud.google.com/storage/docs/json_api/v1/objects#resource>

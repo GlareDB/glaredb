@@ -58,19 +58,16 @@ impl List for GcsList {
             serde_json::from_slice(response).context("Failed to deserialize list response")?;
 
         // "items" are objects, treat them as files.
-        entries.extend(
-            list_resp.items.into_iter().map(|item| {
+        if let Some(items) = list_resp.items {
+            entries.extend(items.into_iter().map(|item| {
                 DirEntry::new_file(format!("gs://{}/{}", self.access.bucket, item.name))
-            }),
-        );
+            }));
+        }
 
         // "prefixes" are common prefixes, treat them as subdirs.
-        entries.extend(
-            list_resp
-                .prefixes
-                .into_iter()
-                .map(|prefix| DirEntry::new_dir(prefix)),
-        );
+        if let Some(prefixes) = list_resp.prefixes {
+            entries.extend(prefixes.into_iter().map(|prefix| DirEntry::new_dir(prefix)));
+        }
 
         Ok(list_resp.next_page_token)
     }

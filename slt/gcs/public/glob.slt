@@ -1,0 +1,94 @@
+# Copy of the glob tests for globbing gcs files.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/**') ORDER BY 1;
+----
+filename  Utf8
+
+query T
+SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/**') ORDER BY 1;
+----
+gs://glaredb-public/testdata/csv/glob_numbers/100.csv
+gs://glaredb-public/testdata/csv/glob_numbers/200.csv
+gs://glaredb-public/testdata/csv/glob_numbers/300.csv
+gs://glaredb-public/testdata/csv/glob_numbers/400.csv
+gs://glaredb-public/testdata/csv/glob_numbers/500.csv
+gs://glaredb-public/testdata/csv/glob_numbers/README.md
+gs://glaredb-public/testdata/csv/glob_numbers/deep/my_favorite_numbers.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested1/100.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested1/200.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested1/300.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested1/400.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested1/500.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested2/100.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested2/200.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested2/300.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested2/400.csv
+gs://glaredb-public/testdata/csv/glob_numbers/deep/nested2/500.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested1/100.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested1/200.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested1/300.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested1/400.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested1/500.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested2/100.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested2/200.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested2/300.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested2/400.csv
+gs://glaredb-public/testdata/csv/glob_numbers/nested2/500.csv
+
+query I
+SELECT count(*) FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/**');
+----
+27
+
+query T
+SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/*.csv') ORDER BY 1;
+----
+gs://glaredb-public/testdata/csv/glob_numbers/100.csv
+gs://glaredb-public/testdata/csv/glob_numbers/200.csv
+gs://glaredb-public/testdata/csv/glob_numbers/300.csv
+gs://glaredb-public/testdata/csv/glob_numbers/400.csv
+gs://glaredb-public/testdata/csv/glob_numbers/500.csv
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/{200,300}.csv') ORDER BY 1;
+# ----
+
+# TODO: Panic
+# query T
+# SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/?00.csv') ORDER BY 1;
+# ----
+
+# TODO: Panic
+# query T
+# SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/?.csv') ORDER BY 1;
+# ----
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/**/{3,5}00.csv') ORDER BY 1;
+# ----
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/**/nested{1,4}/{3,5}00.csv') ORDER BY 1;
+# ----
+
+# TODO: Returns nothing
+# query T
+# SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/**/nested{1,4}/**') ORDER BY 1;
+# ----
+
+# TODO: Not matching the readme.
+# query T
+# SELECT * FROM glob('../testdata/csv/glob_numbers/**/*.md') ORDER BY 1;
+# ----
+
+query T
+SELECT * FROM glob('gs://glaredb-public/testdata/csv/glob_numbers/**/my_favorite_numbers.csv') ORDER BY 1;
+----
+gs://glaredb-public/testdata/csv/glob_numbers/deep/my_favorite_numbers.csv
