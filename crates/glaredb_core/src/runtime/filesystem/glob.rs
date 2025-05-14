@@ -1,11 +1,37 @@
 use std::task::{Context, Poll};
 
-use glaredb_error::{DbError, OptionExt, Result, ResultExt};
+use glaredb_error::{OptionExt, Result, ResultExt};
 use globset::{GlobBuilder, GlobMatcher};
 
 use super::FileSystem;
 use super::directory::{DirEntry, ReadDirHandle};
 use super::file_provider::FileProvider;
+
+/// If we should consider the given path a glob.
+pub fn is_glob(path: &str) -> bool {
+    path.contains(['*', '?', '[', '{'])
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobSegments {
+    /// The "root" directory of the glob.
+    ///
+    /// This should be the largest prefix path of the glob that itself does not
+    /// contain any glob characters.
+    ///
+    /// `root_dir` will be passed into the filesystem's `read_dir` method to
+    /// begin directory traversal, and should include the full path (e.g. the
+    /// path would be passed to `open`). That means for object stores, the root
+    /// dir will be something like `s3://bucket/dir/nested`.
+    pub root_dir: String,
+    /// The glob segments for each segment in the path.
+    ///
+    /// This is essentially taking the remaining path (after getting the root
+    /// dir), and splitting on '/' (or some other path sep). No additional
+    /// processing should be done. Literal segments (segments containing no glob
+    /// chars) will be handled appropriately.
+    pub segments: Vec<String>,
+}
 
 #[derive(Debug)]
 pub struct GlobHandle<D: ReadDirHandle> {
@@ -27,29 +53,11 @@ where
     where
         F: FileSystem<ReadDirHandle = D> + ?Sized,
     {
-        // TODO: For s3/gcs, we'll need to ensure we don't mess with the
-        // schemes. Tbh might need to tweak the auto-detect stuff too.
-
-        let mut segments = split_segments(glob);
-        if segments.is_empty() {
-            return Err(DbError::new("Missing segments for glob"));
-        }
-
-        // Find the root dir to use.
-        let mut root = Vec::new();
-        while !segments.is_empty() && !is_glob(segments[0]) {
-            root.push(segments.remove(0));
-        }
-
-        // TODO: Probably needs to be os/filesystem specific.
-        //
-        // E.g. for s3, always use '/'. If local and windows, use '\'.
-        let root = root.join("/");
-        let root_dir = fs.read_dir(&root, state);
+        let glob_segments = F::glob_segments(glob)?;
 
         // Build matchers per segment.
-        let mut matchers = Vec::with_capacity(segments.len());
-        for seg in &segments {
+        let mut matchers = Vec::with_capacity(glob_segments.segments.len());
+        for seg in &glob_segments.segments {
             if is_glob(seg) {
                 let matcher = GlobBuilder::new(seg)
                     .literal_separator(true)
@@ -62,11 +70,11 @@ where
             }
         }
 
-        let segments = segments.into_iter().map(|s| s.to_string()).collect();
+        let root_dir = fs.read_dir(&glob_segments.root_dir, state);
         let stack = vec![(root_dir, 0)];
 
         Ok(GlobHandle {
-            segments,
+            segments: glob_segments.segments,
             matchers,
             stack,
             buf: Vec::new(),
@@ -184,54 +192,5 @@ where
 {
     fn poll_next(&mut self, cx: &mut Context, out: &mut Vec<String>) -> Poll<Result<usize>> {
         self.poll_expand(cx, out)
-    }
-}
-
-/// If we should consider the given path a glob.
-pub fn is_glob(path: &str) -> bool {
-    path.contains(['*', '?', '[', '{'])
-}
-
-/// Split a glob like "data/2025-*/file-*.parquet" into ["data", "2025-*",
-/// "file-*.parquet"]
-fn split_segments(pattern: &str) -> Vec<&str> {
-    // TODO: '\' on windows?
-    pattern.split('/').filter(|s| !s.is_empty()).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn split_segments_tests() {
-        struct TestCase {
-            input: &'static str,
-            segments: Vec<&'static str>,
-        }
-
-        let cases = [
-            TestCase {
-                input: "*.parquet",
-                segments: vec!["*.parquet"],
-            },
-            TestCase {
-                input: "./*.parquet",
-                segments: vec![".", "*.parquet"],
-            },
-            TestCase {
-                input: "dir/**/file.parquet",
-                segments: vec!["dir", "**", "file.parquet"],
-            },
-            TestCase {
-                input: "data/2025-*/file-*.parquet",
-                segments: vec!["data", "2025-*", "file-*.parquet"],
-            },
-        ];
-
-        for case in cases {
-            let segments: Vec<_> = split_segments(case.input);
-            assert_eq!(case.segments, segments);
-        }
     }
 }
