@@ -161,10 +161,6 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        DirHandleNotImplemented
-    }
-
     fn can_handle_path(&self, path: &str) -> bool {
         match Url::parse(path) {
             Ok(url) => {

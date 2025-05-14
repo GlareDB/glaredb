@@ -101,11 +101,11 @@ impl FileSystem for LocalFileSystem {
         Ok(Some(FileStat { file_type }))
     }
 
-    fn read_dir(&self, dir: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        LocalDirHandle {
+    fn read_dir(&self, dir: &str, _state: &Self::State) -> Result<Self::ReadDirHandle> {
+        Ok(LocalDirHandle {
             path: dir.into(),
             exhausted: false,
-        }
+        })
     }
 
     fn glob_segments(glob: &str) -> Result<GlobSegments> {

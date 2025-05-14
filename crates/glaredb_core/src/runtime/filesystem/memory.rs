@@ -81,10 +81,6 @@ impl FileSystem for MemoryFileSystem {
         }))
     }
 
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        DirHandleNotImplemented
-    }
-
     fn can_handle_path(&self, path: &str) -> bool {
         let path = Path::new(path);
         // TODO: Have separate function that doesn't return error.

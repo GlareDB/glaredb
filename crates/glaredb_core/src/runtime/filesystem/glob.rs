@@ -70,7 +70,7 @@ where
             }
         }
 
-        let root_dir = fs.read_dir(&glob_segments.root_dir, state);
+        let root_dir = fs.read_dir(&glob_segments.root_dir, state)?;
         let stack = vec![(root_dir, 0)];
 
         Ok(GlobHandle {

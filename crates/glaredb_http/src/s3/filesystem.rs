@@ -17,6 +17,7 @@ use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
 use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
+use super::directory::S3DirHandle;
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::{HttpFileHandle, RequestSigner};
 
@@ -74,7 +75,7 @@ where
     const NAME: &str = "S3";
 
     type FileHandle = S3FileHandle<C>;
-    type ReadDirHandle = DirHandleNotImplemented;
+    type ReadDirHandle = S3DirHandle<C>;
     type State = S3FileSystemState;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
@@ -159,8 +160,9 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        DirHandleNotImplemented
+    fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
+        // let location = self.s3_location_from_path(dir, state)?;
+        unimplemented!()
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

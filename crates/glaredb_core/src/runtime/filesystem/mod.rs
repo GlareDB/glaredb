@@ -305,7 +305,12 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Returns a directory handle for reading entries within a directory.
     ///
     /// Does not recurse.
-    fn read_dir(&self, dir: &str, state: &Self::State) -> Self::ReadDirHandle;
+    fn read_dir(&self, _dir: &str, _state: &Self::State) -> Result<Self::ReadDirHandle> {
+        Err(DbError::new(format!(
+            "{} filesystem does not support reading directories!",
+            Self::NAME
+        )))
+    }
 
     /// Returns a glob handle that emits paths that match the given glob.
     fn read_glob(
