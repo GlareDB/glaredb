@@ -1,4 +1,3 @@
-use std::io::Cursor;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -7,42 +6,41 @@ use glaredb_error::{Result, ResultExt};
 use reqwest::{Method, Request};
 use url::Url;
 
-use super::filesystem::{S3Location, S3RequestSigner};
+use super::filesystem::{GcsLocation, GcsRequestSigner};
 use crate::client::HttpClient;
+use crate::gcs::list::GcsListResponse;
 use crate::handle::RequestSigner;
 use crate::list::{List, ObjectStoreList};
-use crate::s3::list::S3ListResponse;
 
 #[derive(Debug)]
-pub struct S3DirAccess {
-    /// URL for the bucket.
+pub struct GcsDirAccess {
+    /// JSON api url.
     ///
-    /// 'https://bucket.s3.region.amazonaws.com'
+    /// 'https://storage.googleapis.com/storage/v1/b/bucket/o'
     url: Url,
     bucket: String,
-    signer: S3RequestSigner,
+    signer: GcsRequestSigner,
 }
 
 #[derive(Debug)]
-pub struct S3List {
-    access: Arc<S3DirAccess>,
+pub struct GcsList {
+    access: Arc<GcsDirAccess>,
     /// The current prefix we're listing on.
     ///
     /// Should include the trailing '/' if the prefix isn't empty.
     prefix: String,
 }
 
-impl List for S3List {
+impl List for GcsList {
     fn create_request(&mut self, continuation: Option<String>) -> Result<Request> {
         let mut url = self.access.url.clone();
         url.query_pairs_mut()
-            .append_pair("list-type", "2")
             .append_pair("prefix", &self.prefix)
             .append_pair("delimiter", "/");
 
         if let Some(continuation) = continuation {
             url.query_pairs_mut()
-                .append_pair("continuation-token", &continuation);
+                .append_pair("pageToken", &continuation);
         }
 
         let request = Request::new(Method::GET, url);
@@ -56,67 +54,59 @@ impl List for S3List {
         response: &[u8],
         entries: &mut Vec<DirEntry>,
     ) -> Result<Option<String>> {
-        let list_resp: S3ListResponse = quick_xml::de::from_reader(Cursor::new(response))
-            .context("Failed to deserialize list response")?;
+        let list_resp: GcsListResponse =
+            serde_json::from_slice(response).context("Failed to deserialize list response")?;
 
-        // For all content objects, treat them as files.
-        if let Some(contents) = list_resp.contents {
-            entries.extend(contents.into_iter().map(|content| {
-                DirEntry::new_file(format!("s3://{}/{}", self.access.bucket, content.key))
-            }))
-        }
-
-        // Now treat common prefixes as subdirs.
-        if let Some(common_prefixes) = list_resp.common_prefixes {
-            entries.extend(common_prefixes.into_iter().map(|prefix| {
-                // No need to prepend, the full prefix is
-                // returned.
-                DirEntry::new_dir(prefix.prefix)
+        // "items" are objects, treat them as files.
+        if let Some(items) = list_resp.items {
+            entries.extend(items.into_iter().map(|item| {
+                DirEntry::new_file(format!("gs://{}/{}", self.access.bucket, item.name))
             }));
         }
 
-        Ok(list_resp.next_continuation_token)
+        // "prefixes" are common prefixes, treat them as subdirs.
+        if let Some(prefixes) = list_resp.prefixes {
+            entries.extend(prefixes.into_iter().map(DirEntry::new_dir));
+        }
+
+        Ok(list_resp.next_page_token)
     }
 }
 
 #[derive(Debug)]
-pub struct S3DirHandle<C: HttpClient> {
-    list: ObjectStoreList<C, S3List>,
+pub struct GcsDirHandle<C: HttpClient> {
+    list: ObjectStoreList<C, GcsList>,
 }
 
-impl<C> S3DirHandle<C>
+impl<C> GcsDirHandle<C>
 where
     C: HttpClient,
 {
-    pub fn try_new(client: C, mut location: S3Location, signer: S3RequestSigner) -> Result<Self> {
-        // We only care about the bucket root when generating the url. So take
-        // the existing object to use as the initial prefix, and replace with
-        // empty one.
-        let mut prefix = std::mem::take(&mut location.object);
+    pub fn try_new(client: C, location: GcsLocation, signer: GcsRequestSigner) -> Result<Self> {
+        let url = location.bucket_scoped_json_api_url()?;
 
-        // 'https://bucket.s3.region.amazonaws.com'
-        let url = location.url()?;
-
+        // Use object as prefix.
+        let mut prefix = location.object;
         if !prefix.is_empty() && !prefix.ends_with('/') {
             prefix.push('/');
         }
 
-        let list = S3List {
-            access: Arc::new(S3DirAccess {
+        let list = GcsList {
+            access: Arc::new(GcsDirAccess {
                 url,
-                bucket: location.bucket,
+                bucket: location.bucket.clone(), // TODO: What if just put location here?
                 signer,
             }),
             prefix,
         };
 
-        Ok(S3DirHandle {
+        Ok(GcsDirHandle {
             list: ObjectStoreList::new(client, list),
         })
     }
 }
 
-impl<C> ReadDirHandle for S3DirHandle<C>
+impl<C> ReadDirHandle for GcsDirHandle<C>
 where
     C: HttpClient,
 {
@@ -125,6 +115,8 @@ where
     }
 
     fn change_dir(&mut self, relative: impl Into<String>) -> Result<Self> {
+        // TODO: Need to test.
+
         let relative = relative.into();
         let mut new_prefix = format!("{}{}", self.list.list.prefix, relative);
         if !new_prefix.ends_with('/') {
@@ -133,12 +125,12 @@ where
 
         let list = ObjectStoreList::new(
             self.list.client.clone(),
-            S3List {
+            GcsList {
                 access: self.list.list.access.clone(),
                 prefix: new_prefix,
             },
         );
 
-        Ok(S3DirHandle { list })
+        Ok(GcsDirHandle { list })
     }
 }

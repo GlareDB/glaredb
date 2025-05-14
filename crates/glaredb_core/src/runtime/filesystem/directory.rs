@@ -5,6 +5,9 @@ use glaredb_error::{DbError, Result};
 
 use super::FileType;
 
+// TODO: Possibly make trait with 'path', 'file_type' methods.
+//
+// Possibly would make some of the path parsing/formatting clear for s3/gcs.
 #[derive(Debug, Clone)]
 pub struct DirEntry {
     /// Path to the file or directory.
