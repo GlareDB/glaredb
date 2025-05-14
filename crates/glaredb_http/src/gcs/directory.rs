@@ -66,10 +66,10 @@ impl List for GcsList {
 
         // "prefixes" are common prefixes, treat them as subdirs.
         if let Some(prefixes) = list_resp.prefixes {
-            entries.extend(prefixes.into_iter().map(DirEntry::new_dir));
+            entries.extend(prefixes.into_iter().map(|prefix| DirEntry::new_dir(prefix)));
         }
 
-        Ok(list_resp.next_page_token)
+        Ok(list_resp.next_page_token.map(|s| s.to_string()))
     }
 }
 

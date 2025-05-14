@@ -1,4 +1,3 @@
-use std::io::Cursor;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -56,8 +55,9 @@ impl List for S3List {
         response: &[u8],
         entries: &mut Vec<DirEntry>,
     ) -> Result<Option<String>> {
-        let list_resp: S3ListResponse = quick_xml::de::from_reader(Cursor::new(response))
-            .context("Failed to deserialize list response")?;
+        let response = std::str::from_utf8(response).context("List response not valid utf8")?;
+        let list_resp: S3ListResponse =
+            quick_xml::de::from_str(response).context("Failed to deserialize list response")?;
 
         // For all content objects, treat them as files.
         if let Some(contents) = list_resp.contents {
@@ -75,7 +75,7 @@ impl List for S3List {
             }));
         }
 
-        Ok(list_resp.next_continuation_token)
+        Ok(list_resp.next_continuation_token.map(|s| s.to_string()))
     }
 }
 
