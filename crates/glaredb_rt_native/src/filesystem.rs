@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::task::{Context, Poll};
 
 use glaredb_core::runtime::filesystem::directory::{DirEntry, ReadDirHandle};
+use glaredb_core::runtime::filesystem::glob::{GlobSegments, is_glob};
 use glaredb_core::runtime::filesystem::{
     FileHandle,
     FileOpenContext,
@@ -105,6 +106,36 @@ impl FileSystem for LocalFileSystem {
         }
     }
 
+    fn glob_segments(glob: &str) -> Result<GlobSegments> {
+        // Split a glob like "data/2025-*/file-*.parquet" into ["data",
+        // "2025-*", "file-*.parquet"]
+        //
+        // TODO: '\' on windows?
+        let mut segments: Vec<_> = glob.split('/').filter(|s| !s.is_empty()).collect();
+        if segments.is_empty() {
+            return Err(DbError::new("Missing segments for glob"));
+        }
+
+        // Find the root dir to use.
+        let mut root_dir = Vec::new();
+        while !segments.is_empty() && !is_glob(segments[0]) {
+            root_dir.push(segments.remove(0));
+        }
+
+        // TODO: Windows?
+        let mut root_dir = root_dir.join("/");
+        let segments = segments.into_iter().map(|s| s.to_string()).collect();
+
+        // If we have an empty root dir, then use the current directory.
+        //
+        // This will happen for cases like '*', '*.parquet', '**/*.parquet'.
+        if root_dir.is_empty() {
+            root_dir = ".".to_string();
+        }
+
+        Ok(GlobSegments { root_dir, segments })
+    }
+
     fn can_handle_path(&self, _path: &str) -> bool {
         // yes
         true
@@ -162,5 +193,75 @@ impl ReadDirHandle for LocalDirHandle {
             path: new_path,
             exhausted: false,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn glob_segments() {
+        struct TestCase {
+            input: &'static str,
+            expected: GlobSegments,
+        }
+
+        let cases = [
+            TestCase {
+                input: "*",
+                expected: GlobSegments {
+                    root_dir: ".".to_string(),
+                    segments: vec!["*".to_string()],
+                },
+            },
+            TestCase {
+                input: "*.parquet",
+                expected: GlobSegments {
+                    root_dir: ".".to_string(),
+                    segments: vec!["*.parquet".to_string()],
+                },
+            },
+            TestCase {
+                input: "**/*.parquet",
+                expected: GlobSegments {
+                    root_dir: ".".to_string(),
+                    segments: vec!["**".to_string(), "*.parquet".to_string()],
+                },
+            },
+            TestCase {
+                input: "./*.parquet",
+                expected: GlobSegments {
+                    root_dir: ".".to_string(),
+                    segments: vec!["*.parquet".to_string()],
+                },
+            },
+            TestCase {
+                input: "dir/**/file.parquet",
+                expected: GlobSegments {
+                    root_dir: "dir".to_string(),
+                    segments: vec!["**".to_string(), "file.parquet".to_string()],
+                },
+            },
+            TestCase {
+                input: "data/2025-*/file-*.parquet",
+                expected: GlobSegments {
+                    root_dir: "data".to_string(),
+                    segments: vec!["2025-*".to_string(), "file-*.parquet".to_string()],
+                },
+            },
+            TestCase {
+                input: "data/nested/2025-*/file-*.parquet",
+                expected: GlobSegments {
+                    root_dir: "data/nested".to_string(),
+                    segments: vec!["2025-*".to_string(), "file-*.parquet".to_string()],
+                },
+            },
+        ];
+
+        for case in cases {
+            let glob_segments = LocalFileSystem::glob_segments(case.input).unwrap();
+            assert_eq!(case.expected, glob_segments, "input: '{}'", case.input);
+        }
     }
 }
