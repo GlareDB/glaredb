@@ -2,7 +2,7 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 use chrono::Utc;
-use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
+use glaredb_core::runtime::filesystem::glob::{GlobSegments, is_glob};
 use glaredb_core::runtime::filesystem::{
     FileHandle,
     FileOpenContext,
@@ -17,6 +17,7 @@ use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
 use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
+use super::directory::S3DirHandle;
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::{HttpFileHandle, RequestSigner};
 
@@ -38,9 +39,18 @@ where
             client,
         }
     }
+}
 
-    /// Construct a url pointing to the s3 resource.
-    fn s3_location_from_path(&self, path: &str, state: &S3FileSystemState) -> Result<Url> {
+#[derive(Debug)]
+pub struct S3Location {
+    pub(crate) bucket: String,
+    pub(crate) region: String,
+    pub(crate) object: String,
+    pub(crate) endpoint: String,
+}
+
+impl S3Location {
+    pub(crate) fn from_path(path: &str, state: &S3FileSystemState) -> Result<Self> {
         let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
 
         // Assumes s3 format: 's3://bucket/file.csv'
@@ -48,15 +58,29 @@ where
             url::Host::Domain(host) => host,
             other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
         };
-        let object = url.path(); // Should include leading '/';
+        let object = &url.path()[1..]; // Path includes a leading slash, slice it off.
         let region = &state.region;
         let endpoint = AWS_ENDPOINT;
+
+        Ok(S3Location {
+            bucket: bucket.to_string(),
+            region: region.to_string(),
+            object: object.to_string(),
+            endpoint: endpoint.to_string(),
+        })
+    }
+
+    pub(crate) fn url(&self) -> Result<Url> {
+        let bucket = &self.bucket;
+        let region = &self.region;
+        let endpoint = &self.endpoint;
+        let object = &self.object;
 
         // - bucket: The bucket containing the object.
         // - region: Region containing the bucket.
         // - endpoint: The s3 endpoint to use.
-        // - object: Path to the object, this should include a leading '/'.
-        let formatted = format!("https://{bucket}.s3.{region}.{endpoint}{object}");
+        // - object: Path to the object, this should not include a leading '/'.
+        let formatted = format!("https://{bucket}.s3.{region}.{endpoint}/{object}");
         Url::parse(&formatted).context_fn(|| format!("Failed to parse '{formatted}' into url"))
     }
 }
@@ -71,8 +95,10 @@ impl<C> FileSystem for S3FileSystem<C>
 where
     C: HttpClient,
 {
+    const NAME: &str = "S3";
+
     type FileHandle = S3FileHandle<C>;
-    type ReadDirHandle = DirHandleNotImplemented;
+    type ReadDirHandle = S3DirHandle<C>;
     type State = S3FileSystemState;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
@@ -108,7 +134,7 @@ where
         if flags.is_create() {
             not_implemented!("create support for s3 filesystem")
         }
-        let location = self.s3_location_from_path(path, state)?;
+        let location = S3Location::from_path(path, state)?.url()?;
 
         let mut request = Request::new(Method::HEAD, location.clone());
         // If we don't have creds, we can skip signing.
@@ -135,7 +161,7 @@ where
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
-        let location = self.s3_location_from_path(path, state)?;
+        let location = S3Location::from_path(path, state)?.url()?;
 
         let mut request = Request::new(Method::HEAD, location.clone());
         if let Some(creds) = &state.creds {
@@ -157,8 +183,54 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        DirHandleNotImplemented
+    fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
+        let location = S3Location::from_path(dir, state)?;
+        let signer = S3RequestSigner {
+            region: state.region.clone(),
+            creds: state.creds.clone(),
+        };
+
+        let dir = S3DirHandle::try_new(self.client.clone(), location, signer)?;
+
+        Ok(dir)
+    }
+
+    fn glob_segments(glob: &str) -> Result<GlobSegments> {
+        // I _believe_ that by parsing a url, we would end up erroring on glob
+        // characters in the bucket name. But need to test (erroring is good,
+        // just need to make it reasonable).
+        let url = Url::parse(glob).context_fn(|| format!("Failed to parse '{glob}' as a URL"))?;
+
+        // Assumes s3 format: 's3://bucket/file.csv'
+        let bucket = match url.host().required("Missing host on url")? {
+            url::Host::Domain(host) => host,
+            other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
+        };
+
+        // Now we parse the segments from the the path.
+        let mut segments: Vec<_> = url
+            .path()
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+        if segments.is_empty() {
+            return Err(DbError::new("Missing segments for glob"));
+        }
+
+        // Find the root dir relative to the bucket to use.
+        let mut root_dir_rel = Vec::new();
+        while !segments.is_empty() && !is_glob(segments[0]) {
+            root_dir_rel.push(segments.remove(0));
+        }
+
+        let root_dir_rel = root_dir_rel.join("/");
+        // Now put it back into the 's3://...' format.
+        let root_dir = format!("s3://{bucket}/{root_dir_rel}");
+
+        let segments = segments.into_iter().map(|s| s.to_string()).collect();
+
+        Ok(GlobSegments { root_dir, segments })
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

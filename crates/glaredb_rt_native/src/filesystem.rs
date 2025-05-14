@@ -57,6 +57,8 @@ impl FileHandle for LocalFileHandle {
 pub struct LocalFileSystem {}
 
 impl FileSystem for LocalFileSystem {
+    const NAME: &str = "Local";
+
     type FileHandle = LocalFileHandle;
     type ReadDirHandle = LocalDirHandle;
     type State = ();
@@ -99,11 +101,11 @@ impl FileSystem for LocalFileSystem {
         Ok(Some(FileStat { file_type }))
     }
 
-    fn read_dir(&self, dir: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        LocalDirHandle {
+    fn read_dir(&self, dir: &str, _state: &Self::State) -> Result<Self::ReadDirHandle> {
+        Ok(LocalDirHandle {
             path: dir.into(),
             exhausted: false,
-        }
+        })
     }
 
     fn glob_segments(glob: &str) -> Result<GlobSegments> {
@@ -163,15 +165,9 @@ impl LocalDirHandle {
             let entry = entry.context("Failed to get entry")?;
             let path = entry.path();
             if path.is_dir() {
-                ents.push(DirEntry {
-                    path: path.to_string_lossy().to_string(),
-                    file_type: FileType::Directory,
-                })
+                ents.push(DirEntry::new_dir(path.to_string_lossy().to_string()))
             } else {
-                ents.push(DirEntry {
-                    path: path.to_string_lossy().to_string(),
-                    file_type: FileType::File,
-                })
+                ents.push(DirEntry::new_file(path.to_string_lossy().to_string()))
             }
         }
 

@@ -38,6 +38,8 @@ impl MemoryFileSystem {
 }
 
 impl FileSystem for MemoryFileSystem {
+    const NAME: &str = "Memory";
+
     type FileHandle = MemoryFileHandle;
     type ReadDirHandle = DirHandleNotImplemented;
     type State = ();
@@ -77,10 +79,6 @@ impl FileSystem for MemoryFileSystem {
         Ok(Some(FileStat {
             file_type: FileType::File,
         }))
-    }
-
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        DirHandleNotImplemented
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

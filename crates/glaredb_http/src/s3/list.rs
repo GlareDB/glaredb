@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct S3ListResponse {
     pub is_truncated: bool,
     pub next_continuation_token: Option<String>,
-    pub contents: Vec<S3ListContents>,
+    pub contents: Option<Vec<S3ListContents>>,
+    pub common_prefixes: Option<Vec<S3Prefix>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,6 +16,12 @@ pub struct S3ListContents {
     pub key: String,
     pub last_modified: DateTime<Utc>,
     pub size: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct S3Prefix {
+    pub prefix: String,
 }
 
 #[cfg(test)]
@@ -45,13 +52,14 @@ mod tests {
         let expected = S3ListResponse {
             is_truncated: false,
             next_continuation_token: None,
-            contents: vec![S3ListContents {
+            contents: Some(vec![S3ListContents {
                 key: "my-image.jpg".to_string(),
                 last_modified: DateTime::parse_from_rfc3339("2009-10-12T17:50:30.000Z")
                     .unwrap()
                     .to_utc(),
                 size: 434234,
-            }],
+            }]),
+            common_prefixes: None,
         };
 
         assert_eq!(expected, resp);
@@ -84,13 +92,14 @@ mod tests {
             next_continuation_token: Some(
                 "1ueGcxLPRx1Tr/XYExHnhbYLgveDs2J/wm36Hy4vbOwM=".to_string(),
             ),
-            contents: vec![S3ListContents {
+            contents: Some(vec![S3ListContents {
                 key: "my-image.jpg".to_string(),
                 last_modified: DateTime::parse_from_rfc3339("2009-10-12T17:50:30.000Z")
                     .unwrap()
                     .to_utc(),
                 size: 434234,
-            }],
+            }]),
+            common_prefixes: None,
         };
 
         assert_eq!(expected, resp);

@@ -7,8 +7,32 @@ use super::FileType;
 
 #[derive(Debug, Clone)]
 pub struct DirEntry {
-    pub path: String,
-    pub file_type: FileType,
+    /// Path to the file or directory.
+    ///
+    /// Should not contain a trailing slash. Our globber makes assumptions about
+    /// being able to split on '/'.
+    pub(crate) path: String,
+    /// File type of the entry.
+    pub(crate) file_type: FileType,
+}
+
+impl DirEntry {
+    /// Create a new dir entry with the given path and file type.
+    pub fn new(mut path: String, file_type: FileType) -> Self {
+        if path.ends_with('/') {
+            path.pop();
+        }
+
+        DirEntry { path, file_type }
+    }
+
+    pub fn new_file(path: String) -> Self {
+        Self::new(path, FileType::File)
+    }
+
+    pub fn new_dir(path: String) -> Self {
+        Self::new(path, FileType::Directory)
+    }
 }
 
 /// Handle for "reading a directory". Polling will internally move some cursor

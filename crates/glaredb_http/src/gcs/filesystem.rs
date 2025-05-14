@@ -63,6 +63,8 @@ impl<C> FileSystem for GcsFileSystem<C>
 where
     C: HttpClient,
 {
+    const NAME: &str = "GCS";
+
     type FileHandle = GcsFileHandle<C>;
     type ReadDirHandle = DirHandleNotImplemented;
     type State = GcsFileSystemState;
@@ -157,10 +159,6 @@ where
         }
 
         Err(DbError::new(format!("Unexpected status code: {status}")))
-    }
-
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        DirHandleNotImplemented
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

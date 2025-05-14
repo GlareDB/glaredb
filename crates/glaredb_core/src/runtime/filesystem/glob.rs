@@ -70,7 +70,7 @@ where
             }
         }
 
-        let root_dir = fs.read_dir(&glob_segments.root_dir, state);
+        let root_dir = fs.read_dir(&glob_segments.root_dir, state)?;
         let stack = vec![(root_dir, 0)];
 
         Ok(GlobHandle {
@@ -118,6 +118,8 @@ where
                     let mut temp_stack = Vec::new();
 
                     for ent in self.buf.drain(..) {
+                        // TODO: Path slicing logic probably needs
+                        // happen on the filesystem.
                         // Only match the final path component.
                         let name = ent.path.rsplit('/').next().required("last path segment")?;
 

@@ -193,6 +193,8 @@ impl OriginFileSystem {
 }
 
 impl FileSystem for OriginFileSystem {
+    const NAME: &str = "Origin Private";
+
     type FileHandle = OriginFileHandle;
     type ReadDirHandle = DirHandleNotImplemented;
     type State = ();
@@ -261,12 +263,8 @@ impl FileSystem for OriginFileSystem {
         }
     }
 
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
-        DirHandleNotImplemented
-    }
-
     fn can_handle_path(&self, path: &str) -> bool {
-        // TOOD: Requring a valid url for the path is ugly, but I'm doing it for
+        // TODO: Requring a valid url for the path is ugly, but I'm doing it for
         // now just to test things out.
         matches!(Url::parse(path), Ok(url) if url.scheme() == "browser")
     }
