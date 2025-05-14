@@ -28,8 +28,11 @@ pub trait List: Sync + Send + Debug {
 
 #[derive(Debug)]
 pub struct ObjectStoreList<C: HttpClient, L: List> {
-    client: C,
-    list: L,
+    /// Object store specific listing logic and state.
+    pub list: L,
+    /// Client we're using to make the requests.
+    pub client: C,
+    /// Current state of the request.
     state: ListRequestState<C>,
 }
 
@@ -129,7 +132,16 @@ where
                         Poll::Ready(None) => {
                             // Done, parse and emit.
                             let start_count = ents.len();
-                            self.list.parse_response(buf.as_slice(), ents)?;
+                            let continuation = self.list.parse_response(buf.as_slice(), ents)?;
+
+                            if continuation.is_some() {
+                                // If we have a contination token, need to init
+                                // a new request on the next poll.
+                                self.state = ListRequestState::DoRequest { continuation };
+                            } else {
+                                // Otherwise we have nothing else to do (at this dir level).
+                                self.state = ListRequestState::Exhausted;
+                            }
 
                             let appended = ents.len() - start_count;
 
