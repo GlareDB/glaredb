@@ -3,9 +3,10 @@ use std::io::Cursor;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use futures::{FutureExt, StreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use glaredb_core::runtime::filesystem::FileType;
 use glaredb_core::runtime::filesystem::directory::{DirEntry, ReadDirHandle};
+use glaredb_core::util::future::block_on;
 use glaredb_error::{DbError, Result, ResultExt};
 use reqwest::{Method, Request, StatusCode};
 use url::Url;
@@ -30,7 +31,7 @@ pub struct S3DirHandle<C: HttpClient> {
     access: Arc<S3DirAccess>,
     /// The current prefix we're listing on.
     ///
-    /// Should always include the trailing '/'.
+    /// Should include the trailing '/' if the prefix isn't empty.
     prefix: String,
     /// Current state of the handle.
     state: ListRequestState<C>,
@@ -41,7 +42,7 @@ where
     C: HttpClient,
 {
     pub fn new(mut prefix: String, client: C, access: S3DirAccess) -> Self {
-        if !prefix.ends_with('/') {
+        if !prefix.is_empty() && !prefix.ends_with('/') {
             prefix.push('/');
         }
 
@@ -122,6 +123,15 @@ where
                     };
 
                     if resp.status() != StatusCode::OK {
+                        // let text_res: Result<String> = block_on(async move {
+                        //     let mut stream = resp.into_bytes_stream();
+                        //     let mut buf = Vec::new();
+                        //     while let Some(bs) = stream.try_next().await? {
+                        //         buf.extend_from_slice(bs.as_ref());
+                        //     }
+                        //     Ok(String::from_utf8_lossy(&buf).to_string())
+                        // });
+                        // let text = text_res.unwrap_or(String::new());
                         // TODO: Probably want to read the body for the error
                         // message...
                         return Poll::Ready(Err(DbError::new("Failed to make list request")));
@@ -154,18 +164,18 @@ where
                             //
                             // Content object keys are relative to the prefix we
                             // supplied when we made the request.
-                            ents.extend(list_resp.contents.into_iter().map(|content| DirEntry {
-                                path: format!("{}{}", self.prefix, content.key),
-                                file_type: FileType::File,
-                            }));
+                            if let Some(contents) = list_resp.contents {
+                                ents.extend(contents.into_iter().map(|content| {
+                                    DirEntry::new_file(format!("{}{}", self.prefix, content.key))
+                                }))
+                            }
 
                             // Now treat common prefixes as subdirs.
                             if let Some(common_prefixes) = list_resp.common_prefixes {
                                 ents.extend(common_prefixes.into_iter().map(|prefix| {
-                                    DirEntry {
-                                        path: prefix.prefix, // No need to prepend, the full prefix is returned.
-                                        file_type: FileType::Directory,
-                                    }
+                                    // No need to prepend, the full prefix is
+                                    // returned.
+                                    DirEntry::new_dir(prefix.prefix)
                                 }));
                             }
 
@@ -202,7 +212,8 @@ where
     }
 
     fn change_dir(&mut self, relative: impl Into<String>) -> Result<Self> {
-        let mut new_prefix = format!("{}{}", self.prefix, relative.into());
+        let relative = relative.into();
+        let mut new_prefix = format!("{}{}", self.prefix, relative);
         if !new_prefix.ends_with('/') {
             new_prefix.push('/');
         }

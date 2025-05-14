@@ -165,15 +165,9 @@ impl LocalDirHandle {
             let entry = entry.context("Failed to get entry")?;
             let path = entry.path();
             if path.is_dir() {
-                ents.push(DirEntry {
-                    path: path.to_string_lossy().to_string(),
-                    file_type: FileType::Directory,
-                })
+                ents.push(DirEntry::new_dir(path.to_string_lossy().to_string()))
             } else {
-                ents.push(DirEntry {
-                    path: path.to_string_lossy().to_string(),
-                    file_type: FileType::File,
-                })
+                ents.push(DirEntry::new_file(path.to_string_lossy().to_string()))
             }
         }
 

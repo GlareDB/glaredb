@@ -2,7 +2,7 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 use chrono::Utc;
-use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
+use glaredb_core::runtime::filesystem::glob::{GlobSegments, is_glob};
 use glaredb_core::runtime::filesystem::{
     FileHandle,
     FileOpenContext,
@@ -185,6 +185,44 @@ where
         let dir = S3DirHandle::new(prefix, self.client.clone(), access);
 
         Ok(dir)
+    }
+
+    fn glob_segments(glob: &str) -> Result<GlobSegments> {
+        // I _believe_ that by parsing a url, we would end up erroring on glob
+        // characters in the bucket name. But need to test (erroring is good,
+        // just need to make it reasonable).
+        let url = Url::parse(glob).context_fn(|| format!("Failed to parse '{glob}' as a URL"))?;
+
+        // Assumes s3 format: 's3://bucket/file.csv'
+        let bucket = match url.host().required("Missing host on url")? {
+            url::Host::Domain(host) => host,
+            other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
+        };
+
+        // Now we parse the segments from the the path.
+        let mut segments: Vec<_> = url
+            .path()
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+        if segments.is_empty() {
+            return Err(DbError::new("Missing segments for glob"));
+        }
+
+        // Find the root dir relative to the bucket to use.
+        let mut root_dir_rel = Vec::new();
+        while !segments.is_empty() && !is_glob(segments[0]) {
+            root_dir_rel.push(segments.remove(0));
+        }
+
+        let root_dir_rel = root_dir_rel.join("/");
+        // Now put it back into the 's3://...' format.
+        let root_dir = format!("s3://{bucket}/{root_dir_rel}");
+
+        let segments = segments.into_iter().map(|s| s.to_string()).collect();
+
+        Ok(GlobSegments { root_dir, segments })
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
