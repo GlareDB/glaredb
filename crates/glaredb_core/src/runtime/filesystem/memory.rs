@@ -5,8 +5,8 @@ use std::task::{Context, Poll};
 
 use glaredb_error::{DbError, Result, not_implemented};
 
-use super::dir_list::{DirEntry, DirList, NotImplementedDirList};
-use super::{File, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
+use super::directory::DirHandleNotImplemented;
+use super::{FileHandle, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags};
 use crate::buffer::buffer_manager::{AsRawBufferManager, RawBufferManager};
 use crate::buffer::db_vec::DbVec;
 
@@ -38,15 +38,15 @@ impl MemoryFileSystem {
 }
 
 impl FileSystem for MemoryFileSystem {
-    type File = MemoryFileHandle;
+    type FileHandle = MemoryFileHandle;
+    type ReadDirHandle = DirHandleNotImplemented;
     type State = ();
-    type DirList = MemoryFileList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::File> {
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::FileHandle> {
         if flags.is_write() {
             not_implemented!("write support for memory filesystem")
         }
@@ -79,41 +79,14 @@ impl FileSystem for MemoryFileSystem {
         }))
     }
 
-    fn read_dir(&self, prefix: &str, _state: &Self::State) -> Self::DirList {
-        let mut paths = Vec::new();
-        self.files.scan(|path, _| {
-            // TODO: ?
-            if path.starts_with(prefix) {
-                paths.push(DirEntry {
-                    path: path.clone(),
-                    file_type: FileType::File,
-                });
-            }
-        });
-
-        // TODO: Probably need to dedup, scc hash map can scan duplicates in
-        // case of concurrent resizes.
-
-        MemoryFileList { paths }
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
+        DirHandleNotImplemented
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
         let path = Path::new(path);
         // TODO: Have separate function that doesn't return error.
         get_normalized_file_name(path).is_ok()
-    }
-}
-
-#[derive(Debug)]
-pub struct MemoryFileList {
-    paths: Vec<DirEntry>,
-}
-
-impl DirList for MemoryFileList {
-    fn poll_list(&mut self, _cx: &mut Context, paths: &mut Vec<DirEntry>) -> Poll<Result<usize>> {
-        let n = self.paths.len();
-        paths.append(&mut self.paths);
-        Poll::Ready(Ok(n))
     }
 }
 
@@ -143,7 +116,7 @@ impl MemoryFileHandle {
     }
 }
 
-impl File for MemoryFileHandle {
+impl FileHandle for MemoryFileHandle {
     fn path(&self) -> &str {
         &self.path
     }
@@ -231,8 +204,6 @@ mod tests {
 
     use super::*;
     use crate::buffer::buffer_manager::DefaultBufferManager;
-    use crate::runtime::filesystem::dir_list::DirListExt;
-    use crate::util::future::block_on;
     use crate::util::task::noop_context;
 
     #[test]

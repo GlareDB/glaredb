@@ -1,35 +1,34 @@
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{DbError, OptionExt, Result, ResultExt};
 use globset::{GlobBuilder, GlobMatcher};
 
 use super::FileSystem;
-use super::dir_list::{DirEntry, DirList};
+use super::directory::{DirEntry, ReadDirHandle};
 use super::file_provider::FileProvider;
 
 #[derive(Debug)]
-pub struct GlobList<L: DirList> {
-    matcher: GlobMatcher,
-    list_buf: Vec<DirEntry>,
-    /// (dir, dir_list)
-    stack: Vec<(String, L)>,
+pub struct GlobHandle<D: ReadDirHandle> {
+    /// The raw segmens, e.g. ["foo", "*", "bar-*.txt"]
+    segments: Vec<String>,
+    /// A matcher per segment, Some if contains glob, None if literal.
+    matchers: Vec<Option<GlobMatcher>>,
+    /// Working stack.
+    stack: Vec<(D, usize)>,
+    /// Scratch buffer for each poll_list.
+    buf: Vec<DirEntry>,
 }
 
-impl<L> GlobList<L>
+impl<D> GlobHandle<D>
 where
-    L: DirList,
+    D: ReadDirHandle,
 {
     pub fn try_new<F>(fs: &F, state: &F::State, glob: &str) -> Result<Self>
     where
-        F: FileSystem<DirList = L> + ?Sized,
+        F: FileSystem<ReadDirHandle = D> + ?Sized,
     {
-        // TODO: This will only do a single list which will likely iterate more
-        // paths than we want.
-        //
-        // Instead we should be incrementally building up the prefix to use, or
-        // use some sort of "prefix stack" to keep listing until we're
-        // exhausted.
+        // TODO: For s3/gcs, we'll need to ensure we don't mess with the
+        // schemes. Tbh might need to tweak the auto-detect stuff too.
 
         let mut segments = split_segments(glob);
         if segments.is_empty() {
@@ -38,7 +37,7 @@ where
 
         // Find the root dir to use.
         let mut root = Vec::new();
-        while !segments.is_empty() && !is_glob(&segments[0]) {
+        while !segments.is_empty() && !is_glob(segments[0]) {
             root.push(segments.remove(0));
         }
 
@@ -46,30 +45,32 @@ where
         //
         // E.g. for s3, always use '/'. If local and windows, use '\'.
         let root = root.join("/");
+        let root_dir = fs.read_dir(&root, state);
 
-        // Build matcher for original glob.
-        let matcher = GlobBuilder::new(glob)
-            .literal_separator(true)
-            .build()
-            .context("Failed to build glob matcher")?
-            .compile_matcher();
-
-        unimplemented!()
-    }
-
-    pub fn expand_next<'a>(&'a mut self, expanded: &'a mut Vec<String>) -> ExpandNext<'a, L> {
-        ExpandNext {
-            glob: self,
-            expanded,
+        // Build matchers per segment.
+        let mut matchers = Vec::with_capacity(segments.len());
+        for seg in &segments {
+            if is_glob(seg) {
+                let matcher = GlobBuilder::new(seg)
+                    .literal_separator(true)
+                    .build()
+                    .context("Failed to build glob for segment")?
+                    .compile_matcher();
+                matchers.push(Some(matcher));
+            } else {
+                matchers.push(None);
+            }
         }
-    }
 
-    pub fn expand_all<'a>(&'a mut self, expanded: &'a mut Vec<String>) -> ExpandAll<'a, L> {
-        ExpandAll {
-            glob: self,
-            expanded,
-            total: 0,
-        }
+        let segments = segments.into_iter().map(|s| s.to_string()).collect();
+        let stack = vec![(root_dir, 0)];
+
+        Ok(GlobHandle {
+            segments,
+            matchers,
+            stack,
+            buf: Vec::new(),
+        })
     }
 
     pub fn poll_expand(
@@ -77,96 +78,110 @@ where
         cx: &mut Context,
         expanded: &mut Vec<String>,
     ) -> Poll<Result<usize>> {
+        let expanded_len = expanded.len();
+
         loop {
-            unimplemented!()
-            // // TODO: Probably need to track when we clear. List could be using it as
-            // // a scratch buffer... which would be weird.
-            // self.list_buf.clear();
-            // let n = match self.list.poll_list(cx, &mut self.list_buf)? {
-            //     Poll::Ready(n) => n,
-            //     Poll::Pending => return Poll::Pending,
-            // };
-            // if n == 0 {
-            //     return Poll::Ready(Ok(0));
-            // }
+            let (handle, seg_idx) = match self.stack.last_mut() {
+                Some((handle, idx)) => (handle, *idx),
+                None => {
+                    // Stack empty, we're done.
+                    return Poll::Ready(Ok(0));
+                }
+            };
 
-            // let out_len = expanded.len();
-            // // Extend `out` with only paths that pass the glob matcher.
-            // expanded.extend(self.list_buf.drain(..).filter(|path| {
-            //     let rel = &path[self.prefix_len..];
-            //     self.matcher.is_match(rel)
-            // }));
-            // let append_count = expanded.len() - out_len;
+            // TODO: Might need to track when we clear this if `poll_list` will
+            // ever use it as a scratch buffer.
+            self.buf.clear();
 
-            // if append_count > 0 {
-            //     // We have paths, return them.
-            //     return Poll::Ready(Ok(append_count));
-            // }
+            match handle.poll_list(cx, &mut self.buf)? {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(0) => {
+                    // Done listing this dir, pop and move on.
+                    self.stack.pop();
+                    continue;
+                }
+                Poll::Ready(_) => {
+                    let is_last = seg_idx + 1 == self.segments.len();
+                    let pat = &self.segments[seg_idx];
+                    let is_double_star = pat == "**";
+                    let m_opt = &self.matchers[seg_idx];
 
-            // // We filtered everything out. Read the next batch of paths.
-            // continue;
+                    // TODO: Avoid.
+                    let mut temp_stack = Vec::new();
+
+                    for ent in self.buf.drain(..) {
+                        // Only match the final path component.
+                        let name = ent.path.rsplit('/').next().required("last path segment")?;
+
+                        if is_double_star {
+                            // Always "match" the dir to recurse deeper
+                            if ent.file_type.is_dir() {
+                                // Consume one directory but stay on the same '**' segment:
+                                let child = handle.change_dir(name)?;
+                                temp_stack.push((child, seg_idx));
+
+                                // Also allow skipping the '**' altogether and
+                                // moving to the next segment:
+                                if seg_idx + 1 < self.segments.len() {
+                                    let child2 = handle.change_dir(name)?;
+                                    temp_stack.push((child2, seg_idx + 1));
+                                }
+                            }
+
+                            // And we don’t emit anything at this stage unless
+                            // '**' is the last segmentt, in which case
+                            // "everything under here" is a match.
+                            if seg_idx + 1 == self.segments.len() {
+                                expanded.push(ent.path.clone());
+                            }
+
+                            continue;
+                        }
+
+                        let ok = if let Some(m) = m_opt {
+                            // Glob matching.
+                            m.is_match(name)
+                        } else {
+                            // Literal segment.
+                            name == pat
+                        };
+                        if !ok {
+                            continue;
+                        }
+
+                        if is_last {
+                            // Final segment, emit path
+                            if ent.file_type.is_file() {
+                                expanded.push(ent.path.clone());
+                            }
+                            // TODO: Optionally emit dir?
+                        } else if ent.file_type.is_dir() {
+                            // not last, cd into next dir.
+                            let child = handle.change_dir(name)?;
+                            temp_stack.push((child, seg_idx + 1));
+                        }
+                    }
+
+                    self.stack.append(&mut temp_stack);
+
+                    let appended = expanded.len() - expanded_len;
+                    if appended > 0 {
+                        return Poll::Ready(Ok(appended));
+                    }
+
+                    // Otherwise we filtered everything out... continue on.
+                }
+            }
         }
     }
 }
 
-impl<L> FileProvider for GlobList<L>
+impl<D> FileProvider for GlobHandle<D>
 where
-    L: DirList,
+    D: ReadDirHandle,
 {
     fn poll_next(&mut self, cx: &mut Context, out: &mut Vec<String>) -> Poll<Result<usize>> {
         self.poll_expand(cx, out)
-    }
-}
-
-#[derive(Debug)]
-pub struct ExpandNext<'a, L: DirList> {
-    glob: &'a mut GlobList<L>,
-    expanded: &'a mut Vec<String>,
-}
-
-impl<'a, L> Future for ExpandNext<'a, L>
-where
-    L: DirList,
-{
-    type Output = Result<usize>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        this.glob.poll_expand(cx, this.expanded)
-    }
-}
-
-#[derive(Debug)]
-pub struct ExpandAll<'a, L: DirList> {
-    glob: &'a mut GlobList<L>,
-    expanded: &'a mut Vec<String>,
-    total: usize,
-}
-
-impl<'a, L> Future for ExpandAll<'a, L>
-where
-    L: DirList,
-{
-    type Output = Result<usize>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-
-        loop {
-            let n = match this.glob.poll_expand(cx, this.expanded) {
-                Poll::Ready(Ok(n)) => n,
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                Poll::Pending => return Poll::Pending,
-            };
-
-            this.total += n;
-            if n == 0 {
-                // We've read everything.
-                return Poll::Ready(Ok(n));
-            }
-
-            // Continue... keep expanding.
-        }
     }
 }
 
@@ -177,13 +192,9 @@ pub fn is_glob(path: &str) -> bool {
 
 /// Split a glob like "data/2025-*/file-*.parquet" into ["data", "2025-*",
 /// "file-*.parquet"]
-fn split_segments<'a>(pattern: &'a str) -> Vec<&'a str> {
+fn split_segments(pattern: &str) -> Vec<&str> {
     // TODO: '\' on windows?
-    pattern
-        .trim_start_matches("./")
-        .split('/')
-        .filter(|s| !s.is_empty())
-        .collect()
+    pattern.split('/').filter(|s| !s.is_empty()).collect()
 }
 
 #[cfg(test)]
@@ -204,7 +215,7 @@ mod tests {
             },
             TestCase {
                 input: "./*.parquet",
-                segments: vec!["*.parquet"],
+                segments: vec![".", "*.parquet"],
             },
             TestCase {
                 input: "dir/**/file.parquet",

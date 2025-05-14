@@ -50,7 +50,7 @@ impl MultiFileProvider {
     pub fn try_new_from_path(fs: &FileSystemWithState, path: impl Into<String>) -> Result<Self> {
         let path = path.into();
         let provider = if is_glob(&path) {
-            fs.glob_list_file_provider(&path)?
+            fs.read_glob(&path)?
         } else {
             Box::new(SingleFileProvider::new(path))
         };
@@ -101,7 +101,7 @@ pub struct GetNth<'a> {
     n: usize,
 }
 
-impl<'a> Future for GetNth<'a> {
+impl Future for GetNth<'_> {
     type Output = Result<Option<String>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

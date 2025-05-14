@@ -1,4 +1,4 @@
-use glaredb_core::runtime::filesystem::file_list::NotImplementedDirList;
+use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
 use glaredb_core::runtime::filesystem::{
     FileOpenContext,
     FileStat,
@@ -41,15 +41,15 @@ impl<C> FileSystem for HttpFileSystem<C>
 where
     C: HttpClient,
 {
-    type File = HttpFileHandle<C, NopRequestSigner>;
+    type ReadDirHandle = DirHandleNotImplemented;
+    type FileHandle = HttpFileHandle<C, NopRequestSigner>;
     type State = ();
-    type DirList = NotImplementedDirList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::File> {
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::FileHandle> {
         if flags.is_write() {
             not_implemented!("write support for http filesystem")
         }
@@ -96,8 +96,8 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::DirList {
-        NotImplementedDirList
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
+        DirHandleNotImplemented
     }
 
     fn can_handle_path(&self, path: &str) -> bool {

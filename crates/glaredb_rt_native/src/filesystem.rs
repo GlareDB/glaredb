@@ -1,11 +1,11 @@
 use std::fs::{self, File as StdFile, OpenOptions};
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::task::{Context, Poll};
 
-use glaredb_core::runtime::filesystem::file_list::{DirList, NotImplementedDirList};
+use glaredb_core::runtime::filesystem::directory::{DirEntry, ReadDirHandle};
 use glaredb_core::runtime::filesystem::{
-    File,
+    FileHandle,
     FileOpenContext,
     FileStat,
     FileSystem,
@@ -15,13 +15,13 @@ use glaredb_core::runtime::filesystem::{
 use glaredb_error::{DbError, Result, ResultExt};
 
 #[derive(Debug)]
-pub struct LocalFile {
+pub struct LocalFileHandle {
     path: String,
     len: usize,
     file: StdFile,
 }
 
-impl File for LocalFile {
+impl FileHandle for LocalFileHandle {
     fn path(&self) -> &str {
         &self.path
     }
@@ -56,15 +56,15 @@ impl File for LocalFile {
 pub struct LocalFileSystem {}
 
 impl FileSystem for LocalFileSystem {
-    type File = LocalFile;
+    type FileHandle = LocalFileHandle;
+    type ReadDirHandle = LocalDirHandle;
     type State = ();
-    type DirList = LocalDirList;
 
     fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
         Ok(())
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::File> {
+    async fn open(&self, flags: OpenFlags, path: &str, _state: &()) -> Result<Self::FileHandle> {
         let file = OpenOptions::new()
             .read(flags.is_read())
             .write(flags.is_write())
@@ -73,7 +73,7 @@ impl FileSystem for LocalFileSystem {
 
         let metadata = file.metadata()?;
 
-        Ok(LocalFile {
+        Ok(LocalFileHandle {
             path: path.to_string(),
             len: metadata.len() as usize,
             file,
@@ -98,9 +98,9 @@ impl FileSystem for LocalFileSystem {
         Ok(Some(FileStat { file_type }))
     }
 
-    fn read_dir(&self, prefix: &str, _state: &Self::State) -> Self::DirList {
-        LocalDirList {
-            root: PathBuf::from(prefix),
+    fn read_dir(&self, dir: &str, _state: &Self::State) -> Self::ReadDirHandle {
+        LocalDirHandle {
+            path: dir.into(),
             exhausted: false,
         }
     }
@@ -112,42 +112,55 @@ impl FileSystem for LocalFileSystem {
 }
 
 #[derive(Debug)]
-pub struct LocalDirList {
-    root: PathBuf,
+pub struct LocalDirHandle {
+    path: PathBuf,
     exhausted: bool,
 }
 
-impl LocalDirList {
-    fn list_inner(&mut self, paths: &mut Vec<String>) -> Result<usize> {
+impl LocalDirHandle {
+    fn list_inner(&mut self, ents: &mut Vec<DirEntry>) -> Result<usize> {
         if self.exhausted {
             return Ok(0);
         }
 
-        fn inner(dir: &Path, paths: &mut Vec<String>) -> Result<()> {
-            if dir.is_dir() {
-                for entry in fs::read_dir(dir).context("Failed to read directory")? {
-                    let entry = entry.context("Failed to get entry")?;
-                    let path = entry.path();
-                    if path.is_dir() {
-                        inner(&path, paths)?;
-                    } else {
-                        paths.push(path.to_string_lossy().to_string());
-                    }
-                }
+        let ents_len = ents.len();
+
+        let readdir = fs::read_dir(&self.path)
+            .context_fn(|| format!("Failed to read directory: {}", self.path.to_string_lossy(),))?;
+
+        for entry in readdir {
+            let entry = entry.context("Failed to get entry")?;
+            let path = entry.path();
+            if path.is_dir() {
+                ents.push(DirEntry {
+                    path: path.to_string_lossy().to_string(),
+                    file_type: FileType::Directory,
+                })
+            } else {
+                ents.push(DirEntry {
+                    path: path.to_string_lossy().to_string(),
+                    file_type: FileType::File,
+                })
             }
-            Ok(())
         }
 
-        let n = paths.len();
-        inner(&self.root, paths)?;
+        let appended = ents.len() - ents_len;
         self.exhausted = true;
 
-        Ok(paths.len() - n)
+        Ok(appended)
     }
 }
 
-impl DirList for LocalDirList {
-    fn poll_list(&mut self, _cx: &mut Context, paths: &mut Vec<String>) -> Poll<Result<usize>> {
-        Poll::Ready(self.list_inner(paths))
+impl ReadDirHandle for LocalDirHandle {
+    fn poll_list(&mut self, _cx: &mut Context, ents: &mut Vec<DirEntry>) -> Poll<Result<usize>> {
+        Poll::Ready(self.list_inner(ents))
+    }
+
+    fn change_dir(&mut self, relative: impl Into<String>) -> Result<Self> {
+        let new_path = self.path.join(relative.into());
+        Ok(LocalDirHandle {
+            path: new_path,
+            exhausted: false,
+        })
     }
 }

@@ -2,9 +2,9 @@ use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
 use chrono::Utc;
-use glaredb_core::runtime::filesystem::file_list::NotImplementedDirList;
+use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
 use glaredb_core::runtime::filesystem::{
-    File,
+    FileHandle,
     FileOpenContext,
     FileStat,
     FileSystem,
@@ -71,9 +71,9 @@ impl<C> FileSystem for S3FileSystem<C>
 where
     C: HttpClient,
 {
-    type File = S3FileHandle<C>;
+    type FileHandle = S3FileHandle<C>;
+    type ReadDirHandle = DirHandleNotImplemented;
     type State = S3FileSystemState;
-    type DirList = NotImplementedDirList;
 
     fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
         let key_id = context.get_value("access_key_id")?;
@@ -96,7 +96,12 @@ where
         Ok(S3FileSystemState { creds, region })
     }
 
-    async fn open(&self, flags: OpenFlags, path: &str, state: &Self::State) -> Result<Self::File> {
+    async fn open(
+        &self,
+        flags: OpenFlags,
+        path: &str,
+        state: &Self::State,
+    ) -> Result<Self::FileHandle> {
         if flags.is_write() {
             not_implemented!("write support for s3 filesystem")
         }
@@ -152,8 +157,8 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::DirList {
-        NotImplementedDirList
+    fn read_dir(&self, _prefix: &str, _state: &Self::State) -> Self::ReadDirHandle {
+        DirHandleNotImplemented
     }
 
     fn can_handle_path(&self, path: &str) -> bool {
@@ -190,7 +195,7 @@ pub struct S3FileHandle<C: HttpClient> {
     handle: HttpFileHandle<C, S3RequestSigner>,
 }
 
-impl<C> File for S3FileHandle<C>
+impl<C> FileHandle for S3FileHandle<C>
 where
     C: HttpClient,
 {

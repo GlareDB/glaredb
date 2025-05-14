@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use bytes::Bytes;
 use futures::{FutureExt, StreamExt};
-use glaredb_core::runtime::filesystem::File;
+use glaredb_core::runtime::filesystem::FileHandle;
 use glaredb_error::{DbError, Result};
 use reqwest::header::RANGE;
 use reqwest::{Method, Request};
@@ -46,7 +46,7 @@ where
     }
 }
 
-impl<C, S> File for HttpFileHandle<C, S>
+impl<C, S> FileHandle for HttpFileHandle<C, S>
 where
     C: HttpClient,
     S: RequestSigner,
