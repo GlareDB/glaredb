@@ -6,6 +6,10 @@ title: Aggregate Functions
 
 <!-- DOCSGEN_START aggregate_functions -->
 
+## `approx_count_distinct`
+
+Return an estimated number of distinct, non-NULL values in the input.
+
 ## `avg`
 
 Return the average value from the input column.
