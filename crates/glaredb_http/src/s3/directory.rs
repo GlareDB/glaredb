@@ -44,7 +44,7 @@ where
         // We only care about the bucket root when generating the url. So take
         // the existing object to use as the initial prefix, and replace with
         // empty one.
-        let mut prefix = std::mem::replace(&mut location.object, String::new());
+        let mut prefix = std::mem::take(&mut location.object);
 
         // 'https://bucket.s3.region.amazonaws.com'
         let url = location.url()?;
