@@ -20,7 +20,6 @@ use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
 use super::directory::S3DirHandle;
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::{HttpFileHandle, RequestSigner};
-use crate::s3::directory::S3DirAccess;
 
 pub const AWS_ENDPOINT: &str = "amazonaws.com";
 
@@ -40,9 +39,18 @@ where
             client,
         }
     }
+}
 
-    /// Construct a url pointing to the s3 resource.
-    fn s3_location_from_path(&self, path: &str, state: &S3FileSystemState) -> Result<Url> {
+#[derive(Debug)]
+pub struct S3Location {
+    pub(crate) bucket: String,
+    pub(crate) region: String,
+    pub(crate) object: String,
+    pub(crate) endpoint: String,
+}
+
+impl S3Location {
+    pub(crate) fn from_path(path: &str, state: &S3FileSystemState) -> Result<Self> {
         let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
 
         // Assumes s3 format: 's3://bucket/file.csv'
@@ -50,15 +58,29 @@ where
             url::Host::Domain(host) => host,
             other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
         };
-        let object = url.path(); // Should include leading '/';
+        let object = &url.path()[1..]; // Path includes a leading slash, slice it off.
         let region = &state.region;
         let endpoint = AWS_ENDPOINT;
+
+        Ok(S3Location {
+            bucket: bucket.to_string(),
+            region: region.to_string(),
+            object: object.to_string(),
+            endpoint: endpoint.to_string(),
+        })
+    }
+
+    pub(crate) fn url(&self) -> Result<Url> {
+        let bucket = &self.bucket;
+        let region = &self.region;
+        let endpoint = &self.endpoint;
+        let object = &self.object;
 
         // - bucket: The bucket containing the object.
         // - region: Region containing the bucket.
         // - endpoint: The s3 endpoint to use.
-        // - object: Path to the object, this should include a leading '/'.
-        let formatted = format!("https://{bucket}.s3.{region}.{endpoint}{object}");
+        // - object: Path to the object, this should not include a leading '/'.
+        let formatted = format!("https://{bucket}.s3.{region}.{endpoint}/{object}");
         Url::parse(&formatted).context_fn(|| format!("Failed to parse '{formatted}' into url"))
     }
 }
@@ -112,7 +134,7 @@ where
         if flags.is_create() {
             not_implemented!("create support for s3 filesystem")
         }
-        let location = self.s3_location_from_path(path, state)?;
+        let location = S3Location::from_path(path, state)?.url()?;
 
         let mut request = Request::new(Method::HEAD, location.clone());
         // If we don't have creds, we can skip signing.
@@ -139,7 +161,7 @@ where
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
-        let location = self.s3_location_from_path(path, state)?;
+        let location = S3Location::from_path(path, state)?.url()?;
 
         let mut request = Request::new(Method::HEAD, location.clone());
         if let Some(creds) = &state.creds {
@@ -162,27 +184,13 @@ where
     }
 
     fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
-        // Location includes path, we'll be slicing off the path and use it as
-        // the prefix.
-        let mut location = self.s3_location_from_path(dir, state)?;
-
-        // We want to trim off the leading '/' for the path.
-        //
-        // When parsing an http url, path will always have at least a '/' even
-        // if there's no path in the url.
-        let prefix = location.path()[1..].to_string();
-
-        // We don't need the path in the url now.
-        location.set_path("");
-
-        let access = S3DirAccess {
-            url: location,
-            signer: S3RequestSigner {
-                region: state.region.clone(),
-                creds: state.creds.clone(),
-            },
+        let location = S3Location::from_path(dir, state)?;
+        let signer = S3RequestSigner {
+            region: state.region.clone(),
+            creds: state.creds.clone(),
         };
-        let dir = S3DirHandle::new(prefix, self.client.clone(), access);
+
+        let dir = S3DirHandle::try_new(self.client.clone(), location, signer)?;
 
         Ok(dir)
     }

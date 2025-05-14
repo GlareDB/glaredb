@@ -3,15 +3,13 @@ use std::io::Cursor;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use futures::{FutureExt, StreamExt, TryStreamExt};
-use glaredb_core::runtime::filesystem::FileType;
+use futures::{FutureExt, StreamExt};
 use glaredb_core::runtime::filesystem::directory::{DirEntry, ReadDirHandle};
-use glaredb_core::util::future::block_on;
 use glaredb_error::{DbError, Result, ResultExt};
 use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
-use super::filesystem::S3RequestSigner;
+use super::filesystem::{S3Location, S3RequestSigner};
 use crate::client::{HttpClient, HttpResponse};
 use crate::handle::RequestSigner;
 use crate::s3::list::S3ListResponse;
@@ -21,8 +19,9 @@ pub struct S3DirAccess {
     /// URL for the bucket.
     ///
     /// 'https://bucket.s3.region.amazonaws.com'
-    pub url: Url,
-    pub signer: S3RequestSigner,
+    url: Url,
+    bucket: String,
+    signer: S3RequestSigner,
 }
 
 #[derive(Debug)]
@@ -41,17 +40,29 @@ impl<C> S3DirHandle<C>
 where
     C: HttpClient,
 {
-    pub fn new(mut prefix: String, client: C, access: S3DirAccess) -> Self {
+    pub fn try_new(client: C, mut location: S3Location, signer: S3RequestSigner) -> Result<Self> {
+        // We only care about the bucket root when generating the url. So take
+        // the existing object to use as the initial prefix, and replace with
+        // empty one.
+        let mut prefix = std::mem::replace(&mut location.object, String::new());
+
+        // 'https://bucket.s3.region.amazonaws.com'
+        let url = location.url()?;
+
         if !prefix.is_empty() && !prefix.ends_with('/') {
             prefix.push('/');
         }
 
-        S3DirHandle {
+        Ok(S3DirHandle {
             client,
-            access: Arc::new(access),
+            access: Arc::new(S3DirAccess {
+                url,
+                bucket: location.bucket,
+                signer,
+            }),
             prefix,
             state: ListRequestState::DoRequest { continuation: None },
-        }
+        })
     }
 }
 
@@ -161,12 +172,12 @@ where
                             let start_len = ents.len();
 
                             // For all content objects, treat them as files.
-                            //
-                            // Content object keys are relative to the prefix we
-                            // supplied when we made the request.
                             if let Some(contents) = list_resp.contents {
                                 ents.extend(contents.into_iter().map(|content| {
-                                    DirEntry::new_file(format!("{}{}", self.prefix, content.key))
+                                    DirEntry::new_file(format!(
+                                        "s3://{}/{}",
+                                        self.access.bucket, content.key
+                                    ))
                                 }))
                             }
 
