@@ -71,6 +71,8 @@ impl<C> FileSystem for S3FileSystem<C>
 where
     C: HttpClient,
 {
+    const NAME: &str = "S3";
+
     type FileHandle = S3FileHandle<C>;
     type ReadDirHandle = DirHandleNotImplemented;
     type State = S3FileSystemState;

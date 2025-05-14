@@ -7,6 +7,7 @@ pub struct S3ListResponse {
     pub is_truncated: bool,
     pub next_continuation_token: Option<String>,
     pub contents: Vec<S3ListContents>,
+    pub common_prefixes: Option<Vec<S3Prefix>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,6 +16,12 @@ pub struct S3ListContents {
     pub key: String,
     pub last_modified: DateTime<Utc>,
     pub size: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct S3Prefix {
+    pub prefix: String,
 }
 
 #[cfg(test)]
@@ -52,6 +59,7 @@ mod tests {
                     .to_utc(),
                 size: 434234,
             }],
+            common_prefixes: None,
         };
 
         assert_eq!(expected, resp);
@@ -91,6 +99,7 @@ mod tests {
                     .to_utc(),
                 size: 434234,
             }],
+            common_prefixes: None,
         };
 
         assert_eq!(expected, resp);

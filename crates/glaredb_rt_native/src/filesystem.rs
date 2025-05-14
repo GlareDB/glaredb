@@ -57,6 +57,8 @@ impl FileHandle for LocalFileHandle {
 pub struct LocalFileSystem {}
 
 impl FileSystem for LocalFileSystem {
+    const NAME: &str = "Local";
+
     type FileHandle = LocalFileHandle;
     type ReadDirHandle = LocalDirHandle;
     type State = ();

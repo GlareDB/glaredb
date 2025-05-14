@@ -193,6 +193,8 @@ impl OriginFileSystem {
 }
 
 impl FileSystem for OriginFileSystem {
+    const NAME: &str = "Origin Private";
+
     type FileHandle = OriginFileHandle;
     type ReadDirHandle = DirHandleNotImplemented;
     type State = ();

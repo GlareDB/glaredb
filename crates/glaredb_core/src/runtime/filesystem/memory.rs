@@ -38,6 +38,8 @@ impl MemoryFileSystem {
 }
 
 impl FileSystem for MemoryFileSystem {
+    const NAME: &str = "Memory";
+
     type FileHandle = MemoryFileHandle;
     type ReadDirHandle = DirHandleNotImplemented;
     type State = ();

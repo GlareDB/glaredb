@@ -41,6 +41,8 @@ impl<C> FileSystem for HttpFileSystem<C>
 where
     C: HttpClient,
 {
+    const NAME: &str = "HTTP";
+
     type ReadDirHandle = DirHandleNotImplemented;
     type FileHandle = HttpFileHandle<C, NopRequestSigner>;
     type State = ();

@@ -63,6 +63,8 @@ impl<C> FileSystem for GcsFileSystem<C>
 where
     C: HttpClient,
 {
+    const NAME: &str = "GCS";
+
     type FileHandle = GcsFileHandle<C>;
     type ReadDirHandle = DirHandleNotImplemented;
     type State = GcsFileSystemState;
