@@ -102,9 +102,9 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                     (8, false) => Ok(DataType::uint8()),
                     (16, false) => Ok(DataType::uint16()),
                     (32, false) => Ok(DataType::uint32()),
-                    _ => Err(DbError::new(
+                    _ => Err(DbError::new(format!(
                         "Cannot convert from INT32 with width {bit_width}",
-                    )),
+                    ))),
                 },
                 (Some(basic::LogicalType::Decimal { scale, precision }), _) => {
                     let meta = decimal_type_meta(precision, scale)?;
@@ -151,9 +151,9 @@ fn convert_primitive(prim: &PrimitiveType) -> Result<DataType> {
                     (16, false) => Ok(DataType::uint16()),
                     (32, false) => Ok(DataType::uint32()),
                     (64, false) => Ok(DataType::uint64()),
-                    _ => Err(DbError::new(
+                    _ => Err(DbError::new(format!(
                         "Cannot convert from INT32 with width {bit_width}",
-                    )),
+                    ))),
                 },
                 (Some(basic::LogicalType::Decimal { scale, precision }), _) => {
                     let meta = decimal_type_meta(precision, scale)?;

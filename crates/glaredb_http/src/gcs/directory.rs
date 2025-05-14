@@ -69,7 +69,7 @@ impl List for GcsList {
             entries.extend(prefixes.into_iter().map(DirEntry::new_dir));
         }
 
-        Ok(list_resp.next_page_token)
+        Ok(list_resp.next_page_token.map(|s| s.to_string()))
     }
 }
 

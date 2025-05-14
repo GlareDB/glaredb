@@ -3,6 +3,9 @@ name = "glaredb_python"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 name = "glaredb"
 crate-type = ["cdylib"]

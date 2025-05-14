@@ -3,6 +3,9 @@ name = "docgen"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 logutil = { path = '../logutil' }
 glaredb_error = { path = '../glaredb_error' }

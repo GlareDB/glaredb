@@ -3,25 +3,25 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct S3ListResponse {
+pub struct S3ListResponse<'a> {
     pub is_truncated: bool,
-    pub next_continuation_token: Option<String>,
-    pub contents: Option<Vec<S3ListContents>>,
-    pub common_prefixes: Option<Vec<S3Prefix>>,
+    pub next_continuation_token: Option<&'a str>,
+    pub contents: Option<Vec<S3ListContents<'a>>>,
+    pub common_prefixes: Option<Vec<S3Prefix<'a>>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct S3ListContents {
-    pub key: String,
+pub struct S3ListContents<'a> {
+    pub key: &'a str,
     pub last_modified: DateTime<Utc>,
     pub size: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct S3Prefix {
-    pub prefix: String,
+pub struct S3Prefix<'a> {
+    pub prefix: &'a str,
 }
 
 #[cfg(test)]
@@ -53,7 +53,7 @@ mod tests {
             is_truncated: false,
             next_continuation_token: None,
             contents: Some(vec![S3ListContents {
-                key: "my-image.jpg".to_string(),
+                key: "my-image.jpg",
                 last_modified: DateTime::parse_from_rfc3339("2009-10-12T17:50:30.000Z")
                     .unwrap()
                     .to_utc(),
@@ -89,11 +89,9 @@ mod tests {
 
         let expected = S3ListResponse {
             is_truncated: true,
-            next_continuation_token: Some(
-                "1ueGcxLPRx1Tr/XYExHnhbYLgveDs2J/wm36Hy4vbOwM=".to_string(),
-            ),
+            next_continuation_token: Some("1ueGcxLPRx1Tr/XYExHnhbYLgveDs2J/wm36Hy4vbOwM="),
             contents: Some(vec![S3ListContents {
-                key: "my-image.jpg".to_string(),
+                key: "my-image.jpg",
                 last_modified: DateTime::parse_from_rfc3339("2009-10-12T17:50:30.000Z")
                     .unwrap()
                     .to_utc(),

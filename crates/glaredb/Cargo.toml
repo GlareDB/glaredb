@@ -4,7 +4,8 @@ version.workspace = true
 edition.workspace = true
 description = "GlareDB CLI"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lints]
+workspace = true
 
 [dependencies]
 logutil = { path = '../logutil' }

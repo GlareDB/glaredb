@@ -3,6 +3,9 @@ name = "glaredb_core"
 version = { workspace = true }
 edition = { workspace = true }
 
+[lints]
+workspace = true
+
 [dependencies]
 glaredb_error = { path = "../glaredb_error" }
 glaredb_proto = { path = "../glaredb_proto" }

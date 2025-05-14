@@ -21,7 +21,8 @@ pub struct DirEntry {
 
 impl DirEntry {
     /// Create a new dir entry with the given path and file type.
-    pub fn new(mut path: String, file_type: FileType) -> Self {
+    pub fn new(path: impl Into<String>, file_type: FileType) -> Self {
+        let mut path = path.into();
         if path.ends_with('/') {
             path.pop();
         }
@@ -29,11 +30,11 @@ impl DirEntry {
         DirEntry { path, file_type }
     }
 
-    pub fn new_file(path: String) -> Self {
+    pub fn new_file(path: impl Into<String>) -> Self {
         Self::new(path, FileType::File)
     }
 
-    pub fn new_dir(path: String) -> Self {
+    pub fn new_dir(path: impl Into<String>) -> Self {
         Self::new(path, FileType::Directory)
     }
 }

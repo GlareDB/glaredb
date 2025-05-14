@@ -12,6 +12,9 @@ lto = "fat"
 opt-level = 3
 codegen-units = 1
 
+[workspace.lints.clippy]
+literal_string_with_formatting_args = "warn"
+
 [workspace.dependencies]
 ahash = { version = "0.8.12", default-features = false }
 chrono = { version = "0.4.41" }

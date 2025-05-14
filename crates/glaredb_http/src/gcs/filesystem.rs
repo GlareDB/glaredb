@@ -203,24 +203,31 @@ where
     }
 
     fn glob_segments(glob: &str) -> Result<GlobSegments> {
-        // TODO: Copy pasted from s3.
-        let url = Url::parse(glob).context_fn(|| format!("Failed to parse '{glob}' as a URL"))?;
-
-        // Assumes gsutil format: 'gs://bucket/file.csv'
-        let bucket = match url.host().required("Missing host on url")? {
-            url::Host::Domain(host) => host,
-            other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
+        // TODO: Duplicated with s3
+        let trimmed = match glob.strip_prefix("gs://") {
+            Some(trimmed) => trimmed,
+            None => return Err(DbError::new(format!("Glob missing 'gs://' scheme: {glob}"))),
         };
 
-        // Now we parse the segments from the the path.
-        let mut segments: Vec<_> = url
-            .path()
-            .trim_start_matches('/')
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .collect();
+        // Now we parse the segments from the trimmed string
+        //
+        // First segment is the bucket.
+        let mut segments = trimmed.split('/').filter(|s| !s.is_empty());
+        let bucket = match segments.next() {
+            Some(bucket) => {
+                if is_glob(bucket) {
+                    return Err(DbError::new("Cannot have a glob in the bucket name"));
+                }
+                bucket
+            }
+            None => return Err(DbError::new("Cannot create glob from no segments")),
+        };
+
+        let mut segments: Vec<_> = segments.collect();
         if segments.is_empty() {
-            return Err(DbError::new("Missing segments for glob"));
+            return Err(DbError::new(
+                "Cannot have zero segments after parsing bucket",
+            ));
         }
 
         // Find the root dir relative to the bucket to use.

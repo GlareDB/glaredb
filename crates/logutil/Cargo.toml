@@ -3,6 +3,9 @@ name = "logutil"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }

@@ -3,6 +3,9 @@ name = "ext_delta"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 glaredb_proto = { path = '../glaredb_proto' }
 glaredb_core = { path = '../glaredb_core' }
