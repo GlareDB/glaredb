@@ -101,7 +101,7 @@ where
     type ReadDirHandle = S3DirHandle<C>;
     type State = S3FileSystemState;
 
-    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
+    async fn load_state(&self, context: FileOpenContext<'_>) -> Result<Self::State> {
         let key_id = context.get_value("access_key_id")?;
         let secret = context.get_value("secret_access_key")?;
         let region = context

@@ -271,18 +271,17 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Human-readable name for the filesystem.
     const NAME: &str;
 
-    // TODO: Probably remove this and just return `AnyFile` from open.
-    //
-    // This would allow us to return different kinds of file handles depending
-    // on the open flags used.
     type FileHandle: FileHandle;
-
     type ReadDirHandle: ReadDirHandle;
 
-    /// Extra state used when opening or statting a single file.
+    /// Extra state provided during file system operations.
     type State: Sync + Send;
 
-    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State>;
+    /// Loads state for the filesystem using the provided context.
+    fn load_state(
+        &self,
+        context: FileOpenContext<'_>,
+    ) -> impl Future<Output = Result<Self::State>> + Sync + Send;
 
     /// Open a file at a given path.
     fn open(
@@ -398,8 +397,11 @@ impl AnyFileSystem {
         }
     }
 
-    pub fn try_with_context(&self, context: FileOpenContext) -> Result<FileSystemWithState> {
-        let state = self.call_state_from_context(context)?;
+    pub async fn load_state<'a>(
+        &'a self,
+        context: FileOpenContext<'a>,
+    ) -> Result<FileSystemWithState> {
+        let state = self.call_state_from_context(context).await?;
         Ok(FileSystemWithState {
             fs: self.clone(),
             state,
@@ -410,16 +412,21 @@ impl AnyFileSystem {
         (self.vtable.can_handle_path_fn)(self.filesystem.as_ref(), path)
     }
 
-    fn call_state_from_context(&self, context: FileOpenContext) -> Result<AnyState> {
-        (self.vtable.state_from_context_fn)(self.filesystem.as_ref(), context)
+    async fn call_state_from_context<'a>(
+        &'a self,
+        context: FileOpenContext<'a>,
+    ) -> Result<AnyState> {
+        (self.vtable.load_state_fn)(self.filesystem.as_ref(), context).await
     }
 }
 
 #[allow(clippy::type_complexity)] // I do know how this is a complex type, but but that's kinda the point.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileSystemVTable {
-    state_from_context_fn:
-        for<'a> fn(fs: &dyn Any, context: FileOpenContext<'a>) -> Result<AnyState>,
+    load_state_fn: for<'a> fn(
+        fs: &'a dyn Any,
+        context: FileOpenContext<'a>,
+    ) -> FileSystemFuture<'a, Result<AnyState>>,
 
     open_fn: for<'a> fn(
         fs: &'a dyn Any,
@@ -460,10 +467,12 @@ where
     S: FileSystem,
 {
     const VTABLE: &'static RawFileSystemVTable = &RawFileSystemVTable {
-        state_from_context_fn: |fs, context| {
+        load_state_fn: |fs, context| {
             let fs = fs.downcast_ref::<Self>().unwrap();
-            let state = fs.state_from_context(context)?;
-            Ok(AnyState(Arc::new(state)))
+            Box::pin(async {
+                let state = fs.load_state(context).await?;
+                Ok(AnyState(Arc::new(state)))
+            })
         },
 
         open_fn: |fs, flags, path, state| {
