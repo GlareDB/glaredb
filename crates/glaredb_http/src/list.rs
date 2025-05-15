@@ -114,7 +114,10 @@ where
                         // println!("ERROR TEXT: {text}");
                         // TODO: Probably want to read the body for the error
                         // message...
-                        return Poll::Ready(Err(DbError::new("Failed to make list request")));
+                        //
+                        // Status code is at least decent.
+                        return Poll::Ready(Err(DbError::new("Failed to make list request")
+                            .with_field("status_code", resp.status())));
                     }
 
                     let stream = resp.into_bytes_stream();

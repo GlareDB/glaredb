@@ -88,7 +88,7 @@ impl GcsLocation {
 
 #[derive(Debug, Clone)]
 pub struct GcsFileSystemState {
-    service_account: Option<Arc<ServiceAccount>>,
+    token: Option<Arc<AccessToken>>,
 }
 
 impl<C> FileSystem for GcsFileSystem<C>
@@ -103,16 +103,18 @@ where
 
     async fn load_state(&self, context: FileOpenContext<'_>) -> Result<Self::State> {
         let service_account = context.get_value("service_account")?;
-        let service_account = match service_account {
+        let token = match service_account {
             Some(s) => {
                 let s = s.try_as_str()?;
                 let service_account = ServiceAccount::try_from_str(s)?;
-                Some(Arc::new(service_account))
+                // Fetch access token using service account.
+                let token = service_account.fetch_access_token(&self.client).await?;
+                Some(Arc::new(token))
             }
             None => None,
         };
 
-        Ok(GcsFileSystemState { service_account })
+        Ok(GcsFileSystemState { token })
     }
 
     async fn open(
@@ -128,19 +130,10 @@ where
             not_implemented!("create support for gcs filesystem")
         }
 
-        // Fetch token if we have a service account.
-        let token = match state.service_account.as_ref() {
-            Some(sa) => {
-                let token = sa.fetch_access_token(&self.client).await?;
-                Some(token)
-            }
-            None => None,
-        };
-
         let url = GcsLocation::from_path(path, state)?.object_scoped_xml_api_url()?;
         let mut request = Request::new(Method::HEAD, url.clone());
         // Authorize request.
-        if let Some(tok) = &token {
+        if let Some(tok) = &state.token {
             request = authorize_request(tok, request)?;
         }
 
@@ -154,7 +147,9 @@ where
             None => return Err(DbError::new("Missing Content-Length header for file")),
         };
 
-        let signer = GcsRequestSigner { token };
+        let signer = GcsRequestSigner {
+            token: state.token.clone(),
+        };
         let handle = HttpFileHandle::new(url, len, self.client.clone(), signer);
 
         Ok(GcsFileHandle { handle })
@@ -163,17 +158,8 @@ where
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
         let url = GcsLocation::from_path(path, state)?.object_scoped_xml_api_url()?;
 
-        // TODO: Possibly make state mutable to store the fetched token?
-        let token = match state.service_account.as_ref() {
-            Some(sa) => {
-                let token = sa.fetch_access_token(&self.client).await?;
-                Some(token)
-            }
-            None => None,
-        };
-
         let mut request = Request::new(Method::HEAD, url.clone());
-        if let Some(tok) = &token {
+        if let Some(tok) = &state.token {
             request = authorize_request(tok, request)?;
         }
 
@@ -196,7 +182,7 @@ where
     fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
         let location = GcsLocation::from_path(dir, state)?;
         let signer = GcsRequestSigner {
-            token: None, // TODO
+            token: state.token.clone(),
         };
 
         GcsDirHandle::try_new(self.client.clone(), location, signer)
@@ -258,7 +244,7 @@ where
 
 #[derive(Debug)]
 pub struct GcsRequestSigner {
-    token: Option<AccessToken>,
+    token: Option<Arc<AccessToken>>,
 }
 
 impl RequestSigner for GcsRequestSigner {
