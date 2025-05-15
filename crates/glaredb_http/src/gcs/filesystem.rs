@@ -182,7 +182,7 @@ where
     fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
         let location = GcsLocation::from_path(dir, state)?;
         let signer = GcsRequestSigner {
-            token: None, // TODO
+            token: state.token.clone(),
         };
 
         GcsDirHandle::try_new(self.client.clone(), location, signer)
