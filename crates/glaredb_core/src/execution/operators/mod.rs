@@ -446,15 +446,15 @@ impl PlannedOperator {
         &self,
         props: ExecutionProperties,
     ) -> Result<AnyOperatorState> {
-        unsafe { (self.vtable.create_operator_state_fn)(self.operator.as_ref(), props) }
+        (self.vtable.create_operator_state_fn)(self.operator.as_ref(), props)
     }
 
     pub fn call_output_types(&self) -> Vec<DataType> {
-        unsafe { (self.vtable.output_types_fn)(self.operator.as_ref()) }
+        (self.vtable.output_types_fn)(self.operator.as_ref())
     }
 
     pub fn call_materialization_ref(&self) -> Result<MaterializationRef> {
-        unsafe { (self.vtable.materialization_ref_fn)(self.operator.as_ref()) }
+        (self.vtable.materialization_ref_fn)(self.operator.as_ref())
     }
 
     pub fn call_create_partition_execute_states(
@@ -463,14 +463,12 @@ impl PlannedOperator {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyPartitionState>> {
-        unsafe {
-            (self.vtable.create_partition_execute_states_fn)(
-                self.operator.as_ref(),
-                op_state.0.as_ref(),
-                props,
-                partitions,
-            )
-        }
+        (self.vtable.create_partition_execute_states_fn)(
+            self.operator.as_ref(),
+            op_state.0.as_ref(),
+            props,
+            partitions,
+        )
     }
 
     pub fn call_create_partition_push_states(
@@ -479,14 +477,12 @@ impl PlannedOperator {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyPartitionState>> {
-        unsafe {
-            (self.vtable.create_partition_push_states_fn)(
-                self.operator.as_ref(),
-                op_state.0.as_ref(),
-                props,
-                partitions,
-            )
-        }
+        (self.vtable.create_partition_push_states_fn)(
+            self.operator.as_ref(),
+            op_state.0.as_ref(),
+            props,
+            partitions,
+        )
     }
 
     pub fn call_create_partition_pull_states(
@@ -495,14 +491,12 @@ impl PlannedOperator {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyPartitionState>> {
-        unsafe {
-            (self.vtable.create_partition_pull_states_fn)(
-                self.operator.as_ref(),
-                op_state.0.as_ref(),
-                props,
-                partitions,
-            )
-        }
+        (self.vtable.create_partition_pull_states_fn)(
+            self.operator.as_ref(),
+            op_state.0.as_ref(),
+            props,
+            partitions,
+        )
     }
 
     pub fn call_poll_pull(
@@ -512,15 +506,13 @@ impl PlannedOperator {
         partition_state: &mut AnyPartitionState,
         output: &mut Batch,
     ) -> Result<PollPull> {
-        unsafe {
-            (self.vtable.poll_pull_fn)(
-                self.operator.as_ref(),
-                cx,
-                op_state.0.as_ref(),
-                partition_state.0.as_mut(),
-                output,
-            )
-        }
+        (self.vtable.poll_pull_fn)(
+            self.operator.as_ref(),
+            cx,
+            op_state.0.as_ref(),
+            partition_state.0.as_mut(),
+            output,
+        )
     }
 
     pub fn call_poll_push(
@@ -530,15 +522,13 @@ impl PlannedOperator {
         partition_state: &mut AnyPartitionState,
         input: &mut Batch,
     ) -> Result<PollPush> {
-        unsafe {
-            (self.vtable.poll_push_fn)(
-                self.operator.as_ref(),
-                cx,
-                op_state.0.as_ref(),
-                partition_state.0.as_mut(),
-                input,
-            )
-        }
+        (self.vtable.poll_push_fn)(
+            self.operator.as_ref(),
+            cx,
+            op_state.0.as_ref(),
+            partition_state.0.as_mut(),
+            input,
+        )
     }
 
     pub fn call_poll_execute(
@@ -549,16 +539,14 @@ impl PlannedOperator {
         input: &mut Batch,
         output: &mut Batch,
     ) -> Result<PollExecute> {
-        unsafe {
-            (self.vtable.poll_execute_fn)(
-                self.operator.as_ref(),
-                cx,
-                op_state.0.as_ref(),
-                partition_state.0.as_mut(),
-                input,
-                output,
-            )
-        }
+        (self.vtable.poll_execute_fn)(
+            self.operator.as_ref(),
+            cx,
+            op_state.0.as_ref(),
+            partition_state.0.as_mut(),
+            input,
+            output,
+        )
     }
 
     pub fn call_poll_finalize_push(
@@ -567,14 +555,12 @@ impl PlannedOperator {
         op_state: &AnyOperatorState,
         partition_state: &mut AnyPartitionState,
     ) -> Result<PollFinalize> {
-        unsafe {
-            (self.vtable.poll_finalize_push_fn)(
-                self.operator.as_ref(),
-                cx,
-                op_state.0.as_ref(),
-                partition_state.0.as_mut(),
-            )
-        }
+        (self.vtable.poll_finalize_push_fn)(
+            self.operator.as_ref(),
+            cx,
+            op_state.0.as_ref(),
+            partition_state.0.as_mut(),
+        )
     }
 
     pub fn call_poll_finalize_execute(
@@ -583,14 +569,12 @@ impl PlannedOperator {
         op_state: &AnyOperatorState,
         partition_state: &mut AnyPartitionState,
     ) -> Result<PollFinalize> {
-        unsafe {
-            (self.vtable.poll_finalize_execute_fn)(
-                self.operator.as_ref(),
-                cx,
-                op_state.0.as_ref(),
-                partition_state.0.as_mut(),
-            )
-        }
+        (self.vtable.poll_finalize_execute_fn)(
+            self.operator.as_ref(),
+            cx,
+            op_state.0.as_ref(),
+            partition_state.0.as_mut(),
+        )
     }
 
     pub fn call_build_pipeline(
@@ -600,11 +584,11 @@ impl PlannedOperator {
         graph: &mut ExecutablePipelineGraph,
         current: &mut ExecutablePipeline,
     ) -> Result<()> {
-        unsafe { (self.vtable.build_pipeline_fn)(self, children, props, graph, current) }
+        (self.vtable.build_pipeline_fn)(self, children, props, graph, current)
     }
 
     pub fn call_explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        unsafe { (self.vtable.explain_fn)(self.operator.as_ref(), conf) }
+        (self.vtable.explain_fn)(self.operator.as_ref(), conf)
     }
 }
 
@@ -612,13 +596,13 @@ impl PlannedOperator {
 #[allow(clippy::type_complexity)]
 pub(crate) struct RawOperatorVTable {
     create_operator_state_fn:
-        unsafe fn(operator: &dyn Any, props: ExecutionProperties) -> Result<AnyOperatorState>,
+        fn(operator: &dyn Any, props: ExecutionProperties) -> Result<AnyOperatorState>,
 
-    output_types_fn: unsafe fn(operator: &dyn Any) -> Vec<DataType>,
+    output_types_fn: fn(operator: &dyn Any) -> Vec<DataType>,
 
-    materialization_ref_fn: unsafe fn(operator: &dyn Any) -> Result<MaterializationRef>,
+    materialization_ref_fn: fn(operator: &dyn Any) -> Result<MaterializationRef>,
 
-    build_pipeline_fn: unsafe fn(
+    build_pipeline_fn: fn(
         operator: &PlannedOperator,
         children: &[PlannedOperatorWithChildren],
         props: ExecutionProperties,
@@ -626,28 +610,28 @@ pub(crate) struct RawOperatorVTable {
         current: &mut ExecutablePipeline,
     ) -> Result<()>,
 
-    create_partition_execute_states_fn: unsafe fn(
+    create_partition_execute_states_fn: fn(
         operator: &dyn Any,
         operator_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyPartitionState>>,
 
-    create_partition_pull_states_fn: unsafe fn(
+    create_partition_pull_states_fn: fn(
         operator: &dyn Any,
         operator_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyPartitionState>>,
 
-    create_partition_push_states_fn: unsafe fn(
+    create_partition_push_states_fn: fn(
         operator: &dyn Any,
         operator_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyPartitionState>>,
 
-    poll_push_fn: unsafe fn(
+    poll_push_fn: fn(
         operator: &dyn Any,
         cx: &mut Context,
         operator_state: &dyn Any,
@@ -655,7 +639,7 @@ pub(crate) struct RawOperatorVTable {
         input: &mut Batch,
     ) -> Result<PollPush>,
 
-    poll_execute_fn: unsafe fn(
+    poll_execute_fn: fn(
         operator: &dyn Any,
         cx: &mut Context,
         operator_state: &dyn Any,
@@ -664,7 +648,7 @@ pub(crate) struct RawOperatorVTable {
         output: &mut Batch,
     ) -> Result<PollExecute>,
 
-    poll_pull_fn: unsafe fn(
+    poll_pull_fn: fn(
         operator: &dyn Any,
         cx: &mut Context,
         operator_state: &dyn Any,
@@ -672,21 +656,21 @@ pub(crate) struct RawOperatorVTable {
         ouput: &mut Batch,
     ) -> Result<PollPull>,
 
-    poll_finalize_execute_fn: unsafe fn(
+    poll_finalize_execute_fn: fn(
         operator: &dyn Any,
         cx: &mut Context,
         operator_state: &dyn Any,
         partition_state: &mut dyn Any,
     ) -> Result<PollFinalize>,
 
-    poll_finalize_push_fn: unsafe fn(
+    poll_finalize_push_fn: fn(
         operator: &dyn Any,
         cx: &mut Context,
         operator_state: &dyn Any,
         partition_state: &mut dyn Any,
     ) -> Result<PollFinalize>,
 
-    explain_fn: unsafe fn(operator: &dyn Any, conf: ExplainConfig) -> ExplainEntry,
+    explain_fn: fn(operator: &dyn Any, conf: ExplainConfig) -> ExplainEntry,
 }
 
 /// Helper trait for creating the vtable for operators.
