@@ -278,6 +278,12 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     type State: Sync + Send;
 
     /// Loads state for the filesystem using the provided context.
+    // TODO: We'll want to provide an "access level" (read or write) as hint for
+    // what we need for authentication. E.g. for gcs we create the access token
+    // with a read scope, but if we want to write, then we need to use a write
+    // scope.
+    //
+    // We shouldn't need anything more than "read" or "write" for this.
     fn load_state(
         &self,
         context: FileOpenContext<'_>,

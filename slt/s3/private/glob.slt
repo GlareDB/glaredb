@@ -1,0 +1,110 @@
+# Copy of the glob tests for globbing s3 files in private bucket.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+filename  Utf8
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/500.csv
+s3://glaredb-private/testdata/csv/glob_numbers/README.md
+s3://glaredb-private/testdata/csv/glob_numbers/deep/my_favorite_numbers.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/500.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested2/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested2/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested2/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested2/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested2/500.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested1/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested1/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested1/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested1/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested1/500.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested2/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested2/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested2/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested2/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested2/500.csv
+
+query I
+SELECT count(*) FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
+----
+27
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/*.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/500.csv
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/{200,300}.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/300.csv
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/?00.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/500.csv
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/?.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**/{3,5}00.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/500.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested2/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested2/500.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested1/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested1/500.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested2/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/nested2/500.csv
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**/nested{1,4}/{3,5}00.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/500.csv
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**/nested{1,4}/**', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/100.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/200.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/300.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/400.csv
+s3://glaredb-private/testdata/csv/glob_numbers/deep/nested1/500.csv
+
+# TODO: Not matching the readme.
+# query T
+# SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**/*.md') ORDER BY 1;
+# ----
+
+query T
+SELECT * FROM glob('s3://glaredb-private/testdata/csv/glob_numbers/**/my_favorite_numbers.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__') ORDER BY 1;
+----
+s3://glaredb-private/testdata/csv/glob_numbers/deep/my_favorite_numbers.csv
