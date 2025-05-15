@@ -323,7 +323,7 @@ where
         // TODO: GLOBBING!
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
-        let fs = fs.try_with_context(context)?;
+        let fs = fs.load_state(context).await?;
         match fs.stat(&path).await? {
             Some(stat) if stat.file_type.is_file() => (), // We have a file.
             Some(_) => return Err(DbError::new("Cannot read parquet from a directory")),

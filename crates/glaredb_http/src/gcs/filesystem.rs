@@ -101,7 +101,7 @@ where
     type ReadDirHandle = GcsDirHandle<C>;
     type State = GcsFileSystemState;
 
-    fn state_from_context(&self, context: FileOpenContext) -> Result<Self::State> {
+    async fn load_state(&self, context: FileOpenContext<'_>) -> Result<Self::State> {
         let service_account = context.get_value("service_account")?;
         let service_account = match service_account {
             Some(s) => {

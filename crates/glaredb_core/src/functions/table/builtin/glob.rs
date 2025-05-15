@@ -82,7 +82,7 @@ impl TableScanFunction for Glob {
 
         let fs = scan_context.dispatch.filesystem_for_path(&glob)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
-        let fs = fs.try_with_context(context)?;
+        let fs = fs.load_state(context).await?;
 
         Ok(TableFunctionBindState {
             state: GlobBindState { fs, glob },

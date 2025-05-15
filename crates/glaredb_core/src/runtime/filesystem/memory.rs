@@ -44,7 +44,7 @@ impl FileSystem for MemoryFileSystem {
     type ReadDirHandle = DirHandleNotImplemented;
     type State = ();
 
-    fn state_from_context(&self, _context: FileOpenContext) -> Result<Self::State> {
+    async fn load_state(&self, _context: FileOpenContext<'_>) -> Result<Self::State> {
         Ok(())
     }
 
