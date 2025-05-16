@@ -167,6 +167,7 @@ where
     U::StorageType: Copy + PartialOrd,
     T::Native: AsPrimitive<U::StorageType>,
 {
+    #[allow(clippy::single_match)] // For the match, we will be expanding the number of variants beyond just ConstantEq.
     pub fn new<'a>(filters: impl Iterator<Item = &'a PhysicalScanFilter>) -> Self {
         let mut pruner = PrimitiveRowGroupPruner {
             const_eq_filters: Vec::new(),

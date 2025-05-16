@@ -16,8 +16,8 @@ impl CopyPlanner {
         copy_to: BoundCopyTo,
     ) -> Result<LogicalOperator> {
         let _source = match copy_to.source {
-            BoundCopyToSource::Query(query) => QueryPlanner.plan(bind_context, query)?,
-            BoundCopyToSource::Table(table) => FromPlanner.plan(bind_context, table)?,
+            BoundCopyToSource::Query(query) => QueryPlanner.plan(bind_context, *query)?,
+            BoundCopyToSource::Table(table) => FromPlanner.plan(bind_context, *table)?,
         };
 
         // Currently only support copying to local.

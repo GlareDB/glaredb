@@ -24,6 +24,7 @@ use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)] // TODO: Remove this, BoundSelect pretty large, but I don't want to pass the buck. We should make the inner objects smaller.
 pub enum BoundQuery {
     Select(BoundSelect),
     Setop(BoundSetOp),

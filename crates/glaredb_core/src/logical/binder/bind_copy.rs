@@ -13,8 +13,8 @@ use crate::logical::resolver::resolve_context::ResolveContext;
 
 #[derive(Debug)]
 pub enum BoundCopyToSource {
-    Query(BoundQuery),
-    Table(BoundFrom), // TODO: Optionally specify columns to copy
+    Query(Box<BoundQuery>),
+    Table(Box<BoundFrom>), // TODO: Optionally specify columns to copy
 }
 
 #[derive(Debug)]
@@ -51,9 +51,9 @@ impl<'a> CopyBinder<'a> {
         let _source = match copy_to.source {
             ast::CopyToSource::Query(query) => {
                 let query_binder = QueryBinder::new(source_scope, self.resolve_context);
-                let bound_query = query_binder.bind(bind_context, query)?;
+                let bound_query = query_binder.bind(bind_context, *query)?;
 
-                BoundCopyToSource::Query(bound_query)
+                BoundCopyToSource::Query(Box::new(bound_query))
             }
             ast::CopyToSource::Table(table) => {
                 let from_binder = FromBinder::new(source_scope, self.resolve_context);
@@ -63,7 +63,7 @@ impl<'a> CopyBinder<'a> {
                     None,
                 )?;
 
-                BoundCopyToSource::Table(bound_from)
+                BoundCopyToSource::Table(Box::new(bound_from))
             }
         };
 

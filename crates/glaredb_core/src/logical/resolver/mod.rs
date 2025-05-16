@@ -293,9 +293,9 @@ where
         resolve_context: &mut ResolveContext,
     ) -> Result<ast::CopyTo<ResolvedMeta>> {
         let _source = match copy_to.source {
-            ast::CopyToSource::Query(query) => {
-                ast::CopyToSource::Query(self.resolve_query(query, resolve_context).await?)
-            }
+            ast::CopyToSource::Query(query) => ast::CopyToSource::Query(Box::new(
+                self.resolve_query(*query, resolve_context).await?,
+            )),
             ast::CopyToSource::Table(reference) => {
                 let table = match self.resolve_mode {
                     ResolveMode::Normal => {
