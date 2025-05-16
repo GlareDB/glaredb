@@ -1,5 +1,3 @@
-halt
-
 query TT
 DESCRIBE SELECT
     100.00 * sum(

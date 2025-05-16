@@ -1,3 +1,8 @@
+# Failed to run SLT
+# Error source: query failed: Cannot clone arrays with different data types
+# self: Decimal64(17,3)
+# other: Int32
+
 halt
 
 query TT

@@ -1,4 +1,4 @@
-# Enable hash join
+# TODO: Panic
 halt
 
 # TODO: This produces correct results, but decimal formatting makes the output

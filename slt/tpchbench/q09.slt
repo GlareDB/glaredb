@@ -1,4 +1,4 @@
-# Enable hash join
+# TODO: Panic
 halt
 
 query TT
