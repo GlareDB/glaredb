@@ -70,7 +70,7 @@ pub enum ReadCsvPartitionState {
         open_fut: FileSystemFuture<'static, Result<AnyFile>>,
     },
     Scanning {
-        reader: CsvReader,
+        reader: Box<CsvReader>,
     },
     Exhausted,
 }
@@ -205,7 +205,9 @@ impl TableScanFunction for ReadCsv {
                         records,
                     );
 
-                    *state = ReadCsvPartitionState::Scanning { reader };
+                    *state = ReadCsvPartitionState::Scanning {
+                        reader: Box::new(reader),
+                    };
                     continue;
                 }
                 ReadCsvPartitionState::Scanning { reader } => {

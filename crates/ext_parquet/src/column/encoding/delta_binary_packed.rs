@@ -59,8 +59,7 @@ where
     ) -> Result<()> {
         let read_count = match definitions {
             Definitions::HasDefinitions { levels, max } => {
-                let valid_count = levels.iter().filter(|&&def| def == max).count();
-                valid_count
+                levels.iter().filter(|&&def| def == max).count()
             }
             Definitions::NoDefinitions => count,
         };

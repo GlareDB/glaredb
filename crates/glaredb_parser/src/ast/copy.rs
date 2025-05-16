@@ -9,7 +9,7 @@ use crate::tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CopyToSource<T: AstMeta> {
-    Query(QueryNode<T>),
+    Query(Box<QueryNode<T>>),
     // TODO: Include optional columns.
     Table(T::TableReference),
 }
@@ -47,7 +47,7 @@ impl AstParseable for CopyTo<Raw> {
 
         let source = if parser.consume_token(&Token::LeftParen) {
             let query = QueryNode::parse(parser)?;
-            let source = CopyToSource::Query(query);
+            let source = CopyToSource::Query(Box::new(query));
             parser.expect_token(&Token::RightParen)?;
             source
         } else {
@@ -111,7 +111,7 @@ mod tests {
     fn copy_to_from_query() {
         let node: CopyTo<_> = parse_ast("COPY (select 1) TO 'myfile.csv'").unwrap();
         let expected = CopyTo {
-            source: CopyToSource::Query(QueryNode {
+            source: CopyToSource::Query(Box::new(QueryNode {
                 ctes: None,
                 body: QueryNodeBody::Select(Box::new(SelectNode {
                     distinct: None,
@@ -128,7 +128,7 @@ mod tests {
                     limit: None,
                     offset: None,
                 },
-            }),
+            })),
             target: CopyToTarget::File("myfile.csv".to_string()),
             options: Vec::new(),
         };

@@ -72,6 +72,7 @@ impl EquivalentSet {
     /// expression into the set.
     ///
     /// Returns the expressions unchanged if it cannot be inserted.
+    #[allow(clippy::result_large_err)] // TODO: Remove this. Expression should be made smaller.
     fn try_insert(
         &mut self,
         (left, right): (Expression, Expression),
