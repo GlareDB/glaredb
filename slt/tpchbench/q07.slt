@@ -1,6 +1,3 @@
-# Enable hash join
-halt
-
 # TODO: This produces correct results, but decimal formatting makes the output
 # of 'EXTRACT(year FROM l_shipdate)' a bit weird. Shows extra zeros.
 query TT

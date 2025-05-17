@@ -119,6 +119,10 @@ impl RowScanState {
     /// `columns` indicates which columns to scan.
     ///
     /// Length of `outputs` must match length of `columns`.
+    // TODO: Should this guarantee length of row pointers in the state matches
+    // the returned row count? Currently it does if the returned count is
+    // non-zero, but if the count is zero, there's no change to clear the
+    // existing vec and its length remains unchanged from the previous scan.
     pub fn scan_subset<'a, A>(
         &mut self,
         layout: &RowLayout,
@@ -134,6 +138,10 @@ impl RowScanState {
 
         let mut scanned_count = 0;
         let mut remaining_cap = count;
+
+        // Clear existing row pointers. The state after the scan should contain
+        // all pointers from all blocks scanned in this method call.
+        self.block_read.clear();
 
         while remaining_cap > 0 {
             // Get the current block to scan.
@@ -161,24 +169,33 @@ impl RowScanState {
                 continue;
             }
 
-            let scan_count = usize::min(remaining_cap, num_rows - self.row_idx);
+            let to_scan = usize::min(remaining_cap, num_rows - self.row_idx);
             row_blocks.prepare_read(
                 &mut self.block_read,
                 current_block,
-                self.row_idx..(self.row_idx + scan_count),
+                self.row_idx..(self.row_idx + to_scan),
+                false, // Don't clear row pointers.
             )?;
 
             let columns = columns.clone();
             let outputs = columns.into_iter().zip(outputs.iter_mut());
 
+            // Use `scanned_count` as the write offset, and also the offset into
+            // the collected rows pointers.
+            let row_ptrs = &self.block_read.row_pointers[scanned_count..];
+            debug_assert_eq!(
+                to_scan,
+                row_ptrs.len(),
+                "Row pointers length doesn't match the number of rows we're trying to scan"
+            );
             unsafe {
-                layout.read_arrays(self.block_read.row_pointers_iter(), outputs, scanned_count)?;
+                layout.read_arrays(row_ptrs.iter().copied(), outputs, scanned_count)?;
             }
 
             // Update state.
-            self.row_idx += scan_count;
-            remaining_cap -= scan_count;
-            scanned_count += scan_count;
+            self.row_idx += to_scan;
+            remaining_cap -= to_scan;
+            scanned_count += to_scan;
         }
 
         Ok(scanned_count)

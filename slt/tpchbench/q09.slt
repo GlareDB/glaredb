@@ -1,6 +1,3 @@
-# Enable hash join
-halt
-
 query TT
 DESCRIBE SELECT
     nation,

@@ -1,5 +1,3 @@
-halt
-
 query TI
 DESCRIBE SELECT
     c_count,

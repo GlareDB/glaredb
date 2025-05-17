@@ -1,9 +1,3 @@
-# Error source: query failed: Cannot clone arrays with different data types
-# self: Int32
-# other: Decimal64(18,4)
-
-halt
-
 query TT
 DESCRIBE WITH revenue0 AS (
     SELECT
