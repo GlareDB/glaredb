@@ -278,9 +278,7 @@ mod tests {
     fn single_input_two_outputs() {
         let wrapper = OperatorWrapper::new(PhysicalMaterialize {
             datatypes: vec![DataType::int32()],
-            materialization_ref: MaterializationRef {
-                materialization_idx: 0,
-            },
+            materialization_ref: MaterializationRef(0),
         });
 
         let props = ExecutionProperties { batch_size: 4 };

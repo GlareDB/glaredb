@@ -1,13 +1,75 @@
-use std::collections::HashSet;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use tracing::error;
 
 use super::context_display::ContextDisplayMode;
 use super::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::operator::LogicalOperator;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExplainedPlan {
+    /// The base plan.
+    pub base: ExplainNode,
+    /// Materializations that are referenced from the base plan.
+    pub materializations: BTreeMap<MaterializationRef, ExplainNode>,
+}
+
+impl ExplainedPlan {
+    pub fn new_from_physical<'a>(
+        verbose: bool,
+        base_root: &PlannedOperatorWithChildren,
+        materializations: impl IntoIterator<
+            Item = (&'a MaterializationRef, &'a PlannedOperatorWithChildren),
+        >,
+    ) -> Self {
+        let config = ExplainConfig {
+            context_mode: ContextDisplayMode::Raw,
+            verbose,
+        };
+
+        let base = ExplainNode::walk_physical(config, base_root);
+        let materializations: BTreeMap<_, _> = materializations
+            .into_iter()
+            .map(|(mat_ref, plan)| {
+                let node = ExplainNode::walk_physical(config, plan);
+                (*mat_ref, node)
+            })
+            .collect();
+
+        ExplainedPlan {
+            base,
+            materializations,
+        }
+    }
+
+    pub fn new_from_logical(
+        verbose: bool,
+        bind_context: &BindContext,
+        root: &LogicalOperator,
+    ) -> Self {
+        let config = ExplainConfig {
+            context_mode: ContextDisplayMode::Enriched(bind_context),
+            verbose,
+        };
+
+        let base = ExplainNode::walk_logical(config, root);
+
+        let materializations: BTreeMap<_, _> = bind_context
+            .iter_materializations()
+            .map(|mat| {
+                let node = ExplainNode::walk_logical(config, &mat.plan);
+                (mat.mat_ref, node)
+            })
+            .collect();
+
+        ExplainedPlan {
+            base,
+            materializations,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ExplainNode {
@@ -16,28 +78,6 @@ pub struct ExplainNode {
 }
 
 impl ExplainNode {
-    pub fn new_from_planned_operators(verbose: bool, root: &PlannedOperatorWithChildren) -> Self {
-        let config = ExplainConfig {
-            context_mode: ContextDisplayMode::Raw,
-            verbose,
-        };
-        Self::walk_physical(config, root)
-    }
-
-    pub fn new_from_logical_plan(
-        bind_context: &BindContext,
-        verbose: bool,
-        root: &LogicalOperator,
-    ) -> Self {
-        let config = ExplainConfig {
-            context_mode: ContextDisplayMode::Enriched(bind_context),
-            verbose,
-        };
-        let mut visited_materializations = HashSet::new();
-
-        Self::walk_logical(bind_context, config, root, &mut visited_materializations)
-    }
-
     fn walk_physical(config: ExplainConfig, plan: &PlannedOperatorWithChildren) -> Self {
         let entry = plan.operator.call_explain_entry(config);
         let children = plan
@@ -49,12 +89,7 @@ impl ExplainNode {
         ExplainNode { entry, children }
     }
 
-    fn walk_logical(
-        bind_context: &BindContext,
-        config: ExplainConfig,
-        plan: &LogicalOperator,
-        visited_materializations: &mut HashSet<MaterializationRef>,
-    ) -> Self {
+    fn walk_logical(config: ExplainConfig, plan: &LogicalOperator) -> Self {
         let (entry, children) = match plan {
             LogicalOperator::Invalid => (EntryBuilder::new("INVALID", config).build(), &Vec::new()),
             LogicalOperator::Project(n) => (n.explain_entry(config), &n.children),
@@ -89,58 +124,24 @@ impl ExplainNode {
             LogicalOperator::Window(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::TableExecute(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::MaterializationScan(n) => {
-                // Materialization special case, walk children by get
-                // materialization from bind context.
-                let entry = n.explain_entry(config);
-
-                let children = if !visited_materializations.contains(&n.node.mat) {
-                    visited_materializations.insert(n.node.mat);
-                    match bind_context.get_materialization(n.node.mat) {
-                        Ok(mat) => vec![Self::walk_logical(
-                            bind_context,
-                            config,
-                            &mat.plan,
-                            visited_materializations,
-                        )],
-                        Err(e) => {
-                            error!(%e, "failed to get materialization from bind context");
-                            Vec::new()
-                        }
-                    }
-                } else {
-                    Vec::new()
+                // Materialization displayed separately.
+                return ExplainNode {
+                    entry: n.explain_entry(config),
+                    children: Vec::new(),
                 };
-
-                return ExplainNode { entry, children };
             }
             LogicalOperator::MagicMaterializationScan(n) => {
-                let entry = n.explain_entry(config);
-
-                let children = if !visited_materializations.contains(&n.node.mat) {
-                    visited_materializations.insert(n.node.mat);
-                    match bind_context.get_materialization(n.node.mat) {
-                        Ok(mat) => vec![Self::walk_logical(
-                            bind_context,
-                            config,
-                            &mat.plan,
-                            visited_materializations,
-                        )],
-                        Err(e) => {
-                            error!(%e, "failed to get materialization from bind context");
-                            Vec::new()
-                        }
-                    }
-                } else {
-                    Vec::new()
+                // Materialization displayed separately.
+                return ExplainNode {
+                    entry: n.explain_entry(config),
+                    children: Vec::new(),
                 };
-
-                return ExplainNode { entry, children };
             }
         };
 
         let children = children
             .iter()
-            .map(|c| Self::walk_logical(bind_context, config, c, visited_materializations))
+            .map(|c| Self::walk_logical(config, c))
             .collect();
 
         ExplainNode { entry, children }
