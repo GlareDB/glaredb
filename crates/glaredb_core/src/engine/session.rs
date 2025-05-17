@@ -23,7 +23,7 @@ use crate::execution::operators::results::streaming::{PhysicalStreamingResults, 
 use crate::execution::operators::{ExecutionProperties, PushOperator};
 use crate::execution::pipeline::ExecutablePipelineGraph;
 use crate::execution::planner::{OperatorPlanner, PlannedQueryGraph};
-use crate::explain::node::ExplainNode;
+use crate::explain::node::ExplainedPlan;
 use crate::logical::binder::bind_statement::StatementBinder;
 use crate::logical::logical_set::VariableOrAll;
 use crate::logical::operator::LogicalOperator;
@@ -357,9 +357,9 @@ where
                         .first()
                         .ok_or_else(|| DbError::new("Missing explain child"))?;
 
-                    explain.node.logical_optimized = Some(ExplainNode::new_from_logical_plan(
-                        &bind_context,
+                    explain.node.logical_optimized = Some(ExplainedPlan::new_from_logical(
                         explain.node.verbose,
+                        &bind_context,
                         child,
                     ));
                 }

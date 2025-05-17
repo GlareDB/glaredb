@@ -317,7 +317,7 @@ impl BindContext {
     }
 
     /// Iterates plan materializations in the order they were planned.
-    pub fn iter_materializations(&mut self) -> impl Iterator<Item = &PlanMaterialization> + '_ {
+    pub fn iter_materializations(&self) -> impl Iterator<Item = &PlanMaterialization> + '_ {
         self.materializations.iter()
     }
 

@@ -1,5 +1,6 @@
 use glaredb_error::{Result, ResultExt};
 
+use super::node::ExplainedPlan;
 use crate::explain::node::ExplainNode;
 use crate::logical::logical_explain::ExplainFormat;
 
@@ -25,7 +26,7 @@ impl ExplainFormatter {
         ExplainFormatter { format }
     }
 
-    pub fn format(&self, node: &ExplainNode) -> Result<String> {
+    pub fn format(&self, plan: &ExplainedPlan) -> Result<String> {
         match self.format {
             ExplainFormat::Text => {
                 fn fmt(node: &ExplainNode, indent: usize, buf: &mut String) -> Result<()> {
@@ -58,7 +59,7 @@ impl ExplainFormatter {
                 }
 
                 let mut buf = String::new();
-                fmt(node, 0, &mut buf)?;
+                fmt(&plan.base, 0, &mut buf)?;
 
                 // Remove trailing newline.
                 if buf.ends_with('\n') {
@@ -68,7 +69,7 @@ impl ExplainFormatter {
                 Ok(buf)
             }
             ExplainFormat::Json => {
-                serde_json::to_string(&node).context("failed to serialize to json")
+                serde_json::to_string(&plan.base).context("failed to serialize to json")
             }
         }
     }

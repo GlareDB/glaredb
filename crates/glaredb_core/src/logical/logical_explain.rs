@@ -4,7 +4,7 @@ use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
-use crate::explain::node::ExplainNode;
+use crate::explain::node::{ExplainNode, ExplainedPlan};
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,8 +18,8 @@ pub struct LogicalExplain {
     pub analyze: bool,
     pub verbose: bool,
     pub format: ExplainFormat,
-    pub logical_unoptimized: ExplainNode,
-    pub logical_optimized: Option<ExplainNode>,
+    pub logical_unoptimized: ExplainedPlan,
+    pub logical_optimized: Option<ExplainedPlan>,
 }
 
 impl Explainable for LogicalExplain {

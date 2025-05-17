@@ -5,7 +5,7 @@ use crate::execution::operators::single_row::PhysicalSingleRow;
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::formatter::ExplainFormatter;
-use crate::explain::node::ExplainNode;
+use crate::explain::node::{ExplainNode, ExplainedPlan};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::logical::logical_explain::LogicalExplain;
@@ -25,7 +25,7 @@ impl OperatorPlanState<'_> {
         let input = explain.take_one_child_exact()?;
         let plan = self.plan(input)?;
         let plan_explain_node =
-            ExplainNode::new_from_planned_operators(explain.node.verbose, &plan);
+            ExplainedPlan::new_from_physical(explain.node.verbose, &plan, &self.materializations);
 
         let formatter = ExplainFormatter::new(explain.node.format);
 

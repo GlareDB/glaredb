@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -9,6 +9,76 @@ use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::operator::LogicalOperator;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplainedPlan {
+    /// The base plan.
+    pub base: ExplainNode,
+    /// Materializations that are referenced from the base plan.
+    pub materializations: BTreeMap<MaterializationRef, ExplainNode>,
+}
+
+impl ExplainedPlan {
+    pub fn new_from_physical<'a>(
+        verbose: bool,
+        base_root: &PlannedOperatorWithChildren,
+        materializations: impl IntoIterator<
+            Item = (&'a MaterializationRef, &'a PlannedOperatorWithChildren),
+        >,
+    ) -> Self {
+        let config = ExplainConfig {
+            context_mode: ContextDisplayMode::Raw,
+            verbose,
+        };
+
+        let base = ExplainNode::walk_physical(config, base_root);
+        let materializations: BTreeMap<_, _> = materializations
+            .into_iter()
+            .map(|(mat_ref, plan)| {
+                let node = ExplainNode::walk_physical(config, plan);
+                (*mat_ref, node)
+            })
+            .collect();
+
+        ExplainedPlan {
+            base,
+            materializations,
+        }
+    }
+
+    pub fn new_from_logical(
+        verbose: bool,
+        bind_context: &BindContext,
+        root: &LogicalOperator,
+    ) -> Self {
+        let config = ExplainConfig {
+            context_mode: ContextDisplayMode::Enriched(bind_context),
+            verbose,
+        };
+
+        let mut visited_materializations = HashSet::new();
+        let base =
+            ExplainNode::walk_logical(bind_context, config, root, &mut visited_materializations);
+
+        let materializations: BTreeMap<_, _> = bind_context
+            .iter_materializations()
+            .map(|mat| {
+                let node = ExplainNode::walk_logical(
+                    bind_context,
+                    config,
+                    &mat.plan,
+                    &mut visited_materializations,
+                );
+                (mat.mat_ref, node)
+            })
+            .collect();
+
+        ExplainedPlan {
+            base,
+            materializations,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ExplainNode {
     pub entry: ExplainEntry,
@@ -16,28 +86,6 @@ pub struct ExplainNode {
 }
 
 impl ExplainNode {
-    pub fn new_from_planned_operators(verbose: bool, root: &PlannedOperatorWithChildren) -> Self {
-        let config = ExplainConfig {
-            context_mode: ContextDisplayMode::Raw,
-            verbose,
-        };
-        Self::walk_physical(config, root)
-    }
-
-    pub fn new_from_logical_plan(
-        bind_context: &BindContext,
-        verbose: bool,
-        root: &LogicalOperator,
-    ) -> Self {
-        let config = ExplainConfig {
-            context_mode: ContextDisplayMode::Enriched(bind_context),
-            verbose,
-        };
-        let mut visited_materializations = HashSet::new();
-
-        Self::walk_logical(bind_context, config, root, &mut visited_materializations)
-    }
-
     fn walk_physical(config: ExplainConfig, plan: &PlannedOperatorWithChildren) -> Self {
         let entry = plan.operator.call_explain_entry(config);
         let children = plan

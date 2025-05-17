@@ -1,6 +1,6 @@
 use glaredb_error::Result;
 
-use crate::explain::node::ExplainNode;
+use crate::explain::node::{ExplainNode, ExplainedPlan};
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_explain::BoundExplain;
 use crate::logical::logical_explain::LogicalExplain;
@@ -24,9 +24,9 @@ impl ExplainPlanner {
                 analyze: explain.analyze,
                 verbose: explain.verbose,
                 format: explain.format,
-                logical_unoptimized: ExplainNode::new_from_logical_plan(
-                    bind_context,
+                logical_unoptimized: ExplainedPlan::new_from_logical(
                     explain.verbose,
+                    bind_context,
                     &plan,
                 ),
                 logical_optimized: None,
