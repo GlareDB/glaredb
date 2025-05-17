@@ -29,9 +29,9 @@ impl ExplainFormatter {
     pub fn format(&self, plan: &ExplainedPlan) -> Result<String> {
         match self.format {
             ExplainFormat::Text => {
-                fn fmt(node: &ExplainNode, indent: usize, buf: &mut String) -> Result<()> {
-                    use std::fmt::Write as _;
+                use std::fmt::Write as _;
 
+                fn fmt(node: &ExplainNode, indent: usize, buf: &mut String) -> Result<()> {
                     writeln!(buf, "{}{}", " ".repeat(indent), node.entry.name)?;
 
                     for (idx, (item_name, item)) in node.entry.items.iter().enumerate() {
@@ -59,7 +59,15 @@ impl ExplainFormatter {
                 }
 
                 let mut buf = String::new();
-                fmt(&plan.base, 0, &mut buf)?;
+                // Base
+                writeln!(buf, "Base")?;
+                fmt(&plan.base, 2, &mut buf)?;
+
+                // Materializations.
+                for (mat_ref, plan) in &plan.materializations {
+                    writeln!(buf, "{mat_ref}")?;
+                    fmt(plan, 2, &mut buf)?;
+                }
 
                 // Remove trailing newline.
                 if buf.ends_with('\n') {
@@ -69,7 +77,7 @@ impl ExplainFormatter {
                 Ok(buf)
             }
             ExplainFormat::Json => {
-                serde_json::to_string(&plan.base).context("failed to serialize to json")
+                serde_json::to_string_pretty(&plan).context("failed to serialize to json")
             }
         }
     }

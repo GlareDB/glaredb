@@ -1,6 +1,6 @@
 use glaredb_error::Result;
 
-use crate::explain::node::{ExplainNode, ExplainedPlan};
+use crate::explain::node::ExplainedPlan;
 use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::bind_explain::BoundExplain;
 use crate::logical::logical_explain::LogicalExplain;

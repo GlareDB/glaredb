@@ -91,7 +91,7 @@ impl OperatorPlanner {
         &self,
         root: operator::LogicalOperator,
         db_context: &DatabaseContext,
-        mut bind_context: BindContext,
+        bind_context: BindContext,
         sink: O,
     ) -> Result<PlannedQueryGraph>
     where

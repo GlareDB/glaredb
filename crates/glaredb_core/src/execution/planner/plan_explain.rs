@@ -5,7 +5,7 @@ use crate::execution::operators::single_row::PhysicalSingleRow;
 use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::explain::formatter::ExplainFormatter;
-use crate::explain::node::{ExplainNode, ExplainedPlan};
+use crate::explain::node::ExplainedPlan;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::logical::logical_explain::LogicalExplain;

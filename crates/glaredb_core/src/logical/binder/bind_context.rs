@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use glaredb_error::{DbError, Result};
+use serde::{Deserialize, Serialize};
 
 use super::bind_query::BoundQuery;
 use super::ident::BinderIdent;
@@ -14,18 +15,19 @@ use crate::logical::operator::{LogicalNode, LogicalOperator};
 /// Reference to a child bind scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BindScopeRef {
+    // TODO: Just use a struct wrapper.
     pub context_idx: usize,
 }
 
 /// Reference to a materialization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MaterializationRef {
-    pub materialization_idx: usize,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[repr(transparent)]
+#[serde(transparent)] // Serialize 'MaterializationRef(4)' as just '4' (and the reverse for deserialization).
+pub struct MaterializationRef(pub usize);
 
 impl fmt::Display for MaterializationRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MAT_{}", self.materialization_idx)
+        write!(f, "MAT_{}", self.0)
     }
 }
 
@@ -259,9 +261,7 @@ impl BindContext {
         // TODO: Dedup with subquery decorrelation.
         let plan_tables = plan.get_output_table_refs(self);
         let idx = self.materializations.len();
-        let mat_ref = MaterializationRef {
-            materialization_idx: idx,
-        };
+        let mat_ref = MaterializationRef(idx);
 
         self.materializations.push(PlanMaterialization {
             mat_ref,
@@ -288,24 +288,14 @@ impl BindContext {
         mat_ref: MaterializationRef,
     ) -> Result<&mut PlanMaterialization> {
         self.materializations
-            .get_mut(mat_ref.materialization_idx)
-            .ok_or_else(|| {
-                DbError::new(format!(
-                    "Missing materialization for idx {}",
-                    mat_ref.materialization_idx
-                ))
-            })
+            .get_mut(mat_ref.0)
+            .ok_or_else(|| DbError::new(format!("Missing materialization for idx {}", mat_ref)))
     }
 
     pub fn get_materialization(&self, mat_ref: MaterializationRef) -> Result<&PlanMaterialization> {
         self.materializations
-            .get(mat_ref.materialization_idx)
-            .ok_or_else(|| {
-                DbError::new(format!(
-                    "Missing materialization for idx {}",
-                    mat_ref.materialization_idx
-                ))
-            })
+            .get(mat_ref.0)
+            .ok_or_else(|| DbError::new(format!("Missing materialization for idx {}", mat_ref)))
     }
 
     /// Iterates plan materializations in the order they were planned, returning

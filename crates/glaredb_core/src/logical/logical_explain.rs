@@ -4,7 +4,7 @@ use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
-use crate::explain::node::{ExplainNode, ExplainedPlan};
+use crate::explain::node::ExplainedPlan;
 use crate::expr::Expression;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
