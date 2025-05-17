@@ -1,6 +1,3 @@
-# TODO: Panic
-halt
-
 query TT
 DESCRIBE SELECT
     nation,

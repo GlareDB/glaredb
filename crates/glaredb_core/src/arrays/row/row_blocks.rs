@@ -138,16 +138,20 @@ where
     ///
     /// `selection` selects which rows from the row block to read.
     ///
-    /// This will clear any existing pointers on the scan state.
+    /// `clear_ptrs` determines if the the pointer buffer in `state` is cleared
+    /// prior to pushing pointers.
+    // TODO: Probably remove `clear_ptrs` bool, this seems to only be used for
+    // the hash join, and we manually clear the pointers.
     pub fn prepare_read(
         &self,
         state: &mut BlockScanState,
         row_block_idx: usize,
         selection: impl IntoIterator<Item = usize>,
+        clear_ptrs: bool,
     ) -> Result<()> {
         let block = &self.row_blocks[row_block_idx];
         unsafe {
-            state.prepare_block_scan(block, self.row_width, selection, true);
+            state.prepare_block_scan(block, self.row_width, selection, clear_ptrs);
         }
 
         Ok(())
@@ -338,7 +342,7 @@ mod tests {
         let mut read_state = BlockScanState {
             row_pointers: Vec::new(),
         };
-        blocks.prepare_read(&mut read_state, 0, 0..4).unwrap();
+        blocks.prepare_read(&mut read_state, 0, 0..4, true).unwrap();
 
         assert_eq!(4, read_state.row_pointers.len());
     }
@@ -363,7 +367,9 @@ mod tests {
         let mut read_state = BlockScanState {
             row_pointers: Vec::new(),
         };
-        blocks.prepare_read(&mut read_state, 0, 0..16).unwrap();
+        blocks
+            .prepare_read(&mut read_state, 0, 0..16, true)
+            .unwrap();
 
         assert_eq!(16, read_state.row_pointers.len());
     }
