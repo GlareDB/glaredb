@@ -3,8 +3,18 @@
 statement ok
 SET verify_optimized_plan TO true;
 
+query TT
+DESCRIBE SELECT round(1.2);
+----
+round  Decimal64(2,0)
+
 query R
 SELECT round(1.2);
+----
+1
+
+query R
+SELECT round(1.2::DOUBLE);
 ----
 1
 
@@ -14,7 +24,17 @@ SELECT round(1.8);
 2
 
 query R
+SELECT round(1.8::DOUBLE);
+----
+2
+
+query R
 SELECT round(1.5);
+----
+2
+
+query R
+SELECT round(1.5::DOUBLE);
 ----
 2
 
@@ -24,6 +44,39 @@ SELECT round(-1.5);
 -2
 
 query R
+SELECT round(-1.5::DOUBLE);
+----
+-2
+
+query R
 SELECT round(NULL::FLOAT);
 ----
 NULL
+
+# With extra scale parameter.
+
+query TT
+DESCRIBE SELECT round(3.14159, 2);
+----
+round  Decimal64(6,2)
+
+query R
+SELECT round(3.14159, 2)
+----
+3.14
+
+query R
+SELECT round(3.14159, 4)
+----
+3.1416
+
+# Test current behavior of not increasing scale from the input.
+query TT
+DESCRIBE SELECT round(3.14159, 8);
+----
+round  Decimal64(6,5)
+
+query R
+SELECT round(3.14159, 8)
+----
+3.14159

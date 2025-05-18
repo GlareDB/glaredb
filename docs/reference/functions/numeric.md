@@ -164,7 +164,11 @@ Returns the remainder after dividing the left value by the right value.
 
 ## `round`
 
-Round number to the nearest whole value.
+Round a number to the nearest whole value.
+
+## `round`
+
+Round a number to a given scale.
 
 ## `shl`
 
