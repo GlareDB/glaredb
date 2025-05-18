@@ -591,10 +591,12 @@ impl PlannedOperator {
     /// operator id to the list of values.
     pub fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let mut ent = (self.vtable.explain_fn)(self.operator.as_ref(), conf);
-        ent.items.insert(
-            "operator_id".to_string(),
-            ExplainValue::Value(self.id.to_string()),
-        );
+        if conf.verbose {
+            ent.items.insert(
+                "operator_id".to_string(),
+                ExplainValue::Value(self.id.to_string()),
+            );
+        }
         ent
     }
 }
