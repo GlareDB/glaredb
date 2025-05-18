@@ -13,7 +13,7 @@ use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
 use crate::functions::bind_state::BindState;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::AggregateFunctionSet;
 
 pub const FUNCTION_SET_REGR_SLOPE: AggregateFunctionSet = AggregateFunctionSet {
@@ -23,7 +23,10 @@ pub const FUNCTION_SET_REGR_SLOPE: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute the slope of the least-squares-fit linear equation.",
         arguments: &["y", "x"],
-        example: None,
+        example: Some(Example {
+            example: "regr_slope(y, x) FROM (VALUES (1, 1), (2, 2), (3, 3)) t(y, x)",
+            output: "1",
+        }),
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(

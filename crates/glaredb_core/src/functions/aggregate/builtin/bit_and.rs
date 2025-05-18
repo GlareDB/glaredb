@@ -24,7 +24,7 @@ use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::AggregateFunctionSet;
 
 pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
@@ -34,7 +34,10 @@ pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Returns the bitwise AND of all non-NULL input values.",
         arguments: &["integer"],
-        example: None,
+        example: Some(Example {
+            example: "bit_and(col) FROM (VALUES (5), (3)) t(col)",
+            output: "1",
+        }),
     }],
     functions: &[
         RawAggregateFunction::new(

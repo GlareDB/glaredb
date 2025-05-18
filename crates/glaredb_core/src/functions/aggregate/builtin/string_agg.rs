@@ -12,7 +12,7 @@ use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
 use crate::functions::bind_state::BindState;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::AggregateFunctionSet;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
@@ -24,7 +24,10 @@ pub const FUNCTION_SET_STRING_AGG: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Concatenate all non-NULL input string values using a delimiter.",
         arguments: &["inputs", "delimiter"],
-        example: None,
+        example: Some(Example {
+            example: "string_agg(col, ',') FROM (VALUES ('a'), ('b'), ('c')) t(col)",
+            output: "a,b,c",
+        }),
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),

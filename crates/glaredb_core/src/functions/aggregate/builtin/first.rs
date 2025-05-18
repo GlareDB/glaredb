@@ -31,7 +31,7 @@ use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::AggregateFunctionSet;
 
 pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
@@ -41,7 +41,10 @@ pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Return the first non-NULL value.",
         arguments: &["input"],
-        example: None,
+        example: Some(Example {
+            example: "first(col) FROM (VALUES (1), (2), (3)) t(col)",
+            output: "1",
+        }),
     }],
     // TODO: Do I care that this is long?
     functions: &[

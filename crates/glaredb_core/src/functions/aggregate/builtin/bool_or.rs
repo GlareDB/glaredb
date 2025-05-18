@@ -11,7 +11,7 @@ use crate::functions::Signature;
 use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::AggregateFunctionSet;
 
 pub const FUNCTION_SET_BOOL_OR: AggregateFunctionSet = AggregateFunctionSet {
@@ -21,7 +21,10 @@ pub const FUNCTION_SET_BOOL_OR: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Returns true if any non-NULL input is true, otherwise false.",
         arguments: &["input"],
-        example: None,
+        example: Some(Example {
+            example: "bool_or(col) FROM (VALUES (false), (false), (true)) t(col)",
+            output: "true",
+        }),
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),
