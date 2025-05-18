@@ -10,6 +10,10 @@ title: Date/Time Functions
 
 Get a subfield.
 
+**Example**: `date_part('day', DATE '2024-12-17')`
+
+**Output**: `17.000`
+
 ## `date_trunc`
 
 Truncates a timestamp to the specified precision.

@@ -27,7 +27,9 @@ impl SectionWriter for FunctionSectionWriter {
             r#"
             SELECT DISTINCT
               function_name,
-              description
+              description,
+              example,
+              example_output
             FROM
               list_functions()
             WHERE category = '{}'
@@ -45,6 +47,13 @@ impl SectionWriter for FunctionSectionWriter {
 
                 writeln!(output, "## `{}`\n", function_name)?;
                 writeln!(output, "{}\n", description)?;
+
+                let example = batch.arrays()[2].get_value(row)?;
+                let example_output = batch.arrays()[3].get_value(row)?;
+                if !example.is_null() {
+                    writeln!(output, "**Example**: `{}`\n", example)?;
+                    writeln!(output, "**Output**: `{}`\n", example_output)?;
+                }
             }
         }
 
