@@ -21,10 +21,7 @@ pub const FUNCTION_SET_COUNT: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Return the count of non-NULL inputs.",
         arguments: &["input"],
-        example: Some(Example {
-            example: "count(col) FROM (VALUES (1), (2), (3)) t(col)",
-            output: "3",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Any], DataTypeId::Int64),

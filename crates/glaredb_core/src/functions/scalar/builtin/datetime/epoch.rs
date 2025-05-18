@@ -21,7 +21,7 @@ pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
         description: "Converts a Unix timestamp in seconds to a timestamp.",
         arguments: &["seconds"],
         example: Some(Example {
-            example: "from_unixtime(1675209600)",
+            example: "epoch(1675209600)",
             output: "2023-02-01 00:00:00",
         }),
     }],
@@ -39,7 +39,7 @@ pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
         description: "Converts a Unix timestamp in milliseconds to a timestamp.",
         arguments: &["milliseconds"],
         example: Some(Example {
-            example: "from_unixtime_millis(1675209600000)",
+            example: "epoch_ms(1675209600000)",
             output: "2023-02-01 00:00:00",
         }),
     }],

@@ -16,11 +16,11 @@ pub const FUNCTION_SET_RANDOM: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,
-        description: "Return a random float.",
+        description: "Return a random float between 0 and 1.",
         arguments: &[],
         example: Some(Example {
             example: "random()",
-            output: "0.7268028627434533 -- (varies, returns random value between 0 and 1)",
+            output: "0.7268028627434533",
         }),
     }],
     functions: &[RawScalarFunction::new(

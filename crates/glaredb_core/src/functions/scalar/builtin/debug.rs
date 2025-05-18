@@ -17,7 +17,7 @@ pub const FUNCTION_SET_DEBUG_ERROR_ON_EXECUTE: ScalarFunctionSet = ScalarFunctio
         description: "Return an error when this function gets executed.",
         arguments: &[],
         example: Some(Example {
-            example: "error()",
+            example: "debug_error_on_execute()",
             output: "ERROR: error function was executed",
         }),
     }],

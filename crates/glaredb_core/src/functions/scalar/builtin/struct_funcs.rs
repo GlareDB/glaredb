@@ -12,10 +12,7 @@ pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::General,
         description: "Creates a struct from the provided values.",
         arguments: &["values..."],
-        example: Some(Example {
-            example: "struct(1, 'hello')",
-            output: "{\"0\": 1, \"1\": \"hello\"}",
-        }),
+        example: None,
     }],
     functions: &[RawScalarFunction::new(
         &Signature {
@@ -34,10 +31,7 @@ pub const FUNCTION_SET_STRUCT_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::General,
         description: "Extracts a value from a struct.",
         arguments: &["struct"],
-        example: Some(Example {
-            example: "extract_field(struct(1, 'hello'), '1')",
-            output: "hello",
-        }),
+        example: None,
     }],
     functions: &[RawScalarFunction::new(
         &Signature {
