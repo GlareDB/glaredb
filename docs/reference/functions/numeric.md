@@ -50,13 +50,25 @@ Divides the left value by the right value.
 
 Compute the absolute value of a number.
 
+**Example**: `abs(-5.7)`
+
+**Output**: `5.7`
+
 ## `acos`
 
 Compute the arccosine of value.
 
+**Example**: `acos(1)`
+
+**Output**: `0`
+
 ## `acosh`
 
 Compute the inverse hyperbolic cosine of value.
+
+**Example**: `acosh(1)`
+
+**Output**: `0`
 
 ## `add`
 
@@ -70,37 +82,73 @@ Adds two numeric values together.
 
 Compute the arcsine of value.
 
+**Example**: `asin(0)`
+
+**Output**: `0`
+
 ## `asinh`
 
 Compute the inverse hyperbolic sine of value.
+
+**Example**: `asinh(0)`
+
+**Output**: `0`
 
 ## `atan`
 
 Compute the arctangent of value.
 
+**Example**: `atan(0)`
+
+**Output**: `0`
+
 ## `atan2`
 
 Compute the arctangent of y/x.
+
+**Example**: `atan2(1, 1)`
+
+**Output**: `0.7853981633974483`
 
 ## `atanh`
 
 Compute the inverse hyperbolic tangent of value.
 
+**Example**: `atanh(0)`
+
+**Output**: `0`
+
 ## `cbrt`
 
 Compute the cube root of value.
+
+**Example**: `cbrt(27)`
+
+**Output**: `3`
 
 ## `ceil`
 
 Round number up.
 
+**Example**: `ceil(4.1)`
+
+**Output**: `5`
+
 ## `cos`
 
 Compute the cosine of a value.
 
+**Example**: `cos(0)`
+
+**Output**: `1`
+
 ## `cosh`
 
 Compute the hyperbolic cosine of value.
+
+**Example**: `cosh(0)`
+
+**Output**: `1`
 
 ## `cot`
 
@@ -109,6 +157,10 @@ Compute the cotangent of value.
 ## `degrees`
 
 Convert radians to degrees.
+
+**Example**: `degrees(3.141592653589793)`
+
+**Output**: `180`
 
 ## `div`
 
@@ -122,9 +174,17 @@ Divides the left value by the right value.
 
 Compute `e ^ val`.
 
+**Example**: `exp(1)`
+
+**Output**: `2.718281828459045`
+
 ## `floor`
 
 Round number down.
+
+**Example**: `floor(4.7)`
+
+**Output**: `4`
 
 ## `gcd`
 
@@ -170,13 +230,25 @@ Calculates the least common multiple of two integers.
 
 Compute natural log of value.
 
+**Example**: `ln(2.718281828459045)`
+
+**Output**: `1`
+
 ## `log`
 
 Compute base-10 log of value.
 
+**Example**: `log(100)`
+
+**Output**: `2`
+
 ## `log2`
 
 Compute base-2 log of value.
+
+**Example**: `log2(8)`
+
+**Output**: `3`
 
 ## `mul`
 
@@ -206,17 +278,33 @@ Return the value of pi.
 
 Compute base raised to the power of exponent.
 
+**Example**: `power(2, 3)`
+
+**Output**: `8`
+
 ## `power`
 
 Compute base raised to the power of exponent.
+
+**Example**: `power(2, 3)`
+
+**Output**: `8`
 
 ## `radians`
 
 Convert degrees to radians.
 
+**Example**: `radians(180)`
+
+**Output**: `3.141592653589793`
+
 ## `random`
 
-Return a random float.
+Return a random float between 0 and 1.
+
+**Example**: `random()`
+
+**Output**: `0.7268028627434533`
 
 ## `rem`
 
@@ -228,19 +316,19 @@ Returns the remainder after dividing the left value by the right value.
 
 ## `round`
 
-Round a number to a given scale.
-
-**Example**: `round(3.14159, 2)`
-
-**Output**: `3.14`
-
-## `round`
-
 Round a number to the nearest whole value.
 
 **Example**: `round(3.14159)`
 
 **Output**: `3`
+
+## `round`
+
+Round a number to a given scale.
+
+**Example**: `round(3.14159, 2)`
+
+**Output**: `3.14`
 
 ## `shl`
 
@@ -262,13 +350,25 @@ Shifts an integer right by a specified number of bits.
 
 Compute the sin of value.
 
+**Example**: `sin(0)`
+
+**Output**: `0`
+
 ## `sinh`
 
 Compute the hyperbolic sine of value.
 
+**Example**: `sinh(0)`
+
+**Output**: `0`
+
 ## `sqrt`
 
 Compute the square root of value.
+
+**Example**: `sqrt(9)`
+
+**Output**: `3`
 
 ## `sub`
 
@@ -282,9 +382,17 @@ Subtracts the right value from the left value.
 
 Compute the tangent of value.
 
+**Example**: `tan(0)`
+
+**Output**: `0`
+
 ## `tanh`
 
 Compute the hyperbolic tangent of value.
+
+**Example**: `tanh(0)`
+
+**Output**: `0`
 
 ## `trunc`
 
