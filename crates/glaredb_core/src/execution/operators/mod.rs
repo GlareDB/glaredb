@@ -32,7 +32,7 @@ use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
 use super::planner::OperatorId;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, Explainable};
+use crate::explain::explainable::{ExplainConfig, ExplainEntry, ExplainValue, Explainable};
 use crate::logical::binder::bind_context::MaterializationRef;
 
 /// Poll result for operator execution.
@@ -587,8 +587,15 @@ impl PlannedOperator {
         (self.vtable.build_pipeline_fn)(self, children, props, graph, current)
     }
 
-    pub fn call_explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        (self.vtable.explain_fn)(self.operator.as_ref(), conf)
+    /// Calls the underlying operator's `explain_entry` method, and appends the
+    /// operator id to the list of values.
+    pub fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
+        let mut ent = (self.vtable.explain_fn)(self.operator.as_ref(), conf);
+        ent.items.insert(
+            "operator_id".to_string(),
+            ExplainValue::Value(self.id.to_string()),
+        );
+        ent
     }
 }
 

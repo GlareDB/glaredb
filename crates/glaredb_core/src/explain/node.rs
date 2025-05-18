@@ -79,7 +79,7 @@ pub struct ExplainNode {
 
 impl ExplainNode {
     fn walk_physical(config: ExplainConfig, plan: &PlannedOperatorWithChildren) -> Self {
-        let entry = plan.operator.call_explain_entry(config);
+        let entry = plan.operator.explain_entry(config);
         let children = plan
             .children
             .iter()
