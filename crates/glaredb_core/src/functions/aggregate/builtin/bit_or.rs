@@ -34,10 +34,7 @@ pub const FUNCTION_SET_BIT_OR: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Returns the bitwise OR of all non-NULL input values.",
         arguments: &["integer"],
-        example: Some(Example {
-            example: "bit_or(col) FROM (VALUES (5), (3)) t(col)",
-            output: "7",
-        }),
+        example: None,
     }],
     functions: &[
         RawAggregateFunction::new(

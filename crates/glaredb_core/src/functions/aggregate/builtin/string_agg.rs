@@ -24,10 +24,7 @@ pub const FUNCTION_SET_STRING_AGG: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Concatenate all non-NULL input string values using a delimiter.",
         arguments: &["inputs", "delimiter"],
-        example: Some(Example {
-            example: "string_agg(col, ',') FROM (VALUES ('a'), ('b'), ('c')) t(col)",
-            output: "a,b,c",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Utf8, DataTypeId::Utf8], DataTypeId::Utf8),

@@ -21,10 +21,7 @@ pub const FUNCTION_SET_BOOL_OR: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Returns true if any non-NULL input is true, otherwise false.",
         arguments: &["input"],
-        example: Some(Example {
-            example: "bool_or(col) FROM (VALUES (false), (false), (true)) t(col)",
-            output: "true",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Boolean], DataTypeId::Boolean),

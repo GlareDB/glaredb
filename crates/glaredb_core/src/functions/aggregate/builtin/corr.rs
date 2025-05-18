@@ -23,10 +23,7 @@ pub const FUNCTION_SET_CORR: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Return the (Pearson) population correlation coefficient.",
         arguments: &["y", "x"],
-        example: Some(Example {
-            example: "corr(y, x) FROM (VALUES (1, 1), (2, 2), (3, 3)) t(y, x)",
-            output: "1",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(

@@ -41,10 +41,7 @@ pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Return the first non-NULL value.",
         arguments: &["input"],
-        example: Some(Example {
-            example: "first(col) FROM (VALUES (1), (2), (3)) t(col)",
-            output: "1",
-        }),
+        example: None,
     }],
     // TODO: Do I care that this is long?
     functions: &[

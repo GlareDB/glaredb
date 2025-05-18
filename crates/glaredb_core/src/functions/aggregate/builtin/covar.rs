@@ -22,10 +22,7 @@ pub const FUNCTION_SET_COVAR_POP: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute population covariance.",
         arguments: &["y", "x"],
-        example: Some(Example {
-            example: "covar_pop(y, x) FROM (VALUES (1, 1), (2, 2), (3, 3)) t(y, x)",
-            output: "0.6666666666666666",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
@@ -67,10 +64,7 @@ pub const FUNCTION_SET_COVAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute sample covariance.",
         arguments: &["y", "x"],
-        example: Some(Example {
-            example: "covar_samp(y, x) FROM (VALUES (1, 1), (2, 2), (3, 3)) t(y, x)",
-            output: "1",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(

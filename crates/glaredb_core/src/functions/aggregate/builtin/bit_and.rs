@@ -34,10 +34,7 @@ pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Returns the bitwise AND of all non-NULL input values.",
         arguments: &["integer"],
-        example: Some(Example {
-            example: "bit_and(col) FROM (VALUES (5), (3)) t(col)",
-            output: "1",
-        }),
+        example: None,
     }],
     functions: &[
         RawAggregateFunction::new(

@@ -27,10 +27,7 @@ pub const FUNCTION_SET_APPROX_COUNT_DISTINCT: AggregateFunctionSet = AggregateFu
         category: Category::Aggregate,
         description: "Return an estimated number of distinct, non-NULL values in the input.",
         arguments: &["input"],
-        example: Some(Example {
-            example: "approx_count_distinct(col) FROM (VALUES (1), (1), (2), (3)) t(col)",
-            output: "3",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Any], DataTypeId::Int64),

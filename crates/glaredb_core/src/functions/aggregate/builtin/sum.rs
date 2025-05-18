@@ -33,10 +33,7 @@ pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute the sum of all non-NULL inputs.",
         arguments: &["inputs"],
-        example: Some(Example {
-            example: "sum(col) FROM (VALUES (1), (2), (3)) t(col)",
-            output: "6",
-        }),
+        example: None,
     }],
     functions: &[
         RawAggregateFunction::new(

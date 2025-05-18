@@ -22,10 +22,7 @@ pub const FUNCTION_SET_STDDEV_POP: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute the population standard deviation.",
         arguments: &["inputs"],
-        example: Some(Example {
-            example: "stddev_pop(col) FROM (VALUES (1), (2), (3)) t(col)",
-            output: "0.816496580927726",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
@@ -40,10 +37,7 @@ pub const FUNCTION_SET_STDDEV_SAMP: AggregateFunctionSet = AggregateFunctionSet 
         category: Category::Aggregate,
         description: "Compute the sample standard deviation.",
         arguments: &["inputs"],
-        example: Some(Example {
-            example: "stddev_samp(col) FROM (VALUES (1), (2), (3)) t(col)",
-            output: "1",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
@@ -58,10 +52,7 @@ pub const FUNCTION_SET_VAR_POP: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute the population variance.",
         arguments: &["inputs"],
-        example: Some(Example {
-            example: "var_pop(col) FROM (VALUES (1), (2), (3)) t(col)",
-            output: "0.6666666666666666",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),
@@ -76,10 +67,7 @@ pub const FUNCTION_SET_VAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute the sample variance.",
         arguments: &["inputs"],
-        example: Some(Example {
-            example: "var_samp(col) FROM (VALUES (1), (2), (3)) t(col)",
-            output: "1",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),

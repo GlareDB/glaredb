@@ -22,10 +22,7 @@ pub const FUNCTION_SET_REGR_AVG_Y: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute the average of the dependent variable ('y').",
         arguments: &["y", "x"],
-        example: Some(Example {
-            example: "regr_avgy(y, x) FROM (VALUES (1, 1), (2, 2), (3, 3)) t(y, x)",
-            output: "2",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
@@ -43,10 +40,7 @@ pub const FUNCTION_SET_REGR_AVG_X: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Compute the average of the independent variable ('x').",
         arguments: &["y", "x"],
-        example: Some(Example {
-            example: "regr_avgx(y, x) FROM (VALUES (1, 1), (2, 2), (3, 3)) t(y, x)",
-            output: "2",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(
