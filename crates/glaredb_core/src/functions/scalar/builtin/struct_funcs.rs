@@ -1,7 +1,7 @@
 use super::not_implemented::ScalarNotImplemented;
 use crate::arrays::datatype::DataTypeId;
 use crate::functions::Signature;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::RawScalarFunction;
 
