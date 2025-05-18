@@ -33,7 +33,7 @@ pub const FUNCTION_SET_ROUND: ScalarFunctionSet = ScalarFunctionSet {
     doc: &[
         &Documentation {
             category: Category::Numeric,
-            description: "Round number to the nearest whole value.",
+            description: "Round a number to the nearest whole value.",
             arguments: &["number"],
             example: Some(Example {
                 example: "round(3.14159)",
@@ -42,7 +42,7 @@ pub const FUNCTION_SET_ROUND: ScalarFunctionSet = ScalarFunctionSet {
         },
         &Documentation {
             category: Category::Numeric,
-            description: "Round number to the given scale.",
+            description: "Round a number to a given scale.",
             arguments: &["number", "scale"],
             example: Some(Example {
                 example: "round(3.14159, 2)",
