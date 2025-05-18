@@ -163,7 +163,7 @@ where
             None => 0, // `round(3.14)` == `round(3.14, 0)`
         };
 
-        let input_datatype = &inputs[0].datatype()?;
+        let input_datatype = inputs[0].datatype()?;
         let input_meta = D::decimal_meta(&input_datatype)?;
         // TODO: Negative scale?
         let new_scale = i8::min(new_scale, input_meta.scale);
@@ -183,7 +183,7 @@ where
     fn execute(state: &Self::State, input: &Batch, output: &mut Array) -> Result<()> {
         let error_state = CastFailBehavior::Error.new_state();
         DecimalToDecimal::<D, D>::cast(
-            &state,
+            state,
             error_state,
             &input.arrays[0],
             input.selection(),
