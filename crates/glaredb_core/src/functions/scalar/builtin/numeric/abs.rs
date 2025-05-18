@@ -13,7 +13,7 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::Signature;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::RawScalarFunction;
 use crate::util::iter::IntoExactSizeIterator;
@@ -25,7 +25,10 @@ pub const FUNCTION_SET_ABS: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the absolute value of a number.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "abs(-5.7)",
+            output: "5.7",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

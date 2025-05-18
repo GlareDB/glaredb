@@ -5,7 +5,7 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::Signature;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
@@ -16,7 +16,10 @@ pub const FUNCTION_SET_DEBUG_ERROR_ON_EXECUTE: ScalarFunctionSet = ScalarFunctio
         category: Category::Debug,
         description: "Return an error when this function gets executed.",
         arguments: &[],
-        example: None,
+        example: Some(Example {
+            example: "debug_error_on_execute()",
+            output: "ERROR: error function was executed",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[], DataTypeId::Int32),
