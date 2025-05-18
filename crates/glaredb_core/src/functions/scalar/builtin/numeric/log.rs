@@ -25,7 +25,10 @@ pub const FUNCTION_SET_LOG: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute base-10 log of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "log(100)",
+            output: "2",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(
@@ -72,7 +75,10 @@ pub const FUNCTION_SET_LOG_2: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute base-2 log of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "log2(8)",
+            output: "3",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

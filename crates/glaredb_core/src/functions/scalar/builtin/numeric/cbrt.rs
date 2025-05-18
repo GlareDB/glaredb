@@ -25,7 +25,10 @@ pub const FUNCTION_SET_CBRT: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the cube root of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "cbrt(27)",
+            output: "3",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

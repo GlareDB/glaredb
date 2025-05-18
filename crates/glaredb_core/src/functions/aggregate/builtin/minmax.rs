@@ -47,7 +47,10 @@ pub const FUNCTION_SET_MIN: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Return the minimum non-NULL value seen from input.",
         arguments: &["input"],
-        example: None,
+        example: Some(Example {
+            example: "min(col) FROM (VALUES (1), (2), (3)) t(col)",
+            output: "1",
+        }),
     }],
     functions: &[
         RawAggregateFunction::new(
@@ -211,7 +214,10 @@ pub const FUNCTION_SET_MAX: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Return the maximum non-NULL value seen from input.",
         arguments: &["input"],
-        example: None,
+        example: Some(Example {
+            example: "max(col) FROM (VALUES (1), (2), (3)) t(col)",
+            output: "3",
+        }),
     }],
     functions: &[
         RawAggregateFunction::new(

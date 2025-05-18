@@ -25,7 +25,10 @@ pub const FUNCTION_SET_LN: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute natural log of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "ln(2.718281828459045)",
+            output: "1",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

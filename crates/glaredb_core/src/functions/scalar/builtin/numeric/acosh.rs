@@ -20,7 +20,10 @@ pub const FUNCTION_SET_ACOSH: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the inverse hyperbolic cosine of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "acosh(1)",
+            output: "0",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),

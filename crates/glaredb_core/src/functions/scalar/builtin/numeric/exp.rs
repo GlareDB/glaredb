@@ -25,7 +25,10 @@ pub const FUNCTION_SET_EXP: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute `e ^ val`.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "exp(1)",
+            output: "2.718281828459045",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

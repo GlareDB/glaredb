@@ -25,7 +25,10 @@ pub const FUNCTION_SET_SQRT: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the square root of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "sqrt(9)",
+            output: "3",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

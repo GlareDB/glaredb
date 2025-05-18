@@ -25,7 +25,10 @@ pub const FUNCTION_SET_CEIL: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Round number up.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "ceil(4.1)",
+            output: "5",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

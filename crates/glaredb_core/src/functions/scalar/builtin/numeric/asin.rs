@@ -25,7 +25,10 @@ pub const FUNCTION_SET_ASIN: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the arcsine of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "asin(0)",
+            output: "0",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

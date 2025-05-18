@@ -25,7 +25,10 @@ pub const FUNCTION_SET_ATAN: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the arctangent of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "atan(0)",
+            output: "0",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

@@ -16,7 +16,10 @@ pub const FUNCTION_SET_DEBUG_ERROR_ON_EXECUTE: ScalarFunctionSet = ScalarFunctio
         category: Category::Debug,
         description: "Return an error when this function gets executed.",
         arguments: &[],
-        example: None,
+        example: Some(Example {
+            example: "error()",
+            output: "ERROR: error function was executed",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[], DataTypeId::Int32),

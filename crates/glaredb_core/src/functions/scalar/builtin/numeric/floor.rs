@@ -25,7 +25,10 @@ pub const FUNCTION_SET_FLOOR: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Round number down.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "floor(4.7)",
+            output: "4",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

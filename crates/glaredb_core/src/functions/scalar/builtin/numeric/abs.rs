@@ -25,7 +25,10 @@ pub const FUNCTION_SET_ABS: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the absolute value of a number.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "abs(-5.7)",
+            output: "5.7",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

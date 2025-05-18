@@ -25,7 +25,10 @@ pub const FUNCTION_SET_ACOS: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the arccosine of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "acos(1)",
+            output: "0",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

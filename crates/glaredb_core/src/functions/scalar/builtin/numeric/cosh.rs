@@ -20,7 +20,10 @@ pub const FUNCTION_SET_COSH: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the hyperbolic cosine of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "cosh(0)",
+            output: "1",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),

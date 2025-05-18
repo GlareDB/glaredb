@@ -22,7 +22,10 @@ pub const FUNCTION_SET_ATAN2: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the arctangent of y/x.",
         arguments: &["y", "x"],
-        example: None,
+        example: Some(Example {
+            example: "atan2(1, 1)",
+            output: "0.7853981633974483",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(

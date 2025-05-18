@@ -30,7 +30,10 @@ pub const FUNCTION_SET_AVG: AggregateFunctionSet = AggregateFunctionSet {
         category: Category::Aggregate,
         description: "Return the average value from the input column.",
         arguments: &["input"],
-        example: None,
+        example: Some(Example {
+            example: "avg(col) FROM (VALUES (1), (2), (3)) t(col)",
+            output: "2",
+        }),
     }],
     functions: &[
         RawAggregateFunction::new(

@@ -25,7 +25,10 @@ pub const FUNCTION_SET_DEGREES: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Convert radians to degrees.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "degrees(3.141592653589793)",
+            output: "180",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

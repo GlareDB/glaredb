@@ -25,7 +25,10 @@ pub const FUNCTION_SET_TAN: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the tangent of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "tan(0)",
+            output: "0",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

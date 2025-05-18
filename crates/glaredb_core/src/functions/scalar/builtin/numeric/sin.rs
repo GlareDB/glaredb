@@ -25,7 +25,10 @@ pub const FUNCTION_SET_SIN: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the sin of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "sin(0)",
+            output: "0",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(

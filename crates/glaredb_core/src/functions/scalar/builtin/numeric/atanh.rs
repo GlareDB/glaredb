@@ -20,7 +20,10 @@ pub const FUNCTION_SET_ATANH: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the inverse hyperbolic tangent of value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "atanh(0)",
+            output: "0",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Float64], DataTypeId::Float64),

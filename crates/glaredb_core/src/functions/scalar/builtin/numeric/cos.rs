@@ -25,7 +25,10 @@ pub const FUNCTION_SET_COS: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute the cosine of a value.",
         arguments: &["float"],
-        example: None,
+        example: Some(Example {
+            example: "cos(0)",
+            output: "1",
+        }),
     }],
     functions: &[
         RawScalarFunction::new(
