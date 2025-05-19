@@ -11,6 +11,13 @@ concurrency:
   group: build-ci-${{ github.ref }}
   cancel-in-progress: true
 
+# The `if: success() || failure()` stuff is to allow all the SLT tests to run
+# even if another set fails. This provides a bit more feedback to changes as
+# provides more points to triangulate why a change caused a failure.
+#
+# `if: always()` is not used since that causes the step to run even when the
+# workflow is canceled (either manually or from a follow-up push to a pr).
+
 jobs:
   lint:
     name: Lint and Format
@@ -52,53 +59,53 @@ jobs:
         run: cargo test -- --skip slt/
 
       - name: SQL Logic Tests (standard)
-        if: always()
+        if: success() || failure()
         run: ./scripts/run_slt_standard.sh
 
       - name: Extension - tpch_gen (SLT)
-        if: always()
+        if: success() || failure()
         run: cargo test slt/tpch_gen
 
       - name: Extension - csv (SLT)
-        if: always()
+        if: success() || failure()
         run: cargo test slt/csv
 
       - name: Extension - parquet (SLT)
-        if: always()
+        if: success() || failure()
         run: cargo test slt/parquet
 
       - name: File System - HTTP (SLT)
-        if: always()
+        if: success() || failure()
         run: cargo test slt/http
 
       - name: File System - S3 public (SLT)
-        if: always()
+        if: success() || failure()
         run: cargo test slt/s3/public
 
       - name: File System - S3 private (SLT)
-        if: always()
+        if: success() || failure()
         env:
           AWS_KEY: ${{ secrets.AWS_KEY }}
           AWS_SECRET: ${{ secrets.AWS_SECRET }}
         run: cargo test slt/s3/private
 
       - name: File System - GCS public (SLT)
-        if: always()
+        if: success() || failure()
         run: cargo test slt/gcs/public
 
       - name: File System - GCS private (SLT)
-        if: always()
+        if: success() || failure()
         env:
           GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: cargo test slt/gcs/private
 
       - name: Bench (truncated) - ClickBench
-        if: always()
+        if: success() || failure()
         run: |
           cargo test slt/clickbench
 
       - name: Bench (truncated) - TPC-H
-        if: always()
+        if: success() || failure()
         run: |
           cargo test slt/tpchbench
 
