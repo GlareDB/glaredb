@@ -31,7 +31,7 @@ pub const FUNCTION_SET_BIT_OR: AggregateFunctionSet = AggregateFunctionSet {
     name: "bit_or",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Returns the bitwise OR of all non-NULL input values.",
         arguments: &["integer"],
         example: None,

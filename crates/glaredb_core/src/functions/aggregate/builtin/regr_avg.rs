@@ -19,7 +19,7 @@ pub const FUNCTION_SET_REGR_AVG_Y: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_avgy",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Compute the average of the dependent variable ('y').",
         arguments: &["y", "x"],
         example: None,
@@ -37,7 +37,7 @@ pub const FUNCTION_SET_REGR_AVG_X: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_avgx",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Compute the average of the independent variable ('x').",
         arguments: &["y", "x"],
         example: None,

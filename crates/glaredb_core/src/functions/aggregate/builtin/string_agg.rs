@@ -21,7 +21,7 @@ pub const FUNCTION_SET_STRING_AGG: AggregateFunctionSet = AggregateFunctionSet {
     name: "string_agg",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Concatenate all non-NULL input string values using a delimiter.",
         arguments: &["inputs", "delimiter"],
         example: None,

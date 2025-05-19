@@ -18,7 +18,7 @@ pub const FUNCTION_SET_BOOL_OR: AggregateFunctionSet = AggregateFunctionSet {
     name: "bool_or",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Returns true if any non-NULL input is true, otherwise false.",
         arguments: &["input"],
         example: None,

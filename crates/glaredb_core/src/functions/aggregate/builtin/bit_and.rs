@@ -31,7 +31,7 @@ pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
     name: "bit_and",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Returns the bitwise AND of all non-NULL input values.",
         arguments: &["integer"],
         example: None,

@@ -44,7 +44,7 @@ pub const FUNCTION_SET_MIN: AggregateFunctionSet = AggregateFunctionSet {
     name: "min",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Return the minimum non-NULL value seen from input.",
         arguments: &["input"],
         example: None,
@@ -208,7 +208,7 @@ pub const FUNCTION_SET_MAX: AggregateFunctionSet = AggregateFunctionSet {
     name: "max",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Return the maximum non-NULL value seen from input.",
         arguments: &["input"],
         example: None,

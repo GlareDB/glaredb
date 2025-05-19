@@ -19,7 +19,7 @@ pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_null",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::COMPARISON_OPERATOR,
         description: "Check if a value is NULL.",
         arguments: &["value"],
         example: Some(Example {
@@ -37,7 +37,7 @@ pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_not_null",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::COMPARISON_OPERATOR,
         description: "Check if a value is not NULL.",
         arguments: &["value"],
         example: Some(Example {
@@ -97,7 +97,7 @@ pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_true",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::COMPARISON_OPERATOR,
         description: "Check if a value is true.",
         arguments: &["value"],
         example: Some(Example {
@@ -115,7 +115,7 @@ pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_not_true",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::COMPARISON_OPERATOR,
         description: "Check if a value is not true.",
         arguments: &["value"],
         example: Some(Example {
@@ -133,7 +133,7 @@ pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_false",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::COMPARISON_OPERATOR,
         description: "Check if a value is false.",
         arguments: &["value"],
         example: Some(Example {
@@ -151,7 +151,7 @@ pub const FUNCTION_SET_IS_NOT_FALSE: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_not_false",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::COMPARISON_OPERATOR,
         description: "Check if a value is not false.",
         arguments: &["value"],
         example: Some(Example {

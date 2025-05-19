@@ -24,7 +24,7 @@ pub const FUNCTION_SET_APPROX_COUNT_DISTINCT: AggregateFunctionSet = AggregateFu
     name: "approx_count_distinct",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Return an estimated number of distinct, non-NULL values in the input.",
         arguments: &["input"],
         example: None,

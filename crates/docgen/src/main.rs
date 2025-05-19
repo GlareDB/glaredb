@@ -21,18 +21,26 @@ use tracing::info;
 const FILES: &[DocFile] = &[
     DocFile {
         path: "docs/reference/functions/aggregate.md",
-        sections: &[(
-            "aggregate_functions",
-            &FunctionSectionWriter {
-                category: Category::Aggregate,
-            },
-        )],
+        sections: &[
+            (
+                "general_purpose_aggregate_functions",
+                &FunctionSectionWriter::<3> {
+                    category: Category::GENERAL_PURPOSE_AGGREGATE,
+                },
+            ),
+            (
+                "statistics_aggregate_functions",
+                &FunctionSectionWriter::<3> {
+                    category: Category::STATISTICS_AGGREGATE,
+                },
+            ),
+        ],
     },
     DocFile {
         path: "docs/reference/functions/numeric.md",
         sections: &[(
             "numeric_functions",
-            &FunctionSectionWriter {
+            &FunctionSectionWriter::<2> {
                 category: Category::Numeric,
             },
         )],
@@ -41,7 +49,7 @@ const FILES: &[DocFile] = &[
         path: "docs/reference/functions/string.md",
         sections: &[(
             "string_functions",
-            &FunctionSectionWriter {
+            &FunctionSectionWriter::<2> {
                 category: Category::String,
             },
         )],
@@ -50,7 +58,7 @@ const FILES: &[DocFile] = &[
         path: "docs/reference/functions/regexp.md",
         sections: &[(
             "regexp_functions",
-            &FunctionSectionWriter {
+            &FunctionSectionWriter::<2> {
                 category: Category::Regexp,
             },
         )],
@@ -59,25 +67,39 @@ const FILES: &[DocFile] = &[
         path: "docs/reference/functions/date-time.md",
         sections: &[(
             "date_time_functions",
-            &FunctionSectionWriter {
+            &FunctionSectionWriter::<2> {
                 category: Category::DateTime,
             },
         )],
     },
     DocFile {
         path: "docs/reference/functions/operator.md",
-        sections: &[(
-            "operator_functions",
-            &FunctionSectionWriter {
-                category: Category::Operator,
-            },
-        )],
+        sections: &[
+            (
+                "numeric_operator_functions",
+                &FunctionSectionWriter::<3> {
+                    category: Category::NUMERIC_OPERATOR,
+                },
+            ),
+            (
+                "comparison_operator_functions",
+                &FunctionSectionWriter::<3> {
+                    category: Category::COMPARISON_OPERATOR,
+                },
+            ),
+            (
+                "logical_operator_functions",
+                &FunctionSectionWriter::<3> {
+                    category: Category::LOGICAL_OPERATOR,
+                },
+            ),
+        ],
     },
     DocFile {
         path: "docs/reference/functions/list.md",
         sections: &[(
             "list_functions",
-            &FunctionSectionWriter {
+            &FunctionSectionWriter::<2> {
                 category: Category::List,
             },
         )],
@@ -86,7 +108,7 @@ const FILES: &[DocFile] = &[
         path: "docs/reference/functions/system.md",
         sections: &[(
             "system_functions",
-            &FunctionSectionWriter {
+            &FunctionSectionWriter::<2> {
                 category: Category::System,
             },
         )],
@@ -95,7 +117,7 @@ const FILES: &[DocFile] = &[
         path: "docs/reference/functions/table.md",
         sections: &[(
             "table_functions",
-            &FunctionSectionWriter {
+            &FunctionSectionWriter::<2> {
                 category: Category::Table,
             },
         )],

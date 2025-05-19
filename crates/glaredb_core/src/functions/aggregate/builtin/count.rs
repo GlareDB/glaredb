@@ -18,7 +18,7 @@ pub const FUNCTION_SET_COUNT: AggregateFunctionSet = AggregateFunctionSet {
     name: "count",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Return the count of non-NULL inputs.",
         arguments: &["input"],
         example: None,

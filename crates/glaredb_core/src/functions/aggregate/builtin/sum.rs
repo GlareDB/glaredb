@@ -30,7 +30,7 @@ pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
     name: "sum",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Compute the sum of all non-NULL inputs.",
         arguments: &["inputs"],
         example: None,

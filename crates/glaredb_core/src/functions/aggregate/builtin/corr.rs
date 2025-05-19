@@ -20,7 +20,7 @@ pub const FUNCTION_SET_CORR: AggregateFunctionSet = AggregateFunctionSet {
     name: "corr",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Return the (Pearson) population correlation coefficient.",
         arguments: &["y", "x"],
         example: None,

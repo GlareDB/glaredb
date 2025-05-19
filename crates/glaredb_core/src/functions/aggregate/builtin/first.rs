@@ -38,7 +38,7 @@ pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
     name: "first",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Return the first non-NULL value.",
         arguments: &["input"],
         example: None,
