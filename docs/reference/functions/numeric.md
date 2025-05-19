@@ -316,19 +316,19 @@ Returns the remainder after dividing the left value by the right value.
 
 ## `round`
 
-Round a number to the nearest whole value.
-
-**Example**: `round(3.14159)`
-
-**Output**: `3`
-
-## `round`
-
 Round a number to a given scale.
 
 **Example**: `round(3.14159, 2)`
 
 **Output**: `3.14`
+
+## `round`
+
+Round a number to the nearest whole value.
+
+**Example**: `round(3.14159)`
+
+**Output**: `3`
 
 ## `shl`
 

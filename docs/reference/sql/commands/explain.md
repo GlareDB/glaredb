@@ -29,7 +29,7 @@ EXPLAIN [VERBOSE] [(FORMAT format)] query
 - **Physical**: The final plan to be executed.
 
 By default, the output is displayed in a text format showing the "base" plan,
-and any materializations need for the plan.
+and any materializations in the plan.
 
 ## Examples
 

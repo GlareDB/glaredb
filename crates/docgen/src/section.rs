@@ -33,7 +33,7 @@ impl SectionWriter for FunctionSectionWriter {
             FROM
               list_functions()
             WHERE category = '{}'
-            ORDER BY function_name;
+            ORDER BY 1,2,3,4;
             "#,
             self.category.as_str(),
         );

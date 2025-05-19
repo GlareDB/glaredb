@@ -26,7 +26,7 @@ Get the number of bits in a string or blob.
 
 Trim matching characters from both sides of the string.
 
-**Example**: `btrim('->hello<', '<>-')`
+**Example**: `trim('->hello<', '<>-')`
 
 **Output**: `hello`
 
@@ -34,7 +34,7 @@ Trim matching characters from both sides of the string.
 
 Get the number of bytes in a string or blob.
 
-**Example**: `octet_length('tschüß')`
+**Example**: `byte_length('tschüß')`
 
 **Output**: `6`
 
@@ -42,7 +42,7 @@ Get the number of bytes in a string or blob.
 
 Get the number of characters in a string.
 
-**Example**: `char_length('tschüß')`
+**Example**: `length('tschüß')`
 
 **Output**: `6`
 
@@ -50,7 +50,7 @@ Get the number of characters in a string.
 
 Get the number of characters in a string.
 
-**Example**: `char_length('tschüß')`
+**Example**: `length('tschüß')`
 
 **Output**: `6`
 
@@ -74,7 +74,7 @@ Check if string contains a search string.
 
 Check if a string ends with a suffix.
 
-**Example**: `suffix('house', 'se')`
+**Example**: `ends_with('house', 'se')`
 
 **Output**: `true`
 
@@ -98,7 +98,7 @@ Get the leftmost N characters of a string.
 
 Get the number of characters in a string.
 
-**Example**: `char_length('tschüß')`
+**Example**: `length('tschüß')`
 
 **Output**: `6`
 
@@ -138,7 +138,7 @@ Trim matching characters from the left side of the string.
 
 Get the number of bytes in a string or blob.
 
-**Example**: `octet_length('tschüß')`
+**Example**: `byte_length('tschüß')`
 
 **Output**: `6`
 
@@ -146,7 +146,7 @@ Get the number of bytes in a string or blob.
 
 Check if a string starts with a prefix.
 
-**Example**: `prefix('hello', 'he')`
+**Example**: `starts_with('hello', 'he')`
 
 **Output**: `true`
 
@@ -194,7 +194,7 @@ Trim whitespace from the right side of the string.
 
 Check if a string starts with a prefix.
 
-**Example**: `prefix('hello', 'he')`
+**Example**: `starts_with('hello', 'he')`
 
 **Output**: `true`
 
@@ -226,7 +226,7 @@ Get a substring of a string starting at an index until the end of the string. Th
 
 Check if a string ends with a suffix.
 
-**Example**: `suffix('house', 'se')`
+**Example**: `ends_with('house', 'se')`
 
 **Output**: `true`
 
@@ -234,7 +234,7 @@ Check if a string ends with a suffix.
 
 Trim matching characters from both sides of the string.
 
-**Example**: `btrim('->hello<', '<>-')`
+**Example**: `trim('->hello<', '<>-')`
 
 **Output**: `hello`
 

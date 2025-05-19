@@ -26,7 +26,7 @@ Truncates a timestamp to the specified precision.
 
 Converts a Unix timestamp in seconds to a timestamp.
 
-**Example**: `epoch_s(1675209600)`
+**Example**: `epoch(1675209600)`
 
 **Output**: `2023-02-01 00:00:00`
 
@@ -42,7 +42,7 @@ Converts a Unix timestamp in milliseconds to a timestamp.
 
 Converts a Unix timestamp in seconds to a timestamp.
 
-**Example**: `epoch_s(1675209600)`
+**Example**: `epoch(1675209600)`
 
 **Output**: `2023-02-01 00:00:00`
 
