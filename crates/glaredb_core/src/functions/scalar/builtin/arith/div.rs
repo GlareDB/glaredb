@@ -34,7 +34,7 @@ pub const FUNCTION_SET_DIV: ScalarFunctionSet = ScalarFunctionSet {
     name: "/",
     aliases: &["div"],
     doc: &[&Documentation {
-        category: Category::Numeric,
+        category: Category::Operator,
         description: "Divides the left value by the right value.",
         arguments: &["left", "right"],
         example: Some(Example {

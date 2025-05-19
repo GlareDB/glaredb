@@ -45,7 +45,7 @@ pub const FUNCTION_SET_EQ: ScalarFunctionSet = ScalarFunctionSet {
     name: "=",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if two values are equal. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
         example: Some(Example {
@@ -60,7 +60,7 @@ pub const FUNCTION_SET_NEQ: ScalarFunctionSet = ScalarFunctionSet {
     name: "!=",
     aliases: &["<>"],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if two values are not equal. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
         example: Some(Example {
@@ -75,7 +75,7 @@ pub const FUNCTION_SET_LT: ScalarFunctionSet = ScalarFunctionSet {
     name: "<",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if the left value is less than the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
         example: Some(Example {
@@ -90,7 +90,7 @@ pub const FUNCTION_SET_LT_EQ: ScalarFunctionSet = ScalarFunctionSet {
     name: "<=",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if the left value is less than or equal to the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
         example: Some(Example {
@@ -105,7 +105,7 @@ pub const FUNCTION_SET_GT: ScalarFunctionSet = ScalarFunctionSet {
     name: ">",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if the left value is greater than the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
         example: Some(Example {
@@ -120,7 +120,7 @@ pub const FUNCTION_SET_GT_EQ: ScalarFunctionSet = ScalarFunctionSet {
     name: ">=",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if the left value is greater than or equal to the right. Returns NULL if either argument is NULL.",
         arguments: &["a", "b"],
         example: Some(Example {
@@ -135,7 +135,7 @@ pub const FUNCTION_SET_IS_DISTINCT_FROM: ScalarFunctionSet = ScalarFunctionSet {
     name: "is_distinct_from",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if two values are not equal, treating NULLs as normal data values.",
         arguments: &["a", "b"],
         example: Some(Example {
@@ -150,7 +150,7 @@ pub const FUNCTION_SET_IS_NOT_DISTINCT_FROM: ScalarFunctionSet = ScalarFunctionS
     name: "is_not_distinct_from",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::Operator,
         description: "Check if two values are equal, treating NULLs as normal data values.",
         arguments: &["a", "b"],
         example: Some(Example {

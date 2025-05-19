@@ -6,46 +6,6 @@ title: Numeric Functions
 
 <!-- DOCSGEN_START numeric_functions -->
 
-## `%`
-
-Returns the remainder after dividing the left value by the right value.
-
-**Example**: `10 % 3`
-
-**Output**: `1`
-
-## `*`
-
-Multiplies two numeric values.
-
-**Example**: `5 * 3`
-
-**Output**: `15`
-
-## `+`
-
-Adds two numeric values together.
-
-**Example**: `5 + 3`
-
-**Output**: `8`
-
-## `-`
-
-Subtracts the right value from the left value.
-
-**Example**: `10 - 4`
-
-**Output**: `6`
-
-## `/`
-
-Divides the left value by the right value.
-
-**Example**: `15 / 3`
-
-**Output**: `5`
-
 ## `abs`
 
 Compute the absolute value of a number.
@@ -69,14 +29,6 @@ Compute the inverse hyperbolic cosine of value.
 **Example**: `acosh(1)`
 
 **Output**: `0`
-
-## `add`
-
-Adds two numeric values together.
-
-**Example**: `5 + 3`
-
-**Output**: `8`
 
 ## `asin`
 
@@ -162,14 +114,6 @@ Convert radians to degrees.
 
 **Output**: `180`
 
-## `div`
-
-Divides the left value by the right value.
-
-**Example**: `15 / 3`
-
-**Output**: `5`
-
 ## `exp`
 
 Compute `e ^ val`.
@@ -250,14 +194,6 @@ Compute base-2 log of value.
 
 **Output**: `3`
 
-## `mul`
-
-Multiplies two numeric values.
-
-**Example**: `5 * 3`
-
-**Output**: `15`
-
 ## `negate`
 
 Returns the result of multiplying the input value by -1.
@@ -305,14 +241,6 @@ Return a random float between 0 and 1.
 **Example**: `random()`
 
 **Output**: `0.7268028627434533`
-
-## `rem`
-
-Returns the remainder after dividing the left value by the right value.
-
-**Example**: `10 % 3`
-
-**Output**: `1`
 
 ## `round`
 
@@ -369,14 +297,6 @@ Compute the square root of value.
 **Example**: `sqrt(9)`
 
 **Output**: `3`
-
-## `sub`
-
-Subtracts the right value from the left value.
-
-**Example**: `10 - 4`
-
-**Output**: `6`
 
 ## `tan`
 
