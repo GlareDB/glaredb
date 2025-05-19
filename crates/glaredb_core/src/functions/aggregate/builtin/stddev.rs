@@ -19,7 +19,7 @@ pub const FUNCTION_SET_STDDEV_POP: AggregateFunctionSet = AggregateFunctionSet {
     name: "stddev_pop",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Compute the population standard deviation.",
         arguments: &["inputs"],
         example: None,
@@ -34,7 +34,7 @@ pub const FUNCTION_SET_STDDEV_SAMP: AggregateFunctionSet = AggregateFunctionSet 
     name: "stddev_samp",
     aliases: &["stddev"],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Compute the sample standard deviation.",
         arguments: &["inputs"],
         example: None,
@@ -49,7 +49,7 @@ pub const FUNCTION_SET_VAR_POP: AggregateFunctionSet = AggregateFunctionSet {
     name: "var_pop",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Compute the population variance.",
         arguments: &["inputs"],
         example: None,
@@ -64,7 +64,7 @@ pub const FUNCTION_SET_VAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
     name: "var_samp",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Compute the sample variance.",
         arguments: &["inputs"],
         example: None,

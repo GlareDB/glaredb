@@ -19,7 +19,7 @@ pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
     name: "and",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::LOGICAL_OPERATOR,
         description: "Boolean and all inputs.",
         arguments: &["var_args"],
         example: Some(Example {
@@ -41,7 +41,7 @@ pub const FUNCTION_SET_OR: ScalarFunctionSet = ScalarFunctionSet {
     name: "or",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Operator,
+        category: Category::LOGICAL_OPERATOR,
         description: "Boolean or all inputs.",
         arguments: &["var_args"],
         example: Some(Example {
