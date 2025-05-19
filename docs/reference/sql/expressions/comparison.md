@@ -58,7 +58,7 @@ Check if the value is greater than or equal to 90:
 SELECT * FROM students WHERE score >= 90;
 ```
 
-### IS DISTINCT FROM and IS NOT DISTINCT FROM
+### IS [NOT] DISTINCT FROM
 
 These operators are similar to the `=` and `<>` operators, but they treat NULL
 values as comparable values.
