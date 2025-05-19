@@ -1,6 +1,6 @@
 ---
 title: Install
-order: 5
+order: 1
 ---
 
 # Install GlareDB
@@ -44,6 +44,6 @@ GlareDB distributes binaries for the following platforms.
 | Linux Arm64     | glibc 2.28+             |
 
 Additional platforms will be officially supported in the future. For currently
-unsupported platforms, [building from source](./development/building.md) may
+unsupported platforms, [building from source](../development/building.md) may
 work.
 
