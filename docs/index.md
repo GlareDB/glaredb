@@ -12,7 +12,7 @@ title: GlareDB Docs
 
 - [Querying with SQL](./reference/sql/query-syntax/select.md)
 - [Accessing data in S3](./reference/filesystems/s3.md)
-- [Accessing data in GCS](./reference/filesystems/s3.md)
+- [Accessing data in GCS](./reference/filesystems/gcs.md)
 - [Reading parquet files](./extensions/parquet.md)
 - [Reading CSV files](./extensions/csv.md)
 
