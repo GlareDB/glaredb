@@ -62,7 +62,7 @@ overall city population average, we can use grouping sets to specify those
 dimensions.
 
 We can use a `ROLLUP` for this which will produce the grouping sets
-`(state_abbr, ())`, with empty paranthesis representing the "empty" group (how
+`(state_abbr, ())`, with empty parentheses representing the "empty" group (how
 we'll get the overall average):
 
 ```sql
