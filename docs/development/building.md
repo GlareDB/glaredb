@@ -30,7 +30,7 @@ during development. When benchmarking, always pass the `--release` flag.
 ## Python
 
 In addition to the above prerequisites, building the Python bindings requires
-[maturin] to be in your path, as well asn a [venv] set up.
+[maturin] to be in your path, as well as a [venv] set up.
 
 To create the virtual env:
 
