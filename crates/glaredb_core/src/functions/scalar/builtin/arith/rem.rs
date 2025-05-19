@@ -34,7 +34,7 @@ pub const FUNCTION_SET_REM: ScalarFunctionSet = ScalarFunctionSet {
     name: "%",
     aliases: &["rem"],
     doc: &[&Documentation {
-        category: Category::Numeric,
+        category: Category::Operator,
         description: "Returns the remainder after dividing the left value by the right value.",
         arguments: &["left", "right"],
         example: Some(Example {

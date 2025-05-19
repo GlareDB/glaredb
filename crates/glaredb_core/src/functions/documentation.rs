@@ -1,7 +1,8 @@
 /// Function categories.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
-    General,
+    /// Functions that are used for implementing SQL operators.
+    Operator,
     Aggregate,
     Numeric,
     DateTime,
@@ -17,7 +18,7 @@ pub enum Category {
 impl Category {
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::General => "general",
+            Self::Operator => "operator",
             Self::Aggregate => "aggregate",
             Self::Numeric => "numeric",
             Self::DateTime => "datetime",

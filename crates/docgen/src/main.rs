@@ -65,11 +65,11 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/general.md",
+        path: "docs/reference/functions/operator.md",
         sections: &[(
-            "general_functions",
+            "operator_functions",
             &FunctionSectionWriter {
-                category: Category::General,
+                category: Category::Operator,
             },
         )],
     },
@@ -79,6 +79,24 @@ const FILES: &[DocFile] = &[
             "list_functions",
             &FunctionSectionWriter {
                 category: Category::List,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/reference/functions/system.md",
+        sections: &[(
+            "system_functions",
+            &FunctionSectionWriter {
+                category: Category::System,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/reference/functions/table.md",
+        sections: &[(
+            "table_functions",
+            &FunctionSectionWriter {
+                category: Category::Table,
             },
         )],
     },
