@@ -39,11 +39,19 @@ Select from a series of integers using the table function `generate_series`:
 SELECT * FROM generate_series(1, 10);
 ```
 
+Table functions like `read_csv` and `read_parquet` can also be used to query
+external data:
+
+```sql
+SELECT * FROM read_parquet('my_parquet_file.parquet');
+```
+
 ## Subqueries
 
 Subqueries are nested queries that produce one or more columns.
 
 Select from a subquery that's selecting from a table named `cities`:
+
 ```sql
 SELECT *
 FROM (SELECT name, state FROM cities);
@@ -154,9 +162,30 @@ FROM generate_series(1, 3) g(a), LATERAL (SELECT (a + 2)) s(b);
 | 2 | 4 |
 | 3 | 5 |
 
-The `LATERAL` keyword may be omitted:
+The `LATERAL` keyword may be omitted. The dependency on column `a` in the right
+side of the join is automatically detected:
 
 ```sql
 SELECT *
 FROM generate_series(1, 3) g(a), (SELECT (a + 2)) s(b);
 ```
+
+Many table functions can only depend on inputs defined on left side of the join.
+For example, we can use columns `start` and `stop` defined in the `VALUES` as
+arguments to `generate_series` to produce multiple integer series:
+
+```sql
+SELECT *
+FROM (VALUES (1, 2), (8, 10)) v(start, stop), generate_series(start, stop);
+```
+
+This will output:
+
+| start | stop | generate_series |
+|-------|------|-----------------|
+| 1     | 2    | 1               |
+| 1     | 2    | 2               |
+| 8     | 10   | 8               |
+| 8     | 10   | 9               |
+| 8     | 10   | 10              |
+

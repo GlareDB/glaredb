@@ -7,6 +7,16 @@ title: DESCRIBE
 `DESCRIBE` statements provide information about the schema of queries, tables,
 table functions, or files.
 
+## Syntax
+
+```sql
+DESCRIBE query_or_table
+```
+
+## Parameters
+
+- `query_or_table`: A query or table-like object.
+
 ## Describing a Query
 
 `DESCRIBE` followed by a query can be used to show the names and data types that
@@ -54,5 +64,31 @@ Outputs:
 |-------------|----------|
 | unnest      | Int32    |
 
+## Describing Files
 
-<!-- TODO: Add in describe parquet/csv when that works again -->
+`DESCRIBE` can only be used to describe local and remote files.
+
+For example, we can describe a parquet file located in S3:
+
+```sql
+DESCRIBE 's3://glaredb-public/userdata0.parquet';
+```
+
+Which will output the following:
+
+| column_name       | datatype      |
+|-------------------|---------------|
+| registration_dttm | Timestamp(ns) |
+| id                | Int32         |
+| first_name        | Utf8          |
+| last_name         | Utf8          |
+| email             | Utf8          |
+| gender            | Utf8          |
+| ip_address        | Utf8          |
+| cc                | Utf8          |
+| country           | Utf8          |
+| birthdate         | Utf8          |
+| salary            | Float64       |
+| title             | Utf8          |
+| comments          | Utf8          |
+

@@ -1,8 +1,8 @@
 ---
-title: Subquery
+title: Subqueries
 ---
 
-# Subquery Operators
+# Subqueries
 
 Subquery operators compare values with the results of a subquery. They are used
 to create complex queries that reference the results of other queries.
