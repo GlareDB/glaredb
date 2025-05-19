@@ -6,7 +6,7 @@ order: 0
 # SELECT
 
 `SELECT` statements perform data retrieval from the database, and contain
-expressions to to select and transform the results.
+expressions to select and transform the results.
 
 ## Select List
 
@@ -94,7 +94,7 @@ SELECT * FROM cities;
 When combined with a join, `*` will return columns from all tables involved in
 the join.
 
-Select all columns from `cities` and `states:
+Select all columns from `cities` and `states`:
 
 ```sql
 SELECT *

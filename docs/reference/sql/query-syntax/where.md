@@ -26,6 +26,6 @@ SELECT *
 FROM cities c1
 WHERE population >= (SELECT avg(population)
                      FROM cities c2
-                     WHERE c1.state = c2.state)
+                     WHERE c1.state = c2.state);
 ```
 
