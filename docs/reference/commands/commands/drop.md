@@ -14,22 +14,19 @@ DROP SCHEMA [ IF EXISTS ] schema_name
 DROP TABLE [ IF EXISTS ] [ schema_name. ] table_name
 ```
 
-Where:
+## Parameters
+
 - `IF EXISTS`: Prevents an error if the object does not exist
 - `schema_name`: The name of the schema containing the object
 - `table_name`: The name of the table to drop
 
 ## Examples
 
-### Drop a Schema
-
 Drop a schema if it exists:
 
 ```sql
 DROP SCHEMA IF EXISTS my_schema;
 ```
-
-### Drop a Table
 
 Drop a table:
 

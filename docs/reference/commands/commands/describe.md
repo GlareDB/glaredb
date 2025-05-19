@@ -7,6 +7,16 @@ title: DESCRIBE
 `DESCRIBE` statements provide information about the schema of queries, tables,
 table functions, or files.
 
+## Syntax
+
+```sql
+DESCRIBE query_or_table
+```
+
+## Parameters
+
+- `query_or_table`: A query or table-like object.
+
 ## Describing a Query
 
 `DESCRIBE` followed by a query can be used to show the names and data types that

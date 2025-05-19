@@ -15,7 +15,8 @@ CREATE TEMP VIEW view_name [(column_name [, ...])]
 AS query
 ```
 
-Where:
+## Parameters
+
 - `TEMP`: Specifies that the view is temporary and will only exist for the current session
 - `view_name`: Name to assign to the view
 - `column_name`: Optional comma-separated list of names to assign to the view's columns
@@ -76,7 +77,8 @@ Create a view with custom column names:
 CREATE TEMP VIEW v3(a, b) AS SELECT 3 as a1, 4 as b1, 5 as c1;
 ```
 
-The view will have columns named `a`, `b`, and `c1`. The first two columns are renamed from `a1` and `b1`, while the third column keeps its original name.
+The view will have columns named `a`, `b`, and `c1`. The first two columns are
+renamed from `a1` and `b1`, while the third column keeps its original name.
 
 ## View Aliasing in Queries
 

@@ -20,23 +20,17 @@ CREATE SCHEMA [IF NOT EXISTS] [catalog_name.]schema_name
 
 ## Examples
 
-### Basic Schema Creation
-
 Create a schema in the current catalog:
 
 ```sql
 CREATE SCHEMA my_schema;
 ```
 
-### Create Schema in Specific Catalog
-
 Create a schema in a specified catalog:
 
 ```sql
 CREATE SCHEMA temp.my_schema;
 ```
-
-### Create Schema If Not Exists
 
 Create a schema only if it doesn't already exist:
 
