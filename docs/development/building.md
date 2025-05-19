@@ -8,10 +8,11 @@ title: Building
 
 GlareDB is developed primarily in Rust, and building from source requires that a
 Rust toolchain be setup, and accessible in your path. The easiest way to get
-started with Rust is by using [rustup]. All distributed release binaries of
-GlareDB use the latest stable Rust toolchain.
+started with Rust is by using [rustup](https://rustup.rs/). All distributed
+release binaries of GlareDB use the latest stable Rust toolchain.
 
-[protoc] is also required to be in your path when building GlareDB.
+[protoc](https://protobuf.dev/installation/) is also required to be in your path
+when building GlareDB.
 
 ## CLI
 
@@ -30,7 +31,8 @@ during development. When benchmarking, always pass the `--release` flag.
 ## Python
 
 In addition to the above prerequisites, building the Python bindings requires
-[maturin] to be in your path, as well as a [venv] set up.
+[maturin](https://github.com/PyO3/maturin) to be in your path, as well as a
+[venv](https://docs.python.org/3/library/venv.html) set up.
 
 To create the virtual env:
 
@@ -57,13 +59,13 @@ $ maturin build --release --out dist
 
 The wheel will be located at `./dist/glaredb-...`.
 
-`release` may be omitted for a faster build, but this should only be done during
+`--release` may be omitted for a faster build, but this should only be done during
 development.
 
 ## WebAssembly
 
 In addition to the above prerequisites, building the WebAssembly bindings
-requires [wasm-pack] to be in your path.
+requires [wasm-pack](https://github.com/rustwasm/wasm-pack) to be in your path.
 
 Build the release bindings:
 
@@ -85,8 +87,3 @@ Debug binaries are slower and larger. However they're quick to build, and have
 additional runtime assertions enabled. When debugging an issue, reproducing it
 with a debug binary often times provides more information about what went wrong.
 All tests (unit tests and SQL Logic Tests) are ran in debug mode.
-
-[wasm-pack]: https://github.com/rustwasm/wasm-pack
-[maturin]: https://github.com/PyO3/maturin
-[protoc]: https://protobuf.dev/installation/
-[rustup]: https://rustup.rs/
