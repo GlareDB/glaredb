@@ -11,7 +11,9 @@ When an aggregate is executed with no `GROUP BY` clause, all rows are used to
 produce the final aggregate value. When a `GROUP BY` is provided, aggregate
 values are produced for each group.
 
-For example, we can get the count, minimum, maximum, and average city population for each state:
+## Basic Usage
+
+Get the count, minimum, maximum, and average city population for each state:
 
 ```sql
 -- Get count, min, max, and average city population for each state
@@ -68,7 +70,6 @@ SELECT state_abbr, avg(population)
 FROM cities
 GROUP BY ROLLUP (state_abbr);
 ```
-
 
 ### CUBE
 
@@ -135,12 +136,10 @@ When multiple arguments are provided, `GROUPING(col1, col2, ...)` returns an
 integer representing a bitmask, where the least significant bit corresponds to
 the rightmost argument. For example, `GROUPING(a, b)` returns:
 
-  - 0 if both `a` and `b` are part of the grouping.
-  - 1 if `a` is part of the grouping, but `b` is not (aggregated over).
-  - 2 if `b` is part of the grouping, but `a` is not (aggregated over).
-  - 3 if neither `a` nor `b` are part of the grouping (aggregated over).
-
-**Example:**
+- 0 if both `a` and `b` are part of the grouping.
+- 1 if `a` is part of the grouping, but `b` is not (aggregated over).
+- 2 if `b` is part of the grouping, but `a` is not (aggregated over).
+- 3 if neither `a` nor `b` are part of the grouping (aggregated over).
 
 Using the `ROLLUP` example from before, we can use `GROUPING(state_abbr)` to identify the grand total row:
 
@@ -164,10 +163,7 @@ Result:
 ## Column References
 
 When using `GROUP BY`, any non-aggregated column present in the `SELECT` list
-must also be included in the `GROUP BY` clause. GlareDB enforces this standard
-SQL rule.
-
-**Example:**
+must also be included in the `GROUP BY` clause.
 
 This query is **invalid** because `name` is in the `SELECT` list but not
 aggregated and not in the `GROUP BY` clause:

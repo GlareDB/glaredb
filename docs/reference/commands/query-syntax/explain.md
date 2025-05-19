@@ -7,12 +7,6 @@ title: EXPLAIN
 `EXPLAIN` statements provide information about how a query will be executed,
 showing the unoptimized, optimized, and physical plans for the query.
 
-## Syntax
-
-```sql
-EXPLAIN [ VERBOSE ] [ (FORMAT { TEXT | JSON } ) ] select-statement
-```
-
 ## Description
 
 `EXPLAIN` displays the execution plan that the GlareDB planner generates for the
@@ -45,3 +39,4 @@ EXPLAIN with JSON format:
 ```sql
 EXPLAIN (FORMAT JSON) SELECT * FROM cities;
 ```
+
