@@ -24,7 +24,7 @@ in your path, as well as a [venv] set up.
 Create the virtual env:
 
 ```sh
-$ python -m venv crates/rayexec_python/venv
+$ python -m venv crates/glaredb_python/venv
 ```
 
 Activate the virtual env:
