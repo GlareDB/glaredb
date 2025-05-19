@@ -4,11 +4,14 @@ title: Operator Functions
 
 # Operator Function Reference
 
-Operator functions are functions used to implement SQL operators. These
-functions can be called directly, but it's typically more ergonomic to use the
-operator syntax. See the [Arithmetic](../sql/expression/arithmetic.md),
-[Comparison](../sql/expression/comparison.md), and
-[Logical](../sql/expression/logical.md) operator expressions.
+Functions used to implement SQL operators. These functions can be called
+directly, but it's typically more ergonomic to use the operator syntax. 
+
+Expression operators documentation:
+
+- [Arithmetic](../sql/expression/arithmetic.md)
+- [Comparison](../sql/expression/comparison.md)
+- [Logical](../sql/expression/logical.md)
 
 Functions that use reserved symbols, like `>` for "greater than", can be called
 directly by double-quoting the function name. For example, to call the `>`

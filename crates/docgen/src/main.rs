@@ -82,6 +82,24 @@ const FILES: &[DocFile] = &[
             },
         )],
     },
+    DocFile {
+        path: "docs/reference/functions/system.md",
+        sections: &[(
+            "system_functions",
+            &FunctionSectionWriter {
+                category: Category::System,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/reference/functions/table.md",
+        sections: &[(
+            "table_functions",
+            &FunctionSectionWriter {
+                category: Category::Table,
+            },
+        )],
+    },
 ];
 
 fn main() -> Result<()> {
