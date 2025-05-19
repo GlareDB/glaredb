@@ -43,7 +43,7 @@ pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Get the timings generating during query planning.",
+        description: "Get the timings generated during query planning.",
         arguments: &[],
         example: None,
     }],
@@ -105,7 +105,7 @@ pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
-        description: "Get the timings generating during query execution.",
+        description: "Get the timings generated during query execution.",
         arguments: &[],
         example: None,
     }],

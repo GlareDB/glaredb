@@ -8,7 +8,7 @@ title: System Functions
 
 ## `execution_profile`
 
-Get the timings generating during query execution.
+Get the timings generated during query execution.
 
 ## `list_databases`
 
@@ -36,7 +36,7 @@ Get the timings generated for each optimizer rule.
 
 ## `planning_profile`
 
-Get the timings generating during query planning.
+Get the timings generated during query planning.
 
 ## `query_info`
 
