@@ -187,14 +187,20 @@ impl JoinHashTable {
             build_side_exprs.push(condition.left);
             probe_side_exprs.push(condition.right);
 
+            // Push the type to current set of columns we're encoding.
             let encode_idx = encoded_types.len();
             encoded_types.push(datatype);
-            encoded_key_columns.push(encode_idx);
 
             if condition.op == ComparisonOperator::Eq {
-                let equality_idx = equality_columns.len();
-                equality_columns.push(equality_idx);
+                // If this is an equality comparison, get the key index
+                // _relative to the join keys_.
+                let rel_key_idx = encoded_key_columns.len();
+                equality_columns.push(rel_key_idx);
             }
+
+            // Now add the column idx relative to all encoded columns to the
+            // list of join keys.
+            encoded_key_columns.push(encode_idx);
 
             matcher_conditions.push((phys_type, condition.op));
         }
