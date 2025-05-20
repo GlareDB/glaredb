@@ -1,10 +1,3 @@
-# Failed to run SLT
-# Error source: query failed: Cannot clone arrays with different data types
-# self: Decimal64(17,3)
-# other: Int32
-
-halt
-
 query TT
 DESCRIBE SELECT
     s_name,
@@ -83,9 +76,9 @@ WHERE
 Supplier#000000157  1EmkCApL5iF
 Supplier#000000197  3oYqODDUGH3XsHXmPuzYHW5NLU3,ONZl
 Supplier#000000287  UQR8bUA4V2HxVbw9K
-Supplier#000000378  mLPJtpu4wOc                    cSFzBR
+Supplier#000000378  mLPJtpu4wOc cSFzBR
 Supplier#000000530  0BvoewCPg2scOEfuL93FRKqSxHmdhw1
 Supplier#000000555  8Lp0QWPLFXrJrX1sTWkAEdzUsh5ke
-Supplier#000000557  IH,v63JRgXMkVhJOJ              Gxur0W
+Supplier#000000557  IH,v63JRgXMkVhJOJ Gxur0W
 Supplier#000000729  CAOGYCBtTVT7aB1p6qHbxF6VVhXaHLgTpI
 Supplier#000000935  JHRSOterYgt4MTNo7cupTzA,6MoNw  4
