@@ -52,17 +52,24 @@ impl JoinType {
 
     /// Helper for determining the output refs for a given node type.
     fn output_refs<T>(self, node: &Node<T>, bind_context: &BindContext) -> Vec<TableRef> {
+        let mut table_refs = match self {
+            Self::LeftSemi | Self::LeftAnti | Self::LeftMark { .. } => {
+                // Join types only emit the left side.
+                node.children
+                    .first()
+                    .map(|c| c.get_output_table_refs(bind_context))
+                    .unwrap_or_default()
+            }
+            _ => node.get_children_table_refs(bind_context),
+        };
+
         if let JoinType::LeftMark { table_ref } = self {
-            let mut refs = node
-                .children
-                .first()
-                .map(|c| c.get_output_table_refs(bind_context))
-                .unwrap_or_default();
-            refs.push(table_ref);
-            refs
-        } else {
-            node.get_children_table_refs(bind_context)
+            // Left mark also produces an extra boolean column with its own ref append
+            // to the end.
+            table_refs.push(table_ref);
         }
+
+        table_refs
     }
 }
 
