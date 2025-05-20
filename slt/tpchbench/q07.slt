@@ -43,7 +43,7 @@ ORDER BY
 supp_nation  Utf8
 cust_nation  Utf8
 l_year       Decimal64(18,3)
-revenue      Decimal64(18,4)
+revenue      Decimal128(38,4)
 
 query ????
 SELECT

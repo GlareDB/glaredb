@@ -34,7 +34,7 @@ LIMIT 20;
 ----
 c_custkey  Int32
 c_name     Utf8
-revenue    Decimal64(18,4)
+revenue    Decimal128(38,4)
 c_acctbal  Decimal64(15,2)
 n_name     Utf8
 c_address  Utf8
