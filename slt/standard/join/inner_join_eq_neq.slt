@@ -1,0 +1,72 @@
+# Inner join with mixed condition types (EQ, NEQ)
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT, c INT);
+
+statement ok
+CREATE TEMP TABLE t2 (d INT, e TEXT, f INT);
+
+statement ok
+INSERT INTO t1 VALUES
+  (4, 'aaa', 44),
+  (5, 'bbb', 55),
+  (6, 'ccc', 66),
+  (7, 'ddd', 77);
+
+statement ok
+INSERT INTO t2 VALUES
+  (4, 'eee', 44),
+  (9, 'fff', 55),
+  (6, 'ggg', 88),
+  (7, 'hhh', 99);
+
+query ITIITI
+SELECT *
+  FROM t1, t2
+  WHERE a = d AND c <> f;
+----
+6  ccc  66  6  ggg  88
+7  ddd  77  7  hhh  99
+
+# Same but conditions moved.
+query ITIITI
+SELECT *
+  FROM t1, t2
+  WHERE c <> f AND a = d;
+----
+6  ccc  66  6  ggg  88
+7  ddd  77  7  hhh  99
+
+# Last condition always true.
+query ITIITI
+SELECT *
+  FROM t1, t2
+  WHERE c <> f AND a = d AND b <> e;
+----
+6  ccc  66  6  ggg  88
+7  ddd  77  7  hhh  99
+
+# Last condition always false.
+query ITIITI
+SELECT *
+  FROM t1, t2
+  WHERE c <> f AND a = d AND b = e;
+----
+
+# Conditions inverted.
+query ITIITI
+SELECT *
+  FROM t1, t2
+  WHERE a <> d AND c = f;
+----
+5  bbb  55  9  fff  55
+
+query ITIITI
+SELECT *
+  FROM t1, t2
+  WHERE c = f AND a <> d;
+----
+5  bbb  55  9  fff  55
