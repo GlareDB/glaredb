@@ -1,0 +1,24 @@
+# Decimal-specific tests for SUM.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP VIEW v1 AS SELECT a::DECIMAL(15, 2) FROM generate_series(50, 80) g(a);
+
+statement ok
+CREATE TEMP VIEW v2 AS SELECT b::DECIMAL(15, 2) FROM generate_series(60, 90) g(b);
+
+query TT
+DESCRIBE SELECT sum(a * b) * 0.0001000000
+  FROM v1, v2
+  WHERE a = b;
+----
+?column?  Decimal128(38,14)
+
+query R
+SELECT sum(a * b) * 0.0001000000
+  FROM v1, v2
+  WHERE a = b;
+----
+10.36700000000000

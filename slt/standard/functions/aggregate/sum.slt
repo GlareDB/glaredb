@@ -41,7 +41,7 @@ SELECT sum(1::decimal) * 0.5;
 query TT
 DESCRIBE SELECT sum(a) * 0.5 FROM (VALUES (1::DECIMAL), (2::DECIMAL), (3::DECIMAL)) AS v(a)
 ----
-?column?  Decimal64(18,4)
+?column?  Decimal128(38,4)
 
 query R
 SELECT sum(a) * 0.5 FROM (VALUES (1::DECIMAL), (2::DECIMAL), (3::DECIMAL)) AS v(a);

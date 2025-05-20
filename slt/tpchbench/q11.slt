@@ -1,5 +1,4 @@
 # Panic, overflow
-halt
 
 query TT
 DESCRIBE SELECT
