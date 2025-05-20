@@ -1,9 +1,3 @@
-# Failed to run SLT
-# Error source: query failed: Failed to plan expressions for filter
-# Error source: Column expr not referencing a valid table ref, column: #29.0, valid tables: [#37]
-
-halt
-
 query TT
 DESCRIBE SELECT
     c_name,
@@ -44,7 +38,7 @@ c_custkey     Int32
 o_orderkey    Int32
 o_orderdate   Date32
 o_totalprice  Decimal64(15,2)
-sum           Decimal64(15,2)
+sum           Decimal128(38,2)
 
 query ??????
 SELECT
