@@ -98,3 +98,17 @@ SELECT a, a::DECIMAL(8,2)
 -10.301  -10.30
 10.301   10.30
 10.308   10.31
+
+# Ensure we don't overflow on cast between decimal scales with large
+# differences.
+query TT
+DESCRIBE SELECT a::DECIMAL(32, 12) FROM (VALUES ('48.10'::DECIMAL(38, 2)), ('1.55'::DECIMAL(38, 2))) v(a) ORDER BY 1;
+----
+a  Decimal128(32,12)
+
+query R
+SELECT a::DECIMAL(32, 12) FROM (VALUES ('48.10'::DECIMAL(38, 2)), ('1.55'::DECIMAL(38, 2))) v(a) ORDER BY 1;
+----
+1.550000000000
+48.100000000000
+

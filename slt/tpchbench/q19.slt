@@ -29,7 +29,7 @@ WHERE (p_partkey = l_partkey
         AND l_shipmode IN ('AIR', 'AIR REG')
         AND l_shipinstruct = 'DELIVER IN PERSON');
 ----
-revenue  Decimal64(18,4)
+revenue  Decimal128(38,4)
 
 query ?
 SELECT

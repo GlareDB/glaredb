@@ -384,10 +384,7 @@ where
         let src_meta = src.try_get_decimal_type_meta()?;
 
         let scale_diff = src_meta.scale - target_meta.scale;
-        let scale_amount = <D2::Primitive as NumCast>::from(
-            10.pow((src_meta.scale - target_meta.scale).unsigned_abs() as u32),
-        )
-        .expect("to be in range");
+        let scale_amount = <D2::Primitive>::TEN.pow(scale_diff.unsigned_abs() as u32);
 
         // Only used when downscaling (reducing precision)
         let rounding_addition = if scale_diff > 0 {
@@ -473,6 +470,7 @@ mod tests {
     use crate::arrays::datatype::DecimalTypeMeta;
     use crate::buffer::buffer_manager::DefaultBufferManager;
     use crate::functions::cast::behavior::CastFailBehavior;
+    use crate::generate_array;
     use crate::util::iter::TryFromExactSizeIterator;
 
     #[test]
@@ -566,8 +564,44 @@ mod tests {
         assert_eq!(13, v[0]); // Round down (1.3100 -> 1.3)
         assert_eq!(14, v[1]); // Round up (1.3600 -> 1.4)
         assert_eq!(14, v[2]); // Round up (1.3501 -> 1.4)
-        assert_eq!(-13, v[3]); // Round down (-1.3100 -> -1.3)
-        assert_eq!(-14, v[4]); // Round up (-1.3600 -> -1.4)
-        assert_eq!(-13, v[5]); // Round down (-1.3499 -> -1.3)
+        assert_eq!(-13, v[3]); // Round towards zero (-1.3100 -> -1.3)
+        assert_eq!(-14, v[4]); // Round away from zero (-1.3600 -> -1.4)
+        assert_eq!(-13, v[5]); // Round towards zero (-1.3499 -> -1.3)
+    }
+
+    #[test]
+    fn cast_decimal128_large_scale_diff() {
+        // Test that we can properly compute the '10 ^ scale_diff' without
+        // overflowing.
+        //
+        // Previously '10' was always i32, and so would overflow on large scale
+        // diffs, e.g. casting from DECIMAL(38, 2) to DECIMAL(38, 12).
+
+        let mut arr = generate_array!([4810_i128]);
+        // '[48.10]'
+        arr.datatype = DataType::decimal128(DecimalTypeMeta::new(38, 2));
+
+        let mut out = Array::new(
+            &DefaultBufferManager,
+            DataType::decimal128(DecimalTypeMeta::new(38, 12)),
+            1,
+        )
+        .unwrap();
+
+        let cast = DecimalToDecimal::<Decimal128Type, Decimal128Type>::new();
+        let state = cast.bind(&arr.datatype, &out.datatype).unwrap();
+        let error_state = CastFailBehavior::Error.new_state();
+        DecimalToDecimal::<Decimal128Type, Decimal128Type>::cast(
+            &state,
+            error_state,
+            &arr,
+            [0],
+            &mut out,
+        )
+        .unwrap();
+
+        let v = PhysicalI128::get_addressable(&out.data).unwrap().slice;
+        // '48.100000000000'
+        assert_eq!(48100000000000, v[0]);
     }
 }
