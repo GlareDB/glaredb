@@ -25,9 +25,8 @@ jobs:
              --release \
              --bin bench_standard
 
-      # Skip for now
-      # - name: Run standard
-      #   run: |
-      #     ./target/release/bench_standard \
-      #        --print-results \
-      #        --print-explain
+      - name: Run standard
+        run: |
+          ./target/release/bench_standard \
+             --print-results \
+             --print-explain
