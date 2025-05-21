@@ -204,7 +204,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bench_bin"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_delta",
@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "docgen"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_delta",
@@ -782,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "ext_csv"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "csv",
@@ -798,7 +798,7 @@ dependencies = [
 
 [[package]]
 name = "ext_delta"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "ext_parquet",
@@ -815,7 +815,7 @@ dependencies = [
 
 [[package]]
 name = "ext_iceberg"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "apache-avro",
  "bytes",
@@ -835,7 +835,7 @@ dependencies = [
 
 [[package]]
 name = "ext_parquet"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "ahash",
  "brotli",
@@ -861,7 +861,7 @@ dependencies = [
 
 [[package]]
 name = "ext_spark"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "glaredb_core",
  "glaredb_error",
@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "ext_tpch_gen"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "glaredb_core",
  "glaredb_error",
@@ -1057,7 +1057,7 @@ checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
 
 [[package]]
 name = "glaredb"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "clap",
  "crossterm",
@@ -1077,7 +1077,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_bench"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "clap",
  "futures",
@@ -1090,7 +1090,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_core"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "ahash",
  "chrono",
@@ -1122,11 +1122,11 @@ dependencies = [
 
 [[package]]
 name = "glaredb_error"
-version = "25.5.8"
+version = "25.5.9"
 
 [[package]]
 name = "glaredb_http"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "base64",
  "bytes",
@@ -1151,7 +1151,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_parser"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "glaredb_error",
  "glaredb_proto",
@@ -1163,7 +1163,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_proto"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "glaredb_error",
  "prost",
@@ -1173,7 +1173,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_python"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_parquet",
@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_rt_native"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "futures",
@@ -1209,7 +1209,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_slt"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "async-trait",
  "crossterm",
@@ -1228,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_wasm"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -1741,7 +1741,7 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
 name = "logutil"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -2841,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "25.5.8"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_parquet",
