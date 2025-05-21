@@ -10,7 +10,7 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -23,7 +23,10 @@ pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::DateTime,
         description: "Truncates a timestamp to the specified precision.",
         arguments: &["field", "timestamp"],
-        example: None,
+        example: Some(Example {
+            example: "date_trunc('day', TIMESTAMP '2023-03-15 13:45:30')",
+            output: "2023-03-15 00:00:00",
+        }),
     }],
     // TODO: Date32/64
     functions: &[RawScalarFunction::new(

@@ -15,6 +15,7 @@ pub trait DecimalPrimitive:
     PrimInt + FromPrimitive + AsPrimitive<Self> + Signed + Default + Debug + Display + Sync + Send
 {
     const ZERO: Self;
+    const TEN: Self;
 
     /// Returns the base 10 log of this number, rounded down.
     ///
@@ -24,6 +25,7 @@ pub trait DecimalPrimitive:
 
 impl DecimalPrimitive for i64 {
     const ZERO: Self = 0;
+    const TEN: Self = 10;
 
     fn ilog10(self) -> u32 {
         i64::ilog10(self)
@@ -32,6 +34,7 @@ impl DecimalPrimitive for i64 {
 
 impl DecimalPrimitive for i128 {
     const ZERO: Self = 0;
+    const TEN: Self = 10;
 
     fn ilog10(self) -> u32 {
         i128::ilog10(self)

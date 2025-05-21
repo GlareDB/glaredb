@@ -1,6 +1,3 @@
-# Enable hash join
-halt
-
 # TODO: This produces correct results, but decimal formatting makes the output
 # of 'EXTRACT(year FROM l_shipdate)' a bit weird. Shows extra zeros.
 query TT
@@ -46,7 +43,7 @@ ORDER BY
 supp_nation  Utf8
 cust_nation  Utf8
 l_year       Decimal64(18,3)
-revenue      Decimal64(18,4)
+revenue      Decimal128(38,4)
 
 query ????
 SELECT

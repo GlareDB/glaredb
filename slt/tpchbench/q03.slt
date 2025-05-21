@@ -1,6 +1,3 @@
-# Enable hash join
-halt
-
 query TT
 DESCRIBE SELECT
     l_orderkey,
@@ -27,7 +24,7 @@ ORDER BY
 LIMIT 10;
 ----
 l_orderkey      Int32
-revenue         Decimal64(18,4)
+revenue         Decimal128(38,4)
 o_orderdate     Date32
 o_shippriority  Int32
 

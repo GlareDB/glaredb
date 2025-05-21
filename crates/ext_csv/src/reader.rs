@@ -44,21 +44,30 @@ pub struct CsvReader {
     /// Reusable read buffer.
     read_buf: Vec<u8>,
     /// Buffered decoded records.
-    output: ByteRecords,
+    records: ByteRecords,
     decoder: CsvDecoder,
     /// Source file.
     file: AnyFile,
     projections: Projections,
-    /// Current write state.
-    write_state: WriteState,
+    /// Current state of the reader.
+    state: ReaderState,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct WriteState {
-    /// Offset into to the records buffer to continue reading from.
-    read_record_offset: usize,
-    /// Current offset to the batch we're writing to.
-    batch_write_offset: usize,
+#[derive(Debug)]
+enum ReaderState {
+    /// We're reading from the file stream.
+    Reading {
+        /// If we should skip the first record when flipping to `Flushing`.
+        skip_first: bool,
+    },
+    Flushing {
+        /// Offset into the decoded record buffer we should read from.
+        record_offset: usize,
+        /// If this state change was from the stream being exhausted.
+        stream_exhausted: bool,
+    },
+    /// We've exhausted the stream, no more records will be produced.
+    Exhausted,
 }
 
 impl CsvReader {
@@ -68,17 +77,16 @@ impl CsvReader {
         projections: Projections,
         read_buf: Vec<u8>,
         decoder: CsvDecoder,
-        output: ByteRecords,
+        records: ByteRecords,
     ) -> Self {
         CsvReader {
             read_buf,
-            output,
+            records,
             decoder,
             file,
             projections,
-            write_state: WriteState {
-                read_record_offset: if skip_header { 1 } else { 0 },
-                batch_write_offset: 0,
+            state: ReaderState::Reading {
+                skip_first: skip_header,
             },
         }
     }
@@ -86,76 +94,84 @@ impl CsvReader {
     /// Pulls the next batch by decoding the stream.
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
         let out_cap = output.write_capacity()?;
+        debug_assert_ne!(0, out_cap);
 
-        // TODO: Bit slow over http since we're only reading a few values at a
-        // time, and writing them directly to the batch.
-        //
-        // We should speed this this up by just continually writing to the
-        // decoder until we reach a threshold (similar to how the parquet stuff
-        // writes to a chunk buffer before put it in the batch).
-        //
-        // However, the current implementation did catch a bug with how we
-        // treated Pending. We were always resetting the batch, even though we
-        // were using it to store values. This resulted in garbage data when the
-        // "file" was actually async (http).
-        //
-        // The fix was in the Scan operator to avoid resetting state on Pending.
-        // I want to add a test for that before making this faster.
         loop {
-            // Try to write before polling again.
-            if self.output.num_records() >= self.write_state.read_record_offset {
-                // Remaining capacity of the output batch.
-                let rem_cap = out_cap - self.write_state.batch_write_offset;
-                // Records yet to be read from the decode buffer.
-                let rem_records = self.output.num_records() - self.write_state.read_record_offset;
+            match self.state {
+                ReaderState::Reading { skip_first } => {
+                    // Read from the file stream.
+                    match self.file.call_poll_read(cx, &mut self.read_buf)? {
+                        Poll::Ready(0) => {
+                            // Exhausted the stream, flush out any decoded
+                            // records.
+                            self.state = ReaderState::Flushing {
+                                record_offset: if skip_first { 1 } else { 0 },
+                                stream_exhausted: true,
+                            }
+                            // Continue...
+                        }
+                        Poll::Ready(n) => {
+                            // Push read bytes to decoder.
+                            let _ = self.decoder.decode(&self.read_buf[0..n], &mut self.records);
+                            if self.records.num_records() >= out_cap {
+                                // We have enough records to read from.
+                                self.state = ReaderState::Flushing {
+                                    record_offset: if skip_first { 1 } else { 0 },
+                                    stream_exhausted: false,
+                                }
+                            }
 
-                let count = usize::min(rem_cap, rem_records);
-
-                // Write the records to the output batch.
-                self.write_batch(
-                    self.write_state.read_record_offset,
-                    output,
-                    self.write_state.batch_write_offset,
-                    count,
-                )?;
-
-                self.write_state.read_record_offset += count;
-                self.write_state.batch_write_offset += count;
-
-                // Update batch num rows to reflect the records we just
-                // wrote to it.
-                output.set_num_rows(self.write_state.batch_write_offset)?;
-
-                if count == rem_records {
-                    // We've exhausted the completed records in the decode
-                    // state, clear them out.
-                    self.output.clear_completed();
-                    self.write_state.read_record_offset = 0;
+                            // Continue...
+                        }
+                        Poll::Pending => return Ok(PollPull::Pending),
+                    }
                 }
+                ReaderState::Flushing {
+                    record_offset,
+                    stream_exhausted,
+                } => {
+                    if record_offset >= self.records.num_records() {
+                        // We've processed all decoded records. Should
+                        // we read more, or are we done?
+                        if stream_exhausted {
+                            // We're done,
+                            self.state = ReaderState::Exhausted;
+                        } else {
+                            // We should read more.
 
-                if count == rem_cap {
-                    // We filled up the batch. Signal we need a new one.
-                    self.write_state.batch_write_offset = 0;
+                            // Clear the current set of decoded records.
+                            self.records.clear_completed();
+                            debug_assert_eq!(0, self.records.num_records());
 
-                    return Ok(PollPull::HasMore);
-                }
-            }
-
-            match self.file.call_poll_read(cx, &mut self.read_buf)? {
-                Poll::Ready(n) => {
-                    if n == 0 {
-                        // Stream is exhausted, we would've written all records to
-                        // the batch already.
-                        return Ok(PollPull::Exhausted);
+                            self.state = ReaderState::Reading {
+                                // Always false since we should have already
+                                // skipped the header.
+                                skip_first: false,
+                            };
+                        }
+                        continue;
                     }
 
-                    // We got bytes, send to decoder.
-                    let _ = self.decoder.decode(&self.read_buf[0..n], &mut self.output);
+                    let remaining = self.records.num_records() - record_offset;
+                    let write_count = usize::min(remaining, out_cap);
 
-                    // And continue...
+                    // Write the decoded records to the output batch.
+                    self.write_batch(record_offset, output, 0, write_count)?;
+
+                    // Update state for the next poll.
+                    self.state = ReaderState::Flushing {
+                        record_offset: record_offset + write_count,
+                        stream_exhausted,
+                    };
+
+                    // Return what we have, come back for more.
+                    output.set_num_rows(write_count)?;
+                    return Ok(PollPull::HasMore);
                 }
-                Poll::Pending => {
-                    return Ok(PollPull::Pending);
+                ReaderState::Exhausted => {
+                    // We're done.
+                    output.set_num_rows(0)?;
+                    return Ok(PollPull::Exhausted);
                 }
             }
         }
@@ -236,7 +252,7 @@ impl CsvReader {
             // TODO: Allow indexing directly to field instead of having to go
             // through record.
 
-            let record = self.output.get_record(record_idx);
+            let record = self.records.get_record(record_idx);
             let field = record.field(field_idx);
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
@@ -272,7 +288,7 @@ impl CsvReader {
             // TODO: Allow indexing directly to field instead of having to go
             // through record.
 
-            let record = self.output.get_record(record_idx);
+            let record = self.records.get_record(record_idx);
             let field = record.field(field_idx);
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
@@ -329,7 +345,7 @@ yoshi,4.5,10000
         )
         .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
-        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(PollPull::HasMore, poll);
 
         let expected = generate_batch!(
             ["mario", "wario", "yoshi"],
@@ -337,6 +353,10 @@ yoshi,4.5,10000
             [8000_i64, 950, 10000]
         );
         assert_batches_eq(&expected, &batch);
+
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(0, batch.num_rows());
     }
 
     #[test]
@@ -365,7 +385,7 @@ yoshi,4.5,10000
         )
         .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
-        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(PollPull::HasMore, poll);
 
         let expected = generate_batch!(
             ["mario", "wario", "yoshi"],
@@ -373,6 +393,10 @@ yoshi,4.5,10000
             [8000_i64, 950, 10000]
         );
         assert_batches_eq(&expected, &batch);
+
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(0, batch.num_rows());
     }
 
     #[test]
@@ -407,12 +431,16 @@ yoshi,4.5,10000
 
         // Pull again.
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
-        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(PollPull::HasMore, poll);
 
         println!("{}", batch.debug_table());
 
         let expected = generate_batch!(["yoshi"], [4.5], [10000_i64]);
         assert_batches_eq(&expected, &batch);
+
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(0, batch.num_rows());
     }
 
     #[test]
@@ -447,10 +475,14 @@ yoshi,4.5,10000
 
         // Pull again.
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
-        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(PollPull::HasMore, poll);
 
         let expected = generate_batch!(["yoshi"], [4.5], [10000_i64]);
         assert_batches_eq(&expected, &batch);
+
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(0, batch.num_rows());
     }
 
     #[test]
@@ -478,7 +510,7 @@ yoshi,4.5,10000
         )
         .unwrap();
         let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
-        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(PollPull::HasMore, poll);
 
         let expected = generate_batch!(
             ["mario", "wario", "yoshi"],
@@ -486,5 +518,9 @@ yoshi,4.5,10000
             [8000_i64, 950, 10000]
         );
         assert_batches_eq(&expected, &batch);
+
+        let poll = reader.poll_pull(&mut noop_context(), &mut batch).unwrap();
+        assert_eq!(PollPull::Exhausted, poll);
+        assert_eq!(0, batch.num_rows());
     }
 }

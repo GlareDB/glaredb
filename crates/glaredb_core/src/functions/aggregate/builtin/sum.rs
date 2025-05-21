@@ -14,7 +14,7 @@ use crate::arrays::array::physical_type::{
     PhysicalI64,
     ScalarStorage,
 };
-use crate::arrays::datatype::{DataType, DataTypeId};
+use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::executor::aggregate::AggregateState;
 use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
@@ -30,7 +30,7 @@ pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
     name: "sum",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Compute the sum of all non-NULL inputs.",
         arguments: &["inputs"],
         example: None,
@@ -57,12 +57,12 @@ pub const FUNCTION_SET_SUM: AggregateFunctionSet = AggregateFunctionSet {
             &SimpleUnaryAggregate::new(&SumInt::<PhysicalI64>::new()),
         ),
         RawAggregateFunction::new(
-            &Signature::new(&[DataTypeId::Decimal64], DataTypeId::Decimal64),
-            &SimpleUnaryAggregate::new(&SumDecimal::<Decimal64Type>::new()),
+            &Signature::new(&[DataTypeId::Decimal64], DataTypeId::Decimal128),
+            &SimpleUnaryAggregate::new(&SumDecimal::<Decimal64Type, Decimal128Type>::new()),
         ),
         RawAggregateFunction::new(
             &Signature::new(&[DataTypeId::Decimal128], DataTypeId::Decimal128),
-            &SimpleUnaryAggregate::new(&SumDecimal::<Decimal128Type>::new()),
+            &SimpleUnaryAggregate::new(&SumDecimal::<Decimal128Type, Decimal128Type>::new()),
         ),
     ],
 };
@@ -129,30 +129,42 @@ impl UnaryAggregate for SumF64 {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SumDecimal<D> {
-    _d: PhantomData<D>,
+pub struct SumDecimal<D1, D2> {
+    _d1: PhantomData<D1>,
+    _d2: PhantomData<D2>,
 }
 
-impl<D> SumDecimal<D> {
+impl<D1, D2> SumDecimal<D1, D2> {
     pub const fn new() -> Self {
-        SumDecimal { _d: PhantomData }
+        SumDecimal {
+            _d1: PhantomData,
+            _d2: PhantomData,
+        }
     }
 }
 
-impl<D> UnaryAggregate for SumDecimal<D>
+impl<D1, D2> UnaryAggregate for SumDecimal<D1, D2>
 where
-    D: DecimalType,
+    D1: DecimalType,
+    D2: DecimalType,
+    D1::Primitive: AsPrimitive<D2::Primitive>,
 {
-    type Input = D::Storage;
-    type Output = D::Storage;
+    type Input = D1::Storage;
+    type Output = D2::Storage;
 
     type BindState = ();
-    type GroupState = SumStateCheckedAdd<D::Primitive, D::Primitive>;
+    type GroupState = SumStateCheckedAdd<D2::Primitive, D1::Primitive>;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
+        // Sum decimal always returns a 128-bit decimal with max precision. Get
+        // the scale from the input.
+        let d_meta = inputs[0].datatype()?.try_get_decimal_type_meta()?;
+        let datatype =
+            D2::datatype_from_decimal_meta(DecimalTypeMeta::new(D2::MAX_PRECISION, d_meta.scale));
+
         Ok(BindState {
             state: (),
-            return_type: inputs[0].datatype()?,
+            return_type: datatype,
             inputs,
         })
     }

@@ -40,7 +40,7 @@ pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
     name: "*",
     aliases: &["mul"],
     doc: &[&Documentation {
-        category: Category::Numeric,
+        category: Category::NUMERIC_OPERATOR,
         description: "Multiplies two numeric values.",
         arguments: &["left", "right"],
         example: Some(Example {

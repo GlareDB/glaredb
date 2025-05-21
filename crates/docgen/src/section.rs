@@ -11,11 +11,11 @@ pub trait SectionWriter: Debug {
 }
 
 #[derive(Debug)]
-pub struct FunctionSectionWriter {
+pub struct FunctionSectionWriter<const HEADER_LEVEL: usize> {
     pub category: Category,
 }
 
-impl SectionWriter for FunctionSectionWriter {
+impl<const HEADER_LEVEL: usize> SectionWriter for FunctionSectionWriter<HEADER_LEVEL> {
     fn write(&self, session: &DocsSession, output: &mut dyn fmt::Write) -> Result<()> {
         const FORMATTER: Formatter = Formatter::new(FormatOptions {
             null: "",
@@ -27,24 +27,35 @@ impl SectionWriter for FunctionSectionWriter {
             r#"
             SELECT DISTINCT
               function_name,
-              description
+              description,
+              example,
+              example_output
             FROM
               list_functions()
             WHERE category = '{}'
-            ORDER BY function_name;
+            ORDER BY 1,2,3,4;
             "#,
             self.category.as_str(),
         );
 
         let result = session.query(&query)?;
 
+        let header_prefix = "#".repeat(HEADER_LEVEL);
+
         for batch in result.batches {
             for row in 0..batch.num_rows() {
                 let function_name = FORMATTER.format_array_value(&batch.arrays()[0], row)?;
                 let description = FORMATTER.format_array_value(&batch.arrays()[1], row)?;
 
-                writeln!(output, "## `{}`\n", function_name)?;
+                writeln!(output, "{header_prefix} `{}`\n", function_name)?;
                 writeln!(output, "{}\n", description)?;
+
+                let example = batch.arrays()[2].get_value(row)?;
+                let example_output = batch.arrays()[3].get_value(row)?;
+                if !example.is_null() {
+                    writeln!(output, "**Example**: `{}`\n", example)?;
+                    writeln!(output, "**Output**: `{}`\n", example_output)?;
+                }
             }
         }
 

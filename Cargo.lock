@@ -204,7 +204,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bench_bin"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_delta",
@@ -398,9 +398,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.37"
+version = "4.5.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eccb054f56cbd38340b380d4a8e69ef1f02f1af43db2f0cc817a4774d80ae071"
+checksum = "ed93b9805f8ba930df42c2590f05453d5ec36cbb85d018868a5b24d31f6ac000"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -408,9 +408,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.37"
+version = "4.5.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efd9466fac8543255d3b1fcad4762c5e116ffe808c8a3043d4263cd4fd4862a2"
+checksum = "379026ff283facf611b0ea629334361c4211d1b12ee01024eec1591133b04120"
 dependencies = [
  "anstream",
  "anstyle",
@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "docgen"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_delta",
@@ -782,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "ext_csv"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "csv",
@@ -798,7 +798,7 @@ dependencies = [
 
 [[package]]
 name = "ext_delta"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "ext_parquet",
@@ -815,7 +815,7 @@ dependencies = [
 
 [[package]]
 name = "ext_iceberg"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "apache-avro",
  "bytes",
@@ -835,7 +835,7 @@ dependencies = [
 
 [[package]]
 name = "ext_parquet"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "ahash",
  "brotli",
@@ -861,7 +861,7 @@ dependencies = [
 
 [[package]]
 name = "ext_spark"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "glaredb_core",
  "glaredb_error",
@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "ext_tpch_gen"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "glaredb_core",
  "glaredb_error",
@@ -1057,7 +1057,7 @@ checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
 
 [[package]]
 name = "glaredb"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "clap",
  "crossterm",
@@ -1077,7 +1077,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_bench"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "clap",
  "futures",
@@ -1090,7 +1090,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_core"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "ahash",
  "chrono",
@@ -1122,11 +1122,11 @@ dependencies = [
 
 [[package]]
 name = "glaredb_error"
-version = "25.5.6"
+version = "25.5.9"
 
 [[package]]
 name = "glaredb_http"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "base64",
  "bytes",
@@ -1151,7 +1151,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_parser"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "glaredb_error",
  "glaredb_proto",
@@ -1163,7 +1163,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_proto"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "glaredb_error",
  "prost",
@@ -1173,7 +1173,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_python"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_parquet",
@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_rt_native"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "futures",
@@ -1209,7 +1209,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_slt"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "async-trait",
  "crossterm",
@@ -1228,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "glaredb_wasm"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
@@ -1741,7 +1741,7 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
 name = "logutil"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -2129,11 +2129,10 @@ dependencies = [
 
 [[package]]
 name = "pyo3"
-version = "0.24.2"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5203598f366b11a02b13aa20cab591229ff0a89fd121a308a5df751d5fc9219"
+checksum = "f239d656363bcee73afef85277f1b281e8ac6212a1d42aa90e55b90ed43c47a4"
 dependencies = [
- "cfg-if",
  "indoc",
  "libc",
  "memoffset",
@@ -2147,9 +2146,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-build-config"
-version = "0.24.2"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99636d423fa2ca130fa5acde3059308006d46f98caac629418e53f7ebb1e9999"
+checksum = "755ea671a1c34044fa165247aaf6f419ca39caa6003aee791a0df2713d8f1b6d"
 dependencies = [
  "once_cell",
  "target-lexicon",
@@ -2157,9 +2156,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-ffi"
-version = "0.24.2"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78f9cf92ba9c409279bc3305b5409d90db2d2c22392d443a87df3a1adad59e33"
+checksum = "fc95a2e67091e44791d4ea300ff744be5293f394f1bafd9f78c080814d35956e"
 dependencies = [
  "libc",
  "pyo3-build-config",
@@ -2167,9 +2166,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-macros"
-version = "0.24.2"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b999cb1a6ce21f9a6b147dcf1be9ffedf02e0043aec74dc390f3007047cecd9"
+checksum = "a179641d1b93920829a62f15e87c0ed791b6c8db2271ba0fd7c2686090510214"
 dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
@@ -2179,9 +2178,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-macros-backend"
-version = "0.24.2"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "822ece1c7e1012745607d5cf0bcb2874769f0f7cb34c4cde03b9358eb9ef911a"
+checksum = "9dff85ebcaab8c441b0e3f7ae40a6963ecea8a9f5e74f647e33fcf5ec9a1e89e"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -2820,9 +2819,9 @@ checksum = "e502f78cdbb8ba4718f566c418c52bc729126ffd16baee5baa718cf25dd5a69a"
 
 [[package]]
 name = "tempfile"
-version = "3.19.1"
+version = "3.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7437ac7763b9b123ccf33c338a5cc1bac6f69b45a136c19bdd8a65e3916435bf"
+checksum = "e8a64e3985349f2441a1a9ef0b853f869006c3855f2cda6862a94d26ebb9d6a1"
 dependencies = [
  "fastrand",
  "getrandom 0.3.3",
@@ -2842,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "test_bin"
-version = "25.5.6"
+version = "25.5.9"
 dependencies = [
  "ext_csv",
  "ext_parquet",

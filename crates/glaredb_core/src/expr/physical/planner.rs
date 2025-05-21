@@ -126,6 +126,12 @@ impl<'a> PhysicalExpressionPlanner<'a> {
                 )
                 .map(|expr| expr.into()),
             Expression::Conjunction(expr) => {
+                if expr.expressions.len() == 1 {
+                    // Conjuction is just a single expression, just use it
+                    // directly.
+                    return self.plan_scalar(table_refs, &expr.expressions[0]);
+                }
+
                 let fn_expr =
                     self.plan_as_scalar_function(table_refs, expr.op, expr.expressions.clone())?;
                 Ok(PhysicalScalarExpression::Conjunction(

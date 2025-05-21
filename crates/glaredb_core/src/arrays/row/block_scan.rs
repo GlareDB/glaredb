@@ -52,19 +52,17 @@ impl BlockScanState {
         selection: impl IntoIterator<Item = usize>,
         clear: bool,
     ) {
-        unsafe {
-            if clear {
-                self.row_pointers.clear();
-            }
-            let block_ptr = block.as_ptr();
+        if clear {
+            self.row_pointers.clear();
+        }
+        let block_ptr = block.as_ptr();
 
-            for sel_idx in selection {
-                debug_assert!(sel_idx < block.num_rows(row_width));
-                let ptr = block_ptr.byte_add(row_width * sel_idx);
-                debug_assert!(block.data.contains_addr(ptr.addr()));
+        for sel_idx in selection {
+            debug_assert!(sel_idx < block.num_rows(row_width));
+            let ptr = unsafe { block_ptr.byte_add(row_width * sel_idx) };
+            debug_assert!(block.data.contains_addr(ptr.addr()));
 
-                self.row_pointers.push(ptr);
-            }
+            self.row_pointers.push(ptr);
         }
     }
 }

@@ -1,5 +1,3 @@
-halt
-
 query TT
 DESCRIBE SELECT
     s_name,

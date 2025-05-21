@@ -8,7 +8,7 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::util::iter::IntoExactSizeIterator;
@@ -20,7 +20,10 @@ pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::DateTime,
         description: "Converts a Unix timestamp in seconds to a timestamp.",
         arguments: &["seconds"],
-        example: None,
+        example: Some(Example {
+            example: "epoch(1675209600)",
+            output: "2023-02-01 00:00:00",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),
@@ -35,7 +38,10 @@ pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::DateTime,
         description: "Converts a Unix timestamp in milliseconds to a timestamp.",
         arguments: &["milliseconds"],
-        example: None,
+        example: Some(Example {
+            example: "epoch_ms(1675209600000)",
+            output: "2023-02-01 00:00:00",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Int64], DataTypeId::Timestamp),

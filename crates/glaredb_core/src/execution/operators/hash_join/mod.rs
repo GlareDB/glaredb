@@ -40,7 +40,7 @@ pub struct HashJoinCondition {
 
 impl fmt::Display for HashJoinCondition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.left, self.op, self.right)
+        write!(f, "(left).{} {} (right).{}", self.left, self.op, self.right)
     }
 }
 

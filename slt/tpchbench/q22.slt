@@ -1,5 +1,3 @@
-halt
-
 query TT
 DESCRIBE SELECT
     cntrycode,
@@ -35,7 +33,7 @@ ORDER BY
 ----
 cntrycode   Utf8
 numcust     Int64
-totacctbal  Decimal64(15,2)
+totacctbal  Decimal128(38,2)
 
 query ???
 SELECT

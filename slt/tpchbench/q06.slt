@@ -10,7 +10,7 @@ WHERE
     AND 0.07
     AND l_quantity < 24;
 ----
-revenue  Decimal64(18,4)
+revenue  Decimal128(38,4)
 
 query ?
 SELECT

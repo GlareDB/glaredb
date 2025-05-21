@@ -15,6 +15,7 @@ use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 
+// TODO: Pretty big (912 bytes)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundSelect {
     /// Bound projections.

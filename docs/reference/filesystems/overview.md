@@ -19,8 +19,9 @@ Which file system GlareDB chooses to use is based on the path provided to
 file-reading functions.
 
 Paths that can be parsed as a valid URL and have either "http" or "https" as its
-scheme will use the **HTTP(S) File System**. Paths that begin with "s3" will use
-the **S3 File System**. Paths that begin with "gs" will use the **GCS File System**.
+scheme will use the **HTTP File System**. Paths that begin with "s3" will use
+the **S3 File System**. Paths that begin with "gs" will use the **GCS File
+System**.
 
 Otherwise, GlareDB will fall back to using the **Local File System**.
 

@@ -1,0 +1,41 @@
+# Test that a semi join (IN) containing a filter (HAVING) doesn't get messed up
+# during join reorder.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE lineitem (orderkey INT, quantity INT);
+
+statement ok
+INSERT INTO lineitem VALUES
+  (1, 100),
+  (1, 400),
+  (2, 100),
+  (3, 300),
+  (3, 500),
+  (4, 400);
+
+statement ok
+CREATE TEMP TABLE orders (orderkey INT, orderdate DATE);
+
+statement ok
+INSERT INTO orders VALUES
+  (1, '2022-02-01'),
+  (2, '2022-02-08'),
+  (3, '2023-06-02'),
+  (4, '2021-04-08');
+
+query ITI
+SELECT o.orderkey, o.orderdate, sum(l.quantity)
+  FROM orders o, lineitem l
+  WHERE
+    o.orderkey IN (SELECT orderkey FROM lineitem GROUP BY orderkey HAVING sum(quantity) > 300)
+    AND o.orderkey = l.orderkey
+  GROUP BY o.orderkey, o.orderdate
+  ORDER BY o.orderdate;
+----
+4  2021-04-08  400
+1  2022-02-01  500
+3  2023-06-02  800
+

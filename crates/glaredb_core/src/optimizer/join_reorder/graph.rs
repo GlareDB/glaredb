@@ -361,7 +361,7 @@ impl Graph {
             .remove(&longest_set)
             .ok_or_else(|| DbError::new("Missing longest best plan"))?;
 
-        let plan = self.build_from_generated(&longest)?;
+        let plan = self.build_from_generated(longest)?;
 
         // All base relations and edges should have been used to build up the
         // plan.
@@ -762,7 +762,7 @@ impl Graph {
     }
 
     /// Recursively builds up the logical operator from a generated join node.
-    fn build_from_generated(&mut self, node: &JoinNode) -> Result<LogicalOperator> {
+    fn build_from_generated(&mut self, mut node: JoinNode) -> Result<LogicalOperator> {
         // If we're building a base relation, we can just return the relation
         // as-is. No other field should have been populated.
         if node.set.is_base() {
@@ -798,15 +798,30 @@ impl Graph {
                 .get_edge(edge_id)
                 .ok_or_else(|| DbError::new("Missing edge"))?;
 
+            let mut node_flipped = false;
+
             if let Some(cond @ ReorderableCondition::Semi { .. }) = &edge.filter {
                 let [left_refs, _right_refs] = cond.get_left_right_table_refs();
 
                 if !left_refs.is_subset(&left_gen.output_refs) {
                     // Need to swap to get the plans on the right side.
                     std::mem::swap(&mut left_gen, &mut right_gen);
+                    node_flipped = true;
                 }
 
                 any_semi = true;
+            }
+
+            // We need to swap the filters as well. Do this only once,
+            // as they're a property of the join node. If we happen to
+            // have more than one semi join (possible?), then we don't
+            // want to undo the swap.
+            if node_flipped {
+                std::mem::swap(&mut node.left, &mut node.right);
+                std::mem::swap(&mut node.left_filters, &mut node.right_filters);
+
+                // TODO: Double check that it's fine to flip the conditions
+                // below and not here.
             }
         }
 
@@ -837,18 +852,20 @@ impl Graph {
                 ReorderableCondition::Semi {
                     conditions: mut semi_conditions,
                 } => {
-                    // Plans needed to be flipped according to conditions,
-                    // assume they're already in the right order.
+                    // Even though can't (yet) freely flip semi joins, the edges
+                    // themselves don't convey node order. So figure out the
+                    // correct condition using the table refs.
+                    let condition_swap_sides = edge.left_refs.is_subset(&right_gen.output_refs);
+                    if condition_swap_sides {
+                        for condition in &mut semi_conditions {
+                            condition.flip_sides();
+                        }
+                    }
+
                     conditions.append(&mut semi_conditions);
                 }
             }
         }
-
-        let left = self.build_from_generated(&left_gen)?;
-        let right = self.build_from_generated(&right_gen)?;
-
-        let left = self.apply_filters(left, &node.left_filters)?;
-        let right = self.apply_filters(right, &node.right_filters)?;
 
         // Determine if we should swap sides. We always want left (build) side
         // to have the lower cardinality (not necessarily cost).
@@ -857,6 +874,12 @@ impl Graph {
         let plan_swap_sides = (!any_semi)
             && right_gen.subgraph.estimated_cardinality()
                 < left_gen.subgraph.estimated_cardinality();
+
+        let left = self.build_from_generated(left_gen)?;
+        let right = self.build_from_generated(right_gen)?;
+
+        let left = self.apply_filters(left, &node.left_filters)?;
+        let right = self.apply_filters(right, &node.right_filters)?;
 
         let [left, right] = if plan_swap_sides {
             [right, left]

@@ -77,7 +77,7 @@ pub const FUNCTION_SET_NOT: ScalarFunctionSet = ScalarFunctionSet {
     name: "not",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::General,
+        category: Category::LOGICAL_OPERATOR,
         description: "Returns TRUE if the input is FALSE, and FALSE if the input is TRUE.",
         arguments: &["value"],
         example: Some(Example {

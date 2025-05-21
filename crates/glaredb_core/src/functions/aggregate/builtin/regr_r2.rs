@@ -19,7 +19,7 @@ pub const FUNCTION_SET_REGR_R2: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_r2",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::Aggregate,
+        category: Category::STATISTICS_AGGREGATE,
         description: "Compute the square of the correlation coefficient.",
         arguments: &["y", "x"],
         example: None,

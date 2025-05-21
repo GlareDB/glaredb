@@ -37,7 +37,7 @@ pub const FUNCTION_SET_SUB: ScalarFunctionSet = ScalarFunctionSet {
     name: "-",
     aliases: &["sub"],
     doc: &[&Documentation {
-        category: Category::Numeric,
+        category: Category::NUMERIC_OPERATOR,
         description: "Subtracts the right value from the left value.",
         arguments: &["left", "right"],
         example: Some(Example {

@@ -12,7 +12,7 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
-use crate::functions::documentation::{Category, Documentation};
+use crate::functions::documentation::{Category, Documentation, Example};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
@@ -23,7 +23,10 @@ pub const FUNCTION_SET_POWER: ScalarFunctionSet = ScalarFunctionSet {
         category: Category::Numeric,
         description: "Compute base raised to the power of exponent.",
         arguments: &["base", "exponent"],
-        example: None,
+        example: Some(Example {
+            example: "power(2, 3)",
+            output: "8",
+        }),
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(

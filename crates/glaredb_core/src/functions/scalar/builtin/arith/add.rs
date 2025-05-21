@@ -37,7 +37,7 @@ pub const FUNCTION_SET_ADD: ScalarFunctionSet = ScalarFunctionSet {
     name: "+",
     aliases: &["add"],
     doc: &[&Documentation {
-        category: Category::Numeric,
+        category: Category::NUMERIC_OPERATOR,
         description: "Adds two numeric values together.",
         arguments: &["left", "right"],
         example: Some(Example {
