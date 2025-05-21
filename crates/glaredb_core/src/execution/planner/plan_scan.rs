@@ -11,14 +11,17 @@ impl OperatorPlanState<'_> {
     pub fn plan_scan(&mut self, scan: Node<LogicalScan>) -> Result<PlannedOperatorWithChildren> {
         let _location = scan.location;
 
-        let projections = Projections::new(scan.node.projection);
+        // TODO: Read metadata projections too.
+        let projections = Projections::new(scan.node.data_scan.projection);
+        // TODO: Chain metadata
         let filters = scan
             .node
+            .data_scan
             .scan_filters
             .into_iter()
             .map(|filter| {
                 filter.plan(
-                    scan.node.table_ref,
+                    scan.node.data_scan.table_ref,
                     self.bind_context,
                     &projections,
                     &self.expr_planner,

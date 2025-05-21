@@ -48,7 +48,10 @@ pub enum BoundFromItem {
 /// References a table in the catalog.
 #[derive(Debug, Clone)]
 pub struct BoundBaseTable {
-    pub table_ref: TableRef,
+    pub data_table_ref: TableRef,
+    /// Table ref for the metadata if the scan function used has associated
+    /// metadata columns.
+    pub meta_table_ref: Option<TableRef>,
     pub location: LocationRequirement,
     pub catalog: String,
     pub schema: String,
@@ -58,7 +61,8 @@ pub struct BoundBaseTable {
 
 impl PartialEq for BoundBaseTable {
     fn eq(&self, other: &Self) -> bool {
-        self.table_ref == other.table_ref
+        self.data_table_ref == other.data_table_ref
+            && self.meta_table_ref == other.meta_table_ref
             && self.location == other.location
             && self.catalog == other.catalog
             && self.schema == other.schema
@@ -209,39 +213,65 @@ impl<'a> FromBinder<'a> {
     ) -> Result<BoundFrom> {
         match self.resolve_context.tables.try_get_bound(table.reference)? {
             (ResolvedTableOrCteReference::Table(table), location) => {
-                let column_types = table
-                    .entry
-                    .try_as_table_entry()?
-                    .columns
-                    .iter()
-                    .map(|c| c.datatype.clone())
-                    .collect();
-                let column_names = table
-                    .entry
-                    .try_as_table_entry()?
-                    .columns
-                    .iter()
-                    .map(|c| BinderIdent::from(c.name.clone()))
-                    .collect();
-
                 let default_alias = TableAlias {
                     database: Some(BinderIdent::from(table.catalog.clone())),
                     schema: Some(BinderIdent::from(table.schema.clone())),
                     table: BinderIdent::from(table.entry.name.clone()),
                 };
 
-                let table_ref = self.push_table_scope_with_from_alias(
+                // Handle "metadata" columns if we have them. Currently this is
+                // always None, but will probably change with an iceberg catalog
+                // (which would be returning an iceberg_scan function which will
+                // have metadata).
+                let meta_table_ref = match &table.scan_function.bind_state.meta_schema {
+                    Some(meta_schema) => {
+                        let (meta_column_types, meta_column_names) = meta_schema
+                            .fields
+                            .iter()
+                            .map(|f| (f.datatype.clone(), BinderIdent::from(f.name.clone())))
+                            .unzip();
+
+                        // Metadata columns also are accessible using qualified
+                        // names or the user-provided table alias.
+                        //
+                        // TODO: What should happen on a conflict? What if a
+                        // normal data column conflicts with a metadata column
+                        // name. Currently will error as ambiguous.
+                        let meta_table_ref = self.push_table_scope_with_from_alias(
+                            bind_context,
+                            Some(default_alias.clone()),
+                            meta_column_names,
+                            meta_column_types,
+                            alias.clone(),
+                        )?;
+
+                        Some(meta_table_ref)
+                    }
+                    None => None,
+                };
+
+                // Handle "normal" columns.
+                let (data_column_types, data_column_names) = table
+                    .entry
+                    .try_as_table_entry()?
+                    .columns
+                    .iter()
+                    .map(|c| (c.datatype.clone(), BinderIdent::from(c.name.clone())))
+                    .unzip();
+
+                let data_table_ref = self.push_table_scope_with_from_alias(
                     bind_context,
                     Some(default_alias),
-                    column_names,
-                    column_types,
+                    data_column_names,
+                    data_column_types,
                     alias,
                 )?;
 
                 Ok(BoundFrom {
                     bind_ref: self.current,
                     item: BoundFromItem::BaseTable(BoundBaseTable {
-                        table_ref,
+                        data_table_ref,
+                        meta_table_ref,
                         location,
                         catalog: table.catalog.clone(),
                         schema: table.schema.clone(),

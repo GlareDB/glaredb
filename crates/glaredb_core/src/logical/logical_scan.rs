@@ -38,7 +38,10 @@ pub struct TableFunctionScanSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScanSource {
+    /// Table located in a catalog. This will already have a table function
+    /// associated with it.
     Table(TableScanSource),
+    /// Table function.
     Function(TableFunctionScanSource),
 }
 
@@ -58,9 +61,11 @@ impl ScanSource {
     }
 }
 
-/// Represents a scan from some source.
-#[derive(Debug, Clone, PartialEq)]
-pub struct LogicalScan {
+/// Information about scanning a single table ref.
+// TODO: Remove types, names. Just used for explains, and we can handle that we
+// generating the explained plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableScan {
     /// Table reference representing output of this scan.
     pub table_ref: TableRef,
     /// Types representing all columns from the source.
@@ -84,20 +89,32 @@ pub struct LogicalScan {
     /// place directly above the scan with expressions representing the same
     /// filters applied here.
     pub scan_filters: Vec<ScanFilter>,
+}
+
+/// Represents a scan from some source.
+// TODO: Chunky? (216)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalScan {
+    /// Scan information for scanning the 'data' columns.
+    pub data_scan: TableScan,
+    /// Scan information for scanning the 'metadata' columns.
+    ///
+    /// If None, then there's no metadata to scan.
+    pub meta_scan: Option<TableScan>,
     /// Source of the scan.
-    pub source: ScanSource,
+    pub source: Box<ScanSource>,
 }
 
 impl Explainable for LogicalScan {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let mut builder = EntryBuilder::new("Scan", conf)
-            .with_values("column_names", &self.names)
-            .with_values("column_types", &self.types)
-            .with_contextual_values("scan_filters", &self.scan_filters)
-            .with_value_if_verbose("table_ref", self.table_ref)
-            .with_values_if_verbose("projection", &self.projection);
+            .with_values("data_column_names", &self.data_scan.names)
+            .with_values("data_column_types", &self.data_scan.types)
+            .with_contextual_values("data_scan_filters", &self.data_scan.scan_filters)
+            .with_value_if_verbose("data_table_ref", self.data_scan.table_ref)
+            .with_values_if_verbose("data_projection", &self.data_scan.projection);
 
-        match &self.source {
+        match self.source.as_ref() {
             ScanSource::Table(table) => {
                 builder = builder.with_value(
                     "table",
@@ -119,20 +136,20 @@ impl LogicalNode for Node<LogicalScan> {
     }
 
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
-        vec![self.node.table_ref]
+        vec![self.node.data_scan.table_ref]
     }
 
     fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
         F: FnMut(&'a Expression) -> Result<()>,
     {
-        if let ScanSource::Function(table_func) = &self.node.source {
+        if let ScanSource::Function(table_func) = self.node.source.as_ref() {
             // TODO: Named args?
             for expr in &table_func.function.bind_state.input.positional {
                 func(expr)?
             }
         }
-        for filter in &self.node.scan_filters {
+        for filter in &self.node.data_scan.scan_filters {
             func(&filter.expression)?;
         }
         Ok(())
@@ -142,13 +159,13 @@ impl LogicalNode for Node<LogicalScan> {
     where
         F: FnMut(&'a mut Expression) -> Result<()>,
     {
-        if let ScanSource::Function(table_func) = &mut self.node.source {
+        if let ScanSource::Function(table_func) = self.node.source.as_mut() {
             // TODO: Named args?
             for expr in &mut table_func.function.bind_state.input.positional {
                 func(expr)?
             }
         }
-        for filter in &mut self.node.scan_filters {
+        for filter in &mut self.node.data_scan.scan_filters {
             func(&mut filter.expression)?;
         }
         Ok(())

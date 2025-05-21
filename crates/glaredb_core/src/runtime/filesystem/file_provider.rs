@@ -53,6 +53,7 @@ pub struct MultiFileProvider {
 }
 
 impl MultiFileProvider {
+    // TODO: Probably take `&self` so we could also emit hive columns.
     pub fn meta_schema() -> ColumnSchema {
         ColumnSchema::new([Field::new("_filename", DataType::utf8(), false)])
     }

@@ -456,6 +456,8 @@ impl PruneState {
                 child_prune.apply_updated_expressions(project)?;
             }
             LogicalOperator::Scan(scan) => {
+                // TODO: Figure out the metadata scan stuff.
+
                 // BTree since we make the guarantee projections are ordered in
                 // the scan.
                 //
@@ -465,7 +467,7 @@ impl PruneState {
                     .current_references
                     .iter()
                     .filter_map(|col_expr| {
-                        if col_expr.table_scope == scan.node.table_ref {
+                        if col_expr.table_scope == scan.node.data_scan.table_ref {
                             Some(col_expr.column)
                         } else {
                             None
@@ -475,11 +477,16 @@ impl PruneState {
 
                 // Check if we're not referencing all columns. If so, we should
                 // prune.
-                let should_prune = scan.node.projection.iter().any(|col| !cols.contains(col));
+                let should_prune = scan
+                    .node
+                    .data_scan
+                    .projection
+                    .iter()
+                    .any(|col| !cols.contains(col));
                 if !self.implicit_reference && should_prune {
                     // Prune by creating a new table with the pruned names and
                     // types. Create a mapping of original column -> new column.
-                    let orig = bind_context.get_table(scan.node.table_ref)?;
+                    let orig = bind_context.get_table(scan.node.data_scan.table_ref)?;
 
                     // We manually pull out the original column name for the
                     // sake of a readable EXPLAIN instead of going with
@@ -505,7 +512,7 @@ impl PruneState {
 
                         self.updated_expressions.insert(
                             ColumnReference {
-                                table_scope: scan.node.table_ref,
+                                table_scope: scan.node.data_scan.table_ref,
                                 column: old_col,
                             },
                             Expression::Column(ColumnExpr {
@@ -516,13 +523,13 @@ impl PruneState {
                     }
 
                     // Update operator.
-                    scan.node.types = pruned_types;
-                    scan.node.names = pruned_names
+                    scan.node.data_scan.types = pruned_types;
+                    scan.node.data_scan.names = pruned_names
                         .iter()
                         .map(|name| name.as_raw_str().to_string())
                         .collect();
-                    scan.node.table_ref = new_ref;
-                    scan.node.projection = cols.into_iter().collect();
+                    scan.node.data_scan.table_ref = new_ref;
+                    scan.node.data_scan.projection = cols.into_iter().collect();
                     // TODO: Probably want to walk scan filters for completeness
                     // here. Currently scan filters get pushed down after this
                     // rule.

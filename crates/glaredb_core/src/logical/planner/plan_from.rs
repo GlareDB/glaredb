@@ -24,6 +24,7 @@ use crate::logical::logical_scan::{
     LogicalScan,
     ScanSource,
     TableFunctionScanSource,
+    TableScan,
     TableScanSource,
 };
 use crate::logical::logical_single_row::LogicalSingleRow;
@@ -38,19 +39,42 @@ impl FromPlanner {
     pub fn plan(&self, bind_context: &mut BindContext, from: BoundFrom) -> Result<LogicalOperator> {
         match from.item {
             BoundFromItem::BaseTable(table) => {
-                let mut types = Vec::new();
-                let mut names = Vec::new();
-                for table in bind_context.iter_tables_in_scope(from.bind_ref)? {
-                    types.extend(table.column_types.iter().cloned());
-                    names.extend(
-                        table
+                // Handle normal data columns.
+                let data_table = bind_context.get_table(table.data_table_ref)?;
+                let data_col_names = data_table
+                    .column_names
+                    .iter()
+                    .map(|name| name.as_raw_str().to_string())
+                    .collect();
+                let data_scan = TableScan {
+                    table_ref: table.data_table_ref,
+                    projection: (0..data_table.num_columns()).collect(),
+                    types: data_table.column_types.clone(),
+                    names: data_col_names,
+                    scan_filters: Vec::new(),
+                };
+
+                // Handle metadata if we have it.
+                let meta_scan = match table.meta_table_ref {
+                    Some(meta_table_ref) => {
+                        let meta_table = bind_context.get_table(meta_table_ref)?;
+                        let meta_col_names = meta_table
                             .column_names
                             .iter()
-                            .map(|name| name.as_raw_str().to_string()),
-                    );
-                }
+                            .map(|name| name.as_raw_str().to_string())
+                            .collect();
+                        let meta_scan = TableScan {
+                            table_ref: meta_table_ref,
+                            projection: (0..meta_table.num_columns()).collect(),
+                            types: meta_table.column_types.clone(),
+                            names: meta_col_names,
+                            scan_filters: Vec::new(),
+                        };
 
-                let projection = (0..types.len()).collect();
+                        Some(meta_scan)
+                    }
+                    None => None,
+                };
 
                 let source = ScanSource::Table(TableScanSource {
                     catalog: table.catalog,
@@ -62,12 +86,9 @@ impl FromPlanner {
 
                 Ok(LogicalOperator::Scan(Node {
                     node: LogicalScan {
-                        table_ref: table.table_ref,
-                        types,
-                        names,
-                        projection,
-                        scan_filters: Vec::new(),
-                        source,
+                        data_scan,
+                        meta_scan,
+                        source: Box::new(source),
                     },
                     location: table.location,
                     children: Vec::new(),
@@ -118,12 +139,15 @@ impl FromPlanner {
 
                         Ok(LogicalOperator::Scan(Node {
                             node: LogicalScan {
-                                table_ref: func.table_ref,
-                                types,
-                                names,
-                                projection,
-                                scan_filters: Vec::new(),
-                                source,
+                                data_scan: TableScan {
+                                    table_ref: func.table_ref,
+                                    types,
+                                    names,
+                                    projection,
+                                    scan_filters: Vec::new(),
+                                },
+                                source: Box::new(source),
+                                meta_scan: None, // TODO!!!!
                             },
                             location: func.location,
                             children: Vec::new(),
