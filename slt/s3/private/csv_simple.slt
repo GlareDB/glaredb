@@ -3,7 +3,13 @@
 query TT
 DESCRIBE read_csv('s3://glaredb-private/simple.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
 ----
-c1  Utf8
+c1  Int64
 c2  Utf8
 c3  Float64
 
+query ITR
+SELECT * FROM read_csv('s3://glaredb-private/simple.csv', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
+----
+1  mario  2.3
+4  wario  5.6
+7  peach  8.9
