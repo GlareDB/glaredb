@@ -175,11 +175,12 @@ impl TableScanFunction for ListTables {
         Ok(TableFunctionBindState {
             state,
             input,
-            schema: ColumnSchema::new([
+            data_schema: ColumnSchema::new([
                 Field::new("database_name", DataType::utf8(), false),
                 Field::new("schema_name", DataType::utf8(), false),
                 Field::new("table_name", DataType::utf8(), false),
             ]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }
@@ -290,11 +291,12 @@ impl TableScanFunction for ListViews {
         Ok(TableFunctionBindState {
             state,
             input,
-            schema: ColumnSchema::new([
+            data_schema: ColumnSchema::new([
                 Field::new("database_name", DataType::utf8(), false),
                 Field::new("schema_name", DataType::utf8(), false),
                 Field::new("view_name", DataType::utf8(), false),
             ]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }
@@ -451,7 +453,7 @@ impl TableScanFunction for ListFunctions {
         Ok(TableFunctionBindState {
             state,
             input,
-            schema: ColumnSchema::new([
+            data_schema: ColumnSchema::new([
                 Field::new("database_name", DataType::utf8(), false),
                 Field::new("schema_name", DataType::utf8(), false),
                 Field::new("function_name", DataType::utf8(), false),
@@ -464,6 +466,7 @@ impl TableScanFunction for ListFunctions {
                 Field::new("example", DataType::utf8(), true),
                 Field::new("example_output", DataType::utf8(), true),
             ]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

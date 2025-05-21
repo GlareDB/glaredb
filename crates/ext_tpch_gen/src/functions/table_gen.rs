@@ -118,7 +118,8 @@ where
         Ok(TableFunctionBindState {
             state: TableGenBindState { scale_factor },
             input,
-            schema: T::column_schema(),
+            data_schema: T::column_schema(),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

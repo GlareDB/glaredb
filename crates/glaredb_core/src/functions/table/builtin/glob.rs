@@ -87,7 +87,8 @@ impl TableScanFunction for Glob {
         Ok(TableFunctionBindState {
             state: GlobBindState { fs, glob },
             input,
-            schema: ColumnSchema::new([Field::new("filename", DataType::utf8(), false)]),
+            data_schema: ColumnSchema::new([Field::new("filename", DataType::utf8(), false)]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

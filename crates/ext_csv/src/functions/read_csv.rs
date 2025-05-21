@@ -133,7 +133,8 @@ impl TableScanFunction for ReadCsv {
                 dialect,
             },
             input,
-            schema: col_schema,
+            data_schema: col_schema,
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

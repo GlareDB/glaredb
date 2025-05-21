@@ -52,9 +52,19 @@ pub struct RawTableFunctionBindState {
 
 #[derive(Debug)]
 pub struct TableFunctionBindState<S> {
+    /// Any state needed for the function.
     pub state: S,
+    /// Inputs the to function.
     pub input: TableFunctionInput,
-    pub schema: ColumnSchema,
+    /// Output schema of the function. This should be the schema of the "file"
+    /// or returned table.
+    pub data_schema: ColumnSchema,
+    /// Output schema of the metadata, if available.
+    ///
+    /// This should be the column schema for metadata columns, e.g. columns
+    /// provided by a multi file scan.
+    pub meta_schema: Option<ColumnSchema>,
+    /// Output cardinality.
     pub cardinality: StatisticsValue<usize>,
 }
 
@@ -331,7 +341,7 @@ where
             Ok(RawTableFunctionBindState {
                 state: Arc::new(state.state),
                 input: state.input,
-                schema: state.schema,
+                schema: state.data_schema,
                 cardinality: state.cardinality,
             })
         },
@@ -403,7 +413,7 @@ where
                 Ok(RawTableFunctionBindState {
                     state: Arc::new(state.state),
                     input: state.input,
-                    schema: state.schema,
+                    schema: state.data_schema,
                     cardinality: state.cardinality,
                 })
             }))

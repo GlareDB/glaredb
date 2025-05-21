@@ -101,7 +101,8 @@ impl TableScanFunction for ReadText {
                 path,
             },
             input,
-            schema: ColumnSchema::new([Field::new("content", DataType::utf8(), false)]),
+            data_schema: ColumnSchema::new([Field::new("content", DataType::utf8(), false)]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

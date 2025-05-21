@@ -124,7 +124,8 @@ impl TableScanFunction for ReadParquet {
                 schema: schema.clone(),
             },
             input,
-            schema,
+            data_schema: schema,
+            meta_schema: None,
             cardinality: StatisticsValue::Exact(cardinality),
         })
     }

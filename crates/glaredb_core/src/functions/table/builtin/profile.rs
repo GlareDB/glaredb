@@ -589,7 +589,8 @@ where
         Ok(TableFunctionBindState {
             state: ProfileTableGenBindState { profile },
             input,
-            schema: T::column_schema(),
+            data_schema: T::column_schema(),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }
