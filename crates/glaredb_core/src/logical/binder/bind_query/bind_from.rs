@@ -470,9 +470,10 @@ impl<'a> FromBinder<'a> {
             table: BinderIdent::from(reference.base_table_alias()),
         };
 
+        // TODO: Chain meta
         let (names, types) = planned
             .bind_state
-            .schema
+            .data_schema
             .fields
             .iter()
             .map(|f| (BinderIdent::from(f.name.clone()), f.datatype.clone()))

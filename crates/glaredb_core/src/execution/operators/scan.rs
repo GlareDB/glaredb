@@ -39,10 +39,11 @@ impl PhysicalScan {
         filters: Vec<PhysicalScanFilter>,
         function: PlannedTableFunction,
     ) -> Self {
+        // TODO: Chain projections.meta_indices
         let output_types = projections
             .data_indices()
             .iter()
-            .map(|&idx| function.bind_state.schema.fields[idx].datatype.clone())
+            .map(|&idx| function.bind_state.data_schema.fields[idx].datatype.clone())
             .collect();
 
         PhysicalScan {

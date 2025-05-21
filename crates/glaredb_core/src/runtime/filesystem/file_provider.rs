@@ -6,6 +6,8 @@ use glaredb_error::Result;
 
 use super::FileSystemWithState;
 use super::glob::is_glob;
+use crate::arrays::datatype::DataType;
+use crate::arrays::field::{ColumnSchema, Field};
 use crate::arrays::scalar::ScalarValue;
 use crate::expr::Expression;
 use crate::functions::table::scan::ScanContext;
@@ -51,6 +53,10 @@ pub struct MultiFileProvider {
 }
 
 impl MultiFileProvider {
+    pub fn meta_schema() -> ColumnSchema {
+        ColumnSchema::new([Field::new("_filename", DataType::utf8(), false)])
+    }
+
     /// Try to create a new multi-file provider from an expression representing
     /// the paths to read.
     ///
