@@ -188,7 +188,7 @@ impl TableScanFunction for ReadCsv {
                     };
 
                     // TODO: Arbitrary and untracked.
-                    const READ_BUF_SIZE: usize = 4096;
+                    const READ_BUF_SIZE: usize = 1024 * 1024 * 4; // 4MB
                     let read_buf = vec![0; READ_BUF_SIZE];
 
                     let decoder = CsvDecoder::new(op_state.dialect);

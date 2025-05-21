@@ -60,16 +60,25 @@ where
     }
 
     fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let mut count = 0;
+        let mut buf_count = 0;
 
         loop {
             match &mut self.chunk {
                 ChunkReadState::None => {
                     // Make the initial request.
                     let mut request = Request::new(Method::GET, self.url.clone());
-                    // Range always uses the entire buf. We should never be
-                    // making the request if count > 0.
-                    let range = format!("bytes={}-{}", self.pos, self.pos + buf.len() - 1);
+                    // Range will try to use the entire buf, or up to the full
+                    // length of the file.
+                    //
+                    // We should never be making the request if buf_count > 0.
+                    let remaining = self.len - self.pos;
+                    let range_count = usize::min(remaining, buf.len());
+                    if range_count == 0 {
+                        // Nothing left to read.
+                        return Poll::Ready(Ok(0));
+                    }
+                    // Range header is inclusive.
+                    let range = format!("bytes={}-{}", self.pos, self.pos + range_count - 1);
                     request
                         .headers_mut()
                         .insert(RANGE, range.try_into().unwrap());
@@ -100,7 +109,7 @@ where
                             // Set chunk state to None to trigger new request on
                             // the next poll.
                             self.chunk = ChunkReadState::None;
-                            if count == 0 {
+                            if buf_count == 0 {
                                 // If we didn't actually read anything, go ahead
                                 // an make the next request.
                                 //
@@ -111,7 +120,7 @@ where
                             }
 
                             // Otherwise return what we have.
-                            return Poll::Ready(Ok(count));
+                            return Poll::Ready(Ok(buf_count));
                         }
                         Poll::Pending => {
                             // Note this requires that we don't loop on getting
@@ -135,7 +144,7 @@ where
                 }
 
                 ChunkReadState::Reading { pos, chunk, .. } => {
-                    let out = &mut buf[count..];
+                    let out = &mut buf[buf_count..];
                     let rem = &chunk[*pos..];
 
                     let copy_count = usize::min(out.len(), rem.len());
@@ -147,7 +156,7 @@ where
 
                     // Update the count for this poll, as well as our internal
                     // position.
-                    count += copy_count;
+                    buf_count += copy_count;
                     *pos += copy_count;
                     self.pos += copy_count;
 
@@ -163,13 +172,13 @@ where
 
                         // Return here with what we have, we'll stream the next
                         // chunk on the next poll.
-                        return Poll::Ready(Ok(count));
+                        return Poll::Ready(Ok(buf_count));
                     } else {
                         // Otherwise return what we have.
                         //
                         // Keep the chunk stream state, we'll continue reading
                         // from what we have buffered.
-                        return Poll::Ready(Ok(count));
+                        return Poll::Ready(Ok(buf_count));
                     }
                 }
             }
