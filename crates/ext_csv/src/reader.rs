@@ -21,7 +21,6 @@
 use std::task::{Context, Poll};
 
 use glaredb_core::arrays::array::Array;
-use glaredb_core::arrays::array::array_buffer::ArrayBuffer;
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
