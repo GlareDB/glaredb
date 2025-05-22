@@ -8,11 +8,6 @@ use super::FileSystemWithState;
 use super::glob::is_glob;
 use crate::arrays::datatype::DataType;
 use crate::arrays::field::{ColumnSchema, Field};
-use crate::arrays::scalar::ScalarValue;
-use crate::expr::Expression;
-use crate::functions::table::scan::ScanContext;
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 /// Trait for providing files to read.
 pub trait FileProvider: Debug + Sync + Send {
@@ -45,10 +40,31 @@ impl FileProvider for StaticFileProvider {
     }
 }
 
+/// Data associated with the multi-file provider.
+#[derive(Debug)]
+pub struct MultiFileData {
+    expanded: Vec<String>,
+}
+
+impl MultiFileData {
+    pub const fn empty() -> Self {
+        MultiFileData {
+            expanded: Vec::new(),
+        }
+    }
+
+    pub fn expanded_count(&self) -> usize {
+        self.expanded.len()
+    }
+
+    pub fn get(&self, n: usize) -> Option<&str> {
+        self.expanded.get(n).map(|s| s.as_str())
+    }
+}
+
 #[derive(Debug)]
 pub struct MultiFileProvider {
     provider: Box<dyn FileProvider>,
-    paths: Vec<String>,
     exhausted: bool,
 }
 
@@ -63,24 +79,6 @@ impl MultiFileProvider {
         ])
     }
 
-    /// Try to create a new multi-file provider from an expression representing
-    /// the paths to read.
-    ///
-    /// `scan_context` is used to determine which file system we should dispatch to
-    ///
-    /// `expr` should be const-foldable into a string, with that string either
-    /// being a static path or a globbed path.
-    pub async fn new_from_path_expr(
-        scan_context: ScanContext<'_>,
-        expr: Expression,
-    ) -> Result<Self> {
-        let path = ConstFold::rewrite(expr)?
-            .try_into_scalar()?
-            .try_into_string()?;
-
-        unimplemented!()
-    }
-
     pub fn try_new_from_path(fs: &FileSystemWithState, path: impl Into<String>) -> Result<Self> {
         let path = path.into();
         let provider = if is_glob(&path) {
@@ -91,23 +89,34 @@ impl MultiFileProvider {
 
         Ok(MultiFileProvider {
             provider,
-            paths: Vec::new(),
             exhausted: false,
         })
     }
 
-    /// Get the 'n'th file path.
-    pub fn poll_get_nth(&mut self, cx: &mut Context, n: usize) -> Poll<Result<Option<&str>>> {
+    /// Expands at least `n` paths.
+    ///
+    /// If the provided data already has `n` paths, expanded, then this will
+    /// immediately resolve.
+    ///
+    /// Returns the total number of paths we've expanded so according to the
+    /// data. If the returned number is less than `n`, then we've completely
+    /// expanded all paths.
+    pub fn poll_expand_n(
+        &mut self,
+        cx: &mut Context,
+        data: &mut MultiFileData,
+        n: usize,
+    ) -> Poll<Result<usize>> {
         loop {
-            if n < self.paths.len() {
-                return Poll::Ready(Ok(Some(&self.paths[n])));
+            if n < data.expanded.len() {
+                return Poll::Ready(Ok(data.expanded.len()));
             }
 
             if self.exhausted {
-                return Poll::Ready(Ok(None));
+                return Poll::Ready(Ok(data.expanded.len()));
             }
 
-            let appended = match self.provider.poll_next(cx, &mut self.paths) {
+            let appended = match self.provider.poll_next(cx, &mut data.expanded) {
                 Poll::Ready(Ok(n)) => n,
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
@@ -123,31 +132,62 @@ impl MultiFileProvider {
         }
     }
 
-    /// Get the 'n'th path, fetching it from the underlying provider if needed.
-    pub fn get_nth(&mut self, n: usize) -> GetNth {
-        GetNth { provider: self, n }
+    pub fn expand_n<'a>(&'a mut self, data: &'a mut MultiFileData, n: usize) -> ExpandN<'a> {
+        ExpandN {
+            provider: self,
+            data,
+            n,
+        }
+    }
+
+    pub fn expand_all<'a>(&'a mut self, data: &'a mut MultiFileData) -> ExpandAll<'a> {
+        ExpandAll {
+            provider: self,
+            data,
+        }
     }
 }
 
 #[derive(Debug)]
-pub struct GetNth<'a> {
+pub struct ExpandN<'a> {
     provider: &'a mut MultiFileProvider,
+    data: &'a mut MultiFileData,
     n: usize,
 }
 
-impl Future for GetNth<'_> {
-    type Output = Result<Option<String>>;
+impl Future for ExpandN<'_> {
+    type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-        // Clone the string here to avoid lifetime issues.
-        //
-        // We could make the MultiFileProvider pin, but... don't really want to.
-        match this.provider.poll_get_nth(cx, this.n) {
-            Poll::Ready(Ok(Some(s))) => Poll::Ready(Ok(Some(s.to_string()))),
-            Poll::Ready(Ok(None)) => Poll::Ready(Ok(None)),
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => Poll::Pending,
+        this.provider.poll_expand_n(cx, this.data, this.n)
+    }
+}
+
+#[derive(Debug)]
+pub struct ExpandAll<'a> {
+    provider: &'a mut MultiFileProvider,
+    data: &'a mut MultiFileData,
+}
+
+impl Future for ExpandAll<'_> {
+    type Output = Result<()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        while !this.provider.exhausted {
+            // Arbitrary, doesn't really matter.
+            const EXPAND: usize = 10;
+
+            let poll = this.provider.poll_expand_n(cx, this.data, EXPAND)?;
+            if poll.is_pending() {
+                return Poll::Pending;
+            }
+
+            // Continue... expanding.
         }
+
+        Poll::Ready(Ok(()))
     }
 }
