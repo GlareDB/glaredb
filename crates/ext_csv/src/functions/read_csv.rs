@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::task::{Context, Poll};
 
 use futures::FutureExt;
@@ -15,6 +16,7 @@ use glaredb_core::functions::table::{
 };
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
+use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use glaredb_core::runtime::filesystem::{
     AnyFile,
     FileOpenContext,
@@ -52,27 +54,37 @@ pub struct ReadCsv;
 
 pub struct ReadCsvBindState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
     has_header: bool,
     dialect: DialectOptions,
 }
 
 pub struct ReadCsvOperatorState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
     has_header: bool,
     projections: Projections,
     dialect: DialectOptions,
 }
 
-pub enum ReadCsvPartitionState {
+pub struct ReadCsvPartitionState {
+    /// Current read state.
+    state: ReadState,
+    /// Queue of files this partition will be handling.
+    queue: VecDeque<String>,
+    /// Reader that's reused across all files.
+    reader: Box<CsvReader>,
+}
+
+enum ReadState {
+    /// Initialize the next file to read.
+    Init,
+    /// Currently opening a file.
     Opening {
         open_fut: FileSystemFuture<'static, Result<AnyFile>>,
     },
-    Scanning {
-        reader: Box<CsvReader>,
-    },
-    Exhausted,
+    /// Currently scanning a file.
+    Scanning,
 }
 
 impl TableScanFunction for ReadCsv {
@@ -93,18 +105,26 @@ impl TableScanFunction for ReadCsv {
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
         let fs = fs.load_state(context).await?;
-        match fs.stat(&path).await? {
-            Some(stat) if stat.file_type.is_file() => (), // We have a file.
-            Some(_) => return Err(DbError::new("Cannot read csv from a directory")),
-            None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
-        }
+        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+
+        let mut mf_data = MultiFileData::empty();
+        provider.expand_all(&mut mf_data).await?;
+
+        // Use first file for schema inference.
+        //
+        // TODO: Infer using multiple files.
+        let first = mf_data.get(0).ok_or_else(|| {
+            DbError::new(format!(
+                "No files for path '{path}', expected at least one file"
+            ))
+        })?;
 
         // Infer.
         const INFER_BUF_SIZE: usize = 4096; // TODO: Have a reason for this size. Currently just "gut feeling".
         let mut infer_buf = vec![0; INFER_BUF_SIZE];
         let mut records = ByteRecords::with_buffer_capacity(INFER_BUF_SIZE);
 
-        let mut file = fs.open(OpenFlags::READ, &path).await?;
+        let mut file = fs.open(OpenFlags::READ, first).await?;
         let n = file.call_read_fill(&mut infer_buf).await?;
 
         let infer_buf = &infer_buf[0..n];
@@ -128,7 +148,7 @@ impl TableScanFunction for ReadCsv {
         Ok(TableFunctionBindState {
             state: ReadCsvBindState {
                 fs: fs.clone(),
-                path,
+                mf_data,
                 has_header: schema.has_header,
                 dialect,
             },
@@ -149,7 +169,7 @@ impl TableScanFunction for ReadCsv {
         // superset (or close to it) of bind state.
         Ok(ReadCsvOperatorState {
             fs: bind_state.fs.clone(),
-            path: bind_state.path.clone(),
+            mf_data: bind_state.mf_data.clone(), // TODO
             has_header: bind_state.has_header,
             projections,
             dialect: bind_state.dialect,
@@ -161,14 +181,42 @@ impl TableScanFunction for ReadCsv {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
-        // Single partition reads for now.
-        let mut states = vec![ReadCsvPartitionState::Opening {
-            open_fut: op_state
-                .fs
-                .open_static(OpenFlags::READ, op_state.path.clone()),
-        }];
+        let expanded = op_state.mf_data.expanded();
 
-        states.resize_with(partitions, || ReadCsvPartitionState::Exhausted);
+        // Split files to read across all partitions.
+        let states = (0..partitions)
+            .map(|partition_idx| {
+                let queue: VecDeque<_> = expanded
+                    .iter()
+                    .skip(partition_idx)
+                    .step_by(partitions)
+                    .map(|path| path.to_string())
+                    .collect();
+
+                // TODO: Arbitrary and untracked.
+                const READ_BUF_SIZE: usize = 1024 * 1024 * 4; // 4MB
+                let read_buf = vec![0; READ_BUF_SIZE];
+
+                let decoder = CsvDecoder::new(op_state.dialect);
+                // TODO: I don't remember why this provided separately. Why
+                // do we need read buf and this?
+                let records = ByteRecords::with_buffer_capacity(READ_BUF_SIZE);
+
+                let reader = CsvReader::new(
+                    op_state.has_header,
+                    op_state.projections.clone(),
+                    read_buf,
+                    decoder,
+                    records,
+                );
+
+                ReadCsvPartitionState {
+                    state: ReadState::Init,
+                    queue,
+                    reader: Box::new(reader),
+                }
+            })
+            .collect();
 
         Ok(states)
     }
@@ -180,51 +228,40 @@ impl TableScanFunction for ReadCsv {
         output: &mut Batch,
     ) -> Result<PollPull> {
         loop {
-            match state {
-                ReadCsvPartitionState::Opening { open_fut } => {
+            match &mut state.state {
+                ReadState::Init => {
+                    let path = match state.queue.pop_front() {
+                        Some(path) => path,
+                        None => {
+                            // We're done.
+                            output.set_num_rows(0)?;
+                            return Ok(PollPull::Exhausted);
+                        }
+                    };
+
+                    let open_fut = op_state.fs.open_static(OpenFlags::READ, path);
+                    state.state = ReadState::Opening { open_fut };
+                    // Continue...
+                }
+                ReadState::Opening { open_fut } => {
                     let file = match open_fut.poll_unpin(cx) {
                         Poll::Ready(Ok(file)) => file,
                         Poll::Ready(Err(e)) => return Err(e),
                         Poll::Pending => return Ok(PollPull::Pending),
                     };
 
-                    // TODO: Arbitrary and untracked.
-                    const READ_BUF_SIZE: usize = 1024 * 1024 * 4; // 4MB
-                    let read_buf = vec![0; READ_BUF_SIZE];
-
-                    let decoder = CsvDecoder::new(op_state.dialect);
-                    // TODO: I don't remember why this provided separately. Why
-                    // do we need read buf and this?
-                    let records = ByteRecords::with_buffer_capacity(READ_BUF_SIZE);
-
-                    let reader = CsvReader::new(
-                        file,
-                        op_state.has_header,
-                        op_state.projections.clone(),
-                        read_buf,
-                        decoder,
-                        records,
-                    );
-
-                    *state = ReadCsvPartitionState::Scanning {
-                        reader: Box::new(reader),
-                    };
-                    continue;
+                    state.reader.prepare(file);
+                    state.state = ReadState::Scanning;
+                    // Continue...
                 }
-                ReadCsvPartitionState::Scanning { reader } => {
-                    let poll = reader.poll_pull(cx, output)?;
+                ReadState::Scanning => {
+                    let poll = state.reader.poll_pull(cx, output)?;
                     if poll == PollPull::Exhausted {
-                        // TODO: This is where we'd flip back to the opening
-                        // state with the next file in the queue and continue
-                        // the loop.
-                        *state = ReadCsvPartitionState::Exhausted;
-                        return Ok(PollPull::Exhausted);
+                        // Flip back to init to read the next path from the queue.
+                        state.state = ReadState::Init;
+                        continue;
                     }
                     return Ok(poll);
-                }
-                ReadCsvPartitionState::Exhausted => {
-                    output.set_num_rows(0)?;
-                    return Ok(PollPull::Exhausted);
                 }
             }
         }

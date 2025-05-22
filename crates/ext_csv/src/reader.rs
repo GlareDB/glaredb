@@ -41,13 +41,17 @@ use crate::decoder::{ByteRecords, CsvDecoder};
 
 #[derive(Debug)]
 pub struct CsvReader {
+    /// Source file.
+    ///
+    /// This may be None if we need to reset the reader to read from a new file.
+    file: Option<AnyFile>,
+    /// If we should skip the header of the file.
+    skip_header: bool,
     /// Reusable read buffer.
     read_buf: Vec<u8>,
     /// Buffered decoded records.
     records: ByteRecords,
     decoder: CsvDecoder,
-    /// Source file.
-    file: AnyFile,
     projections: Projections,
     /// Current state of the reader.
     state: ReaderState,
@@ -72,7 +76,6 @@ enum ReaderState {
 
 impl CsvReader {
     pub fn new(
-        file: AnyFile,
         skip_header: bool,
         projections: Projections,
         read_buf: Vec<u8>,
@@ -80,14 +83,26 @@ impl CsvReader {
         records: ByteRecords,
     ) -> Self {
         CsvReader {
+            file: None,
+            skip_header,
             read_buf,
             records,
             decoder,
-            file,
             projections,
             state: ReaderState::Reading {
                 skip_first: skip_header,
             },
+        }
+    }
+
+    /// Prepares the reader to begin reading from a new file.
+    ///
+    /// Resets internal state as needed. `poll_pull` can immediately be called.
+    pub fn prepare(&mut self, file: AnyFile) {
+        self.file = Some(file);
+        self.records.clear_all(); // TODO: Would this ever have a partial record?
+        self.state = ReaderState::Reading {
+            skip_first: self.skip_header,
         }
     }
 
@@ -96,11 +111,20 @@ impl CsvReader {
         let out_cap = output.write_capacity()?;
         debug_assert_ne!(0, out_cap);
 
+        let file = match self.file.as_mut() {
+            Some(file) => file,
+            None => {
+                return Err(DbError::new(
+                    "Attempted to pull from CSV reader without preparing a file",
+                ));
+            }
+        };
+
         loop {
             match self.state {
                 ReaderState::Reading { skip_first } => {
                     // Read from the file stream.
-                    match self.file.call_poll_read(cx, &mut self.read_buf)? {
+                    match file.call_poll_read(cx, &mut self.read_buf)? {
                         Poll::Ready(0) => {
                             // Exhausted the stream, flush out any decoded
                             // records.
@@ -331,13 +355,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -371,13 +395,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 16],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -410,13 +434,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -454,13 +478,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 16],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -496,13 +520,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             true,
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
