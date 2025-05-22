@@ -1,0 +1,80 @@
+# Similar to the local version of `read_text` tests, but in GCS.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Same TODOs as the S3 version.
+
+query T
+SELECT * FROM read_text('gs://glaredb-public/testdata/text/empty.txt');
+----
+(empty)
+
+query T
+SELECT * FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+aaa
+aab
+bbb
+cbb
+ccc
+
+# Metadata columns.
+
+query TT
+DESCRIBE SELECT _filename, * FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename  Utf8
+content    Utf8
+
+query TT
+SELECT _filename, * FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/aaa.txt  aaa
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/aab.txt  aab
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/bbb.txt  bbb
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/cbb.txt  cbb
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/ccc.txt  ccc
+
+query TT
+DESCRIBE SELECT _filename, *, _rowid FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename  Utf8
+content    Utf8
+_rowid     Int64
+
+query TT
+SELECT _filename, *, _rowid FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1
+----
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/aaa.txt  aaa  0
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/aab.txt  aab  0
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/bbb.txt  bbb  0
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/cbb.txt  cbb  0
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/ccc.txt  ccc  0
+
+# Just a metadata column.
+
+query TT
+DESCRIBE SELECT _filename FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename Utf8
+
+query T
+SELECT _filename FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/aaa.txt
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/aab.txt
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/bbb.txt
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/cbb.txt
+https://storage.googleapis.com/glaredb-public/testdata/text/glob_simple/ccc.txt
+
+# All cols pruned.
+query I
+SELECT 4 FROM read_text('gs://glaredb-public/testdata/text/glob_simple/*.txt');
+----
+4
+4
+4
+4
+4
+

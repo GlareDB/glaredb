@@ -80,3 +80,13 @@ SELECT _filename FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1
 ../testdata/text/glob_simple/cbb.txt
 ../testdata/text/glob_simple/ccc.txt
 
+# Results in empty projections for both the data and metadata columns after
+# pruning (only applies to the optimized plan). We should handle that fine.
+query I
+SELECT 4 FROM read_text('../testdata/text/glob_simple/*.txt');
+----
+4
+4
+4
+4
+4
