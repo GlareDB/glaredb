@@ -154,7 +154,7 @@ impl TableScanFunction for ReadCsv {
             },
             input,
             data_schema: col_schema,
-            meta_schema: None,
+            meta_schema: Some(provider.meta_schema()),
             cardinality: StatisticsValue::Unknown,
         })
     }

@@ -21,6 +21,7 @@
 use std::task::{Context, Poll};
 
 use glaredb_core::arrays::array::Array;
+use glaredb_core::arrays::array::array_buffer::ArrayBuffer;
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
@@ -34,6 +35,7 @@ use glaredb_core::arrays::datatype::DataTypeId;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::functions::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_core::runtime::filesystem::AnyFile;
+use glaredb_core::runtime::filesystem::file_provider::MultiFileProvider;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{DbError, Result, ResultExt};
 
@@ -55,6 +57,10 @@ pub struct CsvReader {
     projections: Projections,
     /// Current state of the reader.
     state: ReaderState,
+    /// Total number of rows we've emitted so far for this file.
+    ///
+    /// Used for row id.
+    current_count: i64,
 }
 
 #[derive(Debug)]
@@ -92,6 +98,7 @@ impl CsvReader {
             state: ReaderState::Reading {
                 skip_first: skip_header,
             },
+            current_count: 0,
         }
     }
 
@@ -103,7 +110,8 @@ impl CsvReader {
         self.records.clear_all(); // TODO: Would this ever have a partial record?
         self.state = ReaderState::Reading {
             skip_first: self.skip_header,
-        }
+        };
+        self.current_count = 0;
     }
 
     /// Pulls the next batch by decoding the stream.
@@ -188,6 +196,9 @@ impl CsvReader {
                         stream_exhausted,
                     };
 
+                    // Update current count for this file.
+                    self.current_count += write_count as i64;
+
                     // Return what we have, come back for more.
                     output.set_num_rows(write_count)?;
                     return Ok(PollPull::HasMore);
@@ -244,6 +255,27 @@ impl CsvReader {
                                 .with_field("datatype", other));
                         }
                     }
+                    Ok(())
+                }
+                ProjectedColumn::Metadata(MultiFileProvider::META_PROJECTION_FILENAME) => {
+                    let file = self
+                        .file
+                        .as_ref()
+                        .expect("file to be Some when writing projections");
+
+                    let data = PhysicalUtf8::buffer_downcast_mut(array.data_mut())?;
+                    let indices = write_offset..(write_offset + count);
+                    data.put_duplicated(file.call_path().as_bytes(), indices)?;
+
+                    Ok(())
+                }
+                ProjectedColumn::Metadata(MultiFileProvider::META_PROJECTION_ROWID) => {
+                    let data = PhysicalI64::buffer_downcast_mut(array.data_mut())?;
+                    let row_ids = &mut data.as_slice_mut()[write_offset..(write_offset + count)];
+                    for (idx, row_id) in row_ids.iter_mut().enumerate() {
+                        *row_id = self.current_count + idx as i64;
+                    }
+
                     Ok(())
                 }
                 other => panic!("invalid projection: {other:?}"),
