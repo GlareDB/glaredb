@@ -11,9 +11,17 @@ impl OperatorPlanState<'_> {
     pub fn plan_scan(&mut self, scan: Node<LogicalScan>) -> Result<PlannedOperatorWithChildren> {
         let _location = scan.location;
 
-        // TODO: Read metadata projections too.
-        let projections = Projections::new(scan.node.data_scan.projection);
+        let projections = match scan.node.meta_scan {
+            Some(meta_scan) => {
+                Projections::new_with_meta(scan.node.data_scan.projection, meta_scan.projection)
+            }
+            None => Projections::new(scan.node.data_scan.projection),
+        };
         // TODO: Chain metadata
+        //
+        // Current not having metadata filters here is fine since we will have a
+        // filter node above this anyways. Obviously being able to filter on
+        // metadata columns is good, so needs to happen soon...
         let filters = scan
             .node
             .data_scan

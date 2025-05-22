@@ -7,8 +7,8 @@ use crate::arrays::batch::Batch;
 pub enum ProjectedColumn {
     /// Normal data column.
     Data(usize),
-    /// A virtual metadata column (e.g. filename, row number, etc)
-    Virtual(usize),
+    /// A metadata column (e.g. filename, row number, etc)
+    Metadata(usize),
 }
 
 /// Projections to use when scanning base table or materializations.
@@ -40,14 +40,14 @@ impl Projections {
         }
     }
 
-    /// Create a new projections object with both data projections and virtual
+    /// Create a new projections object with both data projections and metadata
     /// column projections.
-    pub fn new_with_virtual(
+    pub fn new_with_meta(
         data_indices: impl IntoIterator<Item = usize>,
-        virtual_indices: impl IntoIterator<Item = usize>,
+        meta_indices: impl IntoIterator<Item = usize>,
     ) -> Self {
         let data_indices = data_indices.into_iter().collect();
-        let virtual_indices = virtual_indices.into_iter().collect();
+        let virtual_indices = meta_indices.into_iter().collect();
         Projections {
             data_indices,
             meta_indices: virtual_indices,
@@ -107,7 +107,7 @@ impl Projections {
             let virtual_arrays = &mut output.arrays[self.data_indices.len()..];
 
             for (&idx, array) in self.meta_indices.iter().zip(virtual_arrays) {
-                column_fn(ProjectedColumn::Virtual(idx), array)?;
+                column_fn(ProjectedColumn::Metadata(idx), array)?;
             }
         }
 
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn virtual_columns() {
-        let projections = Projections::new_with_virtual([0, 1], [0]);
+        let projections = Projections::new_with_meta([0, 1], [0]);
         let mut output =
             Batch::new([DataType::int32(), DataType::int32(), DataType::utf8()], 1).unwrap();
 
@@ -204,7 +204,7 @@ mod tests {
                     s.put(0, &1);
                     Ok(())
                 }
-                ProjectedColumn::Virtual(0) => {
+                ProjectedColumn::Metadata(0) => {
                     let mut s = PhysicalUtf8::get_addressable_mut(&mut array.data).unwrap();
                     s.put(0, "my_file.parquet");
                     Ok(())

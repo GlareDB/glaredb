@@ -80,6 +80,9 @@ pub struct Table {
     // TODO: This will have to become a per-column attribute. I'm adding this in
     // to avoid expanding "metadata" columns, however there will be metadata
     // columns that we will want to expand, specifically hive columns.
+    //
+    // TODO: Probably rename to "metadata". Could also be an enum with the
+    // "metadata" variant having a "hidden" column mask.
     pub star_expandable: bool,
 }
 

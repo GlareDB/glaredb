@@ -171,6 +171,7 @@ impl TableScanFunction for ReadText {
                         .projections
                         .for_each_column(output, &mut |col, arr| match col {
                             ProjectedColumn::Data(0) => {
+                                // TODO: needs to happen outside.
                                 loop {
                                     let read_buf = &mut buf[*buf_offset..];
                                     match file.call_poll_read(cx, read_buf)? {
@@ -197,6 +198,16 @@ impl TableScanFunction for ReadText {
                                         }
                                     };
                                 }
+                            }
+                            ProjectedColumn::Metadata(
+                                MultiFileProvider::META_PROJECTION_FILENAME,
+                            ) => {
+                                println!("FILENAME");
+                                Ok(())
+                            }
+                            ProjectedColumn::Metadata(MultiFileProvider::META_PROJECTION_ROWID) => {
+                                println!("ROWID");
+                                Ok(())
                             }
                             other => panic!("invalid projection: {other:?}"),
                         })?;
