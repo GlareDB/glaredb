@@ -105,7 +105,7 @@ impl FromPlanner {
                         // child as needed.
                         Ok(LogicalOperator::TableExecute(Node {
                             node: LogicalTableExecute {
-                                function_table_ref: func.table_ref,
+                                function_table_ref: func.data_table_ref,
                                 function: func.function,
                                 projected_table_ref: None,
                                 projected_outputs: Vec::new(),
@@ -119,19 +119,34 @@ impl FromPlanner {
                         let source = ScanSource::Function(TableFunctionScanSource {
                             function: func.function,
                         });
-
-                        let projection = (0..types.len()).collect();
                         let estimated_cardinality = source.cardinality();
+
+                        let data_table = bind_context.get_table(func.data_table_ref)?;
+                        let data_scan = TableScan {
+                            table_ref: func.data_table_ref,
+                            projection: (0..data_table.num_columns()).collect(),
+                            scan_filters: Vec::new(),
+                        };
+
+                        let meta_scan = match func.meta_table_ref {
+                            Some(meta_table_ref) => {
+                                let meta_table = bind_context.get_table(meta_table_ref)?;
+                                let meta_scan = TableScan {
+                                    table_ref: meta_table_ref,
+                                    projection: (0..meta_table.num_columns()).collect(),
+                                    scan_filters: Vec::new(),
+                                };
+
+                                Some(meta_scan)
+                            }
+                            None => None,
+                        };
 
                         Ok(LogicalOperator::Scan(Node {
                             node: LogicalScan {
-                                data_scan: TableScan {
-                                    table_ref: func.table_ref,
-                                    projection,
-                                    scan_filters: Vec::new(),
-                                },
+                                data_scan,
+                                meta_scan,
                                 source: Box::new(source),
-                                meta_scan: None, // TODO!!!!
                             },
                             location: func.location,
                             children: Vec::new(),

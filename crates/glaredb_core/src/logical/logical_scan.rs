@@ -151,6 +151,12 @@ impl LogicalNode for Node<LogicalScan> {
         for filter in &self.node.data_scan.scan_filters {
             func(&filter.expression)?;
         }
+        if let Some(meta_scan) = &self.node.meta_scan {
+            for filter in &meta_scan.scan_filters {
+                func(&filter.expression)?;
+            }
+        }
+
         Ok(())
     }
 
@@ -167,6 +173,12 @@ impl LogicalNode for Node<LogicalScan> {
         for filter in &mut self.node.data_scan.scan_filters {
             func(&mut filter.expression)?;
         }
+        if let Some(meta_scan) = &mut self.node.meta_scan {
+            for filter in &mut meta_scan.scan_filters {
+                func(&mut filter.expression)?;
+            }
+        }
+
         Ok(())
     }
 }

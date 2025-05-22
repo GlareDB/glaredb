@@ -74,7 +74,9 @@ impl Eq for BoundBaseTable {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundTableFunction {
-    pub table_ref: TableRef,
+    pub data_table_ref: TableRef,
+    /// Same as base table, for metadata if we have it.
+    pub meta_table_ref: Option<TableRef>,
     pub location: LocationRequirement,
     pub function: PlannedTableFunction,
 }
@@ -500,8 +502,32 @@ impl<'a> FromBinder<'a> {
             table: BinderIdent::from(reference.base_table_alias()),
         };
 
-        // TODO: Chain meta
-        let (names, types) = planned
+        // Table for metadata if the function is producing metadata columns.
+        let meta_table_ref = match &planned.bind_state.meta_schema {
+            Some(meta_schema) => {
+                let (meta_column_types, meta_column_names) = meta_schema
+                    .fields
+                    .iter()
+                    .map(|f| (f.datatype.clone(), BinderIdent::from(f.name.clone())))
+                    .unzip();
+
+                // Use same alias(es) as the the data columns.
+                //
+                // Same TODO applies as with the base tables.
+                let meta_table_ref = self.push_table_scope_with_from_alias(
+                    bind_context,
+                    Some(default_alias.clone()),
+                    meta_column_names,
+                    meta_column_types,
+                    alias.clone(),
+                )?;
+
+                Some(meta_table_ref)
+            }
+            None => None,
+        };
+
+        let (data_column_names, data_column_types) = planned
             .bind_state
             .data_schema
             .fields
@@ -509,18 +535,19 @@ impl<'a> FromBinder<'a> {
             .map(|f| (BinderIdent::from(f.name.clone()), f.datatype.clone()))
             .unzip();
 
-        let table_ref = self.push_table_scope_with_from_alias(
+        let data_table_ref = self.push_table_scope_with_from_alias(
             bind_context,
             Some(default_alias),
-            names,
-            types,
+            data_column_names,
+            data_column_types,
             alias,
         )?;
 
         Ok(BoundFrom {
             bind_ref: self.current,
             item: BoundFromItem::TableFunction(BoundTableFunction {
-                table_ref,
+                data_table_ref,
+                meta_table_ref,
                 location,
                 function: planned,
             }),
