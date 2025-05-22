@@ -3,10 +3,80 @@
 statement ok
 SET verify_optimized_plan TO true;
 
+query TT
+DESCRIBE SELECT * FROM read_text('../README.md');
+----
+content  Utf8
+
 query B
 SELECT contains(content, 'GlareDB') FROM read_text('../README.md');
 ----
 true
 
-statement error Missing file for path '../helloworld.md'
+# TODO: We should get back the better error.
+statement error No such file or directory
 SELECT contains(content, 'GlareDB') FROM read_text('../helloworld.md');
+
+query T
+SELECT * FROM read_text('../testdata/text/empty.txt');
+----
+(empty)
+
+query T
+SELECT * FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+aaa
+aab
+bbb
+cbb
+ccc
+
+# Metadata columns.
+
+query TT
+DESCRIBE SELECT _filename, *  FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename  Utf8
+content    Utf8
+
+query TT
+SELECT _filename, *  FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+../testdata/text/glob_simple/aaa.txt  aaa
+../testdata/text/glob_simple/aab.txt  aab
+../testdata/text/glob_simple/bbb.txt  bbb
+../testdata/text/glob_simple/cbb.txt  cbb
+../testdata/text/glob_simple/ccc.txt  ccc
+
+query TT
+DESCRIBE SELECT _filename, *, _rowid  FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename  Utf8
+content    Utf8
+_rowid     Int64
+
+query TTI
+SELECT _filename, *, _rowid  FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+../testdata/text/glob_simple/aaa.txt  aaa  0
+../testdata/text/glob_simple/aab.txt  aab  0
+../testdata/text/glob_simple/bbb.txt  bbb  0
+../testdata/text/glob_simple/cbb.txt  cbb  0
+../testdata/text/glob_simple/ccc.txt  ccc  0
+
+# Just a metadata column.
+
+query TT
+DESCRIBE SELECT _filename FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename  Utf8
+
+query T
+SELECT _filename FROM read_text('../testdata/text/glob_simple/*.txt') ORDER BY 1
+----
+../testdata/text/glob_simple/aaa.txt
+../testdata/text/glob_simple/aab.txt
+../testdata/text/glob_simple/bbb.txt
+../testdata/text/glob_simple/cbb.txt
+../testdata/text/glob_simple/ccc.txt
+

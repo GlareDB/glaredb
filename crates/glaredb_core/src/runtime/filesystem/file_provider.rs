@@ -68,6 +68,16 @@ impl MultiFileData {
     }
 }
 
+/// Provider for reading multiple files. This should be used for all "file
+/// scanning" functions.
+///
+/// Metadata columns:
+///
+/// - _filename: Name of the file as reported by the filesystem.
+/// - _rowid: Index of the row relative to the file. This must be relative to
+///           the entire file. For example, the _rowid in a parquet file should
+///           indicate the row in the file, not the row index in just the row
+///           groups we read.
 #[derive(Debug)]
 pub struct MultiFileProvider {
     provider: Box<dyn FileProvider>,

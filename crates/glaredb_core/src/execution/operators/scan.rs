@@ -63,8 +63,6 @@ impl PhysicalScan {
 
         // Push metadata column types if we have it.
         if let Some(meta_schema) = &function.bind_state.meta_schema {
-            println!("M_SCHEMA: {meta_schema:?}");
-            println!("M_PROJ: {:?}", projections.meta_indices());
             output_types.extend(
                 projections
                     .meta_indices()
