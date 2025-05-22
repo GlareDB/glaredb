@@ -4,7 +4,12 @@ use std::task::{Context, Poll};
 use futures::FutureExt;
 use glaredb_error::{DbError, Result, ResultExt};
 
-use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
+use crate::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalI64,
+    PhysicalUtf8,
+};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{ColumnSchema, Field};
@@ -199,6 +204,9 @@ impl TableScanFunction for ReadText {
                     continue;
                 }
                 ReadState::Scanning { file, buf_offset } => {
+                    // TODO: Currently this emits a batch with one row. We could
+                    // have an outer loop to continually fill up the same batch.
+
                     // Always read.
                     //
                     // TODO: We can avoid this, but just always reading makes
@@ -236,11 +244,14 @@ impl TableScanFunction for ReadText {
                             ProjectedColumn::Metadata(
                                 MultiFileProvider::META_PROJECTION_FILENAME,
                             ) => {
-                                println!("FILENAME");
+                                let mut data = PhysicalUtf8::get_addressable_mut(&mut arr.data)?;
+                                data.put(0, file.call_path());
                                 Ok(())
                             }
                             ProjectedColumn::Metadata(MultiFileProvider::META_PROJECTION_ROWID) => {
-                                println!("ROWID");
+                                // All files emit only a single row.
+                                let mut data = PhysicalI64::get_addressable_mut(&mut arr.data)?;
+                                data.put(0, &0);
                                 Ok(())
                             }
                             other => panic!("invalid projection: {other:?}"),
