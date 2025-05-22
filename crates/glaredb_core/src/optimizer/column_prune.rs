@@ -523,11 +523,6 @@ impl PruneState {
                     }
 
                     // Update operator.
-                    scan.node.data_scan.types = pruned_types;
-                    scan.node.data_scan.names = pruned_names
-                        .iter()
-                        .map(|name| name.as_raw_str().to_string())
-                        .collect();
                     scan.node.data_scan.table_ref = new_ref;
                     scan.node.data_scan.projection = cols.into_iter().collect();
                     // TODO: Probably want to walk scan filters for completeness

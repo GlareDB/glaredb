@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::context_display::ContextDisplayMode;
-use super::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use super::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, ExplainValue, Explainable};
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::operator::LogicalOperator;
@@ -54,12 +54,12 @@ impl ExplainedPlan {
             verbose,
         };
 
-        let base = ExplainNode::walk_logical(config, root);
+        let base = ExplainNode::walk_logical(config, bind_context, root);
 
         let materializations: BTreeMap<_, _> = bind_context
             .iter_materializations()
             .map(|mat| {
-                let node = ExplainNode::walk_logical(config, &mat.plan);
+                let node = ExplainNode::walk_logical(config, bind_context, &mat.plan);
                 (mat.mat_ref, node)
             })
             .collect();
@@ -89,13 +89,71 @@ impl ExplainNode {
         ExplainNode { entry, children }
     }
 
-    fn walk_logical(config: ExplainConfig, plan: &LogicalOperator) -> Self {
+    fn walk_logical(
+        config: ExplainConfig,
+        bind_context: &BindContext,
+        plan: &LogicalOperator,
+    ) -> Self {
         let (entry, children) = match plan {
             LogicalOperator::Invalid => (EntryBuilder::new("INVALID", config).build(), &Vec::new()),
             LogicalOperator::Project(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Filter(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Distinct(n) => (n.explain_entry(config), &n.children),
-            LogicalOperator::Scan(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::Scan(n) => {
+                // Special case scan to get the column names and types to
+                // display.
+                let mut ent = n.explain_entry(config);
+                if let Ok(data_table) = bind_context.get_table(n.node.data_scan.table_ref) {
+                    ent.items.insert(
+                        "data_column_types".to_string(),
+                        ExplainValue::Values(
+                            data_table
+                                .column_types
+                                .iter()
+                                .map(|d| d.to_string())
+                                .collect(),
+                        ),
+                    );
+                    ent.items.insert(
+                        "data_column_names".to_string(),
+                        ExplainValue::Values(
+                            data_table
+                                .column_names
+                                .iter()
+                                .map(|n| n.as_raw_str().to_string())
+                                .collect(),
+                        ),
+                    );
+                }
+
+                // Also include metadata columns if we have it.
+                if let Some(meta_scan) = &n.node.meta_scan {
+                    if let Ok(meta_table) = bind_context.get_table(meta_scan.table_ref) {
+                        ent.items.insert(
+                            "meta_column_types".to_string(),
+                            ExplainValue::Values(
+                                meta_table
+                                    .column_types
+                                    .iter()
+                                    .map(|d| d.to_string())
+                                    .collect(),
+                            ),
+                        );
+                        ent.items.insert(
+                            "meta_column_names".to_string(),
+                            ExplainValue::Values(
+                                meta_table
+                                    .column_names
+                                    .iter()
+                                    .map(|n| n.as_raw_str().to_string())
+                                    .collect(),
+                            ),
+                        );
+                    }
+                }
+
+                (ent, &n.children)
+            }
             LogicalOperator::ExpressionList(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Aggregate(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::SetOp(n) => (n.explain_entry(config), &n.children),
@@ -141,7 +199,7 @@ impl ExplainNode {
 
         let children = children
             .iter()
-            .map(|c| Self::walk_logical(config, c))
+            .map(|c| Self::walk_logical(config, bind_context, c))
             .collect();
 
         ExplainNode { entry, children }

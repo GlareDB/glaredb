@@ -41,16 +41,9 @@ impl FromPlanner {
             BoundFromItem::BaseTable(table) => {
                 // Handle normal data columns.
                 let data_table = bind_context.get_table(table.data_table_ref)?;
-                let data_col_names = data_table
-                    .column_names
-                    .iter()
-                    .map(|name| name.as_raw_str().to_string())
-                    .collect();
                 let data_scan = TableScan {
                     table_ref: table.data_table_ref,
                     projection: (0..data_table.num_columns()).collect(),
-                    types: data_table.column_types.clone(),
-                    names: data_col_names,
                     scan_filters: Vec::new(),
                 };
 
@@ -58,16 +51,9 @@ impl FromPlanner {
                 let meta_scan = match table.meta_table_ref {
                     Some(meta_table_ref) => {
                         let meta_table = bind_context.get_table(meta_table_ref)?;
-                        let meta_col_names = meta_table
-                            .column_names
-                            .iter()
-                            .map(|name| name.as_raw_str().to_string())
-                            .collect();
                         let meta_scan = TableScan {
                             table_ref: meta_table_ref,
                             projection: (0..meta_table.num_columns()).collect(),
-                            types: meta_table.column_types.clone(),
-                            names: meta_col_names,
                             scan_filters: Vec::new(),
                         };
 
@@ -141,8 +127,6 @@ impl FromPlanner {
                             node: LogicalScan {
                                 data_scan: TableScan {
                                     table_ref: func.table_ref,
-                                    types,
-                                    names,
                                     projection,
                                     scan_filters: Vec::new(),
                                 },

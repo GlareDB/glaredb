@@ -5,7 +5,6 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::arrays::datatype::DataType;
 use crate::catalog::entry::CatalogEntry;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -68,10 +67,6 @@ impl ScanSource {
 pub struct TableScan {
     /// Table reference representing output of this scan.
     pub table_ref: TableRef,
-    /// Types representing all columns from the source.
-    pub types: Vec<DataType>,
-    /// Names for all columns from the source.
-    pub names: Vec<String>,
     /// Positional column projections.
     ///
     /// Ascending order.
@@ -92,7 +87,6 @@ pub struct TableScan {
 }
 
 /// Represents a scan from some source.
-// TODO: Chunky? (216)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalScan {
     /// Scan information for scanning the 'data' columns.
@@ -108,11 +102,16 @@ pub struct LogicalScan {
 impl Explainable for LogicalScan {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let mut builder = EntryBuilder::new("Scan", conf)
-            .with_values("data_column_names", &self.data_scan.names)
-            .with_values("data_column_types", &self.data_scan.types)
             .with_contextual_values("data_scan_filters", &self.data_scan.scan_filters)
             .with_value_if_verbose("data_table_ref", self.data_scan.table_ref)
             .with_values_if_verbose("data_projection", &self.data_scan.projection);
+
+        if let Some(meta_scan) = &self.meta_scan {
+            builder = builder
+                .with_contextual_values("meta_scan_filters", &meta_scan.scan_filters)
+                .with_value_if_verbose("meta_table_ref", &meta_scan.table_ref)
+                .with_values_if_verbose("meta_projection", &meta_scan.projection);
+        }
 
         match self.source.as_ref() {
             ScanSource::Table(table) => {
