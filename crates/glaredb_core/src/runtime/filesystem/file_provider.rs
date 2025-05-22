@@ -160,6 +160,7 @@ impl MultiFileProvider {
         ExpandAll {
             provider: self,
             data,
+            n: 1, // Start by trying expand a single path, then keep growing.
         }
     }
 }
@@ -184,6 +185,7 @@ impl Future for ExpandN<'_> {
 pub struct ExpandAll<'a> {
     provider: &'a mut MultiFileProvider,
     data: &'a mut MultiFileData,
+    n: usize,
 }
 
 impl Future for ExpandAll<'_> {
@@ -193,12 +195,15 @@ impl Future for ExpandAll<'_> {
         let this = self.get_mut();
 
         while !this.provider.exhausted {
-            // Arbitrary, doesn't really matter.
-            const EXPAND: usize = 10;
-
-            let poll = this.provider.poll_expand_n(cx, this.data, EXPAND)?;
-            if poll.is_pending() {
-                return Poll::Pending;
+            let poll = this.provider.poll_expand_n(cx, this.data, this.n)?;
+            match poll {
+                Poll::Ready(n) => {
+                    // Continually request and more until we're exhausted. The
+                    // number we use here doesn't matter as long as it keeps
+                    // going up.
+                    this.n += 10;
+                }
+                Poll::Pending => return Poll::Pending,
             }
 
             // Continue... expanding.
