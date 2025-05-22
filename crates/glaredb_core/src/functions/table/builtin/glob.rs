@@ -14,7 +14,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::runtime::filesystem::file_provider::MultiFileProvider;
+use crate::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use crate::runtime::filesystem::{FileOpenContext, FileSystemWithState};
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::Projections;
@@ -57,6 +57,7 @@ pub enum GlobPartitionState {
     Globbing {
         /// The file provider.
         provider: MultiFileProvider,
+        mf_data: MultiFileData,
         /// The 'nth' file we're on.
         n: usize,
         /// Current count we've written to the batch.
@@ -115,6 +116,7 @@ impl TableScanFunction for Glob {
 
         let mut states = vec![GlobPartitionState::Globbing {
             provider: MultiFileProvider::try_new_from_path(&op_state.fs, &op_state.glob)?,
+            mf_data: MultiFileData::empty(),
             n: 0,
             curr_count: 0,
         }];
@@ -132,6 +134,7 @@ impl TableScanFunction for Glob {
         match state {
             GlobPartitionState::Globbing {
                 provider,
+                mf_data,
                 n,
                 curr_count,
             } => {
@@ -147,18 +150,22 @@ impl TableScanFunction for Glob {
                 };
 
                 while *curr_count < cap {
-                    match provider.poll_get_nth(cx, *n) {
-                        Poll::Ready(Ok(Some(path))) => {
-                            if let Some(buf) = &mut filename_buf {
-                                buf.put(*curr_count, path);
+                    match provider.poll_expand_n(cx, mf_data, *n) {
+                        Poll::Ready(Ok(_)) => {
+                            match mf_data.get(*n) {
+                                Some(path) => {
+                                    if let Some(buf) = &mut filename_buf {
+                                        buf.put(*curr_count, path);
+                                    }
+                                    *curr_count += 1;
+                                    *n += 1;
+                                }
+                                None => {
+                                    // No more files.
+                                    is_exhausted = true;
+                                    break;
+                                }
                             }
-                            *curr_count += 1;
-                            *n += 1;
-                        }
-                        Poll::Ready(Ok(None)) => {
-                            // No more files.
-                            is_exhausted = true;
-                            break;
                         }
                         Poll::Ready(Err(e)) => return Err(e),
                         Poll::Pending => return Ok(PollPull::Pending),

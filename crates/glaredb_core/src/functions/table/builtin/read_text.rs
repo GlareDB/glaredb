@@ -141,8 +141,9 @@ impl TableScanFunction for ReadText {
         // Split files to read across all partitions.
         let states = (0..partitions)
             .map(|partition_idx| {
-                let queue: VecDeque<_> = expanded[partition_idx..]
+                let queue: VecDeque<_> = expanded
                     .iter()
+                    .skip(partition_idx)
                     .step_by(partitions)
                     .map(|path| path.to_string())
                     .collect();
@@ -165,63 +166,72 @@ impl TableScanFunction for ReadText {
         output: &mut Batch,
     ) -> Result<PollPull> {
         loop {
-            match state {
-                ReadTextPartitionState::Opening { buf, open_fut } => {
+            match &mut state.state {
+                ReadState::Init => {
+                    let path = match state.queue.pop_front() {
+                        Some(path) => path,
+                        None => {
+                            // No more files for this partition, we are done.
+                            output.set_num_rows(0)?;
+                            return Ok(PollPull::Exhausted);
+                        }
+                    };
+
+                    let open_fut = op_state.fs.open_static(OpenFlags::READ, path);
+                    state.state = ReadState::Opening { open_fut };
+
+                    // Continue...
+                }
+                ReadState::Opening { open_fut } => {
                     let file = match open_fut.poll_unpin(cx) {
                         Poll::Ready(result) => result?,
                         Poll::Pending => return Ok(PollPull::Pending),
                     };
 
                     if op_state.projections.has_data_column(0) {
-                        buf.resize(file.call_size(), 0);
+                        state.buf.resize(file.call_size(), 0);
                     }
 
-                    *state = ReadTextPartitionState::Scanning {
+                    state.state = ReadState::Scanning {
                         file,
                         buf_offset: 0,
-                        buf: std::mem::take(buf),
                     };
                     continue;
                 }
-                ReadTextPartitionState::Scanning {
-                    file,
-                    buf_offset,
-                    buf,
-                } => {
-                    let mut is_pending = false;
+                ReadState::Scanning { file, buf_offset } => {
+                    // Always read.
+                    //
+                    // TODO: We can avoid this, but just always reading makes
+                    // the flow a bit easier for now.
+                    loop {
+                        let read_buf = &mut state.buf[*buf_offset..];
+                        match file.call_poll_read(cx, read_buf)? {
+                            Poll::Ready(n) => {
+                                if n == 0 {
+                                    // Read complete, break out of loop.
+                                    break;
+                                } else {
+                                    // Still reading, come back for
+                                    // more.
+                                    *buf_offset += n;
+                                }
+                            }
+                            Poll::Pending => {
+                                return Ok(PollPull::Pending);
+                            }
+                        }
+                    }
 
-                    // TODO: So clean...
                     op_state
                         .projections
                         .for_each_column(output, &mut |col, arr| match col {
                             ProjectedColumn::Data(0) => {
-                                // TODO: needs to happen outside.
-                                loop {
-                                    let read_buf = &mut buf[*buf_offset..];
-                                    match file.call_poll_read(cx, read_buf)? {
-                                        Poll::Ready(n) => {
-                                            if n == 0 {
-                                                // Read complete, write it to
-                                                // the array.
-                                                let mut data = PhysicalUtf8::get_addressable_mut(
-                                                    &mut arr.data,
-                                                )?;
-                                                let s = std::str::from_utf8(buf)
-                                                    .context("Invalid UTF8")?;
-                                                data.put(0, s);
-                                                return Ok(());
-                                            } else {
-                                                // Still reading, come back for
-                                                // more.
-                                                *buf_offset += n;
-                                            }
-                                        }
-                                        Poll::Pending => {
-                                            is_pending = true;
-                                            return Ok(());
-                                        }
-                                    };
-                                }
+                                let mut data = PhysicalUtf8::get_addressable_mut(&mut arr.data)?;
+                                // Buf should have been resized to the exact
+                                // size of the file, shouldn't need to slice.
+                                let s = std::str::from_utf8(&state.buf).context("Invalid UTF8")?;
+                                data.put(0, s);
+                                Ok(())
                             }
                             ProjectedColumn::Metadata(
                                 MultiFileProvider::META_PROJECTION_FILENAME,
@@ -236,17 +246,9 @@ impl TableScanFunction for ReadText {
                             other => panic!("invalid projection: {other:?}"),
                         })?;
 
-                    if is_pending {
-                        return Ok(PollPull::Pending);
-                    }
-
-                    *state = ReadTextPartitionState::Exhausted;
+                    state.state = ReadState::Init;
 
                     output.set_num_rows(1)?;
-                    return Ok(PollPull::Exhausted);
-                }
-                ReadTextPartitionState::Exhausted => {
-                    output.set_num_rows(0)?;
                     return Ok(PollPull::Exhausted);
                 }
             }
