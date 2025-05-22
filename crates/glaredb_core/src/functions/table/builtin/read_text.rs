@@ -15,6 +15,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::runtime::filesystem::file_provider::MultiFileProvider;
 use crate::runtime::filesystem::{
     AnyFile,
     FileOpenContext,
@@ -89,11 +90,7 @@ impl TableScanFunction for ReadText {
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
         let fs = fs.load_state(context).await?;
-        match fs.stat(&path).await? {
-            Some(stat) if stat.file_type.is_file() => (), // We have a file.
-            Some(_) => return Err(DbError::new("Cannot read lines from a directory")), // TODO: Globbing and stuff
-            None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
-        }
+        let provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
 
         Ok(TableFunctionBindState {
             state: ReadTextBindState {
@@ -102,7 +99,7 @@ impl TableScanFunction for ReadText {
             },
             input,
             data_schema: ColumnSchema::new([Field::new("content", DataType::utf8(), false)]),
-            meta_schema: None,
+            meta_schema: Some(provider.meta_schema()),
             cardinality: StatisticsValue::Unknown,
         })
     }

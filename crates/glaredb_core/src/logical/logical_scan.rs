@@ -135,7 +135,14 @@ impl LogicalNode for Node<LogicalScan> {
     }
 
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
-        vec![self.node.data_scan.table_ref]
+        match &self.node.meta_scan {
+            Some(meta_scan) => {
+                vec![self.node.data_scan.table_ref, meta_scan.table_ref]
+            }
+            None => {
+                vec![self.node.data_scan.table_ref]
+            }
+        }
     }
 
     fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>

@@ -53,9 +53,14 @@ pub struct MultiFileProvider {
 }
 
 impl MultiFileProvider {
-    // TODO: Probably take `&self` so we could also emit hive columns.
-    pub fn meta_schema() -> ColumnSchema {
-        ColumnSchema::new([Field::new("_filename", DataType::utf8(), false)])
+    pub const META_PROJECTION_FILENAME: usize = 0;
+    pub const META_PROJECTION_ROWID: usize = 1;
+
+    pub fn meta_schema(&self) -> ColumnSchema {
+        ColumnSchema::new([
+            Field::new("_filename", DataType::utf8(), false),
+            Field::new("_rowid", DataType::int64(), false),
+        ])
     }
 
     /// Try to create a new multi-file provider from an expression representing

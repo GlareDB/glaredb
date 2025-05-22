@@ -227,24 +227,22 @@ impl<'a> FromBinder<'a> {
                 // have metadata).
                 let meta_table_ref = match &table.scan_function.bind_state.meta_schema {
                     Some(meta_schema) => {
-                        let (meta_column_types, meta_column_names) = meta_schema
+                        let (meta_column_types, meta_column_names): (Vec<_>, Vec<_>) = meta_schema
                             .fields
                             .iter()
                             .map(|f| (f.datatype.clone(), BinderIdent::from(f.name.clone())))
                             .unzip();
 
-                        // Metadata columns also are accessible using qualified
-                        // names or the user-provided table alias.
+                        // TODO: Figure out aliases, qualifications.
                         //
                         // TODO: What should happen on a conflict? What if a
                         // normal data column conflicts with a metadata column
                         // name. Currently will error as ambiguous.
-                        let meta_table_ref = self.push_table_scope_with_from_alias(
-                            bind_context,
-                            Some(default_alias.clone()),
-                            meta_column_names,
+                        let meta_table_ref = bind_context.push_table(
+                            self.current,
+                            None,
                             meta_column_types,
-                            alias.clone(),
+                            meta_column_names,
                         )?;
 
                         Some(meta_table_ref)
@@ -505,21 +503,18 @@ impl<'a> FromBinder<'a> {
         // Table for metadata if the function is producing metadata columns.
         let meta_table_ref = match &planned.bind_state.meta_schema {
             Some(meta_schema) => {
-                let (meta_column_types, meta_column_names) = meta_schema
+                let (meta_column_types, meta_column_names): (Vec<_>, Vec<_>) = meta_schema
                     .fields
                     .iter()
                     .map(|f| (f.datatype.clone(), BinderIdent::from(f.name.clone())))
                     .unzip();
 
-                // Use same alias(es) as the the data columns.
-                //
-                // Same TODO applies as with the base tables.
-                let meta_table_ref = self.push_table_scope_with_from_alias(
-                    bind_context,
-                    Some(default_alias.clone()),
-                    meta_column_names,
+                // Same TODOs applies as with the base tables.
+                let meta_table_ref = bind_context.push_table(
+                    self.current,
+                    None,
                     meta_column_types,
-                    alias.clone(),
+                    meta_column_names,
                 )?;
 
                 Some(meta_table_ref)
