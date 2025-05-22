@@ -19,8 +19,8 @@ Version `25.5.0` indicates the first release in May 2025.
 
 ## Development
 
-See [Development Overview].
+See [Building](https://glaredb.com/docs/development/building) and
+[Testing](https://glaredb.com/docs/development/testing).
 
 [Docs]: https://glaredb.com/docs
-[Development Overview]: https://glaredb.com/docs/development/overview
 
