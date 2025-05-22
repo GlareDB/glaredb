@@ -41,7 +41,9 @@ impl FileProvider for StaticFileProvider {
 }
 
 /// Data associated with the multi-file provider.
-#[derive(Debug)]
+// TODO: Probably Arc<str>, or remove the Clone and make the change to creating
+// partition states to also be provided the bind data.
+#[derive(Debug, Clone)]
 pub struct MultiFileData {
     expanded: Vec<String>,
 }
@@ -59,6 +61,10 @@ impl MultiFileData {
 
     pub fn get(&self, n: usize) -> Option<&str> {
         self.expanded.get(n).map(|s| s.as_str())
+    }
+
+    pub fn expanded(&self) -> &[String] {
+        &self.expanded
     }
 }
 

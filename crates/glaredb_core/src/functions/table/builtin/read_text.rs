@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::task::{Context, Poll};
 
 use futures::FutureExt;
@@ -15,7 +16,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
-use crate::runtime::filesystem::file_provider::MultiFileProvider;
+use crate::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use crate::runtime::filesystem::{
     AnyFile,
     FileOpenContext,
@@ -50,27 +51,34 @@ pub struct ReadText;
 #[derive(Debug)]
 pub struct ReadTextBindState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
 }
 
 #[derive(Debug)]
 pub struct ReadTextOperatorState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
     projections: Projections,
 }
 
-pub enum ReadTextPartitionState {
+pub struct ReadTextPartitionState {
+    /// Reusable buffer for reading the data.
+    buf: Vec<u8>, // TODO: Buffer managed, also not really a big deal here.
+    /// Current read state.
+    state: ReadState,
+    /// Queue of files this partition will be handling.
+    queue: VecDeque<String>,
+}
+
+enum ReadState {
+    /// Initialize the next file to read.
+    Init,
+    /// Currently opening a file.
     Opening {
-        buf: Vec<u8>,
         open_fut: FileSystemFuture<'static, Result<AnyFile>>,
     },
-    Scanning {
-        file: AnyFile,
-        buf_offset: usize,
-        buf: Vec<u8>, // TODO: Buffer managed, also not really a big deal here.
-    },
-    Exhausted,
+    /// Currently scanning a file.
+    Scanning { file: AnyFile, buf_offset: usize },
 }
 
 impl TableScanFunction for ReadText {
@@ -90,12 +98,18 @@ impl TableScanFunction for ReadText {
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
         let fs = fs.load_state(context).await?;
-        let provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+
+        let mut mf_data = MultiFileData::empty();
+        // TODO: This is implicitly single threaded. It may make sense to
+        // parallelize by pushing continued expanded into the poll_pull. This
+        // will matter more for reading parquet, csv than this function.
+        provider.expand_all(&mut mf_data).await?;
 
         Ok(TableFunctionBindState {
             state: ReadTextBindState {
                 fs: fs.clone(),
-                path,
+                mf_data,
             },
             input,
             data_schema: ColumnSchema::new([Field::new("content", DataType::utf8(), false)]),
@@ -112,7 +126,7 @@ impl TableScanFunction for ReadText {
     ) -> Result<Self::OperatorState> {
         Ok(ReadTextOperatorState {
             fs: bind_state.fs.clone(),
-            path: bind_state.path.clone(),
+            mf_data: bind_state.mf_data.clone(), // TODO
             projections,
         })
     }
@@ -122,14 +136,24 @@ impl TableScanFunction for ReadText {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
-        // Single partition reads for now.
-        let mut states = vec![ReadTextPartitionState::Opening {
-            buf: Vec::new(),
-            open_fut: op_state
-                .fs
-                .open_static(OpenFlags::READ, op_state.path.clone()),
-        }];
-        states.resize_with(partitions, || ReadTextPartitionState::Exhausted);
+        let expanded = op_state.mf_data.expanded();
+
+        // Split files to read across all partitions.
+        let states = (0..partitions)
+            .map(|partition_idx| {
+                let queue: VecDeque<_> = expanded[partition_idx..]
+                    .iter()
+                    .step_by(partitions)
+                    .map(|path| path.to_string())
+                    .collect();
+
+                ReadTextPartitionState {
+                    buf: Vec::new(),
+                    state: ReadState::Init,
+                    queue,
+                }
+            })
+            .collect();
 
         Ok(states)
     }
