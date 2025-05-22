@@ -238,7 +238,7 @@ impl<'a> FromBinder<'a> {
                         // TODO: What should happen on a conflict? What if a
                         // normal data column conflicts with a metadata column
                         // name. Currently will error as ambiguous.
-                        let meta_table_ref = bind_context.push_table(
+                        let meta_table_ref = bind_context.push_metadata_table(
                             self.current,
                             None,
                             meta_column_types,
@@ -510,7 +510,7 @@ impl<'a> FromBinder<'a> {
                     .unzip();
 
                 // Same TODOs applies as with the base tables.
-                let meta_table_ref = bind_context.push_table(
+                let meta_table_ref = bind_context.push_metadata_table(
                     self.current,
                     None,
                     meta_column_types,
@@ -587,6 +587,9 @@ impl<'a> FromBinder<'a> {
                 (Vec::new(), using_cols)
             }
             ast::JoinCondition::Natural => {
+                // TODO: Need to check if this inadvertantly picks up metadata
+                // columns.
+
                 // Get tables refs from the left.
                 //
                 // We want to prune these tables out from the right. Tables are
