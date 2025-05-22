@@ -505,7 +505,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn is_identifier_start(c: char) -> bool {
-        c.is_alphabetic()
+        c.is_alphabetic() || c == '_'
     }
 
     fn is_quoted_identifier_start(c: char) -> bool {
