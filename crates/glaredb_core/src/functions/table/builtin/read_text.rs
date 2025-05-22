@@ -260,7 +260,7 @@ impl TableScanFunction for ReadText {
                     state.state = ReadState::Init;
 
                     output.set_num_rows(1)?;
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPull::HasMore);
                 }
             }
         }
