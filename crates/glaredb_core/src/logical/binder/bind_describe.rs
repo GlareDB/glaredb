@@ -53,8 +53,13 @@ impl<'a> DescribeBinder<'a> {
             }
         }
 
+        // Filter for only "star expandable" tables, aka non-metadata tables.
+        //
+        // Could be interesting to have like a 'DESCRIBE ALL' or something that
+        // will emit metadata columns too.
         let fields = bind_context
             .iter_tables_in_scope(query_scope)?
+            .filter(|t| t.star_expandable)
             .flat_map(|t| {
                 t.column_names
                     .iter()
