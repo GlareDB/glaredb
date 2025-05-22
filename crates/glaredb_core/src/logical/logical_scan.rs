@@ -61,8 +61,6 @@ impl ScanSource {
 }
 
 /// Information about scanning a single table ref.
-// TODO: Remove types, names. Just used for explains, and we can handle that we
-// generating the explained plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableScan {
     /// Table reference representing output of this scan.

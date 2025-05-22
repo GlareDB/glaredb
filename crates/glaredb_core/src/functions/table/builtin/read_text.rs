@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::task::{Context, Poll};
 
 use futures::FutureExt;
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 
 use crate::arrays::array::physical_type::{
     AddressableMut,

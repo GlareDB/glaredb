@@ -7,6 +7,7 @@ use crate::expr::Expression;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::logical_project::LogicalProject;
+use crate::logical::logical_scan::{LogicalScan, TableScan};
 use crate::logical::operator::{LogicalNode, LogicalOperator, Node};
 
 /// Prunes columns from the plan, potentially pushing down projects into scans.
@@ -455,81 +456,7 @@ impl PruneState {
                 }
                 child_prune.apply_updated_expressions(project)?;
             }
-            LogicalOperator::Scan(scan) => {
-                // TODO: Figure out the metadata scan stuff.
-
-                // BTree since we make the guarantee projections are ordered in
-                // the scan.
-                //
-                // Note that an empty set is valid. Scans should be able to
-                // handle empty projection lists.
-                let cols: BTreeSet<_> = self
-                    .current_references
-                    .iter()
-                    .filter_map(|col_expr| {
-                        if col_expr.table_scope == scan.node.data_scan.table_ref {
-                            Some(col_expr.column)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                // Check if we're not referencing all columns. If so, we should
-                // prune.
-                let should_prune = scan
-                    .node
-                    .data_scan
-                    .projection
-                    .iter()
-                    .any(|col| !cols.contains(col));
-                if !self.implicit_reference && should_prune {
-                    // Prune by creating a new table with the pruned names and
-                    // types. Create a mapping of original column -> new column.
-                    let orig = bind_context.get_table(scan.node.data_scan.table_ref)?;
-
-                    // We manually pull out the original column name for the
-                    // sake of a readable EXPLAIN instead of going with
-                    // generated names.
-                    let mut pruned_names = Vec::with_capacity(cols.len());
-                    let mut pruned_types = Vec::with_capacity(cols.len());
-                    for &col_idx in &cols {
-                        pruned_names.push(orig.column_names[col_idx].clone());
-                        pruned_types.push(orig.column_types[col_idx].clone());
-                    }
-
-                    let new_ref = bind_context.new_ephemeral_table_with_columns(
-                        pruned_types.clone(),
-                        pruned_names.clone(),
-                    )?;
-
-                    for (new_col, old_col) in cols.iter().copied().enumerate() {
-                        let new_reference = ColumnReference {
-                            table_scope: new_ref,
-                            column: new_col,
-                        };
-                        let datatype = bind_context.get_column_type(new_reference)?;
-
-                        self.updated_expressions.insert(
-                            ColumnReference {
-                                table_scope: scan.node.data_scan.table_ref,
-                                column: old_col,
-                            },
-                            Expression::Column(ColumnExpr {
-                                reference: new_reference,
-                                datatype,
-                            }),
-                        );
-                    }
-
-                    // Update operator.
-                    scan.node.data_scan.table_ref = new_ref;
-                    scan.node.data_scan.projection = cols.into_iter().collect();
-                    // TODO: Probably want to walk scan filters for completeness
-                    // here. Currently scan filters get pushed down after this
-                    // rule.
-                }
-            }
+            LogicalOperator::Scan(scan) => self.handle_scan(bind_context, scan)?,
             LogicalOperator::Aggregate(agg) => {
                 // Can't push down through aggregate, but we don't need to
                 // assume everything is implicitly referenced for the children.
@@ -592,6 +519,112 @@ impl PruneState {
                 // should reference.
                 child_prune.apply_updated_expressions(other)?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn handle_scan(
+        &mut self,
+        bind_context: &mut BindContext,
+        scan: &mut Node<LogicalScan>,
+    ) -> Result<()> {
+        // All scan always have a "data" table ref. Some scans might have a
+        // "metadata" table ref. Both refs go through the same column pruning
+        // process, and both are independent operations. Pruning columns from
+        // the "metadata" table does not mean we have to prune columns from the
+        // "data" table (and vice versa).
+
+        fn handle_scan_inner(
+            state: &mut PruneState,
+            bind_context: &mut BindContext,
+            scan: &mut TableScan,
+        ) -> Result<()> {
+            // TODO: Should behavior differ here between "data" and "metadata"?
+            // Is it even possible for this to be true? Does it matter?
+            //
+            // Things like '_filename' seem reasonable to ignore this, but what
+            // about hive columns? This feels similar to the "star expandable"
+            // problem.
+            if state.implicit_reference {
+                // All columns implicitly referenced, nothing we should prune.
+                return Ok(());
+            }
+
+            // BTree since we make the guarantee projections are ordered in the
+            // scan.
+            //
+            // Note that an empty set is valid. Scans should be able to handle
+            // empty projection lists.
+            let cols: BTreeSet<_> = state
+                .current_references
+                .iter()
+                .filter_map(|col_expr| {
+                    if col_expr.table_scope == scan.table_ref {
+                        Some(col_expr.column)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            // Check if we're not referencing all columns. If so, we should prune.
+            let should_prune = scan.projection.iter().any(|col| !cols.contains(col));
+            if !should_prune {
+                return Ok(());
+            }
+
+            // Prune by creating a new table with the pruned names and
+            // types. Create a mapping of original column -> new column.
+            let orig = bind_context.get_table(scan.table_ref)?;
+
+            // We manually pull out the original column name for the
+            // sake of a readable EXPLAIN instead of going with
+            // generated names.
+            let mut pruned_names = Vec::with_capacity(cols.len());
+            let mut pruned_types = Vec::with_capacity(cols.len());
+            for &col_idx in &cols {
+                pruned_names.push(orig.column_names[col_idx].clone());
+                pruned_types.push(orig.column_types[col_idx].clone());
+            }
+
+            let new_ref = bind_context
+                .new_ephemeral_table_with_columns(pruned_types.clone(), pruned_names.clone())?;
+
+            for (new_col, old_col) in cols.iter().copied().enumerate() {
+                let new_reference = ColumnReference {
+                    table_scope: new_ref,
+                    column: new_col,
+                };
+                let datatype = bind_context.get_column_type(new_reference)?;
+
+                state.updated_expressions.insert(
+                    ColumnReference {
+                        table_scope: scan.table_ref,
+                        column: old_col,
+                    },
+                    Expression::Column(ColumnExpr {
+                        reference: new_reference,
+                        datatype,
+                    }),
+                );
+            }
+
+            // Update operator.
+            scan.table_ref = new_ref;
+            scan.projection = cols.into_iter().collect();
+            // TODO: Probably want to walk scan filters for completeness
+            // here. Currently scan filters get pushed down after this
+            // rule.
+
+            Ok(())
+        }
+
+        // "data"
+        handle_scan_inner(self, bind_context, &mut scan.node.data_scan)?;
+        // "metadata" if we have it.
+        if let Some(meta_scan) = &mut scan.node.meta_scan {
+            handle_scan_inner(self, bind_context, meta_scan)?;
         }
 
         Ok(())
