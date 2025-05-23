@@ -131,7 +131,12 @@ impl TableExecuteFunction for GenerateSeriesI64 {
         Ok(TableFunctionBindState {
             state: (),
             input,
-            schema: ColumnSchema::new([Field::new("generate_series", DataType::int64(), false)]),
+            data_schema: ColumnSchema::new([Field::new(
+                "generate_series",
+                DataType::int64(),
+                false,
+            )]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

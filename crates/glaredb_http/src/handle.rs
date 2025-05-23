@@ -7,7 +7,7 @@ use futures::{FutureExt, StreamExt};
 use glaredb_core::runtime::filesystem::FileHandle;
 use glaredb_error::{DbError, Result};
 use reqwest::header::RANGE;
-use reqwest::{Method, Request};
+use reqwest::{Method, Request, StatusCode};
 use url::Url;
 
 use crate::client::{HttpClient, HttpResponse};
@@ -94,6 +94,14 @@ where
                         Poll::Ready(resp) => resp,
                         Poll::Pending => return Poll::Pending,
                     };
+
+                    if resp.status() != StatusCode::PARTIAL_CONTENT {
+                        return Poll::Ready(Err(DbError::new(format!(
+                            "Expected status code {} for range request, got {}",
+                            StatusCode::PARTIAL_CONTENT,
+                            resp.status()
+                        ))));
+                    }
 
                     let stream = resp.into_bytes_stream();
                     self.chunk = ChunkReadState::Streaming { stream };
@@ -284,13 +292,16 @@ mod tests {
     struct FixedSizedStreamer {
         content: Bytes,
         chunk_size: usize,
+        /// Status code to respond with.
+        status: StatusCode,
     }
 
     impl FixedSizedStreamer {
-        fn new(content: impl AsRef<[u8]>, chunk_size: usize) -> Self {
+        fn new(content: impl AsRef<[u8]>, chunk_size: usize, status: StatusCode) -> Self {
             FixedSizedStreamer {
                 content: Bytes::from(content.as_ref().to_vec()),
                 chunk_size,
+                status,
             }
         }
 
@@ -339,10 +350,12 @@ mod tests {
 
         fn do_request(&self, request: Request) -> Self::RequestFuture {
             let chunks = self.generate_chunks_from_request(&request);
+            let status = self.status;
             Box::pin(async move {
                 Ok(FixedSizedResponse {
                     chunks,
                     headers: HeaderMap::new(),
+                    status,
                 })
             })
         }
@@ -352,15 +365,14 @@ mod tests {
     struct FixedSizedResponse {
         chunks: Vec<Bytes>,
         headers: HeaderMap,
+        status: StatusCode,
     }
 
     impl HttpResponse for FixedSizedResponse {
         type BytesStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Sync + Send + Unpin>>;
 
         fn status(&self) -> StatusCode {
-            // TODO: Could mock this out in case a server doesn't support range
-            // requests.
-            StatusCode::PARTIAL_CONTENT
+            self.status
         }
 
         fn headers(&self) -> &HeaderMap {
@@ -377,7 +389,7 @@ mod tests {
     fn large_read_buffer_large_chunk_size() {
         // Read from a stream of one chunk.
 
-        let streamer = FixedSizedStreamer::new(b"hello", 10);
+        let streamer = FixedSizedStreamer::new(b"hello", 10, StatusCode::PARTIAL_CONTENT);
         let mut handle = streamer.handle();
 
         let mut buf = vec![0; 8];
@@ -395,7 +407,7 @@ mod tests {
         //
         // We should continue to be able to poll to get the rest of the chunk.
 
-        let streamer = FixedSizedStreamer::new(b"hello", 10);
+        let streamer = FixedSizedStreamer::new(b"hello", 10, StatusCode::PARTIAL_CONTENT);
         let mut handle = streamer.handle();
 
         let mut buf = vec![0; 2];
@@ -428,7 +440,7 @@ mod tests {
         // Requires multiple polls to read the entire thing, even though we have
         // enough space in our buffer.
 
-        let streamer = FixedSizedStreamer::new(b"hello", 2);
+        let streamer = FixedSizedStreamer::new(b"hello", 2, StatusCode::PARTIAL_CONTENT);
         let mut handle = streamer.handle();
 
         let mut buf = vec![0; 10];
@@ -458,7 +470,7 @@ mod tests {
     fn read_seek_read() {
         // Ensure we reset chunk read state when seeking.
 
-        let streamer = FixedSizedStreamer::new(b"hello", 10);
+        let streamer = FixedSizedStreamer::new(b"hello", 10, StatusCode::PARTIAL_CONTENT);
         let mut handle = streamer.handle();
 
         let mut buf = vec![0; 10];
@@ -481,5 +493,19 @@ mod tests {
 
         assert_eq!(Poll::Ready(4), poll);
         assert_eq!(b"ello", &buf[0..4]);
+    }
+
+    #[test]
+    fn error_on_unexpected_status() {
+        let streamer = FixedSizedStreamer::new(b"hello", 10, StatusCode::RANGE_NOT_SATISFIABLE);
+        let mut handle = streamer.handle();
+
+        let mut buf = vec![0; 10];
+        match handle.poll_read(&mut noop_context(), &mut buf) {
+            Poll::Ready(result) => {
+                let _ = result.unwrap_err();
+            }
+            Poll::Pending => panic!("Expected Poll::Ready, got Poll::Pending"),
+        }
     }
 }

@@ -84,7 +84,7 @@ impl ColumnChunk {
 
         projections.for_each_column(output, &mut |col_idx, output| match col_idx {
             ProjectedColumn::Data(idx) => self.buffers[idx].clone_to_array(output),
-            ProjectedColumn::Virtual(0) => not_implemented!("materialized row id"),
+            ProjectedColumn::Metadata(0) => not_implemented!("materialized row id"),
             other => panic!("invalid projection: {other:?}"),
         })?;
         output.set_num_rows(self.filled)?;

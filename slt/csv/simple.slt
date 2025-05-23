@@ -1,5 +1,8 @@
 # Reading 'simple.csv'
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 describe read_csv('../testdata/csv/simple.csv');
 ----

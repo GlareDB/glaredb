@@ -78,10 +78,11 @@ impl TableScanFunction for ListSchemas {
         Ok(TableFunctionBindState {
             state: ListSchemasBindState { databases },
             input,
-            schema: ColumnSchema::new([
+            data_schema: ColumnSchema::new([
                 Field::new("database_name", DataType::utf8(), false),
                 Field::new("schema_name", DataType::utf8(), false),
             ]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

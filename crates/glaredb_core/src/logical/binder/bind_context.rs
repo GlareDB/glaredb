@@ -489,6 +489,34 @@ impl BindContext {
         self.tables.get_mut(table_ref)
     }
 
+    /// Pushes a "metadata" table to the scope.
+    pub fn push_metadata_table<S>(
+        &mut self,
+        bind_ref: BindScopeRef,
+        alias: Option<TableAlias>,
+        column_types: impl IntoIterator<Item = DataType>,
+        column_names: impl IntoIterator<Item = S>,
+    ) -> Result<TableRef>
+    where
+        S: Into<BinderIdent>,
+    {
+        // TODO: We'll want to relax the alias check separately for metadata
+        // tables, since we'll actually end up with two table refs for a single
+        // table.
+        //
+        // However our current column lookup code will only return a single table, so
+        // it not just as easy as remving the "if".
+        //
+        // So we just use the normal push table, and set the star expandable
+        // field manually for now.
+        let table_ref = self.push_table(bind_ref, alias, column_types, column_names)?;
+        let table = self.get_table_mut(table_ref)?;
+        table.star_expandable = false;
+
+        Ok(table_ref)
+    }
+
+    /// Push a "normal" table to the scope.
     pub fn push_table<S>(
         &mut self,
         bind_ref: BindScopeRef,
@@ -520,7 +548,6 @@ impl BindContext {
     }
 
     pub fn append_table_to_scope(&mut self, scope: BindScopeRef, table: TableRef) -> Result<()> {
-        // TODO: Probably check columns for duplicates.
         let scope = self.get_scope_mut(scope)?;
         scope.tables.push(table);
         Ok(())
@@ -557,6 +584,12 @@ impl BindContext {
     /// index of the column within that table.
     ///
     /// `cmp` determines if column matching is case sensitive or not.
+    // TODO: Probably needs a bool for if we should be looking for a metadata
+    // table or normal table. That might also solve the problem of conflicting
+    // column names between the metadata and the base table itself.
+    //
+    // We check the "normal" table first, use the column if it exists, then
+    // check the metadata table.
     pub fn find_table_for_column(
         &self,
         current: BindScopeRef,

@@ -1,0 +1,88 @@
+# Similar to the local version of `read_text` tests, but in S3.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# TODO: I was originally going to create a reusable view here, but felt that
+# didn't quite match the local-only tests since `SELECT *` wouldn't grab the
+# metadata columns, and `SELECT _filename, _rowid, *` wouldn't test that
+# metadata columns can be ordered arbitrarily.
+#
+# We'll probably want to add in `CREATE EXTERNAL TABLE` syntax soon...
+
+# TODO: The `_filename` output uses the http endpoints. We should change that to
+# be using the original s3:// vanity uris.
+
+query T
+SELECT * FROM read_text('s3://glaredb-public/testdata/text/empty.txt');
+----
+(empty)
+
+query T
+SELECT * FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+aaa
+aab
+bbb
+cbb
+ccc
+
+# Metadata columns.
+
+query TT
+DESCRIBE SELECT _filename, * FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename  Utf8
+content    Utf8
+
+query TT
+SELECT _filename, * FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/aaa.txt  aaa
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/aab.txt  aab
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/bbb.txt  bbb
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/cbb.txt  cbb
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/ccc.txt  ccc
+
+query TT
+DESCRIBE SELECT _filename, *, _rowid FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename  Utf8
+content    Utf8
+_rowid     Int64
+
+query TT
+SELECT _filename, *, _rowid FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1
+----
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/aaa.txt  aaa  0
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/aab.txt  aab  0
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/bbb.txt  bbb  0
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/cbb.txt  cbb  0
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/ccc.txt  ccc  0
+
+# Just a metadata column.
+
+query TT
+DESCRIBE SELECT _filename FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+_filename Utf8
+
+query T
+SELECT _filename FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1;
+----
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/aaa.txt
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/aab.txt
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/bbb.txt
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/cbb.txt
+https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/ccc.txt
+
+# All cols pruned.
+query I
+SELECT 4 FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt');
+----
+4
+4
+4
+4
+4
+

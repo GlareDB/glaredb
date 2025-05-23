@@ -409,6 +409,14 @@ where
             buffer: unsafe { DbVec::new_uninit(manager, capacity)? },
         })
     }
+
+    pub fn as_slice(&self) -> &[T] {
+        self.buffer.as_slice()
+    }
+
+    pub fn as_slice_mut(&mut self) -> &mut [T] {
+        self.buffer.as_slice_mut()
+    }
 }
 
 impl<T> ArrayBuffer for ScalarBuffer<T>
@@ -438,6 +446,22 @@ impl StringBuffer {
         let buffer = StringViewBuffer::with_capacity(manager, 0)?;
 
         Ok(StringBuffer { metadata, buffer })
+    }
+
+    /// Pushes bytes the buffer, setting multiple array indices to reference the
+    /// same view.
+    pub fn put_duplicated(
+        &mut self,
+        bs: &[u8],
+        indices: impl IntoIterator<Item = usize>,
+    ) -> Result<()> {
+        let view = self.buffer.push_bytes_as_row(bs)?;
+        let metadata = self.metadata.as_slice_mut();
+        for idx in indices {
+            metadata[idx] = view;
+        }
+
+        Ok(())
     }
 }
 

@@ -75,6 +75,15 @@ pub struct Table {
     pub alias: Option<TableAlias>,
     pub column_types: Vec<DataType>,
     pub column_names: Vec<BinderIdent>,
+    /// If this table can have its columns expanded with a `SELECT *`
+    /// expression.
+    // TODO: This will have to become a per-column attribute. I'm adding this in
+    // to avoid expanding "metadata" columns, however there will be metadata
+    // columns that we will want to expand, specifically hive columns.
+    //
+    // TODO: Probably rename to "metadata". Could also be an enum with the
+    // "metadata" variant having a "hidden" column mask.
+    pub star_expandable: bool,
 }
 
 impl Table {
@@ -141,6 +150,7 @@ impl TableList {
             alias,
             column_types,
             column_names,
+            star_expandable: true,
         };
         self.tables.push(table);
 

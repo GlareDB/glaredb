@@ -3,26 +3,63 @@ use std::io;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use glaredb_core::arrays::array::physical_type::{MutableScalarStorage, PhysicalI64, PhysicalUtf8};
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
+use glaredb_core::runtime::filesystem::file_provider::MultiFileProvider;
 use glaredb_core::storage::projections::Projections;
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use crate::column::struct_reader::StructReader;
 use crate::metadata::ParquetMetaData;
+use crate::schema::types::SchemaDescriptor;
+
+#[derive(Debug)]
+pub struct ScanRowGroup {
+    /// Index of the row group within the metadata.
+    pub idx: usize,
+    /// Relative row index within the file where this row group starts.
+    pub relative_row_start: i64,
+}
+
+impl ScanRowGroup {
+    pub fn from_metadata(metadata: &ParquetMetaData) -> impl Iterator<Item = Self> {
+        let mut relative_row_start = 0;
+
+        metadata
+            .row_groups
+            .iter()
+            .enumerate()
+            .map(move |(idx, rg)| {
+                let scan_rg = ScanRowGroup {
+                    idx,
+                    relative_row_start,
+                };
+                relative_row_start += rg.num_rows;
+
+                scan_rg
+            })
+    }
+}
+
+/// A unit of scanning.
+#[derive(Debug)]
+pub struct ScanUnit {
+    /// Metadata for the file we're currently reading.
+    pub metadata: Arc<ParquetMetaData>,
+    /// File we're reading from.
+    pub file: AnyFile,
+    /// Queue of row groups to read from.
+    pub row_groups: VecDeque<ScanRowGroup>,
+}
 
 #[derive(Debug)]
 pub struct Reader {
-    /// Metadata for the file we're currently reading.
-    metadata: Arc<ParquetMetaData>,
-    /// File we're reading from.
-    file: AnyFile,
-    /// Queue of row groups to read from.
-    row_groups: VecDeque<usize>,
+    unit: Option<ScanUnit>,
     /// State of the current row group we're reading.
     state: RowGroupState,
     /// State for the fetching data from the file.
@@ -65,12 +102,12 @@ enum FetchState {
 
 #[derive(Debug)]
 struct RowGroupState {
-    /// Index of the current group we're scanning.
+    /// The current group we're scanning.
     ///
     /// The initial value for this doesn't matter as we'll immediately try to
     /// get the next row group from the queue since the number of rows remaining
     /// will be zero.
-    current_group: usize,
+    current_group: ScanRowGroup,
     /// Remaining number of rows in the group.
     ///
     /// This gets set when we read in a new group, and continuously updated as
@@ -78,6 +115,10 @@ struct RowGroupState {
     ///
     /// Once this reaches zero, the next row group should be fetched.
     remaining_group_rows: usize,
+    /// Row index offset relative to the file we're scanning.
+    ///
+    /// Used to emit row ids.
+    relative_scan_offset: i64,
 }
 
 impl Reader {
@@ -88,28 +129,23 @@ impl Reader {
     // TODO: Need parquet specific schema
     pub fn try_new(
         manager: &impl AsRawBufferManager,
-        metadata: Arc<ParquetMetaData>,
         schema: ColumnSchema,
-        file: AnyFile,
-        groups: impl IntoIterator<Item = usize>,
+        parquet_schema: &SchemaDescriptor,
         projections: Projections,
         filters: &[PhysicalScanFilter],
     ) -> Result<Self> {
-        let root = StructReader::try_new_root(
-            manager,
-            &projections,
-            &schema,
-            &metadata.file_metadata.schema_descr,
-            filters,
-        )?;
+        let root =
+            StructReader::try_new_root(manager, &projections, &schema, parquet_schema, filters)?;
 
         Ok(Reader {
-            metadata,
-            file,
-            row_groups: groups.into_iter().collect(),
+            unit: None,
             state: RowGroupState {
-                current_group: 0,
+                current_group: ScanRowGroup {
+                    idx: 0,
+                    relative_row_start: 0,
+                },
                 remaining_group_rows: 0, // Will trigger getting the real first row group.
+                relative_scan_offset: 0,
             },
             fetch_state: FetchState::NeedsFetch { column_idx: 0 }, // This doesn't matter here.
             projections,
@@ -117,14 +153,37 @@ impl Reader {
         })
     }
 
+    /// Preprates this reader to begin reading from a new scan unit.
+    pub fn prepare(&mut self, unit: ScanUnit) {
+        self.unit = Some(unit);
+        self.state = RowGroupState {
+            current_group: ScanRowGroup {
+                idx: 0,
+                relative_row_start: 0,
+            },
+            remaining_group_rows: 0,
+            relative_scan_offset: 0,
+        };
+        self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
+    }
+
     /// Scan rows into the output batch.
     ///
     /// This will fetch column chunks as needed.
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
+        let unit = match self.unit.as_mut() {
+            Some(unit) => unit,
+            None => {
+                return Err(DbError::new(
+                    "Attempted to pull from parquet reader without preparing a read unit",
+                ));
+            }
+        };
+
         if self.state.remaining_group_rows == 0 {
             // No more rows, get the next row group.
             loop {
-                let next = match self.row_groups.pop_front() {
+                let next = match unit.row_groups.pop_front() {
                     Some(group) => group,
                     None => {
                         // No more row groups, we're done.
@@ -133,7 +192,7 @@ impl Reader {
                     }
                 };
 
-                let group = &self.metadata.row_groups[next];
+                let group = &unit.metadata.row_groups[next.idx];
                 // We may be able to prune this group...
                 if self.root.should_prune(&self.projections, group)? {
                     // Safe to prune, move to next row group.
@@ -141,6 +200,7 @@ impl Reader {
                 }
 
                 self.state = RowGroupState {
+                    relative_scan_offset: next.relative_row_start,
                     current_group: next,
                     remaining_group_rows: group.num_rows as usize,
                 };
@@ -164,13 +224,40 @@ impl Reader {
         let cap = output.write_capacity()?;
         let count = usize::min(self.state.remaining_group_rows, cap);
 
-        debug_assert_eq!(output.arrays().len(), self.root.readers.len());
+        // Handle data columns.
+        let data_arrays = &mut output.arrays_mut()[..self.projections.data_indices().len()];
+        debug_assert_eq!(data_arrays.len(), self.root.readers.len());
 
-        for (output, col_reader) in output.arrays_mut().iter_mut().zip(&mut self.root.readers) {
-            col_reader.read(output, count)?;
+        for (arr, reader) in data_arrays.iter_mut().zip(&mut self.root.readers) {
+            reader.read(arr, count)?;
         }
-        self.state.remaining_group_rows -= count;
 
+        // Handle metadata columns.
+        let meta_arrays = &mut output.arrays_mut()[self.projections.data_indices().len()..];
+        debug_assert_eq!(meta_arrays.len(), self.projections.meta_indices().len());
+
+        for (&meta_idx, arr) in self.projections.meta_indices().iter().zip(meta_arrays) {
+            match meta_idx {
+                MultiFileProvider::META_PROJECTION_FILENAME => {
+                    let unit = self.unit.as_ref().expect("Scan unit to be set"); // We already checked at the start.
+                    let data = PhysicalUtf8::buffer_downcast_mut(arr.data_mut())?;
+                    data.put_duplicated(unit.file.call_path().as_bytes(), 0..count)?;
+                }
+                MultiFileProvider::META_PROJECTION_ROWID => {
+                    let data = PhysicalI64::buffer_downcast_mut(arr.data_mut())?;
+                    let data = data.as_slice_mut();
+
+                    let rel_offset = self.state.relative_scan_offset;
+                    for (idx, rowid) in (rel_offset..(rel_offset + count as i64)).zip(data) {
+                        *rowid = idx;
+                    }
+                }
+                other => panic!("invalid meta projection: {other}"),
+            }
+        }
+
+        self.state.remaining_group_rows -= count;
+        self.state.relative_scan_offset += count as i64;
         output.set_num_rows(count)?;
 
         Ok(PollPull::HasMore)
@@ -188,7 +275,9 @@ impl Reader {
     /// This may be called even if all column chunks have been fetched. The
     /// internal state will just make this immediately return.
     fn poll_fetch(&mut self, cx: &mut Context) -> Result<Poll<()>> {
-        let row_group = &self.metadata.row_groups[self.state.current_group];
+        let unit = self.unit.as_mut().expect("Unit to be set");
+
+        let row_group = &unit.metadata.row_groups[self.state.current_group.idx];
         loop {
             match &mut self.fetch_state {
                 FetchState::NeedsFetch { column_idx } => {
@@ -217,7 +306,7 @@ impl Reader {
                 }
                 FetchState::Seeking { seek, column_idx } => {
                     // Seek in the file.
-                    match self.file.call_poll_seek(cx, *seek) {
+                    match unit.file.call_poll_seek(cx, *seek) {
                         Poll::Ready(Ok(())) => {
                             // Begin fetching.
                             self.fetch_state = FetchState::Fetching {
@@ -239,7 +328,7 @@ impl Reader {
                     let buf = self.root.readers[*column_idx].chunk_buf_mut();
 
                     let read_buf = &mut buf[*amount_written..];
-                    match self.file.call_poll_read(cx, read_buf) {
+                    match unit.file.call_poll_read(cx, read_buf) {
                         Poll::Ready(Ok(n)) => {
                             *amount_written += n;
 

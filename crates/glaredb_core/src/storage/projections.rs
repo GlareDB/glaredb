@@ -7,8 +7,8 @@ use crate::arrays::batch::Batch;
 pub enum ProjectedColumn {
     /// Normal data column.
     Data(usize),
-    /// A virtual metadata column (e.g. filename, row number, etc)
-    Virtual(usize),
+    /// A metadata column (e.g. filename, row number, etc)
+    Metadata(usize),
 }
 
 /// Projections to use when scanning base table or materializations.
@@ -24,8 +24,8 @@ pub enum ProjectedColumn {
 pub struct Projections {
     /// Column indices for data columns being projected.
     data_indices: Vec<usize>,
-    /// Column indices for virtual columns being projected.
-    virtual_indices: Vec<usize>,
+    /// Column indices for metadata columns being projected.
+    meta_indices: Vec<usize>,
 }
 
 impl Projections {
@@ -36,21 +36,21 @@ impl Projections {
         let data_indices = data_indices.into_iter().collect();
         Projections {
             data_indices,
-            virtual_indices: Vec::new(),
+            meta_indices: Vec::new(),
         }
     }
 
-    /// Create a new projections object with both data projections and virtual
+    /// Create a new projections object with both data projections and metadata
     /// column projections.
-    pub fn new_with_virtual(
+    pub fn new_with_meta(
         data_indices: impl IntoIterator<Item = usize>,
-        virtual_indices: impl IntoIterator<Item = usize>,
+        meta_indices: impl IntoIterator<Item = usize>,
     ) -> Self {
         let data_indices = data_indices.into_iter().collect();
-        let virtual_indices = virtual_indices.into_iter().collect();
+        let virtual_indices = meta_indices.into_iter().collect();
         Projections {
             data_indices,
-            virtual_indices,
+            meta_indices: virtual_indices,
         }
     }
 
@@ -63,19 +63,19 @@ impl Projections {
         &self.data_indices
     }
 
-    /// Returns a reference to the virtual indices.
+    /// Returns a reference to the metadata indices.
     ///
-    /// Note that these are zero-index relative to the "virtual" table. The
+    /// Note that these are zero-index relative to the "metadata" table. The
     /// length of data indices needs to be added to these indices to the get the
     /// physical index to use in a batch.
-    pub fn virtual_indices(&self) -> &[usize] {
-        &self.virtual_indices
+    pub fn meta_indices(&self) -> &[usize] {
+        &self.meta_indices
     }
 
-    /// Returns an iterator for physical indices to use for virtual columns.
-    pub fn physical_virtual_indices(&self) -> impl Iterator<Item = usize> {
+    /// Returns an iterator for physical indices to use for meta columns.
+    pub fn physical_meta_indices(&self) -> impl Iterator<Item = usize> {
         let offset = self.data_indices.len();
-        self.virtual_indices.iter().map(move |idx| idx + offset)
+        self.meta_indices.iter().map(move |idx| idx + offset)
     }
 
     /// Execute a function for each array in the output.
@@ -86,7 +86,7 @@ impl Projections {
     where
         F: FnMut(ProjectedColumn, &mut Array) -> Result<()>,
     {
-        let total_indices = self.data_indices.len() + self.virtual_indices.len();
+        let total_indices = self.data_indices.len() + self.meta_indices.len();
         if output.arrays.len() != total_indices {
             return Err(DbError::new(
                 "Output batch must have the same number of arrays as the projection list",
@@ -100,14 +100,14 @@ impl Projections {
             column_fn(ProjectedColumn::Data(idx), array)?;
         }
 
-        // Virtual columns.
+        // Metadata columns.
         //
-        // Virtual columns are written to the end of the batch.
-        if !self.virtual_indices.is_empty() {
-            let virtual_arrays = &mut output.arrays[self.data_indices.len()..];
+        // Metadata columns are written to the end of the batch.
+        if !self.meta_indices.is_empty() {
+            let meta_arrays = &mut output.arrays[self.data_indices.len()..];
 
-            for (&idx, array) in self.virtual_indices.iter().zip(virtual_arrays) {
-                column_fn(ProjectedColumn::Virtual(idx), array)?;
+            for (&idx, array) in self.meta_indices.iter().zip(meta_arrays) {
+                column_fn(ProjectedColumn::Metadata(idx), array)?;
             }
         }
 
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn virtual_columns() {
-        let projections = Projections::new_with_virtual([0, 1], [0]);
+        let projections = Projections::new_with_meta([0, 1], [0]);
         let mut output =
             Batch::new([DataType::int32(), DataType::int32(), DataType::utf8()], 1).unwrap();
 
@@ -204,7 +204,7 @@ mod tests {
                     s.put(0, &1);
                     Ok(())
                 }
-                ProjectedColumn::Virtual(0) => {
+                ProjectedColumn::Metadata(0) => {
                     let mut s = PhysicalUtf8::get_addressable_mut(&mut array.data).unwrap();
                     s.put(0, "my_file.parquet");
                     Ok(())

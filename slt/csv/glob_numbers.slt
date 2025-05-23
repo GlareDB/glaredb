@@ -1,0 +1,127 @@
+# Glob tests using 'glob_numbers' files.
+#
+# Tests globbing, '_filename', and '_rowid' metadata columns.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# TODO: Recursive globs... See TODO in the globber about getting the "current"
+# directory. We miss a set of CSVs in the root 'glob_numbers' directory.
+
+# Single level globs.
+
+query TT
+DESCRIBE SELECT * FROM '../testdata/csv/glob_numbers/*.csv';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM '../testdata/csv/glob_numbers/*.csv';
+----
+500  100  599
+
+query TT
+DESCRIBE SELECT * FROM '../testdata/csv/glob_numbers/{200,400}.csv';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM '../testdata/csv/glob_numbers/{200,400}.csv';
+----
+200  200  499
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM '../testdata/csv/glob_numbers/*.csv'
+  GROUP BY _filename
+  ORDER BY 1;
+----
+../testdata/csv/glob_numbers/100.csv  100  100  199
+../testdata/csv/glob_numbers/200.csv  100  200  299
+../testdata/csv/glob_numbers/300.csv  100  300  399
+../testdata/csv/glob_numbers/400.csv  100  400  499
+../testdata/csv/glob_numbers/500.csv  100  500  599
+
+query TIII
+SELECT _filename, _rowid, numbers
+  FROM '../testdata/csv/glob_numbers/*.csv'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1,2;
+----
+../testdata/csv/glob_numbers/100.csv  1   101
+../testdata/csv/glob_numbers/100.csv  82  182
+../testdata/csv/glob_numbers/200.csv  1   201
+../testdata/csv/glob_numbers/200.csv  82  282
+../testdata/csv/glob_numbers/300.csv  1   301
+../testdata/csv/glob_numbers/300.csv  82  382
+../testdata/csv/glob_numbers/400.csv  1   401
+../testdata/csv/glob_numbers/400.csv  82  482
+../testdata/csv/glob_numbers/500.csv  1   501
+../testdata/csv/glob_numbers/500.csv  82  582
+
+query TII
+SELECT _filename, _rowid, numbers
+  FROM '../testdata/csv/glob_numbers/{200,400}.csv'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1,2;
+----
+../testdata/csv/glob_numbers/200.csv  1   201
+../testdata/csv/glob_numbers/200.csv  82  282
+../testdata/csv/glob_numbers/400.csv  1   401
+../testdata/csv/glob_numbers/400.csv  82  482
+
+# Nested globs
+
+query TT
+DESCRIBE SELECT * FROM '../testdata/csv/glob_numbers/nested{1,2}/*.csv';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM '../testdata/csv/glob_numbers/nested{1,2}/*.csv';
+----
+1000  100  599
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM '../testdata/csv/glob_numbers/nested{1,2}/*.csv'
+  GROUP BY _filename
+  ORDER BY 1
+----
+../testdata/csv/glob_numbers/nested1/100.csv  100  100  199
+../testdata/csv/glob_numbers/nested1/200.csv  100  200  299
+../testdata/csv/glob_numbers/nested1/300.csv  100  300  399
+../testdata/csv/glob_numbers/nested1/400.csv  100  400  499
+../testdata/csv/glob_numbers/nested1/500.csv  100  500  599
+../testdata/csv/glob_numbers/nested2/100.csv  100  100  199
+../testdata/csv/glob_numbers/nested2/200.csv  100  200  299
+../testdata/csv/glob_numbers/nested2/300.csv  100  300  399
+../testdata/csv/glob_numbers/nested2/400.csv  100  400  499
+../testdata/csv/glob_numbers/nested2/500.csv  100  500  599
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM '../testdata/csv/glob_numbers/nested{1,2}/{200,400}.csv'
+  GROUP BY _filename
+  ORDER BY 1
+----
+../testdata/csv/glob_numbers/nested1/200.csv  100  200  299
+../testdata/csv/glob_numbers/nested1/400.csv  100  400  499
+../testdata/csv/glob_numbers/nested2/200.csv  100  200  299
+../testdata/csv/glob_numbers/nested2/400.csv  100  400  499
+
+query TII
+SELECT _filename, _rowid, numbers
+  FROM '../testdata/csv/glob_numbers/nested{1,2}/{200,400}.csv'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1;
+----
+../testdata/csv/glob_numbers/nested1/200.csv  1   201
+../testdata/csv/glob_numbers/nested1/200.csv  82  282
+../testdata/csv/glob_numbers/nested1/400.csv  1   401
+../testdata/csv/glob_numbers/nested1/400.csv  82  482
+../testdata/csv/glob_numbers/nested2/200.csv  1   201
+../testdata/csv/glob_numbers/nested2/200.csv  82  282
+../testdata/csv/glob_numbers/nested2/400.csv  1   401
+../testdata/csv/glob_numbers/nested2/400.csv  82  482
+

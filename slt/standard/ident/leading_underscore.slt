@@ -1,0 +1,30 @@
+# Allow '_' to be the start of an identifier.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT 4 AS _alias;
+----
+_alias  Int32
+
+query TT
+DESCRIBE SELECT 4 AS __alias;
+----
+__alias  Int32
+
+query TT
+DESCRIBE SELECT 4 AS _;
+----
+_  Int32
+
+query TT
+DESCRIBE SELECT _.* FROM (VALUES (4, 5)) _(_, _);
+----
+_ Int32
+_ Int32
+
+query II
+SELECT _.* FROM (VALUES (4, 5)) _(_, _);
+----
+4  5

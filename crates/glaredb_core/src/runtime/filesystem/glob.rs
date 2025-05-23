@@ -138,6 +138,9 @@ where
                                 }
                             }
 
+                            // TODO: This needs to match the next segment for
+                            // the "current" directory.
+
                             // And we don’t emit anything at this stage unless
                             // '**' is the last segmentt, in which case
                             // "everything under here" is a match.

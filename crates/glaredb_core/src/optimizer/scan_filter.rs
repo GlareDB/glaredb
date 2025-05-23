@@ -37,6 +37,8 @@ fn optimize_inner(plan: &mut LogicalOperator) -> Result<()> {
     if let LogicalOperator::Filter(filter) = plan {
         debug_assert_eq!(1, filter.children.len());
         if let LogicalOperator::Scan(scan) = &mut filter.children[0] {
+            // TODO: Apply to metadata filters.
+
             // Clone only epxressions that we know we can easily handle, at
             // least for now.
             //
@@ -78,7 +80,7 @@ fn optimize_inner(plan: &mut LogicalOperator) -> Result<()> {
                 }],
             };
 
-            scan.node.scan_filters.append(&mut filters);
+            scan.node.data_scan.scan_filters.append(&mut filters);
         }
     }
 

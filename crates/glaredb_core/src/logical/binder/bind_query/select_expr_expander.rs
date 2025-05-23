@@ -108,6 +108,11 @@ impl<'a> SelectExprExpander<'a> {
                 }
 
                 for table in self.bind_context.iter_tables_in_scope(self.current)? {
+                    if !table.star_expandable {
+                        // Skip!
+                        continue;
+                    }
+
                     for (col_idx, name) in table.column_names.iter().enumerate() {
                         // If column is already added from USING, skip it.
                         if handled.contains(name) {
@@ -149,6 +154,8 @@ impl<'a> SelectExprExpander<'a> {
                     table: table.into(),
                 };
 
+                // TODO: This may need updating once metadata can be
+                // fully-qualified.
                 let table = self
                     .bind_context
                     .iter_tables_in_scope(self.current)?

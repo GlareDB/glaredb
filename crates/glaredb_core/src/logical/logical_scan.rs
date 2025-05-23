@@ -5,7 +5,6 @@ use glaredb_error::Result;
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
 use super::operator::{LogicalNode, Node};
-use crate::arrays::datatype::DataType;
 use crate::catalog::entry::CatalogEntry;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
@@ -38,7 +37,10 @@ pub struct TableFunctionScanSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScanSource {
+    /// Table located in a catalog. This will already have a table function
+    /// associated with it.
     Table(TableScanSource),
+    /// Table function.
     Function(TableFunctionScanSource),
 }
 
@@ -58,15 +60,11 @@ impl ScanSource {
     }
 }
 
-/// Represents a scan from some source.
-#[derive(Debug, Clone, PartialEq)]
-pub struct LogicalScan {
+/// Information about scanning a single table ref.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableScan {
     /// Table reference representing output of this scan.
     pub table_ref: TableRef,
-    /// Types representing all columns from the source.
-    pub types: Vec<DataType>,
-    /// Names for all columns from the source.
-    pub names: Vec<String>,
     /// Positional column projections.
     ///
     /// Ascending order.
@@ -84,20 +82,36 @@ pub struct LogicalScan {
     /// place directly above the scan with expressions representing the same
     /// filters applied here.
     pub scan_filters: Vec<ScanFilter>,
+}
+
+/// Represents a scan from some source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogicalScan {
+    /// Scan information for scanning the 'data' columns.
+    pub data_scan: TableScan,
+    /// Scan information for scanning the 'metadata' columns.
+    ///
+    /// If None, then there's no metadata to scan.
+    pub meta_scan: Option<TableScan>,
     /// Source of the scan.
-    pub source: ScanSource,
+    pub source: Box<ScanSource>,
 }
 
 impl Explainable for LogicalScan {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         let mut builder = EntryBuilder::new("Scan", conf)
-            .with_values("column_names", &self.names)
-            .with_values("column_types", &self.types)
-            .with_contextual_values("scan_filters", &self.scan_filters)
-            .with_value_if_verbose("table_ref", self.table_ref)
-            .with_values_if_verbose("projection", &self.projection);
+            .with_contextual_values("data_scan_filters", &self.data_scan.scan_filters)
+            .with_value_if_verbose("data_table_ref", self.data_scan.table_ref)
+            .with_values_if_verbose("data_projection", &self.data_scan.projection);
 
-        match &self.source {
+        if let Some(meta_scan) = &self.meta_scan {
+            builder = builder
+                .with_contextual_values("meta_scan_filters", &meta_scan.scan_filters)
+                .with_value_if_verbose("meta_table_ref", meta_scan.table_ref)
+                .with_values_if_verbose("meta_projection", &meta_scan.projection);
+        }
+
+        match self.source.as_ref() {
             ScanSource::Table(table) => {
                 builder = builder.with_value(
                     "table",
@@ -119,22 +133,35 @@ impl LogicalNode for Node<LogicalScan> {
     }
 
     fn get_output_table_refs(&self, _bind_context: &BindContext) -> Vec<TableRef> {
-        vec![self.node.table_ref]
+        match &self.node.meta_scan {
+            Some(meta_scan) => {
+                vec![self.node.data_scan.table_ref, meta_scan.table_ref]
+            }
+            None => {
+                vec![self.node.data_scan.table_ref]
+            }
+        }
     }
 
     fn for_each_expr<'a, F>(&'a self, mut func: F) -> Result<()>
     where
         F: FnMut(&'a Expression) -> Result<()>,
     {
-        if let ScanSource::Function(table_func) = &self.node.source {
+        if let ScanSource::Function(table_func) = self.node.source.as_ref() {
             // TODO: Named args?
             for expr in &table_func.function.bind_state.input.positional {
                 func(expr)?
             }
         }
-        for filter in &self.node.scan_filters {
+        for filter in &self.node.data_scan.scan_filters {
             func(&filter.expression)?;
         }
+        if let Some(meta_scan) = &self.node.meta_scan {
+            for filter in &meta_scan.scan_filters {
+                func(&filter.expression)?;
+            }
+        }
+
         Ok(())
     }
 
@@ -142,15 +169,21 @@ impl LogicalNode for Node<LogicalScan> {
     where
         F: FnMut(&'a mut Expression) -> Result<()>,
     {
-        if let ScanSource::Function(table_func) = &mut self.node.source {
+        if let ScanSource::Function(table_func) = self.node.source.as_mut() {
             // TODO: Named args?
             for expr in &mut table_func.function.bind_state.input.positional {
                 func(expr)?
             }
         }
-        for filter in &mut self.node.scan_filters {
+        for filter in &mut self.node.data_scan.scan_filters {
             func(&mut filter.expression)?;
         }
+        if let Some(meta_scan) = &mut self.node.meta_scan {
+            for filter in &mut meta_scan.scan_filters {
+                func(&mut filter.expression)?;
+            }
+        }
+
         Ok(())
     }
 }

@@ -34,6 +34,7 @@ use glaredb_core::arrays::datatype::DataTypeId;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::functions::cast::parse::{BoolParser, Float64Parser, Int64Parser, Parser};
 use glaredb_core::runtime::filesystem::AnyFile;
+use glaredb_core::runtime::filesystem::file_provider::MultiFileProvider;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_error::{DbError, Result, ResultExt};
 
@@ -41,16 +42,24 @@ use crate::decoder::{ByteRecords, CsvDecoder};
 
 #[derive(Debug)]
 pub struct CsvReader {
+    /// Source file.
+    ///
+    /// This may be None if we need to reset the reader to read from a new file.
+    file: Option<AnyFile>,
+    /// If we should skip the header of the file.
+    skip_header: bool,
     /// Reusable read buffer.
     read_buf: Vec<u8>,
     /// Buffered decoded records.
     records: ByteRecords,
     decoder: CsvDecoder,
-    /// Source file.
-    file: AnyFile,
     projections: Projections,
     /// Current state of the reader.
     state: ReaderState,
+    /// Total number of rows we've emitted so far for this file.
+    ///
+    /// Used for row id.
+    current_count: i64,
 }
 
 #[derive(Debug)]
@@ -72,7 +81,6 @@ enum ReaderState {
 
 impl CsvReader {
     pub fn new(
-        file: AnyFile,
         skip_header: bool,
         projections: Projections,
         read_buf: Vec<u8>,
@@ -80,15 +88,29 @@ impl CsvReader {
         records: ByteRecords,
     ) -> Self {
         CsvReader {
+            file: None,
+            skip_header,
             read_buf,
             records,
             decoder,
-            file,
             projections,
             state: ReaderState::Reading {
                 skip_first: skip_header,
             },
+            current_count: 0,
         }
+    }
+
+    /// Prepares the reader to begin reading from a new file.
+    ///
+    /// Resets internal state as needed. `poll_pull` can immediately be called.
+    pub fn prepare(&mut self, file: AnyFile) {
+        self.file = Some(file);
+        self.records.clear_all(); // TODO: Would this ever have a partial record?
+        self.state = ReaderState::Reading {
+            skip_first: self.skip_header,
+        };
+        self.current_count = 0;
     }
 
     /// Pulls the next batch by decoding the stream.
@@ -96,11 +118,20 @@ impl CsvReader {
         let out_cap = output.write_capacity()?;
         debug_assert_ne!(0, out_cap);
 
+        let file = match self.file.as_mut() {
+            Some(file) => file,
+            None => {
+                return Err(DbError::new(
+                    "Attempted to pull from CSV reader without preparing a file",
+                ));
+            }
+        };
+
         loop {
             match self.state {
                 ReaderState::Reading { skip_first } => {
                     // Read from the file stream.
-                    match self.file.call_poll_read(cx, &mut self.read_buf)? {
+                    match file.call_poll_read(cx, &mut self.read_buf)? {
                         Poll::Ready(0) => {
                             // Exhausted the stream, flush out any decoded
                             // records.
@@ -164,6 +195,9 @@ impl CsvReader {
                         stream_exhausted,
                     };
 
+                    // Update current count for this file.
+                    self.current_count += write_count as i64;
+
                     // Return what we have, come back for more.
                     output.set_num_rows(write_count)?;
                     return Ok(PollPull::HasMore);
@@ -222,6 +256,27 @@ impl CsvReader {
                     }
                     Ok(())
                 }
+                ProjectedColumn::Metadata(MultiFileProvider::META_PROJECTION_FILENAME) => {
+                    let file = self
+                        .file
+                        .as_ref()
+                        .expect("file to be Some when writing projections");
+
+                    let data = PhysicalUtf8::buffer_downcast_mut(array.data_mut())?;
+                    let indices = write_offset..(write_offset + count);
+                    data.put_duplicated(file.call_path().as_bytes(), indices)?;
+
+                    Ok(())
+                }
+                ProjectedColumn::Metadata(MultiFileProvider::META_PROJECTION_ROWID) => {
+                    let data = PhysicalI64::buffer_downcast_mut(array.data_mut())?;
+                    let row_ids = &mut data.as_slice_mut()[write_offset..(write_offset + count)];
+                    for (idx, row_id) in row_ids.iter_mut().enumerate() {
+                        *row_id = self.current_count + idx as i64;
+                    }
+
+                    Ok(())
+                }
                 other => panic!("invalid projection: {other:?}"),
             })?;
 
@@ -253,7 +308,13 @@ impl CsvReader {
             // through record.
 
             let record = self.records.get_record(record_idx);
-            let field = record.field(field_idx);
+            // TODO: We could make accessing the field not return an option, and instead
+            // verify the number of records decoded >= `(count + records_offset) * expected_fields`
+            let field = record.field(field_idx).ok_or_else(|| {
+                DbError::new(format!(
+                    "Missing field at field index '{field_idx}' for record at record index '{record_idx}'"
+                ))
+            })?;
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
             if field.is_empty() {
@@ -289,7 +350,11 @@ impl CsvReader {
             // through record.
 
             let record = self.records.get_record(record_idx);
-            let field = record.field(field_idx);
+            let field = record.field(field_idx).ok_or_else(|| {
+                DbError::new(format!(
+                    "Missing field at field index '{field_idx}' for record at record index '{record_idx}'"
+                ))
+            })?;
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
             if field.is_empty() {
@@ -331,13 +396,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -371,13 +436,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 16],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -410,13 +475,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -454,13 +519,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             false,
             Projections::new([0, 1, 2]),
             vec![0; 16],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],
@@ -496,13 +561,13 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            file,
             true,
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
             output,
         );
+        reader.prepare(file);
 
         let mut batch = Batch::new(
             [DataType::utf8(), DataType::float64(), DataType::int64()],

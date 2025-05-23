@@ -46,6 +46,9 @@ pub struct StructReader {
 
 impl StructReader {
     /// Create a new reader for the root of the parquet data.
+    ///
+    /// The struct reader will only look at the data indices in the projection.
+    /// Metadata projections need to be handled at a higher level.
     pub fn try_new_root(
         manager: &impl AsRawBufferManager,
         projections: &Projections,

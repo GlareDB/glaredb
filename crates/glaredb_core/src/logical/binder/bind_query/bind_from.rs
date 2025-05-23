@@ -48,7 +48,10 @@ pub enum BoundFromItem {
 /// References a table in the catalog.
 #[derive(Debug, Clone)]
 pub struct BoundBaseTable {
-    pub table_ref: TableRef,
+    pub data_table_ref: TableRef,
+    /// Table ref for the metadata if the scan function used has associated
+    /// metadata columns.
+    pub meta_table_ref: Option<TableRef>,
     pub location: LocationRequirement,
     pub catalog: String,
     pub schema: String,
@@ -58,7 +61,8 @@ pub struct BoundBaseTable {
 
 impl PartialEq for BoundBaseTable {
     fn eq(&self, other: &Self) -> bool {
-        self.table_ref == other.table_ref
+        self.data_table_ref == other.data_table_ref
+            && self.meta_table_ref == other.meta_table_ref
             && self.location == other.location
             && self.catalog == other.catalog
             && self.schema == other.schema
@@ -70,7 +74,9 @@ impl Eq for BoundBaseTable {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundTableFunction {
-    pub table_ref: TableRef,
+    pub data_table_ref: TableRef,
+    /// Same as base table, for metadata if we have it.
+    pub meta_table_ref: Option<TableRef>,
     pub location: LocationRequirement,
     pub function: PlannedTableFunction,
 }
@@ -209,39 +215,63 @@ impl<'a> FromBinder<'a> {
     ) -> Result<BoundFrom> {
         match self.resolve_context.tables.try_get_bound(table.reference)? {
             (ResolvedTableOrCteReference::Table(table), location) => {
-                let column_types = table
-                    .entry
-                    .try_as_table_entry()?
-                    .columns
-                    .iter()
-                    .map(|c| c.datatype.clone())
-                    .collect();
-                let column_names = table
-                    .entry
-                    .try_as_table_entry()?
-                    .columns
-                    .iter()
-                    .map(|c| BinderIdent::from(c.name.clone()))
-                    .collect();
-
                 let default_alias = TableAlias {
                     database: Some(BinderIdent::from(table.catalog.clone())),
                     schema: Some(BinderIdent::from(table.schema.clone())),
                     table: BinderIdent::from(table.entry.name.clone()),
                 };
 
-                let table_ref = self.push_table_scope_with_from_alias(
+                // Handle "metadata" columns if we have them. Currently this is
+                // always None, but will probably change with an iceberg catalog
+                // (which would be returning an iceberg_scan function which will
+                // have metadata).
+                let meta_table_ref = match &table.scan_function.bind_state.meta_schema {
+                    Some(meta_schema) => {
+                        let (meta_column_types, meta_column_names): (Vec<_>, Vec<_>) = meta_schema
+                            .fields
+                            .iter()
+                            .map(|f| (f.datatype.clone(), BinderIdent::from(f.name.clone())))
+                            .unzip();
+
+                        // TODO: Figure out aliases, qualifications.
+                        //
+                        // TODO: What should happen on a conflict? What if a
+                        // normal data column conflicts with a metadata column
+                        // name. Currently will error as ambiguous.
+                        let meta_table_ref = bind_context.push_metadata_table(
+                            self.current,
+                            None,
+                            meta_column_types,
+                            meta_column_names,
+                        )?;
+
+                        Some(meta_table_ref)
+                    }
+                    None => None,
+                };
+
+                // Handle "normal" columns.
+                let (data_column_types, data_column_names) = table
+                    .entry
+                    .try_as_table_entry()?
+                    .columns
+                    .iter()
+                    .map(|c| (c.datatype.clone(), BinderIdent::from(c.name.clone())))
+                    .unzip();
+
+                let data_table_ref = self.push_table_scope_with_from_alias(
                     bind_context,
                     Some(default_alias),
-                    column_names,
-                    column_types,
+                    data_column_names,
+                    data_column_types,
                     alias,
                 )?;
 
                 Ok(BoundFrom {
                     bind_ref: self.current,
                     item: BoundFromItem::BaseTable(BoundBaseTable {
-                        table_ref,
+                        data_table_ref,
+                        meta_table_ref,
                         location,
                         catalog: table.catalog.clone(),
                         schema: table.schema.clone(),
@@ -470,26 +500,49 @@ impl<'a> FromBinder<'a> {
             table: BinderIdent::from(reference.base_table_alias()),
         };
 
-        let (names, types) = planned
+        // Table for metadata if the function is producing metadata columns.
+        let meta_table_ref = match &planned.bind_state.meta_schema {
+            Some(meta_schema) => {
+                let (meta_column_types, meta_column_names): (Vec<_>, Vec<_>) = meta_schema
+                    .fields
+                    .iter()
+                    .map(|f| (f.datatype.clone(), BinderIdent::from(f.name.clone())))
+                    .unzip();
+
+                // Same TODOs applies as with the base tables.
+                let meta_table_ref = bind_context.push_metadata_table(
+                    self.current,
+                    None,
+                    meta_column_types,
+                    meta_column_names,
+                )?;
+
+                Some(meta_table_ref)
+            }
+            None => None,
+        };
+
+        let (data_column_names, data_column_types) = planned
             .bind_state
-            .schema
+            .data_schema
             .fields
             .iter()
             .map(|f| (BinderIdent::from(f.name.clone()), f.datatype.clone()))
             .unzip();
 
-        let table_ref = self.push_table_scope_with_from_alias(
+        let data_table_ref = self.push_table_scope_with_from_alias(
             bind_context,
             Some(default_alias),
-            names,
-            types,
+            data_column_names,
+            data_column_types,
             alias,
         )?;
 
         Ok(BoundFrom {
             bind_ref: self.current,
             item: BoundFromItem::TableFunction(BoundTableFunction {
-                table_ref,
+                data_table_ref,
+                meta_table_ref,
                 location,
                 function: planned,
             }),
@@ -534,6 +587,9 @@ impl<'a> FromBinder<'a> {
                 (Vec::new(), using_cols)
             }
             ast::JoinCondition::Natural => {
+                // TODO: Need to check if this inadvertantly picks up metadata
+                // columns.
+
                 // Get tables refs from the left.
                 //
                 // We want to prune these tables out from the right. Tables are

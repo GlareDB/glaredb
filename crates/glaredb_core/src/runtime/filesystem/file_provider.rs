@@ -6,6 +6,8 @@ use glaredb_error::Result;
 
 use super::FileSystemWithState;
 use super::glob::is_glob;
+use crate::arrays::datatype::DataType;
+use crate::arrays::field::{ColumnSchema, Field};
 
 /// Trait for providing files to read.
 pub trait FileProvider: Debug + Sync + Send {
@@ -13,67 +15,124 @@ pub trait FileProvider: Debug + Sync + Send {
     fn poll_next(&mut self, cx: &mut Context, out: &mut Vec<String>) -> Poll<Result<usize>>;
 }
 
-/// File provider that provides just a single file.
+/// File provider with a static list of file paths.
 #[derive(Debug)]
-pub struct SingleFileProvider {
-    path: Option<String>,
+pub struct StaticFileProvider {
+    paths: Vec<String>,
 }
 
-impl SingleFileProvider {
-    pub fn new(path: impl Into<String>) -> Self {
-        SingleFileProvider {
-            path: Some(path.into()),
+impl StaticFileProvider {
+    pub fn new<S>(paths: impl IntoIterator<Item = S>) -> Self
+    where
+        S: Into<String>,
+    {
+        StaticFileProvider {
+            paths: paths.into_iter().map(|s| s.into()).collect(),
         }
     }
 }
 
-impl FileProvider for SingleFileProvider {
+impl FileProvider for StaticFileProvider {
     fn poll_next(&mut self, _cx: &mut Context, out: &mut Vec<String>) -> Poll<Result<usize>> {
-        if let Some(path) = self.path.take() {
-            out.push(path);
-            Poll::Ready(Ok(1))
-        } else {
-            // "exhausted"
-            Poll::Ready(Ok(0))
-        }
+        let n = self.paths.len();
+        out.append(&mut self.paths);
+        Poll::Ready(Ok(n))
     }
 }
 
+/// Data associated with the multi-file provider.
+// TODO: Probably Arc<str>, or remove the Clone and make the change to creating
+// partition states to also be provided the bind data.
+#[derive(Debug, Clone)]
+pub struct MultiFileData {
+    expanded: Vec<String>,
+}
+
+impl MultiFileData {
+    pub const fn empty() -> Self {
+        MultiFileData {
+            expanded: Vec::new(),
+        }
+    }
+
+    pub fn expanded_count(&self) -> usize {
+        self.expanded.len()
+    }
+
+    pub fn get(&self, n: usize) -> Option<&str> {
+        self.expanded.get(n).map(|s| s.as_str())
+    }
+
+    pub fn expanded(&self) -> &[String] {
+        &self.expanded
+    }
+}
+
+/// Provider for reading multiple files. This should be used for all "file
+/// scanning" functions.
+///
+/// Metadata columns:
+///
+/// - _filename: Name of the file as reported by the filesystem.
+/// - _rowid: Index of the row relative to the file. This must be relative to
+///   the entire file. For example, the _rowid in a parquet file should
+///   indicate the row in the file, not the row index in just the row
+///   groups we read.
 #[derive(Debug)]
 pub struct MultiFileProvider {
     provider: Box<dyn FileProvider>,
-    paths: Vec<String>,
     exhausted: bool,
 }
 
 impl MultiFileProvider {
+    pub const META_PROJECTION_FILENAME: usize = 0;
+    pub const META_PROJECTION_ROWID: usize = 1;
+
+    pub fn meta_schema(&self) -> ColumnSchema {
+        ColumnSchema::new([
+            Field::new("_filename", DataType::utf8(), false),
+            Field::new("_rowid", DataType::int64(), false),
+        ])
+    }
+
     pub fn try_new_from_path(fs: &FileSystemWithState, path: impl Into<String>) -> Result<Self> {
         let path = path.into();
         let provider = if is_glob(&path) {
             fs.read_glob(&path)?
         } else {
-            Box::new(SingleFileProvider::new(path))
+            Box::new(StaticFileProvider::new([path]))
         };
 
         Ok(MultiFileProvider {
             provider,
-            paths: Vec::new(),
             exhausted: false,
         })
     }
 
-    /// Get the 'n'th file path.
-    pub fn poll_get_nth(&mut self, cx: &mut Context, n: usize) -> Poll<Result<Option<&str>>> {
+    /// Expands at least `n` paths.
+    ///
+    /// If the provided data already has `n` paths, expanded, then this will
+    /// immediately resolve.
+    ///
+    /// Returns the total number of paths we've expanded so according to the
+    /// data. If the returned number is less than `n`, then we've completely
+    /// expanded all paths.
+    pub fn poll_expand_n(
+        &mut self,
+        cx: &mut Context,
+        data: &mut MultiFileData,
+        n: usize,
+    ) -> Poll<Result<usize>> {
         loop {
-            if n < self.paths.len() {
-                return Poll::Ready(Ok(Some(&self.paths[n])));
+            if n < data.expanded.len() {
+                return Poll::Ready(Ok(data.expanded.len()));
             }
 
             if self.exhausted {
-                return Poll::Ready(Ok(None));
+                return Poll::Ready(Ok(data.expanded.len()));
             }
 
-            let appended = match self.provider.poll_next(cx, &mut self.paths) {
+            let appended = match self.provider.poll_next(cx, &mut data.expanded) {
                 Poll::Ready(Ok(n)) => n,
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
@@ -89,31 +148,67 @@ impl MultiFileProvider {
         }
     }
 
-    /// Get the 'n'th path, fetching it from the underlying provider if needed.
-    pub fn get_nth(&mut self, n: usize) -> GetNth {
-        GetNth { provider: self, n }
+    pub fn expand_n<'a>(&'a mut self, data: &'a mut MultiFileData, n: usize) -> ExpandN<'a> {
+        ExpandN {
+            provider: self,
+            data,
+            n,
+        }
+    }
+
+    pub fn expand_all<'a>(&'a mut self, data: &'a mut MultiFileData) -> ExpandAll<'a> {
+        ExpandAll {
+            provider: self,
+            data,
+            n: 1, // Start by trying expand a single path, then keep growing.
+        }
     }
 }
 
 #[derive(Debug)]
-pub struct GetNth<'a> {
+pub struct ExpandN<'a> {
     provider: &'a mut MultiFileProvider,
+    data: &'a mut MultiFileData,
     n: usize,
 }
 
-impl Future for GetNth<'_> {
-    type Output = Result<Option<String>>;
+impl Future for ExpandN<'_> {
+    type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-        // Clone the string here to avoid lifetime issues.
-        //
-        // We could make the MultiFileProvider pin, but... don't really want to.
-        match this.provider.poll_get_nth(cx, this.n) {
-            Poll::Ready(Ok(Some(s))) => Poll::Ready(Ok(Some(s.to_string()))),
-            Poll::Ready(Ok(None)) => Poll::Ready(Ok(None)),
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => Poll::Pending,
+        this.provider.poll_expand_n(cx, this.data, this.n)
+    }
+}
+
+#[derive(Debug)]
+pub struct ExpandAll<'a> {
+    provider: &'a mut MultiFileProvider,
+    data: &'a mut MultiFileData,
+    n: usize,
+}
+
+impl Future for ExpandAll<'_> {
+    type Output = Result<()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        while !this.provider.exhausted {
+            let poll = this.provider.poll_expand_n(cx, this.data, this.n)?;
+            match poll {
+                Poll::Ready(_) => {
+                    // Continually request and more until we're exhausted. The
+                    // number we use here doesn't matter as long as it keeps
+                    // going up.
+                    this.n += 10;
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+
+            // Continue... expanding.
         }
+
+        Poll::Ready(Ok(()))
     }
 }

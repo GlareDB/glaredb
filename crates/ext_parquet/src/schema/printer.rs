@@ -33,7 +33,7 @@ pub fn print_parquet_metadata(out: &mut dyn io::Write, metadata: &ParquetMetaDat
     print_file_metadata(out, &metadata.file_metadata);
     writeln!(out);
     writeln!(out);
-    writeln!(out, "num of row groups: {}", metadata.num_row_groups());
+    writeln!(out, "num of row groups: {}", metadata.row_groups.len());
     writeln!(out, "row groups:");
     writeln!(out);
     for (i, rg) in metadata.row_groups.iter().enumerate() {

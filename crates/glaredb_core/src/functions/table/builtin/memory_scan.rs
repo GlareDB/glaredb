@@ -95,7 +95,8 @@ impl TableScanFunction for MemoryScan {
         Ok(TableFunctionBindState {
             state: MemoryScanBindState { table: datatable },
             input,
-            schema: ColumnSchema::new(ent.columns.clone()),
+            data_schema: ColumnSchema::new(ent.columns.clone()),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown, // TODO
         })
     }

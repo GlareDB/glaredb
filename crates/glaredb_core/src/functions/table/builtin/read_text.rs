@@ -1,9 +1,15 @@
+use std::collections::VecDeque;
 use std::task::{Context, Poll};
 
 use futures::FutureExt;
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 
-use crate::arrays::array::physical_type::{AddressableMut, MutableScalarStorage, PhysicalUtf8};
+use crate::arrays::array::physical_type::{
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalI64,
+    PhysicalUtf8,
+};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::field::{ColumnSchema, Field};
@@ -15,6 +21,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use crate::runtime::filesystem::{
     AnyFile,
     FileOpenContext,
@@ -49,27 +56,34 @@ pub struct ReadText;
 #[derive(Debug)]
 pub struct ReadTextBindState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
 }
 
 #[derive(Debug)]
 pub struct ReadTextOperatorState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
     projections: Projections,
 }
 
-pub enum ReadTextPartitionState {
+pub struct ReadTextPartitionState {
+    /// Reusable buffer for reading the data.
+    buf: Vec<u8>, // TODO: Buffer managed, also not really a big deal here.
+    /// Current read state.
+    state: ReadState,
+    /// Queue of files this partition will be handling.
+    queue: VecDeque<String>,
+}
+
+enum ReadState {
+    /// Initialize the next file to read.
+    Init,
+    /// Currently opening a file.
     Opening {
-        buf: Vec<u8>,
         open_fut: FileSystemFuture<'static, Result<AnyFile>>,
     },
-    Scanning {
-        file: AnyFile,
-        buf_offset: usize,
-        buf: Vec<u8>, // TODO: Buffer managed, also not really a big deal here.
-    },
-    Exhausted,
+    /// Currently scanning a file.
+    Scanning { file: AnyFile, buf_offset: usize },
 }
 
 impl TableScanFunction for ReadText {
@@ -89,19 +103,22 @@ impl TableScanFunction for ReadText {
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
         let fs = fs.load_state(context).await?;
-        match fs.stat(&path).await? {
-            Some(stat) if stat.file_type.is_file() => (), // We have a file.
-            Some(_) => return Err(DbError::new("Cannot read lines from a directory")), // TODO: Globbing and stuff
-            None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
-        }
+        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+
+        let mut mf_data = MultiFileData::empty();
+        // TODO: This is implicitly single threaded. It may make sense to
+        // parallelize by pushing continued expanded into the poll_pull. This
+        // will matter more for reading parquet, csv than this function.
+        provider.expand_all(&mut mf_data).await?;
 
         Ok(TableFunctionBindState {
             state: ReadTextBindState {
                 fs: fs.clone(),
-                path,
+                mf_data,
             },
             input,
-            schema: ColumnSchema::new([Field::new("content", DataType::utf8(), false)]),
+            data_schema: ColumnSchema::new([Field::new("content", DataType::utf8(), false)]),
+            meta_schema: Some(provider.meta_schema()),
             cardinality: StatisticsValue::Unknown,
         })
     }
@@ -114,7 +131,7 @@ impl TableScanFunction for ReadText {
     ) -> Result<Self::OperatorState> {
         Ok(ReadTextOperatorState {
             fs: bind_state.fs.clone(),
-            path: bind_state.path.clone(),
+            mf_data: bind_state.mf_data.clone(), // TODO
             projections,
         })
     }
@@ -124,14 +141,25 @@ impl TableScanFunction for ReadText {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
-        // Single partition reads for now.
-        let mut states = vec![ReadTextPartitionState::Opening {
-            buf: Vec::new(),
-            open_fut: op_state
-                .fs
-                .open_static(OpenFlags::READ, op_state.path.clone()),
-        }];
-        states.resize_with(partitions, || ReadTextPartitionState::Exhausted);
+        let expanded = op_state.mf_data.expanded();
+
+        // Split files to read across all partitions.
+        let states = (0..partitions)
+            .map(|partition_idx| {
+                let queue: VecDeque<_> = expanded
+                    .iter()
+                    .skip(partition_idx)
+                    .step_by(partitions)
+                    .map(|path| path.to_string())
+                    .collect();
+
+                ReadTextPartitionState {
+                    buf: Vec::new(),
+                    state: ReadState::Init,
+                    queue,
+                }
+            })
+            .collect();
 
         Ok(states)
     }
@@ -143,78 +171,96 @@ impl TableScanFunction for ReadText {
         output: &mut Batch,
     ) -> Result<PollPull> {
         loop {
-            match state {
-                ReadTextPartitionState::Opening { buf, open_fut } => {
+            match &mut state.state {
+                ReadState::Init => {
+                    let path = match state.queue.pop_front() {
+                        Some(path) => path,
+                        None => {
+                            // No more files for this partition, we are done.
+                            output.set_num_rows(0)?;
+                            return Ok(PollPull::Exhausted);
+                        }
+                    };
+
+                    let open_fut = op_state.fs.open_static(OpenFlags::READ, path);
+                    state.state = ReadState::Opening { open_fut };
+
+                    // Continue...
+                }
+                ReadState::Opening { open_fut } => {
                     let file = match open_fut.poll_unpin(cx) {
                         Poll::Ready(result) => result?,
                         Poll::Pending => return Ok(PollPull::Pending),
                     };
 
                     if op_state.projections.has_data_column(0) {
-                        buf.resize(file.call_size(), 0);
+                        state.buf.resize(file.call_size(), 0);
                     }
 
-                    *state = ReadTextPartitionState::Scanning {
+                    state.state = ReadState::Scanning {
                         file,
                         buf_offset: 0,
-                        buf: std::mem::take(buf),
                     };
                     continue;
                 }
-                ReadTextPartitionState::Scanning {
-                    file,
-                    buf_offset,
-                    buf,
-                } => {
-                    let mut is_pending = false;
+                ReadState::Scanning { file, buf_offset } => {
+                    // TODO: Currently this emits a batch with one row. We could
+                    // have an outer loop to continually fill up the same batch.
 
-                    // TODO: So clean...
+                    // Always read.
+                    //
+                    // TODO: We can avoid this, but just always reading makes
+                    // the flow a bit easier for now.
+                    loop {
+                        let read_buf = &mut state.buf[*buf_offset..];
+                        match file.call_poll_read(cx, read_buf)? {
+                            Poll::Ready(n) => {
+                                if n == 0 {
+                                    // Read complete, break out of loop.
+                                    break;
+                                } else {
+                                    // Still reading, come back for
+                                    // more.
+                                    *buf_offset += n;
+                                }
+                            }
+                            Poll::Pending => {
+                                return Ok(PollPull::Pending);
+                            }
+                        }
+                    }
+
                     op_state
                         .projections
                         .for_each_column(output, &mut |col, arr| match col {
                             ProjectedColumn::Data(0) => {
-                                loop {
-                                    let read_buf = &mut buf[*buf_offset..];
-                                    match file.call_poll_read(cx, read_buf)? {
-                                        Poll::Ready(n) => {
-                                            if n == 0 {
-                                                // Read complete, write it to
-                                                // the array.
-                                                let mut data = PhysicalUtf8::get_addressable_mut(
-                                                    &mut arr.data,
-                                                )?;
-                                                let s = std::str::from_utf8(buf)
-                                                    .context("Invalid UTF8")?;
-                                                data.put(0, s);
-                                                return Ok(());
-                                            } else {
-                                                // Still reading, come back for
-                                                // more.
-                                                *buf_offset += n;
-                                            }
-                                        }
-                                        Poll::Pending => {
-                                            is_pending = true;
-                                            return Ok(());
-                                        }
-                                    };
-                                }
+                                let mut data = PhysicalUtf8::get_addressable_mut(&mut arr.data)?;
+                                // Buf should have been resized to the exact
+                                // size of the file, shouldn't need to slice.
+                                let s = std::str::from_utf8(&state.buf).context("Invalid UTF8")?;
+                                data.put(0, s);
+                                Ok(())
+                            }
+                            ProjectedColumn::Metadata(
+                                MultiFileProvider::META_PROJECTION_FILENAME,
+                            ) => {
+                                let mut data = PhysicalUtf8::get_addressable_mut(&mut arr.data)?;
+                                data.put(0, file.call_path());
+                                Ok(())
+                            }
+                            ProjectedColumn::Metadata(MultiFileProvider::META_PROJECTION_ROWID) => {
+                                // All files emit only a single row.
+                                let mut data = PhysicalI64::get_addressable_mut(&mut arr.data)?;
+                                data.put(0, &0);
+                                Ok(())
                             }
                             other => panic!("invalid projection: {other:?}"),
                         })?;
 
-                    if is_pending {
-                        return Ok(PollPull::Pending);
-                    }
-
-                    *state = ReadTextPartitionState::Exhausted;
+                    state.state = ReadState::Init;
 
                     output.set_num_rows(1)?;
-                    return Ok(PollPull::Exhausted);
-                }
-                ReadTextPartitionState::Exhausted => {
-                    output.set_num_rows(0)?;
-                    return Ok(PollPull::Exhausted);
+                    return Ok(PollPull::HasMore);
                 }
             }
         }

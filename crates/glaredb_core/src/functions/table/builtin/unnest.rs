@@ -65,7 +65,8 @@ impl TableExecuteFunction for UnnestList {
         Ok(TableFunctionBindState {
             state: UnnestListBindState {},
             input,
-            schema: ColumnSchema::new([Field::new("unnest", out_type, true)]),
+            data_schema: ColumnSchema::new([Field::new("unnest", out_type, true)]),
+            meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
     }

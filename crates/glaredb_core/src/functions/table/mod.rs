@@ -42,19 +42,33 @@ impl TableFunctionInput {
     }
 }
 
+// TODO: Chunky (152)
+//
+// Should we just arc all of it?
 #[derive(Debug, Clone)]
 pub struct RawTableFunctionBindState {
     pub state: Arc<dyn Any + Sync + Send>,
     pub input: TableFunctionInput,
-    pub schema: ColumnSchema,
+    pub data_schema: ColumnSchema,
+    pub meta_schema: Option<ColumnSchema>,
     pub cardinality: StatisticsValue<usize>,
 }
 
 #[derive(Debug)]
 pub struct TableFunctionBindState<S> {
+    /// Any state needed for the function.
     pub state: S,
+    /// Inputs the to function.
     pub input: TableFunctionInput,
-    pub schema: ColumnSchema,
+    /// Output schema of the function. This should be the schema of the "file"
+    /// or returned table.
+    pub data_schema: ColumnSchema,
+    /// Output schema of the metadata, if available.
+    ///
+    /// This should be the column schema for metadata columns, e.g. columns
+    /// provided by a multi file scan.
+    pub meta_schema: Option<ColumnSchema>,
+    /// Output cardinality.
     pub cardinality: StatisticsValue<usize>,
 }
 
@@ -70,7 +84,8 @@ pub struct PlannedTableFunction {
 impl PartialEq for PlannedTableFunction {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
-            && self.bind_state.schema == other.bind_state.schema
+            && self.bind_state.data_schema == other.bind_state.data_schema
+            && self.bind_state.meta_schema == other.bind_state.meta_schema
             && self.bind_state.input == other.bind_state.input
     }
 }
@@ -331,7 +346,8 @@ where
             Ok(RawTableFunctionBindState {
                 state: Arc::new(state.state),
                 input: state.input,
-                schema: state.schema,
+                data_schema: state.data_schema,
+                meta_schema: state.meta_schema,
                 cardinality: state.cardinality,
             })
         },
@@ -403,7 +419,8 @@ where
                 Ok(RawTableFunctionBindState {
                     state: Arc::new(state.state),
                     input: state.input,
-                    schema: state.schema,
+                    data_schema: state.data_schema,
+                    meta_schema: state.meta_schema,
                     cardinality: state.cardinality,
                 })
             }))

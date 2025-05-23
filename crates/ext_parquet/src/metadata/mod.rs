@@ -123,11 +123,6 @@ impl ParquetMetaData {
             offset_index,
         }
     }
-
-    /// Returns number of row groups in this file.
-    pub fn num_row_groups(&self) -> usize {
-        self.row_groups.len()
-    }
 }
 
 /// File level metadata for a Parquet file.

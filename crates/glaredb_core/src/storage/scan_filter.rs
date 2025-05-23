@@ -14,7 +14,7 @@ use crate::logical::binder::table_list::TableRef;
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanFilter {
     /// The filtering expression.
     pub expression: Expression,

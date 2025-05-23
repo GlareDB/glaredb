@@ -85,9 +85,11 @@ impl PhysicalTableExecute {
             .map(|proj| proj.into())
             .collect();
 
+        // TODO: Chain meta? When would a function like this include metadata
+        // columns?
         let mut output_types: Vec<_> = function
             .bind_state
-            .schema
+            .data_schema
             .fields
             .iter()
             .map(|f| f.datatype.clone())

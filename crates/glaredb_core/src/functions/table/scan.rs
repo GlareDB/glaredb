@@ -29,6 +29,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
     /// Binds the table function.
     ///
     /// This should determine the output schema of the table.
+    // TODO: Probably remove `&self`.
     fn bind(
         &'static self,
         scan_context: ScanContext,
@@ -42,6 +43,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
         props: ExecutionProperties,
     ) -> Result<Self::OperatorState>;
 
+    // TODO: Pass bind state here too. This will reduce some extra cloning.
     fn create_pull_partition_states(
         op_state: &Self::OperatorState,
         props: ExecutionProperties,

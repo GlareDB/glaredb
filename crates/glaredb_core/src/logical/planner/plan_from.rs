@@ -24,6 +24,7 @@ use crate::logical::logical_scan::{
     LogicalScan,
     ScanSource,
     TableFunctionScanSource,
+    TableScan,
     TableScanSource,
 };
 use crate::logical::logical_single_row::LogicalSingleRow;
@@ -38,19 +39,28 @@ impl FromPlanner {
     pub fn plan(&self, bind_context: &mut BindContext, from: BoundFrom) -> Result<LogicalOperator> {
         match from.item {
             BoundFromItem::BaseTable(table) => {
-                let mut types = Vec::new();
-                let mut names = Vec::new();
-                for table in bind_context.iter_tables_in_scope(from.bind_ref)? {
-                    types.extend(table.column_types.iter().cloned());
-                    names.extend(
-                        table
-                            .column_names
-                            .iter()
-                            .map(|name| name.as_raw_str().to_string()),
-                    );
-                }
+                // Handle normal data columns.
+                let data_table = bind_context.get_table(table.data_table_ref)?;
+                let data_scan = TableScan {
+                    table_ref: table.data_table_ref,
+                    projection: (0..data_table.num_columns()).collect(),
+                    scan_filters: Vec::new(),
+                };
 
-                let projection = (0..types.len()).collect();
+                // Handle metadata if we have it.
+                let meta_scan = match table.meta_table_ref {
+                    Some(meta_table_ref) => {
+                        let meta_table = bind_context.get_table(meta_table_ref)?;
+                        let meta_scan = TableScan {
+                            table_ref: meta_table_ref,
+                            projection: (0..meta_table.num_columns()).collect(),
+                            scan_filters: Vec::new(),
+                        };
+
+                        Some(meta_scan)
+                    }
+                    None => None,
+                };
 
                 let source = ScanSource::Table(TableScanSource {
                     catalog: table.catalog,
@@ -62,12 +72,9 @@ impl FromPlanner {
 
                 Ok(LogicalOperator::Scan(Node {
                     node: LogicalScan {
-                        table_ref: table.table_ref,
-                        types,
-                        names,
-                        projection,
-                        scan_filters: Vec::new(),
-                        source,
+                        data_scan,
+                        meta_scan,
+                        source: Box::new(source),
                     },
                     location: table.location,
                     children: Vec::new(),
@@ -98,7 +105,7 @@ impl FromPlanner {
                         // child as needed.
                         Ok(LogicalOperator::TableExecute(Node {
                             node: LogicalTableExecute {
-                                function_table_ref: func.table_ref,
+                                function_table_ref: func.data_table_ref,
                                 function: func.function,
                                 projected_table_ref: None,
                                 projected_outputs: Vec::new(),
@@ -112,18 +119,34 @@ impl FromPlanner {
                         let source = ScanSource::Function(TableFunctionScanSource {
                             function: func.function,
                         });
-
-                        let projection = (0..types.len()).collect();
                         let estimated_cardinality = source.cardinality();
+
+                        let data_table = bind_context.get_table(func.data_table_ref)?;
+                        let data_scan = TableScan {
+                            table_ref: func.data_table_ref,
+                            projection: (0..data_table.num_columns()).collect(),
+                            scan_filters: Vec::new(),
+                        };
+
+                        let meta_scan = match func.meta_table_ref {
+                            Some(meta_table_ref) => {
+                                let meta_table = bind_context.get_table(meta_table_ref)?;
+                                let meta_scan = TableScan {
+                                    table_ref: meta_table_ref,
+                                    projection: (0..meta_table.num_columns()).collect(),
+                                    scan_filters: Vec::new(),
+                                };
+
+                                Some(meta_scan)
+                            }
+                            None => None,
+                        };
 
                         Ok(LogicalOperator::Scan(Node {
                             node: LogicalScan {
-                                table_ref: func.table_ref,
-                                types,
-                                names,
-                                projection,
-                                scan_filters: Vec::new(),
-                                source,
+                                data_scan,
+                                meta_scan,
+                                source: Box::new(source),
                             },
                             location: func.location,
                             children: Vec::new(),
