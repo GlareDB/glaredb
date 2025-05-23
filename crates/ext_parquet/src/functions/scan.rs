@@ -132,7 +132,7 @@ impl TableScanFunction for ReadParquet {
             ))
         })?;
 
-        let mut file = fs.open(OpenFlags::READ, &first).await?;
+        let mut file = fs.open(OpenFlags::READ, first).await?;
         let loader = MetaDataLoader::new();
         let metadata = loader.load_from_file(&mut file).await?;
 

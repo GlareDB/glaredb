@@ -107,7 +107,7 @@ impl Explainable for LogicalScan {
         if let Some(meta_scan) = &self.meta_scan {
             builder = builder
                 .with_contextual_values("meta_scan_filters", &meta_scan.scan_filters)
-                .with_value_if_verbose("meta_table_ref", &meta_scan.table_ref)
+                .with_value_if_verbose("meta_table_ref", meta_scan.table_ref)
                 .with_values_if_verbose("meta_projection", &meta_scan.projection);
         }
 

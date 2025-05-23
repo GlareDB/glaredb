@@ -75,9 +75,9 @@ impl MultiFileData {
 ///
 /// - _filename: Name of the file as reported by the filesystem.
 /// - _rowid: Index of the row relative to the file. This must be relative to
-///           the entire file. For example, the _rowid in a parquet file should
-///           indicate the row in the file, not the row index in just the row
-///           groups we read.
+///   the entire file. For example, the _rowid in a parquet file should
+///   indicate the row in the file, not the row index in just the row
+///   groups we read.
 #[derive(Debug)]
 pub struct MultiFileProvider {
     provider: Box<dyn FileProvider>,
@@ -197,7 +197,7 @@ impl Future for ExpandAll<'_> {
         while !this.provider.exhausted {
             let poll = this.provider.poll_expand_n(cx, this.data, this.n)?;
             match poll {
-                Poll::Ready(n) => {
+                Poll::Ready(_) => {
                     // Continually request and more until we're exhausted. The
                     // number we use here doesn't matter as long as it keeps
                     // going up.
