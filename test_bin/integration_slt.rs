@@ -46,8 +46,11 @@ pub fn main() -> Result<()> {
     // Private GCS with CSV, parquet
     run_with_all_thread_configurations::<GcsPrivateSetup>("../slt/gcs/private", "slt_gcs_private")?;
 
-    // Clickbench queries on a truncated dataset
-    run_with_all_thread_configurations::<ClickBenchSetup>("../slt/clickbench", "slt_clickbench")?;
+    // Clickbench queries on a truncated dataset (single parquet file)
+    run_with_all_thread_configurations::<ClickbenchSingleSetup>(
+        "../slt/clickbench/single",
+        "slt_clickbench_single",
+    )?;
 
     // TPC-H queries on a SF=0.1 dataset
     run_with_all_thread_configurations::<TpchBenchSetup>("../slt/tpchbench", "slt_tpchbench")?;
@@ -253,9 +256,9 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ClickBenchSetup;
+struct ClickbenchSingleSetup;
 
-impl<E, R> EngineSetup<E, R> for ClickBenchSetup
+impl<E, R> EngineSetup<E, R> for ClickbenchSingleSetup
 where
     E: PipelineRuntime,
     R: SystemRuntime,
@@ -268,7 +271,7 @@ where
             "
             CREATE TEMP VIEW hits AS
               SELECT * REPLACE (EventDate::DATE AS EventDate)
-                FROM read_parquet('../submodules/testdata/clickbench/hits_truncated.parquet')
+                FROM read_parquet('../submodules/testdata/clickbench/single/hits_truncated.parquet')
             ",
         )?;
 
