@@ -53,7 +53,7 @@ pub fn main() -> Result<()> {
     )?;
 
     // Clickbench queries on a truncated dataset (partitioned parquet files)
-    run_with_all_thread_configurations::<ClickbenchSingleSetup>(
+    run_with_all_thread_configurations::<ClickbenchPartitionedSetup>(
         "../slt/clickbench/partitioned",
         "slt_clickbench_partitioned",
     )?;
@@ -313,6 +313,7 @@ where
                        FlashMinor2::TEXT          AS  FlashMinor2,
                        UserAgentMinor::TEXT       AS  UserAgentMinor,
                        MobilePhoneModel::TEXT     AS  MobilePhoneModel,
+                       Params::TEXT               AS  Params,
                        SearchPhrase::TEXT         AS  SearchPhrase,
                        PageCharset::TEXT          AS  PageCharset,
                        OriginalURL::TEXT          AS  OriginalURL,
@@ -324,7 +325,7 @@ where
                        SocialSourcePage::TEXT     AS  SocialSourcePage,
                        ParamOrderID::TEXT         AS  ParamOrderID,
                        ParamCurrency::TEXT        AS  ParamCurrency,
-                       OpenstatServiceName::TEXT  AS  OpenstateServiceName,
+                       OpenstatServiceName::TEXT  AS  OpenstatServiceName,
                        OpenstatCampaignID::TEXT   AS  OpenstatCampaignID,
                        OpenstatAdID::TEXT         AS  OpenstatAdID,
                        OpenstatSourceID::TEXT     AS  OpenstatSourceID,

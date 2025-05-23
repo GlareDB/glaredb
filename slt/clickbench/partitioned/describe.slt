@@ -222,4 +222,3 @@ HasGCLID               Int16
 RefererHash            Int64
 URLHash                Int64
 CLID                   Int32
-
