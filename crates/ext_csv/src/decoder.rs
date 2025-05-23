@@ -156,11 +156,15 @@ impl ByteRecord<'_> {
         self.ends.len()
     }
 
-    pub fn field(&self, idx: usize) -> &[u8] {
+    pub fn field(&self, idx: usize) -> Option<&[u8]> {
+        if idx >= self.ends.len() {
+            return None;
+        }
+
         if idx == 0 {
-            &self.buf[0..self.ends[0]]
+            Some(&self.buf[0..self.ends[0]])
         } else {
-            &self.buf[self.ends[idx - 1]..self.ends[idx]]
+            Some(&self.buf[self.ends[idx - 1]..self.ends[idx]])
         }
     }
 

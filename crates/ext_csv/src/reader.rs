@@ -308,7 +308,13 @@ impl CsvReader {
             // through record.
 
             let record = self.records.get_record(record_idx);
-            let field = record.field(field_idx);
+            // TODO: We could make accessing the field not return an option, and instead
+            // verify the number of records decoded >= `(count + records_offset) * expected_fields`
+            let field = record.field(field_idx).ok_or_else(|| {
+                DbError::new(format!(
+                    "Missing field at field index '{field_idx}' for record at record index '{record_idx}'"
+                ))
+            })?;
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
             if field.is_empty() {
@@ -344,7 +350,11 @@ impl CsvReader {
             // through record.
 
             let record = self.records.get_record(record_idx);
-            let field = record.field(field_idx);
+            let field = record.field(field_idx).ok_or_else(|| {
+                DbError::new(format!(
+                    "Missing field at field index '{field_idx}' for record at record index '{record_idx}'"
+                ))
+            })?;
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
             if field.is_empty() {

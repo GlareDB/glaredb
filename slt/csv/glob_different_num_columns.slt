@@ -1,0 +1,22 @@
+# Ensure we error sanely on trying to read from files with different number of
+# columns.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE '../testdata/csv/glob_num_cols/2_cols.csv';
+----
+food   Utf8
+count  Int64
+
+query TT
+DESCRIBE '../testdata/csv/glob_num_cols/3_cols.csv';
+----
+movie          Utf8
+happiness      Int64
+times_watched  Int64
+
+# TODO: Assert that we provide a good error at some point.
+statement error
+SELECT * FROM '../testdata/csv/glob_num_cols/*_cols.csv';
