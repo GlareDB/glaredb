@@ -99,10 +99,10 @@ jobs:
           GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: cargo test slt/gcs/private
 
-      - name: Bench (truncated) - ClickBench
+      - name: Bench (truncated) - ClickBench (single)
         if: success() || failure()
         run: |
-          cargo test slt/clickbench
+          cargo test slt/clickbench/single
 
       - name: Bench (truncated) - TPC-H
         if: success() || failure()
