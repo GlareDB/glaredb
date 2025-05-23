@@ -52,6 +52,12 @@ pub fn main() -> Result<()> {
         "slt_clickbench_single",
     )?;
 
+    // Clickbench queries on a truncated dataset (partitioned parquet files)
+    run_with_all_thread_configurations::<ClickbenchSingleSetup>(
+        "../slt/clickbench/partitioned",
+        "slt_clickbench_partitioned",
+    )?;
+
     // TPC-H queries on a SF=0.1 dataset
     run_with_all_thread_configurations::<TpchBenchSetup>("../slt/tpchbench", "slt_tpchbench")?;
 
@@ -274,6 +280,35 @@ where
                 FROM read_parquet('../submodules/testdata/clickbench/single/hits_truncated.parquet')
             ",
         )?;
+
+        Ok(RunConfig {
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(15),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClickbenchPartitionedSetup;
+
+impl<E, R> EngineSetup<E, R> for ClickbenchPartitionedSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+        engine.register_extension(ParquetExtension)?;
+
+        // run_setup_query(
+        //     &engine,
+        //     "
+        //     CREATE TEMP VIEW hits AS
+        //       SELECT * REPLACE (EventDate::DATE AS EventDate)
+        //         FROM read_parquet('../submodules/testdata/clickbench/single/hits_truncated.parquet')
+        //     ",
+        // )?;
 
         Ok(RunConfig {
             engine,
