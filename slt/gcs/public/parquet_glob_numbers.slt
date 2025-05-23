@@ -1,0 +1,120 @@
+# Glob tests using 'glob_numbers' files in GCS
+#
+# Tests globbing, '_filename', and '_rowid' metadata columns.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT * FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/*.parquet';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/*.parquet';
+----
+500 100 599
+
+query TT
+DESCRIBE SELECT * FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/{200,400}.parquet';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/{200,400}.parquet';
+----
+200 200 499
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/*.parquet'
+  GROUP BY _filename
+  ORDER BY 1;
+----
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/100.parquet 100 100 199
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/200.parquet 100 200 299
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/300.parquet 100 300 399
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/400.parquet 100 400 499
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/500.parquet 100 500 599
+
+query TIII
+SELECT _filename, _rowid, numbers
+  FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/*.parquet'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1,2;
+----
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/100.parquet  1   101
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/100.parquet  82  182
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/200.parquet  1   201
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/200.parquet  82  282
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/300.parquet  1   301
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/300.parquet  82  382
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/400.parquet  1   401
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/400.parquet  82  482
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/500.parquet  1   501
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/500.parquet  82  582
+
+query TII
+SELECT _filename, _rowid, numbers
+  FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/{200,400}.parquet'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1,2;
+----
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/200.parquet  1   201
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/200.parquet  82  282
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/400.parquet  1   401
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/400.parquet  82  482
+
+query TT
+DESCRIBE SELECT * FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/nested{1,2}/*.parquet';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/nested{1,2}/*.parquet';
+----
+1000  100  599
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/nested{1,2}/*.parquet'
+  GROUP BY _filename
+  ORDER BY 1
+----
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/100.parquet  100  100  199
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/200.parquet  100  200  299
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/300.parquet  100  300  399
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/400.parquet  100  400  499
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/500.parquet  100  500  599
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/100.parquet  100  100  199
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/200.parquet  100  200  299
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/300.parquet  100  300  399
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/400.parquet  100  400  499
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/500.parquet  100  500  599
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/nested{1,2}/{200,400}.parquet'
+  GROUP BY _filename
+  ORDER BY 1
+----
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/200.parquet 100 200 299
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/400.parquet 100 400 499
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/200.parquet 100 200 299
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/400.parquet 100 400 499
+
+query TII
+SELECT _filename, _rowid, numbers
+  FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/nested{1,2}/{200,400}.parquet'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1;
+----
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/200.parquet  1   201
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/200.parquet  82  282
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/400.parquet  1   401
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested1/400.parquet  82  482
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/200.parquet  1   201
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/200.parquet  82  282
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/400.parquet  1   401
+https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/nested2/400.parquet  82  482
+
