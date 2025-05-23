@@ -76,3 +76,7 @@ query IT
 SELECT * EXCLUDE (a) REPLACE (repeat('c', c) AS c) FROM t1;
 ----
 3  cccc
+
+# Attempt to replace column that doesn't exist.
+statement error Column "d" was in REPLACE list, but it's not a column being returned
+SELECT * REPLACE (d + 4 AS d) FROM t1;
