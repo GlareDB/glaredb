@@ -34,7 +34,7 @@ use glaredb_error::{DbError, Result};
 
 use crate::metadata::ParquetMetaData;
 use crate::metadata::loader::MetaDataLoader;
-use crate::reader::{Reader, ScanUnit};
+use crate::reader::{Reader, ScanRowGroup, ScanUnit};
 use crate::schema::convert::ColumnSchemaTypeVisitor;
 
 pub const FUNCTION_SET_READ_PARQUET: TableFunctionSet = TableFunctionSet {
@@ -152,7 +152,7 @@ impl TableScanFunction for ReadParquet {
             },
             input,
             data_schema: schema,
-            meta_schema: None,
+            meta_schema: Some(provider.meta_schema()),
             cardinality: StatisticsValue::Exact(cardinality),
         })
     }
@@ -180,9 +180,9 @@ impl TableScanFunction for ReadParquet {
     ) -> Result<Vec<Self::PartitionState>> {
         let mut partition_row_groups: Vec<_> = (0..partitions).map(|_| VecDeque::new()).collect();
 
-        for rg_idx in 0..op_state.first.metadata.row_groups.len() {
-            let part_idx = rg_idx % partitions;
-            partition_row_groups[part_idx].push_back(rg_idx);
+        for rg in ScanRowGroup::from_metadata(&op_state.first.metadata) {
+            let part_idx = rg.idx % partitions;
+            partition_row_groups[part_idx].push_back(rg);
         }
 
         let states = partition_row_groups
@@ -267,7 +267,7 @@ impl TableScanFunction for ReadParquet {
                         let loader = MetaDataLoader::new();
                         let metadata = loader.load_from_file(&mut file).await?;
 
-                        let row_groups = (0..metadata.row_groups.len()).collect();
+                        let row_groups = ScanRowGroup::from_metadata(&metadata).collect();
 
                         Ok(ScanUnit {
                             metadata: Arc::new(metadata),

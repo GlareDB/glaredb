@@ -29,3 +29,97 @@ query III
 SELECT count(*), min(numbers), max(numbers) FROM '../testdata/parquet/glob_numbers/{200,400}.parquet';
 ----
 200 200 499
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM '../testdata/parquet/glob_numbers/*.parquet'
+  GROUP BY _filename
+  ORDER BY 1;
+----
+../testdata/parquet/glob_numbers/100.parquet  100  100  199
+../testdata/parquet/glob_numbers/200.parquet  100  200  299
+../testdata/parquet/glob_numbers/300.parquet  100  300  399
+../testdata/parquet/glob_numbers/400.parquet  100  400  499
+../testdata/parquet/glob_numbers/500.parquet  100  500  599
+
+query TIII
+SELECT _filename, _rowid, numbers
+  FROM '../testdata/parquet/glob_numbers/*.parquet'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1,2;
+----
+../testdata/parquet/glob_numbers/100.parquet  1   101
+../testdata/parquet/glob_numbers/100.parquet  82  182
+../testdata/parquet/glob_numbers/200.parquet  1   201
+../testdata/parquet/glob_numbers/200.parquet  82  282
+../testdata/parquet/glob_numbers/300.parquet  1   301
+../testdata/parquet/glob_numbers/300.parquet  82  382
+../testdata/parquet/glob_numbers/400.parquet  1   401
+../testdata/parquet/glob_numbers/400.parquet  82  482
+../testdata/parquet/glob_numbers/500.parquet  1   501
+../testdata/parquet/glob_numbers/500.parquet  82  582
+
+query TII
+SELECT _filename, _rowid, numbers
+  FROM '../testdata/parquet/glob_numbers/{200,400}.parquet'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1,2;
+----
+../testdata/parquet/glob_numbers/200.parquet  1   201
+../testdata/parquet/glob_numbers/200.parquet  82  282
+../testdata/parquet/glob_numbers/400.parquet  1   401
+../testdata/parquet/glob_numbers/400.parquet  82  482
+
+query TT
+DESCRIBE SELECT * FROM '../testdata/parquet/glob_numbers/nested{1,2}/*.parquet';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM '../testdata/parquet/glob_numbers/nested{1,2}/*.parquet';
+----
+1000  100  599
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM '../testdata/parquet/glob_numbers/nested{1,2}/*.parquet'
+  GROUP BY _filename
+  ORDER BY 1
+----
+../testdata/parquet/glob_numbers/nested1/100.parquet  100  100  199
+../testdata/parquet/glob_numbers/nested1/200.parquet  100  200  299
+../testdata/parquet/glob_numbers/nested1/300.parquet  100  300  399
+../testdata/parquet/glob_numbers/nested1/400.parquet  100  400  499
+../testdata/parquet/glob_numbers/nested1/500.parquet  100  500  599
+../testdata/parquet/glob_numbers/nested2/100.parquet  100  100  199
+../testdata/parquet/glob_numbers/nested2/200.parquet  100  200  299
+../testdata/parquet/glob_numbers/nested2/300.parquet  100  300  399
+../testdata/parquet/glob_numbers/nested2/400.parquet  100  400  499
+../testdata/parquet/glob_numbers/nested2/500.parquet  100  500  599
+
+query TIII
+SELECT _filename, count(*), min(numbers), max(numbers)
+  FROM '../testdata/parquet/glob_numbers/nested{1,2}/{200,400}.parquet'
+  GROUP BY _filename
+  ORDER BY 1
+----
+../testdata/parquet/glob_numbers/nested1/200.parquet  100  200  299
+../testdata/parquet/glob_numbers/nested1/400.parquet  100  400  499
+../testdata/parquet/glob_numbers/nested2/200.parquet  100  200  299
+../testdata/parquet/glob_numbers/nested2/400.parquet  100  400  499
+
+query TII
+SELECT _filename, _rowid, numbers
+  FROM '../testdata/parquet/glob_numbers/nested{1,2}/{200,400}.parquet'
+  WHERE _rowid IN (1, 82)
+  ORDER BY 1;
+----
+../testdata/parquet/glob_numbers/nested1/200.parquet  1   201
+../testdata/parquet/glob_numbers/nested1/200.parquet  82  282
+../testdata/parquet/glob_numbers/nested1/400.parquet  1   401
+../testdata/parquet/glob_numbers/nested1/400.parquet  82  482
+../testdata/parquet/glob_numbers/nested2/200.parquet  1   201
+../testdata/parquet/glob_numbers/nested2/200.parquet  82  282
+../testdata/parquet/glob_numbers/nested2/400.parquet  1   401
+../testdata/parquet/glob_numbers/nested2/400.parquet  82  482
+

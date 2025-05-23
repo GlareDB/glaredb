@@ -3,19 +3,48 @@ use std::io;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use glaredb_core::arrays::array::physical_type::{MutableScalarStorage, PhysicalI64, PhysicalUtf8};
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::runtime::filesystem::file_provider::MultiFileProvider;
-use glaredb_core::storage::projections::{ProjectedColumn, Projections};
+use glaredb_core::storage::projections::Projections;
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
 use crate::column::struct_reader::StructReader;
 use crate::metadata::ParquetMetaData;
 use crate::schema::types::SchemaDescriptor;
+
+#[derive(Debug)]
+pub struct ScanRowGroup {
+    /// Index of the row group within the metadata.
+    pub idx: usize,
+    /// Relative row index within the file where this row group starts.
+    pub relative_row_start: i64,
+}
+
+impl ScanRowGroup {
+    pub fn from_metadata(metadata: &ParquetMetaData) -> impl Iterator<Item = Self> {
+        let mut relative_row_start = 0;
+
+        metadata
+            .row_groups
+            .iter()
+            .enumerate()
+            .map(move |(idx, rg)| {
+                let scan_rg = ScanRowGroup {
+                    idx,
+                    relative_row_start,
+                };
+                relative_row_start += rg.num_rows;
+
+                scan_rg
+            })
+    }
+}
 
 /// A unit of scanning.
 #[derive(Debug)]
@@ -25,7 +54,7 @@ pub struct ScanUnit {
     /// File we're reading from.
     pub file: AnyFile,
     /// Queue of row groups to read from.
-    pub row_groups: VecDeque<usize>,
+    pub row_groups: VecDeque<ScanRowGroup>,
 }
 
 #[derive(Debug)]
@@ -73,12 +102,12 @@ enum FetchState {
 
 #[derive(Debug)]
 struct RowGroupState {
-    /// Index of the current group we're scanning.
+    /// The current group we're scanning.
     ///
     /// The initial value for this doesn't matter as we'll immediately try to
     /// get the next row group from the queue since the number of rows remaining
     /// will be zero.
-    current_group: usize,
+    current_group: ScanRowGroup,
     /// Remaining number of rows in the group.
     ///
     /// This gets set when we read in a new group, and continuously updated as
@@ -86,6 +115,10 @@ struct RowGroupState {
     ///
     /// Once this reaches zero, the next row group should be fetched.
     remaining_group_rows: usize,
+    /// Row index offset relative to the file we're scanning.
+    ///
+    /// Used to emit row ids.
+    relative_scan_offset: i64,
 }
 
 impl Reader {
@@ -107,8 +140,12 @@ impl Reader {
         Ok(Reader {
             unit: None,
             state: RowGroupState {
-                current_group: 0,
+                current_group: ScanRowGroup {
+                    idx: 0,
+                    relative_row_start: 0,
+                },
                 remaining_group_rows: 0, // Will trigger getting the real first row group.
+                relative_scan_offset: 0,
             },
             fetch_state: FetchState::NeedsFetch { column_idx: 0 }, // This doesn't matter here.
             projections,
@@ -120,8 +157,12 @@ impl Reader {
     pub fn prepare(&mut self, unit: ScanUnit) {
         self.unit = Some(unit);
         self.state = RowGroupState {
-            current_group: 0,
+            current_group: ScanRowGroup {
+                idx: 0,
+                relative_row_start: 0,
+            },
             remaining_group_rows: 0,
+            relative_scan_offset: 0,
         };
         self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
     }
@@ -151,7 +192,7 @@ impl Reader {
                     }
                 };
 
-                let group = &unit.metadata.row_groups[next];
+                let group = &unit.metadata.row_groups[next.idx];
                 // We may be able to prune this group...
                 if self.root.should_prune(&self.projections, group)? {
                     // Safe to prune, move to next row group.
@@ -159,6 +200,7 @@ impl Reader {
                 }
 
                 self.state = RowGroupState {
+                    relative_scan_offset: next.relative_row_start,
                     current_group: next,
                     remaining_group_rows: group.num_rows as usize,
                 };
@@ -197,16 +239,25 @@ impl Reader {
         for (&meta_idx, arr) in self.projections.meta_indices().iter().zip(meta_arrays) {
             match meta_idx {
                 MultiFileProvider::META_PROJECTION_FILENAME => {
-                    // Hello!
+                    let unit = self.unit.as_ref().expect("Scan unit to be set"); // We already checked at the start.
+                    let data = PhysicalUtf8::buffer_downcast_mut(arr.data_mut())?;
+                    data.put_duplicated(unit.file.call_path().as_bytes(), 0..count)?;
                 }
                 MultiFileProvider::META_PROJECTION_ROWID => {
-                    // Hello!
+                    let data = PhysicalI64::buffer_downcast_mut(arr.data_mut())?;
+                    let data = data.as_slice_mut();
+
+                    let rel_offset = self.state.relative_scan_offset;
+                    for (idx, rowid) in (rel_offset..(rel_offset + count as i64)).zip(data) {
+                        *rowid = idx;
+                    }
                 }
                 other => panic!("invalid meta projection: {other}"),
             }
         }
 
         self.state.remaining_group_rows -= count;
+        self.state.relative_scan_offset += count as i64;
         output.set_num_rows(count)?;
 
         Ok(PollPull::HasMore)
@@ -226,7 +277,7 @@ impl Reader {
     fn poll_fetch(&mut self, cx: &mut Context) -> Result<Poll<()>> {
         let unit = self.unit.as_mut().expect("Unit to be set");
 
-        let row_group = &unit.metadata.row_groups[self.state.current_group];
+        let row_group = &unit.metadata.row_groups[self.state.current_group.idx];
         loop {
             match &mut self.fetch_state {
                 FetchState::NeedsFetch { column_idx } => {
