@@ -1,0 +1,31 @@
+# Glob tests using 'glob_numbers' files.
+#
+# Tests globbing, '_filename', and '_rowid' metadata columns.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# TODO: Recursive globs... See TODO in the globber about getting the "current"
+# directory. We miss a set of CSVs in the root 'glob_numbers' directory.
+
+# Single level globs.
+
+query TT
+DESCRIBE SELECT * FROM '../testdata/parquet/glob_numbers/*.parquet';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM '../testdata/parquet/glob_numbers/*.parquet';
+----
+500 100 599
+
+query TT
+DESCRIBE SELECT * FROM '../testdata/parquet/glob_numbers/{200,400}.parquet';
+----
+numbers  Int64
+
+query III
+SELECT count(*), min(numbers), max(numbers) FROM '../testdata/parquet/glob_numbers/{200,400}.parquet';
+----
+200 200 499

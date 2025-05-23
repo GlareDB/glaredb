@@ -8,7 +8,8 @@ use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
-use glaredb_core::storage::projections::Projections;
+use glaredb_core::runtime::filesystem::file_provider::MultiFileProvider;
+use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{DbError, Result};
 
@@ -181,13 +182,31 @@ impl Reader {
         let cap = output.write_capacity()?;
         let count = usize::min(self.state.remaining_group_rows, cap);
 
-        debug_assert_eq!(output.arrays().len(), self.root.readers.len());
+        // Handle data columns.
+        let data_arrays = &mut output.arrays_mut()[..self.projections.data_indices().len()];
+        debug_assert_eq!(data_arrays.len(), self.root.readers.len());
 
-        for (output, col_reader) in output.arrays_mut().iter_mut().zip(&mut self.root.readers) {
-            col_reader.read(output, count)?;
+        for (arr, reader) in data_arrays.iter_mut().zip(&mut self.root.readers) {
+            reader.read(arr, count)?;
         }
-        self.state.remaining_group_rows -= count;
 
+        // Handle metadata columns.
+        let meta_arrays = &mut output.arrays_mut()[self.projections.data_indices().len()..];
+        debug_assert_eq!(meta_arrays.len(), self.projections.meta_indices().len());
+
+        for (&meta_idx, arr) in self.projections.meta_indices().iter().zip(meta_arrays) {
+            match meta_idx {
+                MultiFileProvider::META_PROJECTION_FILENAME => {
+                    // Hello!
+                }
+                MultiFileProvider::META_PROJECTION_ROWID => {
+                    // Hello!
+                }
+                other => panic!("invalid meta projection: {other}"),
+            }
+        }
+
+        self.state.remaining_group_rows -= count;
         output.set_num_rows(count)?;
 
         Ok(PollPull::HasMore)

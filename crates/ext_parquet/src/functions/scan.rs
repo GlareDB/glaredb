@@ -20,6 +20,7 @@ use glaredb_core::functions::table::{
 };
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
+use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use glaredb_core::runtime::filesystem::{
     FileOpenContext,
     FileSystemFuture,
@@ -56,18 +57,25 @@ pub struct ReadParquet;
 
 pub struct ReadParquetBindState {
     fs: FileSystemWithState,
+    schema: ColumnSchema,
+    first: FirstFile,
+    mf_data: MultiFileData,
+}
+
+/// Information about the first file we read during bind.
+#[derive(Debug, Clone)]
+struct FirstFile {
     path: String,
     metadata: Arc<ParquetMetaData>,
-    schema: ColumnSchema, // TODO
 }
 
 pub struct ReadParquetOperatorState {
     fs: FileSystemWithState,
-    path: String,
-    metadata: Arc<ParquetMetaData>,
+    first: FirstFile,
     projections: Projections,
     filters: Vec<PhysicalScanFilter>,
-    schema: ColumnSchema, // TODO
+    schema: ColumnSchema,
+    mf_data: MultiFileData,
 }
 
 pub struct ReadParquetPartitionState {
@@ -77,6 +85,10 @@ pub struct ReadParquetPartitionState {
     reader: Reader,
     /// Queue of file paths this partition is responsible for decoding the
     /// metadata for.
+    // TODO: Change this to be a scan queue containing scan units. Parallelism
+    // should be based on row groups, not files.
+    //
+    // The first file is already parallelized with row groups...
     file_queue: VecDeque<String>,
 }
 
@@ -105,17 +117,22 @@ impl TableScanFunction for ReadParquet {
             .try_into_scalar()?
             .try_into_string()?;
 
-        // TODO: You guessed it, globs
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
         let fs = fs.load_state(context).await?;
-        match fs.stat(&path).await? {
-            Some(stat) if stat.file_type.is_file() => (), // We have a file.
-            Some(_) => return Err(DbError::new("Cannot read parquet from a directory")),
-            None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
-        }
+        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
 
-        let mut file = fs.open(OpenFlags::READ, &path).await?;
+        let mut mf_data = MultiFileData::empty();
+        provider.expand_all(&mut mf_data).await?;
+
+        // Use first file to figure out the schema we'll be using.
+        let first = mf_data.get(0).ok_or_else(|| {
+            DbError::new(format!(
+                "No files for path '{path}', expected at least one file"
+            ))
+        })?;
+
+        let mut file = fs.open(OpenFlags::READ, &first).await?;
         let loader = MetaDataLoader::new();
         let metadata = loader.load_from_file(&mut file).await?;
 
@@ -126,9 +143,12 @@ impl TableScanFunction for ReadParquet {
         Ok(TableFunctionBindState {
             state: ReadParquetBindState {
                 fs,
-                path,
-                metadata: Arc::new(metadata),
+                first: FirstFile {
+                    path: first.to_string(),
+                    metadata: Arc::new(metadata),
+                },
                 schema: schema.clone(),
+                mf_data,
             },
             input,
             data_schema: schema,
@@ -145,11 +165,11 @@ impl TableScanFunction for ReadParquet {
     ) -> Result<Self::OperatorState> {
         Ok(ReadParquetOperatorState {
             fs: bind_state.fs.clone(),
-            path: bind_state.path.clone(),
-            metadata: bind_state.metadata.clone(),
+            first: bind_state.first.clone(),
             projections,
             filters: filters.to_vec(),
             schema: bind_state.schema.clone(),
+            mf_data: bind_state.mf_data.clone(), // TODO
         })
     }
 
@@ -160,20 +180,21 @@ impl TableScanFunction for ReadParquet {
     ) -> Result<Vec<Self::PartitionState>> {
         let mut partition_row_groups: Vec<_> = (0..partitions).map(|_| VecDeque::new()).collect();
 
-        for rg_idx in 0..op_state.metadata.row_groups.len() {
+        for rg_idx in 0..op_state.first.metadata.row_groups.len() {
             let part_idx = rg_idx % partitions;
             partition_row_groups[part_idx].push_back(rg_idx);
         }
 
         let states = partition_row_groups
             .into_iter()
-            .map(|groups| {
+            .enumerate()
+            .map(|(partition_idx, groups)| {
                 let projections = op_state.projections.clone();
-                let metadata = op_state.metadata.clone();
+                let metadata = op_state.first.metadata.clone();
                 let schema = op_state.schema.clone();
                 let open_fut = op_state
                     .fs
-                    .open_static(OpenFlags::READ, op_state.path.clone());
+                    .open_static(OpenFlags::READ, op_state.first.path.clone());
 
                 // TODO: How do we want to thread down the manager? Put on
                 // props? Request that it goes on op_state?
@@ -195,10 +216,24 @@ impl TableScanFunction for ReadParquet {
                     })
                 });
 
+                // Split up files per partition.
+                //
+                // TODO: See TODO about scan unit queue.
+
+                // Skip first since that's already going onto this partition's
+                // state.
+                let expanded = &op_state.mf_data.expanded()[1..];
+                let file_queue: VecDeque<_> = expanded
+                    .iter()
+                    .skip(partition_idx)
+                    .step_by(partitions)
+                    .map(|path| path.to_string())
+                    .collect();
+
                 Ok(ReadParquetPartitionState {
                     state: ReadState::Opening { open_fut: fut },
                     reader,
-                    file_queue: VecDeque::new(),
+                    file_queue,
                 })
             })
             .collect::<Result<Vec<_>>>()?;

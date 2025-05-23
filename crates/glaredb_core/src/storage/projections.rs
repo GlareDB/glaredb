@@ -100,13 +100,13 @@ impl Projections {
             column_fn(ProjectedColumn::Data(idx), array)?;
         }
 
-        // Virtual columns.
+        // Metadata columns.
         //
-        // Virtual columns are written to the end of the batch.
+        // Metadata columns are written to the end of the batch.
         if !self.meta_indices.is_empty() {
-            let virtual_arrays = &mut output.arrays[self.data_indices.len()..];
+            let meta_arrays = &mut output.arrays[self.data_indices.len()..];
 
-            for (&idx, array) in self.meta_indices.iter().zip(virtual_arrays) {
+            for (&idx, array) in self.meta_indices.iter().zip(meta_arrays) {
                 column_fn(ProjectedColumn::Metadata(idx), array)?;
             }
         }

@@ -101,7 +101,6 @@ impl TableScanFunction for ReadCsv {
             .try_into_scalar()?
             .try_into_string()?;
 
-        // TODO: Glob stuff, that's going to be common thing for all file formats.
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
         let fs = fs.load_state(context).await?;
