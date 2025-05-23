@@ -10,19 +10,26 @@ use glaredb_core::execution::operators::PollPull;
 use glaredb_core::runtime::filesystem::AnyFile;
 use glaredb_core::storage::projections::Projections;
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
 use crate::column::struct_reader::StructReader;
 use crate::metadata::ParquetMetaData;
+use crate::schema::types::SchemaDescriptor;
+
+/// A unit of scanning.
+#[derive(Debug)]
+pub struct ScanUnit {
+    /// Metadata for the file we're currently reading.
+    pub metadata: Arc<ParquetMetaData>,
+    /// File we're reading from.
+    pub file: AnyFile,
+    /// Queue of row groups to read from.
+    pub row_groups: VecDeque<usize>,
+}
 
 #[derive(Debug)]
 pub struct Reader {
-    /// Metadata for the file we're currently reading.
-    metadata: Arc<ParquetMetaData>,
-    /// File we're reading from.
-    file: AnyFile,
-    /// Queue of row groups to read from.
-    row_groups: VecDeque<usize>,
+    unit: Option<ScanUnit>,
     /// State of the current row group we're reading.
     state: RowGroupState,
     /// State for the fetching data from the file.
@@ -88,25 +95,16 @@ impl Reader {
     // TODO: Need parquet specific schema
     pub fn try_new(
         manager: &impl AsRawBufferManager,
-        metadata: Arc<ParquetMetaData>,
         schema: ColumnSchema,
-        file: AnyFile,
-        groups: impl IntoIterator<Item = usize>,
+        parquet_schema: &SchemaDescriptor,
         projections: Projections,
         filters: &[PhysicalScanFilter],
     ) -> Result<Self> {
-        let root = StructReader::try_new_root(
-            manager,
-            &projections,
-            &schema,
-            &metadata.file_metadata.schema_descr,
-            filters,
-        )?;
+        let root =
+            StructReader::try_new_root(manager, &projections, &schema, parquet_schema, filters)?;
 
         Ok(Reader {
-            metadata,
-            file,
-            row_groups: groups.into_iter().collect(),
+            unit: None,
             state: RowGroupState {
                 current_group: 0,
                 remaining_group_rows: 0, // Will trigger getting the real first row group.
@@ -117,14 +115,33 @@ impl Reader {
         })
     }
 
+    /// Preprates this reader to begin reading from a new scan unit.
+    pub fn prepare(&mut self, unit: ScanUnit) {
+        self.unit = Some(unit);
+        self.state = RowGroupState {
+            current_group: 0,
+            remaining_group_rows: 0,
+        };
+        self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
+    }
+
     /// Scan rows into the output batch.
     ///
     /// This will fetch column chunks as needed.
     pub fn poll_pull(&mut self, cx: &mut Context, output: &mut Batch) -> Result<PollPull> {
+        let unit = match self.unit.as_mut() {
+            Some(unit) => unit,
+            None => {
+                return Err(DbError::new(
+                    "Attempted to pull from parquet reader without preparing a read unit",
+                ));
+            }
+        };
+
         if self.state.remaining_group_rows == 0 {
             // No more rows, get the next row group.
             loop {
-                let next = match self.row_groups.pop_front() {
+                let next = match unit.row_groups.pop_front() {
                     Some(group) => group,
                     None => {
                         // No more row groups, we're done.
@@ -133,7 +150,7 @@ impl Reader {
                     }
                 };
 
-                let group = &self.metadata.row_groups[next];
+                let group = &unit.metadata.row_groups[next];
                 // We may be able to prune this group...
                 if self.root.should_prune(&self.projections, group)? {
                     // Safe to prune, move to next row group.
@@ -188,7 +205,9 @@ impl Reader {
     /// This may be called even if all column chunks have been fetched. The
     /// internal state will just make this immediately return.
     fn poll_fetch(&mut self, cx: &mut Context) -> Result<Poll<()>> {
-        let row_group = &self.metadata.row_groups[self.state.current_group];
+        let unit = self.unit.as_mut().expect("Unit to be set");
+
+        let row_group = &unit.metadata.row_groups[self.state.current_group];
         loop {
             match &mut self.fetch_state {
                 FetchState::NeedsFetch { column_idx } => {
@@ -217,7 +236,7 @@ impl Reader {
                 }
                 FetchState::Seeking { seek, column_idx } => {
                     // Seek in the file.
-                    match self.file.call_poll_seek(cx, *seek) {
+                    match unit.file.call_poll_seek(cx, *seek) {
                         Poll::Ready(Ok(())) => {
                             // Begin fetching.
                             self.fetch_state = FetchState::Fetching {
@@ -239,7 +258,7 @@ impl Reader {
                     let buf = self.root.readers[*column_idx].chunk_buf_mut();
 
                     let read_buf = &mut buf[*amount_written..];
-                    match self.file.call_poll_read(cx, read_buf) {
+                    match unit.file.call_poll_read(cx, read_buf) {
                         Poll::Ready(Ok(n)) => {
                             *amount_written += n;
 

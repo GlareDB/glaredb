@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -32,7 +33,7 @@ use glaredb_error::{DbError, Result};
 
 use crate::metadata::ParquetMetaData;
 use crate::metadata::loader::MetaDataLoader;
-use crate::reader::Reader;
+use crate::reader::{Reader, ScanUnit};
 use crate::schema::convert::ColumnSchemaTypeVisitor;
 
 pub const FUNCTION_SET_READ_PARQUET: TableFunctionSet = TableFunctionSet {
@@ -70,18 +71,24 @@ pub struct ReadParquetOperatorState {
 }
 
 pub struct ReadParquetPartitionState {
-    state: PartitionScanState,
+    /// Current read state.
+    state: ReadState,
+    /// Reader that's reused across all files.
+    reader: Reader,
+    /// Queue of file paths this partition is responsible for decoding the
+    /// metadata for.
+    file_queue: VecDeque<String>,
 }
 
-enum PartitionScanState {
+enum ReadState {
+    /// Init the next file to read.
+    Init,
+    /// Currently opening a file.
     Opening {
-        open_fut: FileSystemFuture<'static, Result<Reader>>,
+        open_fut: FileSystemFuture<'static, Result<ScanUnit>>,
     },
-    Scanning {
-        reader: Reader,
-    },
-    #[allow(unused)] // Will be used when we have multiple files to scan.
-    Exhausted,
+    /// Currently scanning a file.
+    Scanning,
 }
 
 impl TableScanFunction for ReadParquet {
@@ -151,73 +158,112 @@ impl TableScanFunction for ReadParquet {
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
-        let mut partition_row_groups: Vec<_> = (0..partitions).map(|_| Vec::new()).collect();
+        let mut partition_row_groups: Vec<_> = (0..partitions).map(|_| VecDeque::new()).collect();
 
         for rg_idx in 0..op_state.metadata.row_groups.len() {
             let part_idx = rg_idx % partitions;
-            partition_row_groups[part_idx].push(rg_idx);
+            partition_row_groups[part_idx].push_back(rg_idx);
         }
 
         let states = partition_row_groups
             .into_iter()
             .map(|groups| {
                 let projections = op_state.projections.clone();
-                let filters = op_state.filters.clone();
                 let metadata = op_state.metadata.clone();
                 let schema = op_state.schema.clone();
                 let open_fut = op_state
                     .fs
                     .open_static(OpenFlags::READ, op_state.path.clone());
 
+                // TODO: How do we want to thread down the manager? Put on
+                // props? Request that it goes on op_state?
+                let reader = Reader::try_new(
+                    &DefaultBufferManager,
+                    schema,
+                    &metadata.file_metadata.schema_descr,
+                    projections,
+                    &op_state.filters,
+                )?;
+
                 let fut = Box::pin(async move {
                     let file = open_fut.await?;
-                    // TODO: How do we want to thread down the manager? Put on
-                    // props? Request that it goes on op_state?
-                    Reader::try_new(
-                        &DefaultBufferManager,
+
+                    Ok(ScanUnit {
                         metadata,
-                        schema,
                         file,
-                        groups,
-                        projections,
-                        &filters,
-                    )
+                        row_groups: groups,
+                    })
                 });
 
-                ReadParquetPartitionState {
-                    state: PartitionScanState::Opening { open_fut: fut },
-                }
+                Ok(ReadParquetPartitionState {
+                    state: ReadState::Opening { open_fut: fut },
+                    reader,
+                    file_queue: VecDeque::new(),
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(states)
     }
 
     fn poll_pull(
         cx: &mut Context,
-        _op_state: &Self::OperatorState,
+        op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,
     ) -> Result<PollPull> {
         loop {
             match &mut state.state {
-                PartitionScanState::Opening { open_fut } => {
-                    let reader = match open_fut.poll_unpin(cx)? {
+                ReadState::Init => {
+                    let path = match state.file_queue.pop_front() {
+                        Some(path) => path,
+                        None => {
+                            // No more files, we are done.
+                            output.set_num_rows(0)?;
+                            return Ok(PollPull::Exhausted);
+                        }
+                    };
+
+                    // Create scan unit in a future.
+                    let open_fut = op_state.fs.open_static(OpenFlags::READ, path);
+                    let fut = Box::pin(async move {
+                        let mut file = open_fut.await?;
+
+                        let loader = MetaDataLoader::new();
+                        let metadata = loader.load_from_file(&mut file).await?;
+
+                        let row_groups = (0..metadata.row_groups.len()).collect();
+
+                        Ok(ScanUnit {
+                            metadata: Arc::new(metadata),
+                            file,
+                            row_groups,
+                        })
+                    });
+
+                    state.state = ReadState::Opening { open_fut: fut };
+                    // Continue...
+                }
+                ReadState::Opening { open_fut } => {
+                    let scan_unit = match open_fut.poll_unpin(cx)? {
                         Poll::Ready(reader) => reader,
                         Poll::Pending => return Ok(PollPull::Pending),
                     };
 
-                    state.state = PartitionScanState::Scanning { reader };
+                    state.reader.prepare(scan_unit);
+                    state.state = ReadState::Scanning;
                     // Continue...
                 }
-                PartitionScanState::Scanning { reader } => {
-                    let poll = reader.poll_pull(cx, output)?;
-                    // TODO: If poll == Exhausted, move to the next file open.
+                ReadState::Scanning => {
+                    let poll = state.reader.poll_pull(cx, output)?;
+                    if poll == PollPull::Exhausted {
+                        // This file (or scan unit) is complete, move to
+                        // initializing the next one.
+                        state.state = ReadState::Init;
+                        continue;
+                    }
+
                     return Ok(poll);
-                }
-                PartitionScanState::Exhausted => {
-                    output.set_num_rows(0)?;
-                    return Ok(PollPull::Exhausted);
                 }
             }
         }
