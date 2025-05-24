@@ -1,0 +1,20 @@
+query TT
+DESCRIBE SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
+----
+SearchPhrase  Utf8
+u             Int64
+
+# Extra ORDER BY
+query ??
+SELECT SearchPhrase s, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC, SearchPhrase LIMIT 10;
+----
+карелки 483
+албатрутдин 318
+какой областиков 264
+one устантинет 260
+какой областиницы цена 208
+смотреть онлайн 173
+мангу в зарабей грама 167
+экзоидные 131
+дружке помещение 129
+смотреть онлайн бесплатно 108

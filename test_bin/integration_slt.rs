@@ -53,12 +53,20 @@ pub fn main() -> Result<()> {
     )?;
 
     // Clickbench queries on a truncated dataset (partitioned parquet files)
+    //
+    // These should run without 'verify_optimized_plan' since the unoptimized
+    // plan will end up reading all columns from all files. The total row count
+    // is 1,000,000.
     run_with_all_thread_configurations::<ClickbenchPartitionedSetup>(
         "../slt/clickbench/partitioned",
         "slt_clickbench_partitioned",
     )?;
 
     // TPC-H queries on a SF=0.1 dataset
+    //
+    // These should all run without 'verify_optimized_plan' as the unoptimized
+    // plans will end up with cross joins, making some of these queries really
+    // slow.
     run_with_all_thread_configurations::<TpchBenchSetup>("../slt/tpchbench", "slt_tpchbench")?;
 
     Ok(())
@@ -344,7 +352,7 @@ where
             engine,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
-            query_timeout: Duration::from_secs(15),
+            query_timeout: Duration::from_secs(30), // Single-partition, unoptimized, debug, not a good time
         })
     }
 }

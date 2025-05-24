@@ -1,0 +1,18 @@
+query TT
+DESCRIBE SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY SearchPhrase LIMIT 10;
+----
+SearchPhrase Utf8
+
+query ?
+SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY SearchPhrase LIMIT 10;
+----
+$_poslandon.ru/moscow 2 торговлю
+$_posle s ценариношенком
+'cg, goodstvie heartbox отзывы
+'kbnyjuj ,bpytc-218 король временнаталог
+'kbnyjuj ,bpytc-218 сердца ценами руками бельника онлайн бесплатно в хорошем
+'kbnyjuj ,bpytc-21fl
+'kbnyjuj ujhzobt ljcnjq
+'kbnysq 'rhfy ghostalker перевод
+'kbnysq cgtrnjh xperia mazda tempo se nexia в серия экскаватель с руси
+'kbnysq cgtrnjh xperia mazda trash

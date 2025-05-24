@@ -1,0 +1,11 @@
+query TT
+DESCRIBE SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits;
+----
+sum    Int64
+count  Int64
+avg    Float64
+
+query ???
+SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits;
+----
+79320 1000000 1506.435811

@@ -1,0 +1,22 @@
+query TT
+DESCRIBE SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, SearchPhrase ORDER BY c DESC LIMIT 10;
+----
+SearchEngineID  Int16
+SearchPhrase    Utf8
+c               Int64
+
+# Note extra ORDER BY column since c has duplicates in the result.
+query ???
+SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, SearchPhrase ORDER BY c DESC, SearchPhrase LIMIT 10;
+----
+2 карелки 823
+2 какой областиницы цена 282
+2 албатрутдин 258
+3 албатрутдин 247
+2 мангу в зарабей грама 215
+2 дружке помещение 200
+3 карелки 199
+3 one устантинет 188
+2 какой областиков 172
+2 смотреть онлайн 161
+

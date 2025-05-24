@@ -1,0 +1,10 @@
+query TT
+DESCRIBE SELECT MIN(EventDate), MAX(EventDate) FROM hits;
+----
+min Date32
+max Date32
+
+query ??
+SELECT MIN(EventDate), MAX(EventDate) FROM hits;
+----
+2013-07-02 2013-07-31

@@ -1,0 +1,21 @@
+query TT
+DESCRIBE SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
+----
+UserID        Int64
+SearchPhrase  Utf8
+count         Int64
+
+# Note extra ORDER BY since count has duplicates
+query ???
+SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY COUNT(*) DESC, UserID LIMIT 10;
+----
+5730251990344211405   (empty)  5415
+952311409961675454    (empty)  1486
+863598703467181064    (empty)  1416
+1438743804483149658   (empty)  1297
+938290163257834024    (empty)  882
+1896413589180043489   (empty)  867
+8201562841716650115   (empty)  841
+2418784467962028446   (empty)  801
+-1948027879683149980  (empty)  695
+3372693799634031492   (empty)  650
