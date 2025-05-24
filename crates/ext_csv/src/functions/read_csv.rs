@@ -14,12 +14,9 @@ use glaredb_core::functions::table::{
     TableFunctionBindState,
     TableFunctionInput,
 };
-use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
-use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
 use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use glaredb_core::runtime::filesystem::{
     AnyFile,
-    FileOpenContext,
     FileSystemFuture,
     FileSystemWithState,
     OpenFlags,
@@ -43,10 +40,16 @@ pub const FUNCTION_SET_READ_CSV: TableFunctionSet = TableFunctionSet {
         arguments: &["path"],
         example: None,
     }],
-    functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-        &ReadCsv,
-    )],
+    functions: &[
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ReadCsv,
+        ),
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::List], DataTypeId::Table),
+            &ReadCsv,
+        ),
+    ],
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -97,14 +100,8 @@ impl TableScanFunction for ReadCsv {
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let path = ConstFold::rewrite(input.positional[0].clone())?
-            .try_into_scalar()?
-            .try_into_string()?;
-
-        let fs = scan_context.dispatch.filesystem_for_path(&path)?;
-        let context = FileOpenContext::new(scan_context.database_context, &input.named);
-        let fs = fs.load_state(context).await?;
-        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+        let (mut provider, fs) =
+            MultiFileProvider::try_new_from_inputs(scan_context, &input).await?;
 
         let mut mf_data = MultiFileData::empty();
         provider.expand_all(&mut mf_data).await?;
@@ -112,11 +109,9 @@ impl TableScanFunction for ReadCsv {
         // Use first file for schema inference.
         //
         // TODO: Infer using multiple files.
-        let first = mf_data.get(0).ok_or_else(|| {
-            DbError::new(format!(
-                "No files for path '{path}', expected at least one file"
-            ))
-        })?;
+        let first = mf_data
+            .get(0)
+            .ok_or_else(|| DbError::new("No files for path, expected at least one file"))?;
 
         // Infer.
         const INFER_BUF_SIZE: usize = 4096; // TODO: Have a reason for this size. Currently just "gut feeling".
