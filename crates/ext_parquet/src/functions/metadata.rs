@@ -7,6 +7,7 @@ use futures::FutureExt;
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
+    PhysicalI16,
     PhysicalI32,
     PhysicalI64,
     PhysicalUtf8,
@@ -81,6 +82,27 @@ pub const FUNCTION_SET_PARQUET_ROWGROUP_METADATA: TableFunctionSet = TableFuncti
     ],
 };
 
+pub const FUNCTION_SET_PARQUET_COLUMN_METADATA: TableFunctionSet = TableFunctionSet {
+    name: "parquet_column_metadata",
+    aliases: &[],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Get metadata for all columns in a parquet file.",
+        arguments: &["path"],
+        example: None,
+    }],
+    functions: &[
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ParquetMetadataFunction::<ColumnMetadataTable>::new(),
+        ),
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::List], DataTypeId::Table),
+            &ParquetMetadataFunction::<ColumnMetadataTable>::new(),
+        ),
+    ],
+};
+
 #[derive(Debug)]
 pub struct MetadataColumn {
     pub name: &'static str,
@@ -133,7 +155,7 @@ pub struct FileMetadataTableState {
 
 impl MetadataTable for FileMetadataTable {
     const COLUMNS: &[MetadataColumn] = &[
-        MetadataColumn::new("file_name", DataType::utf8()),
+        MetadataColumn::new("filename", DataType::utf8()),
         MetadataColumn::new("version", DataType::int32()),
         MetadataColumn::new("num_rows", DataType::int64()),
         MetadataColumn::new("created_by", DataType::utf8()),
@@ -203,10 +225,11 @@ pub struct RowGroupMetadataTableState {
 
 impl MetadataTable for RowGroupMetadataTable {
     const COLUMNS: &[MetadataColumn] = &[
-        MetadataColumn::new("file_name", DataType::utf8()),
+        MetadataColumn::new("filename", DataType::utf8()),
         MetadataColumn::new("num_rows", DataType::int64()),
         MetadataColumn::new("num_columns", DataType::int64()),
         MetadataColumn::new("uncompressed_size", DataType::int64()),
+        MetadataColumn::new("ordinal", DataType::int16()),
     ];
 
     type State = RowGroupMetadataTableState;
@@ -230,10 +253,8 @@ impl MetadataTable for RowGroupMetadataTable {
 
         projections.for_each_column(output, &mut |col, arr| match col {
             ProjectedColumn::Data(0) => {
-                let mut names = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
-                for idx in 0..count {
-                    names.put(idx, file.file.call_path());
-                }
+                let names = PhysicalUtf8::buffer_downcast_mut(arr.data_mut())?;
+                names.put_duplicated(file.file.call_path().as_bytes(), 0..count)?;
                 Ok(())
             }
             ProjectedColumn::Data(1) => {
@@ -246,7 +267,7 @@ impl MetadataTable for RowGroupMetadataTable {
             ProjectedColumn::Data(2) => {
                 let mut num_cols = PhysicalI64::get_addressable_mut(arr.data_mut())?;
                 for (idx, row_group) in row_groups.iter().enumerate() {
-                    num_cols.put(idx, &(row_group.num_columns() as i64));
+                    num_cols.put(idx, &(row_group.columns.len() as i64));
                 }
                 Ok(())
             }
@@ -257,6 +278,13 @@ impl MetadataTable for RowGroupMetadataTable {
                 }
                 Ok(())
             }
+            ProjectedColumn::Data(4) => {
+                let mut ordinals = PhysicalI16::get_addressable_mut(arr.data_mut())?;
+                for (idx, row_group) in row_groups.iter().enumerate() {
+                    ordinals.put(idx, &row_group.ordinal.unwrap_or(0));
+                }
+                Ok(())
+            }
 
             other => panic!("invalid projection: {other:?}"),
         })?;
@@ -264,6 +292,188 @@ impl MetadataTable for RowGroupMetadataTable {
         output.set_num_rows(count)?;
         state.row_group_offset += count;
 
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ColumnMetadataTable;
+
+#[derive(Debug, Default)]
+pub struct ColumnMetadataTableState {
+    row_group_offset: usize,
+    column_offset: usize,
+}
+
+impl MetadataTable for ColumnMetadataTable {
+    const COLUMNS: &[MetadataColumn] = &[
+        MetadataColumn::new("filename", DataType::utf8()),
+        MetadataColumn::new("rowgroup_ordinal", DataType::int16()),
+        MetadataColumn::new("column_ordinal", DataType::int64()),
+        MetadataColumn::new("physical_type", DataType::utf8()),
+        MetadataColumn::new("max_definition_level", DataType::int16()),
+        MetadataColumn::new("max_repetition_level", DataType::int16()),
+        MetadataColumn::new("file_offset", DataType::int64()),
+        MetadataColumn::new("num_values", DataType::int64()),
+        MetadataColumn::new("total_compressed_size", DataType::int64()),
+        MetadataColumn::new("total_uncompressed_size", DataType::int64()),
+        MetadataColumn::new("data_page_offset", DataType::int64()),
+    ];
+
+    type State = ColumnMetadataTableState;
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        file: &FileWithMetadata,
+        output: &mut Batch,
+    ) -> Result<()> {
+        let out_cap = output.write_capacity()?;
+        debug_assert_ne!(0, out_cap);
+
+        let mut count = 0;
+
+        loop {
+            if count == out_cap {
+                // We filled up our batch.
+                break;
+            }
+
+            if state.row_group_offset >= file.metadata.row_groups.len() {
+                // No more row groups.
+                break;
+            }
+
+            let rg = &file.metadata.row_groups[state.row_group_offset];
+            if state.column_offset >= rg.columns.len() {
+                // We're done with this row group, move to next.
+                state.row_group_offset += 1;
+                state.column_offset = 0;
+                continue;
+            }
+
+            let rem_cap = out_cap - count;
+            let rem_cols = rg.columns.len() - state.column_offset;
+
+            let count_to_scan = usize::min(rem_cap, rem_cols);
+
+            // Set of columns we're working on for this pass.
+            let columns = &rg.columns[state.column_offset..(state.column_offset + count_to_scan)];
+
+            projections.for_each_column(output, &mut |col, arr| {
+                match col {
+                    ProjectedColumn::Data(0) => {
+                        // filename
+                        let data = PhysicalUtf8::buffer_downcast_mut(arr.data_mut())?;
+                        let indices = count..(count + count_to_scan);
+                        data.put_duplicated(file.file.call_path().as_bytes(), indices)?;
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(1) => {
+                        // rowgroup_ordinal
+                        let data = PhysicalI16::buffer_downcast_mut(arr.data_mut())?;
+                        let data = &mut data.as_slice_mut()[count..(count + count_to_scan)];
+                        data.fill(rg.ordinal.unwrap_or(0));
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(2) => {
+                        // column_ordinal
+                        let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                        for idx in 0..count_to_scan {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &((state.column_offset + idx) as i64));
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(3) => {
+                        // physical_type
+                        let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(
+                                write_offset,
+                                col.column_descr.primitive_type.physical_type.as_str(),
+                            );
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(4) => {
+                        // max_definition_level
+                        let mut data = PhysicalI16::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &col.column_descr.max_def_level);
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(5) => {
+                        // max_repetition_level
+                        let mut data = PhysicalI16::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &col.column_descr.max_rep_level);
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(6) => {
+                        // file_offset
+                        let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &col.file_offset);
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(7) => {
+                        // num_values
+                        let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &col.num_values);
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(8) => {
+                        // total_compressed_size
+                        let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &col.total_compressed_size);
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(9) => {
+                        // total_uncompressed_size
+                        let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &col.total_uncompressed_size);
+                        }
+                        Ok(())
+                    }
+                    ProjectedColumn::Data(10) => {
+                        // data_page_offset
+                        let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                        for (idx, col) in columns.iter().enumerate() {
+                            let write_offset = idx + count;
+                            data.put(write_offset, &col.data_page_offset);
+                        }
+                        Ok(())
+                    }
+
+                    other => panic!("invalid projection: {other:?}"),
+                }
+            })?;
+
+            // Update offsets/counts
+            count += count_to_scan;
+            state.column_offset += count_to_scan;
+
+            // Continue... we'll break out the loop up top if we have no more
+            // capacity, or ran out of columns to scan.
+        }
+
+        output.set_num_rows(count)?;
         Ok(())
     }
 }

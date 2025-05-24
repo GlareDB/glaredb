@@ -6,23 +6,24 @@ SET verify_optimized_plan TO true;
 query TT
 DESCRIBE parquet_rowgroup_metadata('../testdata/parquet/userdata0.parquet');
 ----
-file_name          Utf8
+filename           Utf8
 num_rows           Int64
 num_columns        Int64
 uncompressed_size  Int64
+ordinal            Int16
 
 query ????
 SELECT * FROM parquet_rowgroup_metadata('../testdata/parquet/userdata0.parquet');
 ----
-../testdata/parquet/userdata0.parquet  1000  13  112492
+../testdata/parquet/userdata0.parquet  1000  13  112492  0
 
 # With globbing.
 
 query ????
 SELECT * FROM parquet_rowgroup_metadata('../testdata/parquet/glob_numbers/*.parquet') ORDER BY 1;
 ----
-../testdata/parquet/glob_numbers/100.parquet  100  1  961
-../testdata/parquet/glob_numbers/200.parquet  100  1  961
-../testdata/parquet/glob_numbers/300.parquet  100  1  961
-../testdata/parquet/glob_numbers/400.parquet  100  1  961
-../testdata/parquet/glob_numbers/500.parquet  100  1  961
+../testdata/parquet/glob_numbers/100.parquet  100  1  961  0
+../testdata/parquet/glob_numbers/200.parquet  100  1  961  0
+../testdata/parquet/glob_numbers/300.parquet  100  1  961  0
+../testdata/parquet/glob_numbers/400.parquet  100  1  961  0
+../testdata/parquet/glob_numbers/500.parquet  100  1  961  0

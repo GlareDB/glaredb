@@ -1,0 +1,67 @@
+# `parquet_column_metadata` tests.
+
+# TODO: Add (small) parquet file with multiple row groups and add tests for it.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE parquet_column_metadata('../testdata/parquet/userdata0.parquet');
+----
+filename                 Utf8
+rowgroup_ordinal         Int16
+column_ordinal           Int64
+physical_type            Utf8
+max_definition_level     Int16
+max_repetition_level     Int16
+file_offset              Int64
+num_values               Int64
+total_compressed_size    Int64
+total_uncompressed_size  Int64
+data_page_offset         Int64
+
+query ??????????
+SELECT * FROM parquet_column_metadata('../testdata/parquet/userdata0.parquet') ORDER BY column_ordinal;
+----
+../testdata/parquet/userdata0.parquet  0  0   INT96       1  0  4       1000  13270  13270  4
+../testdata/parquet/userdata0.parquet  0  1   INT32       1  0  13274   1000  4043   4043   13274
+../testdata/parquet/userdata0.parquet  0  2   BYTE_ARRAY  1  0  17317   1000  2988   2988   17317
+../testdata/parquet/userdata0.parquet  0  3   BYTE_ARRAY  1  0  20305   1000  3550   3550   20305
+../testdata/parquet/userdata0.parquet  0  4   BYTE_ARRAY  1  0  23855   1000  24688  24688  23855
+../testdata/parquet/userdata0.parquet  0  5   BYTE_ARRAY  1  0  48543   1000  328    328    48543
+../testdata/parquet/userdata0.parquet  0  6   BYTE_ARRAY  1  0  48871   1000  17352  17352  48871
+../testdata/parquet/userdata0.parquet  0  7   BYTE_ARRAY  1  0  66223   1000  15463  15463  66223
+../testdata/parquet/userdata0.parquet  0  8   BYTE_ARRAY  1  0  81686   1000  2450   2450   81686
+../testdata/parquet/userdata0.parquet  0  9   BYTE_ARRAY  1  0  84136   1000  11267  11267  84136
+../testdata/parquet/userdata0.parquet  0  10  DOUBLE      1  0  95403   1000  7631   7631   95403
+../testdata/parquet/userdata0.parquet  0  11  BYTE_ARRAY  1  0  103034  1000  5174   5174   103034
+../testdata/parquet/userdata0.parquet  0  12  BYTE_ARRAY  1  0  108208  1000  4288   4288   108208
+
+# Sanity check projection.
+query I
+SELECT column_ordinal, physical_type, rowgroup_ordinal FROM parquet_column_metadata('../testdata/parquet/userdata0.parquet') ORDER BY 1;
+----
+0   INT96       0
+1   INT32       0
+2   BYTE_ARRAY  0
+3   BYTE_ARRAY  0
+4   BYTE_ARRAY  0
+5   BYTE_ARRAY  0
+6   BYTE_ARRAY  0
+7   BYTE_ARRAY  0
+8   BYTE_ARRAY  0
+9   BYTE_ARRAY  0
+10  DOUBLE      0
+11  BYTE_ARRAY  0
+12  BYTE_ARRAY  0
+
+
+# Ensure it works with multiple files.
+query ??????????
+SELECT * FROM parquet_column_metadata([
+    '../testdata/parquet/glob_numbers/200.parquet',
+    '../testdata/parquet/glob_numbers/400.parquet',
+    ]) ORDER BY 1;
+----
+../testdata/parquet/glob_numbers/200.parquet  0  0  INT64  1  0  965  100  961  961  821
+../testdata/parquet/glob_numbers/400.parquet  0  0  INT64  1  0  965  100  961  961  821
