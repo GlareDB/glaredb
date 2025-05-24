@@ -26,10 +26,16 @@ pub const FUNCTION_SET_GLOB: TableFunctionSet = TableFunctionSet {
         arguments: &["glob"],
         example: None,
     }],
-    functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-        &Glob,
-    )],
+    functions: &[
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &Glob,
+        ),
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::List], DataTypeId::Table),
+            &Glob,
+        ),
+    ],
 };
 
 #[derive(Debug, Clone, Copy)]

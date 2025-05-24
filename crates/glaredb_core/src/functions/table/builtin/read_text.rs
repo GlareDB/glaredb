@@ -34,10 +34,16 @@ pub const FUNCTION_SET_READ_TEXT: TableFunctionSet = TableFunctionSet {
         arguments: &["path"],
         example: None,
     }],
-    functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-        &ReadText,
-    )],
+    functions: &[
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ReadText,
+        ),
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::List], DataTypeId::Table),
+            &ReadText,
+        ),
+    ],
 };
 
 /// Test function for checking interface sanity for the filesystem stuff. Also

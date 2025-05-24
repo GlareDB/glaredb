@@ -1,0 +1,49 @@
+# Allow reading by providing a list of files.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE read_csv(['../testdata/csv/glob_numbers/200.csv']);
+----
+numbers  Int64
+
+query II
+SELECT min(numbers), max(numbers)
+  FROM read_csv(['../testdata/csv/glob_numbers/200.csv'])
+----
+200  299
+
+query II
+SELECT min(numbers), max(numbers)
+  FROM read_csv([
+    '../testdata/csv/glob_numbers/200.csv',
+    '../testdata/csv/glob_numbers/400.csv'
+  ])
+----
+200  499
+
+query TII
+SELECT _filename, min(numbers), max(numbers)
+  FROM read_csv([
+    '../testdata/csv/glob_numbers/200.csv',
+    '../testdata/csv/glob_numbers/400.csv'
+  ])
+  GROUP BY _filename
+  ORDER BY _filename;
+----
+../testdata/csv/glob_numbers/200.csv  200  299
+../testdata/csv/glob_numbers/400.csv  400  499
+
+# No files
+statement error No file paths provided, cannot determine which filesystem to use
+SELECT * FROM read_csv([])
+
+# Non-existent file included in list.
+statement error
+SELECT *
+  FROM read_csv([
+    '../testdata/csv/glob_numbers/200.csv',
+    '../testdata/csv/glob_numbers/does_not_exist.csv',
+    '../testdata/csv/glob_numbers/400.csv',
+  ])

@@ -48,10 +48,16 @@ pub const FUNCTION_SET_PARQUET_FILE_METADATA: TableFunctionSet = TableFunctionSe
         arguments: &["path"],
         example: None,
     }],
-    functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-        &ParquetMetadataFunction::<FileMetadataTable>::new(),
-    )],
+    functions: &[
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ParquetMetadataFunction::<FileMetadataTable>::new(),
+        ),
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::List], DataTypeId::Table),
+            &ParquetMetadataFunction::<FileMetadataTable>::new(),
+        ),
+    ],
 };
 
 pub const FUNCTION_SET_PARQUET_ROWGROUP_METADATA: TableFunctionSet = TableFunctionSet {
@@ -63,10 +69,16 @@ pub const FUNCTION_SET_PARQUET_ROWGROUP_METADATA: TableFunctionSet = TableFuncti
         arguments: &["path"],
         example: None,
     }],
-    functions: &[RawTableFunction::new_scan(
-        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-        &ParquetMetadataFunction::<RowGroupMetadataTable>::new(),
-    )],
+    functions: &[
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+            &ParquetMetadataFunction::<RowGroupMetadataTable>::new(),
+        ),
+        RawTableFunction::new_scan(
+            &Signature::new(&[DataTypeId::List], DataTypeId::Table),
+            &ParquetMetadataFunction::<RowGroupMetadataTable>::new(),
+        ),
+    ],
 };
 
 #[derive(Debug)]
