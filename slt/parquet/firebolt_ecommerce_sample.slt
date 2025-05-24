@@ -1,0 +1,69 @@
+# <https://github.com/GlareDB/glaredb/issues/3837>
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Note that the firebolt doc on this set has `price` a decimal, but it's encoded
+# as a double in the parquet file.
+query TT
+DESCRIBE '../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet';
+----
+event_time     Timestamp(μs)
+event_type     Utf8
+product_id     Int64
+category_id    Utf8
+category_code  Utf8
+brand          Utf8
+price          Float64
+user_id        Utf8
+user_session   Utf8
+
+query ?????
+SELECT * FROM parquet_file_metadata('../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet');
+----
+../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet  1  262144  parquet-cpp version 1.5.1-SNAPSHOT  4
+
+query ????
+SELECT * FROM parquet_rowgroup_metadata('../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet') ORDER BY 1;
+----
+../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet  65536  9  2017011
+../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet  65536  9  1966419
+../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet  65536  9  1769717
+../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet  65536  9  1849555
+
+# Check that we can read all the column types.
+query ??????????
+SELECT _rowid, *
+  FROM '../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet'
+  WHERE user_session = '5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8'
+  ORDER BY 1;
+----
+13    2020-03-05 11:40:31 UTC  view  15100063   2232732107413652135  apparel.shorts                NULL     941.85   624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+1693  2020-03-05 11:41:17 UTC  view  100145804  2232732090980368698  furniture.living_room.sofa    NULL     1029.63  624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+2128  2020-03-05 11:41:29 UTC  view  30300022   2232732092221882714  electronics.audio.microphone  NULL     1080.85  624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+3398  2020-03-05 11:42:05 UTC  view  100096597  2232732090980368698  furniture.living_room.sofa    divalux  978.15   624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+4056  2020-03-05 11:42:23 UTC  view  17200727   2232732090980368698  furniture.living_room.sofa    rals     666.62   624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+4460  2020-03-05 11:42:35 UTC  view  17200728   2232732090980368698  furniture.living_room.sofa    rals     773.19   624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+6312  2020-03-05 11:43:25 UTC  view  3601603    2232732092297380188  appliances.kitchen.washer     lg       385.85   624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+7111  2020-03-05 11:43:47 UTC  view  3600452    2232732092297380188  appliances.kitchen.washer     indesit  218.54   624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+8137  2020-03-05 11:44:15 UTC  view  3601344    2232732092297380188  appliances.kitchen.washer     samsung  450.44   624004277  5c576f4e-5b5e-4e83-b072-bb9b1f5ae1c8
+
+statement ok
+CREATE TEMP VIEW ecommerce AS SELECT * FROM '../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet';
+
+query TI
+SELECT event_type, count(*) FROM ecommerce GROUP BY event_type;
+----
+view  262144
+
+# Sample query
+query ??
+SELECT
+    event_type,
+    COUNT(DISTINCT user_id) AS unique_users
+FROM ecommerce
+WHERE event_type IN ('view', 'cart', 'purchase')
+GROUP BY event_type
+ORDER BY 2 DESC;
+----
+view  55974
