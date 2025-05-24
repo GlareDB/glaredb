@@ -276,6 +276,31 @@ impl MetadataTable for RowGroupMetadataTable {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct ColumnMetadataTable;
+
+#[derive(Debug, Default)]
+pub struct ColumnMetadataTableState {}
+
+impl MetadataTable for ColumnMetadataTable {
+    const COLUMNS: &[MetadataColumn] = &[];
+
+    type State = ColumnMetadataTableState;
+
+    fn column_schema() -> ColumnSchema {
+        unimplemented!()
+    }
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        file: &FileWithMetadata,
+        output: &mut Batch,
+    ) -> Result<()> {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct ParquetMetadataFunction<T> {
     _t: PhantomData<T>,
 }
