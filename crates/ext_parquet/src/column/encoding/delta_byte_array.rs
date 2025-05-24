@@ -87,10 +87,14 @@ impl DeltaByteArrayDecoder {
 
         match definitions {
             Definitions::HasDefinitions { levels, max } => {
-                for (output_idx, &level) in levels.iter().enumerate().skip(offset).take(count) {
+                debug_assert_eq!(levels.len(), count);
+
+                for idx in 0..count {
+                    let level = levels[idx];
+                    let write_idx = offset + idx;
                     if level < max {
                         // Value is null.
-                        validity.set_invalid(output_idx);
+                        validity.set_invalid(write_idx);
                         continue;
                     }
 
@@ -110,7 +114,7 @@ impl DeltaByteArrayDecoder {
                             .context("Did not read valid utf8")?;
                     }
 
-                    data.put(output_idx, &self.val_buf);
+                    data.put(write_idx, &self.val_buf);
                 }
 
                 Ok(())

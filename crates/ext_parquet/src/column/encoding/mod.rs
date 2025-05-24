@@ -20,10 +20,12 @@ use super::value_reader::ValueReader;
 pub enum Definitions<'a> {
     /// This column has definitions.
     HasDefinitions {
-        /// Definitions levels. When passing to a column reader, this should be
-        /// the exact number of values we expect to read.
+        /// Definitions levels.
+        ///
+        /// When passing to a page decoder, this should be the exact number of
+        /// values we expect to read from that decoder.
         levels: &'a [i16],
-        /// Max definition level. Used to determine nullibility.
+        /// Max definition level. Used to determine nullability.
         max: i16,
     },
     /// This column does not have any definitions.

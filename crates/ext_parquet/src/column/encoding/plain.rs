@@ -46,11 +46,15 @@ where
 
         match definitions {
             Definitions::HasDefinitions { levels, max } => {
+                debug_assert_eq!(levels.len(), count);
+
                 let mut error_state = ReaderErrorState::default();
-                for (idx, &level) in levels.iter().enumerate().skip(offset).take(count) {
+                for idx in 0..count {
+                    let level = levels[idx];
+                    let write_idx = offset + idx;
                     if level < max {
                         // Value is null.
-                        validity.set_invalid(idx);
+                        validity.set_invalid(write_idx);
                         continue;
                     }
 
@@ -58,7 +62,7 @@ where
                     unsafe {
                         self.value_reader.read_next_unchecked(
                             &mut self.buffer,
-                            idx,
+                            write_idx,
                             &mut data,
                             &mut error_state,
                         )
@@ -69,12 +73,13 @@ where
             }
             Definitions::NoDefinitions => {
                 let mut error_state = ReaderErrorState::default();
-                for idx in offset..(offset + count) {
+                for idx in 0..count {
+                    let write_idx = idx + offset;
                     // Value is valid, read it and put into output.
                     unsafe {
                         self.value_reader.read_next_unchecked(
                             &mut self.buffer,
-                            idx,
+                            write_idx,
                             &mut data,
                             &mut error_state,
                         )
