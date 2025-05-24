@@ -89,4 +89,4 @@ Returns metadata for each column in each row group within a Parquet file.
 | num_values              | Number of values stored in the column chunk.       |
 | total_compressed_size   | Compressed size of the column chunk in bytes.      |
 | total_uncompressed_size | Uncompressed size of the column chunk in bytes.    |
-| data_page_offset        | Byte offset of the data page within the column chunk. |
+| data_page_offset        | Byte offset from beginning of file to first data page. |
