@@ -6,7 +6,7 @@ SET verify_optimized_plan TO true;
 query TT
 DESCRIBE parquet_file_metadata('../testdata/parquet/userdata0.parquet');
 ----
-file_name       Utf8
+filename        Utf8
 version         Int32
 num_rows        Int64
 created_by      Utf8

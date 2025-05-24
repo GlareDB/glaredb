@@ -10,4 +10,4 @@ https://glaredb-public.s3.us-east-1.amazonaws.com/userdata0.parquet  1  1000  pa
 query ????
 SELECT * FROM parquet_rowgroup_metadata('s3://glaredb-public/userdata0.parquet')
 ----
-https://glaredb-public.s3.us-east-1.amazonaws.com/userdata0.parquet  1000  13  112492
+https://glaredb-public.s3.us-east-1.amazonaws.com/userdata0.parquet  1000  13  112492  0

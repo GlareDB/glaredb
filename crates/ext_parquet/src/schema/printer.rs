@@ -84,7 +84,7 @@ fn print_row_group_metadata(out: &mut dyn io::Write, rg_metadata: &RowGroupMetaD
     writeln!(out, "total byte size: {}", rg_metadata.total_byte_size);
     writeln!(out, "num of rows: {}", rg_metadata.num_rows);
     writeln!(out);
-    writeln!(out, "num of columns: {}", rg_metadata.num_columns());
+    writeln!(out, "num of columns: {}", rg_metadata.columns.len());
     writeln!(out, "columns: ");
     for (i, cc) in rg_metadata.columns.iter().enumerate() {
         writeln!(out);
