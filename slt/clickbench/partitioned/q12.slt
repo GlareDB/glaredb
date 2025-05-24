@@ -1,0 +1,20 @@
+query TT
+DESCRIBE SELECT SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;
+----
+SearchPhrase  Utf8
+c             Int64
+
+# Added ORDER BY 's' for more determinism
+query ??
+SELECT SearchPhrase s, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC, s ASC LIMIT 10;
+----
+карелки 1185
+албатрутдин 592
+какой областиков 346
+дружке помещение 330
+one устантинет 301
+какой областиницы цена 294
+смотреть онлайн 233
+мангу в зарабей грама 217
+galaxy table 150
+экзоидные 150

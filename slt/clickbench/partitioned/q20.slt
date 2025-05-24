@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT COUNT(*) FROM hits WHERE URL LIKE '%google%';
+----
+count Int64
+
+query ?
+SELECT COUNT(*) FROM hits WHERE URL LIKE '%google%';
+----
+204

@@ -1,0 +1,21 @@
+query TT
+DESCRIBE SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LIMIT 10;
+----
+UserID        Int64
+SearchPhrase  Utf8
+count         Int64
+
+# Note added ORDER BY for consistent results
+query ???
+SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY UserID, SearchPhrase LIMIT 10;
+----
+-9221668736708455261 (empty) 2
+-9221668736708455261 ионные машину на дость домембрии северный 2 сезон 1
+-9220868456983495476 (empty) 7
+-9216380616893095789 (empty) 2
+-9215014264742590715 (empty) 2
+-9214751021948998350 авомосква веб каменисный 2
+-9213728704863893851 (empty) 2
+-9213728704863893851 чагин выпуска на волна 2 сезон 24 резюме онлайн 2
+-9211522454528180698 (empty) 2
+-9210540860373824689 (empty) 3

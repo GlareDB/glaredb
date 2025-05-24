@@ -1,0 +1,20 @@
+query TT
+DESCRIBE SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC LIMIT 10;
+----
+MobilePhone       Int16
+MobilePhoneModel  Utf8
+u                 Int64
+
+query ???
+SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC LIMIT 10;
+----
+1    iPad    10690
+5    iPad    424
+6    iPad    291
+7    iPad    208
+6    iPhone  144
+26   iPhone  115
+118  A500    113
+10   iPad    96
+13   iPad    79
+32   iPad    78

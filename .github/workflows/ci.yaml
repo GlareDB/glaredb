@@ -104,6 +104,11 @@ jobs:
         run: |
           cargo test slt/clickbench/single
 
+      - name: Bench (truncated) - ClickBench (partitioned)
+        if: success() || failure()
+        run: |
+          cargo test slt/clickbench/partitioned
+
       - name: Bench (truncated) - TPC-H
         if: success() || failure()
         run: |

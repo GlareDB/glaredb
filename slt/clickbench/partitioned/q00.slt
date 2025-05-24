@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT COUNT(*) FROM hits;
+----
+count  Int64
+
+query ?
+SELECT COUNT(*) FROM hits;
+----
+1000000

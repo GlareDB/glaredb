@@ -1,0 +1,19 @@
+query TT
+DESCRIBE SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
+----
+URL  Utf8
+c    Int64
+
+query ??
+SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
+----
+http://liver.ru/belgorod/page/1006.jки/доп_приборы     54806
+http://kinopoisk.ru                                    14260
+http://auto_fiat_dlya-bluzki%2F8536.30.18&he=900&with  9989
+http://bdsm_po_yers=0&with_video                       7948
+http://avtolit-symbian94/photo                         6820
+http://video.yandex                                    6165
+http://liver.ru/place_rukodel=365115eb7bbb90           5798
+http://pogoda-zhienskaia-moda-ploschaya-522814         4758
+http://tienskaia-moda                                  4694
+http://bjdleaks.php?produkty%2Fproduct                 4489

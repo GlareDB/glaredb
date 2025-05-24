@@ -1,0 +1,25 @@
+query TT
+DESCRIBE SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '' END AS Src, URL AS Dst, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst ORDER BY PageViews DESC LIMIT 10 OFFSET 1000;
+----
+TraficSourceID  Int16
+SearchEngineID  Int16
+AdvEngineID     Int16
+Src             Utf8
+Dst             Utf8
+PageViews       Int64
+
+# Extra ORDER BYs
+query ??????
+SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '' END AS Src, URL AS Dst, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst ORDER BY PageViews DESC, 1,2,3,4,5,6 LIMIT 10 OFFSET 1000;
+----
+-1 0 0 http://state=19945206/foto-4/login-14235.html%3Ffrom=&engineVolumeTo http://irr.ru/index.php?showalbum/login-dietskiy-r-n-Luhov1/phone-privateley/index 1
+-1 0 0 http://state=19945206/foto-4/login-144-собых смотреть онлайн бесплатные война мела http://irr.ru/index.php?showalbum/login-viktor-15000d1/foto.ashx/376010822 1
+-1 0 0 http://state=19945206/foto-4/login-144/childWbFlkWF9TcFJE http://irr.ru/index.php?showalbum/login/?request-id=314106773f63ca2ce-busineshone-2005&po_yers=0&withdrawal/wh0re/ 1
+-1 0 0 http://state=19945206/foto-4/login-1453.1930/8/supremiere/ru/myorders/showCamps&ulogin-gorod http://irr.ru/index.php?showalbum/login-leniya7777294,938303130 1
+-1 0 0 http://state=19945206/foto-4/login-145370&lr=213&text=украинструкт пригорян http://irr.ru/index.php?showalbum/login-kapustic/product_name 1
+-1 0 0 http://state=19945206/foto-4/login-1459][to]=&int[191][to]=&input_age2/air/vaz/Нива%2Fстатья &lr=2072229456055.htm?from_year_from]=&input_age12/foto-3.xhtml?1=1&cnf=157&text=живых должение Прида dre resident/moscow.ru/forum42%2Fout-of-town/page=3&1=1&customsk.irr.ru/real-estate/rent/sea-gromkikh-prefix=92687753/galle/?online-1/country_id=0&choos&source=web&cd=1&bodystyle=0&end_timents-sale/s?rewrite&from]=&int http://irr.ru/index.php?showalbum/logisterh5.adrive_type_id=9111/page/1/1.jpg.jpg.jpg.html%26custom%3D%26CompPath%3Dhttp://tianmp3.ucoz.ru/igru-svetlands[]=hotel=698&currelatia%2Fzhienskaia-moda-dlia-zhiensk.irr.ru/news.ru/film/5051&op_seo_entry_id=719371595&pvno=2&evlg=VC,1;VL,2558&sspn=0.6683/2/page_type_id=252&search/index.ru/ipoth/makitovyj-9327288145/replies.ru/search=0&underlast&nocache/wm/2013.ya.ru/kemerovol-content%2F537.36 (KHTML, like Gecko) Chrome%2F22.88574&pt 1
+-1 0 0 http://state=19945206/foto-4/login-148437&lr=66&d=0&input_country_id=3&ved=0CE0QFjAA&url http://irr.ru/index.php?showalbum/login-kapusta-advert2631920&lo=http://wildberries 1
+-1 0 0 http://state=19945206/foto-4/login-148437&lr=66&d=0&input_country_id=3&ved=0CE0QFjAA&url http://irr.ru/index.php?showalbum/login=teo&aktion/vacancycale=ru&wauto 1
+-1 0 0 http://state=19945206/foto-4/login-148680/Good тексты и паспорядки в украшения http://irr.ru/index.php?showalbum/login=Avtoexpress-banka95001184&pt=b&pd=6&bodystyle_id=2110916%252fmediaplus%252f%252fe%252fe%252fe%252f%252f%252f728x90.html?perie.com/broad-watched_car=0&city&custom=0&undefined/under_by=0&page3/#overinburg 1
+-1 0 0 http://state=19945206/foto-4/login-150/price=False&ss=&type=2&clid=1980 скачать онлайн на по http://irr.ru/index.php?showalbum/login-kapustic/product_name 1
+

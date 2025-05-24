@@ -1,0 +1,23 @@
+# Note needed extra epoch call to convert to timestamp
+query TT
+DESCRIBE SELECT UserID, extract(minute FROM epoch(EventTime)) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;
+----
+UserID        Int64
+m             Decimal64(18,3)
+SearchPhrase  Utf8
+count         Int64
+
+# Extra ORDER BYs, count has duplicates.
+query ????
+SELECT UserID, extract(minute FROM epoch(EventTime)) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC, UserID, m LIMIT 10;
+----
+5730251990344211405  46.000  (empty)  215
+5730251990344211405  49.000  (empty)  213
+5730251990344211405  50.000  (empty)  211
+5730251990344211405  48.000  (empty)  210
+5730251990344211405  43.000  (empty)  206
+5730251990344211405  47.000  (empty)  205
+5730251990344211405  44.000  (empty)  195
+5730251990344211405  45.000  (empty)  195
+5730251990344211405  42.000  (empty)  178
+5730251990344211405  53.000  (empty)  173

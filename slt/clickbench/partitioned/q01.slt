@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0;
+----
+count  Int64
+
+query ?
+SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0;
+----
+6063

@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT COUNT(DISTINCT UserID) FROM hits;
+----
+count Int64
+
+query ?
+SELECT COUNT(DISTINCT UserID) FROM hits;
+----
+187445

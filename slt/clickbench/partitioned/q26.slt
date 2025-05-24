@@ -1,0 +1,18 @@
+query TT
+DESCRIBE SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime, SearchPhrase LIMIT 10;
+----
+SearchPhrase Utf8
+
+query ?
+SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime, SearchPhrase LIMIT 10;
+----
+фэс симум района магнитола в хорошем качестве бушла осенье рецепты для
+видео смотрек: хорошем качестве технолог
+смывал для фитнес идет
+в какое
+универсиады в шевроле 2013 лучшее
+ретий ивание авто
+донской
+погода г выплатно в хорошем качестве
+санатор стоимость крыжовники
+как принциполярии для шторые

@@ -1,0 +1,16 @@
+query TT
+DESCRIBE SELECT SearchPhrase, MIN(URL), COUNT(*) AS c FROM hits WHERE URL LIKE '%google%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;
+----
+SearchPhrase  Utf8
+min           Utf8
+c             Int64
+
+# Extra ORDER BY
+query ???
+SELECT SearchPhrase, MIN(URL), COUNT(*) AS c FROM hits WHERE URL LIKE '%google%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c, min(URL) DESC LIMIT 10;
+----
+как счастничка http://viktori-decked=0&metalliter-svetilnik.ru/googleBR%26ad%3D0 1
+коды ярославлять когда ногид отель+купить фильмы онлайн http://smeshariki.ru/index.ua/search.tut.by/?state=2013-07-01/13#frame-owa.html&site_id=17514_1147375&state/aparts.ru&pvid=1373141920&lo=http://rukodel=0&state/apartments/?SECTIONAL,googleuser/marieltor.html?1 1
+производств оставая вакаро новых богатыря у детский http://smeshariki.ru/index.ua/product_id=0&page9/#overkh%2F%2Fwwwwww.bonprix.ru/mepps.google-Android 4.0.1453.95 Safari%2F5.0 (Windows)&bL=ru&cE=true&uA=Mozilla%2F%2Fwwwww.bonprix.ru%2Fproduct_id=16921150?blocks.html?personal/unsRcoxmoi/semiranimals/clothes 1
+ани пух ходу http://interinburg/detail.google,yandex.aspx#location=products 1
+

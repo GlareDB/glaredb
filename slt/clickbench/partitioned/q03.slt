@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT AVG(UserID) FROM hits;
+----
+avg  Float64
+
+query ?
+SELECT AVG(UserID) FROM hits;
+----
+2596213860773846500

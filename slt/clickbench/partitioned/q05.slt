@@ -1,0 +1,9 @@
+query TT
+DESCRIBE SELECT COUNT(DISTINCT SearchPhrase) FROM hits;
+----
+count Int64
+
+query ?
+SELECT COUNT(DISTINCT SearchPhrase) FROM hits;
+----
+66003
