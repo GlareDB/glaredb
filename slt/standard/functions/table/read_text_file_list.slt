@@ -1,0 +1,15 @@
+# `read_text` using a file list as argument.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query T
+SELECT * FROM
+  read_text([
+    '../testdata/text/glob_simple/aaa.txt',
+    '../testdata/text/glob_simple/cbb.txt',
+  ])
+  ORDER BY 1;
+----
+aaa
+cbb

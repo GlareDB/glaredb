@@ -32,6 +32,7 @@ use super::value_reader::primitive::{
     PlainFloat64ValueReader,
     PlainInt32ValueReader,
     PlainInt64ValueReader,
+    PlainTsMicrosValueReader,
     PlainTsNsValueReader,
 };
 use super::value_reader::varlen::{BinaryValueReader, Utf8ValueReader};
@@ -75,6 +76,22 @@ impl StructReader {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(StructReader { readers })
+    }
+
+    pub fn prepare_scan_unit(
+        &mut self,
+        projections: &Projections,
+        parquet_schema: &SchemaDescriptor,
+    ) -> Result<()> {
+        debug_assert_eq!(projections.data_indices().len(), self.readers.len());
+
+        for (idx, reader) in self.readers.iter_mut().enumerate() {
+            let col_idx = projections.data_indices()[idx];
+            let col_descr = parquet_schema.leaves[col_idx].clone();
+            reader.prepare_scan_unit(col_descr)?;
+        }
+
+        Ok(())
     }
 
     /// Checks to see if we can prune this row group by looking at the stats for
@@ -217,6 +234,14 @@ pub(crate) fn new_column_reader<'a>(
             match (m.unit, descr.physical_type()) {
                 (TimeUnit::Nanosecond, basic::Type::INT64) => {
                     Box::new(ValueColumnReader::<PlainTsNsValueReader, _>::try_new(
+                        manager,
+                        datatype,
+                        descr,
+                        NopRowGroupPruner::default(),
+                    )?)
+                }
+                (TimeUnit::Microsecond, basic::Type::INT64) => {
+                    Box::new(ValueColumnReader::<PlainTsMicrosValueReader, _>::try_new(
                         manager,
                         datatype,
                         descr,

@@ -4,7 +4,7 @@ statement ok
 SET verify_optimized_plan TO true;
 
 query TT
-DESCRIBE SELECT * FROM glob('gs://glaredb-private/testdata/csv/glob_numbers/**') ORDER BY 1;
+DESCRIBE SELECT * FROM glob('gs://glaredb-private/testdata/csv/glob_numbers/**', service_account = '__GCP_SERVICE_ACCOUNT__') ORDER BY 1;
 ----
 filename  Utf8
 

@@ -228,11 +228,6 @@ impl RowGroupMetaData {
         RowGroupMetaDataBuilder::new(schema_descr)
     }
 
-    /// Number of columns in this row group.
-    pub fn num_columns(&self) -> usize {
-        self.columns.len()
-    }
-
     /// Total size of all compressed column data in this row group.
     pub fn compressed_size(&self) -> i64 {
         self.columns.iter().map(|c| c.total_compressed_size).sum()

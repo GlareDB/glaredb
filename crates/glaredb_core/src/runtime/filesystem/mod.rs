@@ -388,6 +388,7 @@ impl FileSystemWithState {
 
 #[derive(Debug, Clone)]
 pub struct AnyFileSystem {
+    pub(crate) name: &'static str,
     pub(crate) vtable: &'static RawFileSystemVTable,
     pub(crate) filesystem: Arc<dyn Any + Sync + Send>,
 }
@@ -398,6 +399,7 @@ impl AnyFileSystem {
         F: FileSystem,
     {
         AnyFileSystem {
+            name: F::NAME,
             vtable: F::VTABLE,
             filesystem: Arc::new(fs),
         }

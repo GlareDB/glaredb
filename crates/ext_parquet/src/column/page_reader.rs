@@ -52,20 +52,20 @@ pub struct ScanState<V: ValueReader> {
     /// Number of values remaining for this page.
     ///
     /// Updated as we scan values from the page.
-    pub remaining_page_values: usize,
+    pub(crate) remaining_page_values: usize,
     /// Definition levels decoder.
-    pub definitions: Option<RleBitPackedDecoder>,
+    pub(crate) definitions: Option<RleBitPackedDecoder>,
     /// Repetitions level decoder.
-    pub repetitions: Option<RleBitPackedDecoder>,
+    pub(crate) repetitions: Option<RleBitPackedDecoder>,
     /// Decoder for this page.
     ///
     /// Should be Some after preparing a page.
-    pub page_decoder: Option<PageDecoder<V>>,
+    pub(crate) page_decoder: Option<PageDecoder<V>>,
     /// Dictionary for this column.
     ///
     /// Initially contains an empty array. Updated as we decode dictionary
     /// pages.
-    pub dictionary: Dictionary<V>,
+    pub(crate) dictionary: Dictionary<V>,
 }
 
 impl<V> PageReader<V>
@@ -97,6 +97,22 @@ where
         })
     }
 
+    pub fn prepare_scan_unit(&mut self, descr: ColumnDescriptor) -> Result<()> {
+        if descr.primitive_type != self.descr.primitive_type {
+            return Err(DbError::new(
+                "Primitive types don't match, cannot update this column value reader.",
+            ));
+        }
+
+        self.descr = descr;
+
+        // Note that the scan state will get reset when we prepare the next
+        // page. There's nothing we need to do around resetting the dictionary
+        // or definition decoders.
+
+        Ok(())
+    }
+
     /// Prepares the next page by reading the next page from the chunk into this
     /// reader's decompressed page buffer.
     ///
@@ -124,23 +140,14 @@ where
 
     /// Reads definition and repetition levels into the provided slices.
     ///
-    /// Both slices mut be able to accomadate the `offset` and `count` number of
-    /// elements.
-    pub fn read_levels(
-        &mut self,
-        definitions: &mut [i16],
-        repetitions: &mut [i16],
-        offset: usize,
-        count: usize,
-    ) -> Result<()> {
+    /// Both slices are exact-sized, and should be read into completely.
+    pub fn read_levels(&mut self, definitions: &mut [i16], repetitions: &mut [i16]) -> Result<()> {
         if let Some(def_dec) = &mut self.state.definitions {
-            let out = &mut definitions[offset..(offset + count)];
-            def_dec.read(out)?;
+            def_dec.read(definitions)?;
         }
 
         if let Some(rep_dec) = &mut self.state.repetitions {
-            let out = &mut repetitions[offset..(offset + count)];
-            rep_dec.read(out)?;
+            rep_dec.read(repetitions)?;
         }
 
         Ok(())
