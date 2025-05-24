@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::task::{Context, Poll};
@@ -25,6 +26,7 @@ use glaredb_core::functions::table::{
 };
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
+use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use glaredb_core::runtime::filesystem::{
     AnyFile,
     FileOpenContext,
@@ -35,7 +37,7 @@ use glaredb_core::runtime::filesystem::{
 use glaredb_core::statistics::value::StatisticsValue;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
-use glaredb_error::{DbError, Result};
+use glaredb_error::Result;
 
 use crate::metadata::ParquetMetaData;
 use crate::metadata::loader::MetaDataLoader;
@@ -273,18 +275,19 @@ where
 
 pub struct ParquetMetadataBindState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
 }
 
 pub struct ParquetMetadataOperatorState {
     fs: FileSystemWithState,
-    path: String,
+    mf_data: MultiFileData,
     projections: Projections,
 }
 
 pub struct ParquetMetadataPartitionState<T: MetadataTable> {
-    table_state: T::State,
-    scan_state: PartitionScanState,
+    read_state: ReadState<T>,
+    /// Files this partition will handle.
+    file_queue: VecDeque<String>,
 }
 
 #[derive(Debug)]
@@ -293,14 +296,15 @@ pub struct FileWithMetadata {
     metadata: ParquetMetaData,
 }
 
-enum PartitionScanState {
+enum ReadState<T: MetadataTable> {
+    Init,
     Opening {
         open_fut: FileSystemFuture<'static, Result<FileWithMetadata>>,
     },
     Scanning {
         file: FileWithMetadata,
+        file_state: T::State,
     },
-    Exhausted,
 }
 
 impl<T> TableScanFunction for ParquetMetadataFunction<T>
@@ -320,24 +324,22 @@ where
             .try_into_scalar()?
             .try_into_string()?;
 
-        // TODO: GLOBBING!
         let fs = scan_context.dispatch.filesystem_for_path(&path)?;
         let context = FileOpenContext::new(scan_context.database_context, &input.named);
         let fs = fs.load_state(context).await?;
-        match fs.stat(&path).await? {
-            Some(stat) if stat.file_type.is_file() => (), // We have a file.
-            Some(_) => return Err(DbError::new("Cannot read parquet from a directory")),
-            None => return Err(DbError::new(format!("Missing file for path '{path}'"))),
-        }
+        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+
+        let mut mf_data = MultiFileData::empty();
+        provider.expand_all(&mut mf_data).await?;
 
         Ok(TableFunctionBindState {
             state: ParquetMetadataBindState {
                 fs: fs.clone(),
-                path,
+                mf_data,
             },
             input,
             data_schema: T::column_schema(),
-            meta_schema: None,
+            meta_schema: None, // TODO: I think None is fine, but may be inconsistent with some other function.
             cardinality: StatisticsValue::Unknown,
         })
     }
@@ -350,7 +352,7 @@ where
     ) -> Result<Self::OperatorState> {
         Ok(ParquetMetadataOperatorState {
             fs: bind_state.fs.clone(),
-            path: bind_state.path.clone(),
+            mf_data: bind_state.mf_data.clone(),
             projections,
         })
     }
@@ -360,26 +362,20 @@ where
         _props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionState>> {
-        // One partition scans for now...
-        let open_fut = op_state
-            .fs
-            .open_static(OpenFlags::READ, op_state.path.clone());
-        let mut states = vec![ParquetMetadataPartitionState {
-            table_state: Default::default(),
-            scan_state: PartitionScanState::Opening {
-                open_fut: Box::pin(async move {
-                    let mut file = open_fut.await?;
-                    let loader = MetaDataLoader::new();
-                    let metadata = loader.load_from_file(&mut file).await?;
-                    Ok(FileWithMetadata { file, metadata })
-                }),
-            },
-        }];
+        let mut partition_files: Vec<_> = (0..partitions).map(|_| VecDeque::new()).collect();
 
-        states.resize_with(partitions, || ParquetMetadataPartitionState {
-            table_state: Default::default(),
-            scan_state: PartitionScanState::Exhausted,
-        });
+        for (idx, file) in op_state.mf_data.expanded().iter().enumerate() {
+            let part_idx = idx % partitions;
+            partition_files[part_idx].push_back(file.clone());
+        }
+
+        let states = partition_files
+            .into_iter()
+            .map(|file_queue| ParquetMetadataPartitionState {
+                read_state: ReadState::Init,
+                file_queue,
+            })
+            .collect();
 
         Ok(states)
     }
@@ -391,27 +387,51 @@ where
         output: &mut Batch,
     ) -> Result<PollPull> {
         loop {
-            match &mut state.scan_state {
-                PartitionScanState::Opening { open_fut } => {
+            match &mut state.read_state {
+                ReadState::Init => {
+                    let file = match state.file_queue.pop_front() {
+                        Some(file) => file,
+                        None => {
+                            // We're done.
+                            output.set_num_rows(0)?;
+                            return Ok(PollPull::Exhausted);
+                        }
+                    };
+
+                    let open_fut = op_state.fs.open_static(OpenFlags::READ, file);
+                    let fut = Box::pin(async move {
+                        let mut file = open_fut.await?;
+
+                        let loader = MetaDataLoader::new();
+                        let metadata = loader.load_from_file(&mut file).await?;
+
+                        Ok(FileWithMetadata { file, metadata })
+                    });
+
+                    state.read_state = ReadState::Opening { open_fut: fut };
+                    // Continue...
+                }
+                ReadState::Opening { open_fut } => {
                     let file = match open_fut.poll_unpin(cx)? {
                         Poll::Ready(file) => file,
                         Poll::Pending => return Ok(PollPull::Pending),
                     };
 
-                    state.scan_state = PartitionScanState::Scanning { file };
-                    continue;
+                    state.read_state = ReadState::Scanning {
+                        file,
+                        file_state: Default::default(),
+                    };
+
+                    // Continue...
                 }
-                PartitionScanState::Scanning { file } => {
-                    T::scan(&mut state.table_state, &op_state.projections, file, output)?;
+                ReadState::Scanning { file, file_state } => {
+                    T::scan(file_state, &op_state.projections, file, output)?;
                     if output.num_rows() == 0 {
-                        // TODO: Move to next file.
-                        return Ok(PollPull::Exhausted);
+                        // Try to get the next file to read.
+                        state.read_state = ReadState::Init;
+                        continue;
                     }
                     return Ok(PollPull::HasMore);
-                }
-                PartitionScanState::Exhausted => {
-                    output.set_num_rows(0)?;
-                    return Ok(PollPull::Exhausted);
                 }
             }
         }

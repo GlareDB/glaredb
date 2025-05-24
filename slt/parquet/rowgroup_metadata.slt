@@ -1,5 +1,8 @@
 # parquet_rowgroup_metadata
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE parquet_rowgroup_metadata('../testdata/parquet/userdata0.parquet');
 ----
@@ -12,3 +15,14 @@ query ????
 SELECT * FROM parquet_rowgroup_metadata('../testdata/parquet/userdata0.parquet');
 ----
 ../testdata/parquet/userdata0.parquet  1000  13  112492
+
+# With globbing.
+
+query ????
+SELECT * FROM parquet_rowgroup_metadata('../testdata/parquet/glob_numbers/*.parquet') ORDER BY 1;
+----
+../testdata/parquet/glob_numbers/100.parquet  100  1  961
+../testdata/parquet/glob_numbers/200.parquet  100  1  961
+../testdata/parquet/glob_numbers/300.parquet  100  1  961
+../testdata/parquet/glob_numbers/400.parquet  100  1  961
+../testdata/parquet/glob_numbers/500.parquet  100  1  961
