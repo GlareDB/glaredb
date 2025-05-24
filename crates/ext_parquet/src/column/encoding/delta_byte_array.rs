@@ -89,8 +89,7 @@ impl DeltaByteArrayDecoder {
             Definitions::HasDefinitions { levels, max } => {
                 debug_assert_eq!(levels.len(), count);
 
-                for idx in 0..count {
-                    let level = levels[idx];
+                for (idx, &level) in levels.iter().enumerate() {
                     let write_idx = offset + idx;
                     if level < max {
                         // Value is null.

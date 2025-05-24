@@ -49,8 +49,7 @@ where
                 debug_assert_eq!(levels.len(), count);
 
                 let mut error_state = ReaderErrorState::default();
-                for idx in 0..count {
-                    let level = levels[idx];
+                for (idx, &level) in levels.iter().enumerate() {
                     let write_idx = offset + idx;
                     if level < max {
                         // Value is null.
