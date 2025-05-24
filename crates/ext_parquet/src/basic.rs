@@ -53,6 +53,21 @@ pub enum Type {
     FIXED_LEN_BYTE_ARRAY,
 }
 
+impl Type {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::BOOLEAN => "BOOLEAN",
+            Self::INT32 => "INT32",
+            Self::INT64 => "INT64",
+            Self::INT96 => "INT96",
+            Self::FLOAT => "FLOAT",
+            Self::DOUBLE => "DOUBLE",
+            Self::BYTE_ARRAY => "BYTE_ARRAY",
+            Self::FIXED_LEN_BYTE_ARRAY => "FIXED_LEN_BYTE_ARRAY",
+        }
+    }
+}
+
 // ----------------------------------------------------------------------
 // Mirrors `parquet::ConvertedType`
 
