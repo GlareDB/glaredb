@@ -19,16 +19,8 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
-use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
-use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
-use crate::runtime::filesystem::{
-    AnyFile,
-    FileOpenContext,
-    FileSystemFuture,
-    FileSystemWithState,
-    OpenFlags,
-};
+use crate::runtime::filesystem::{AnyFile, FileSystemFuture, FileSystemWithState, OpenFlags};
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
@@ -96,14 +88,8 @@ impl TableScanFunction for ReadText {
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let path = ConstFold::rewrite(input.positional[0].clone())?
-            .try_into_scalar()?
-            .try_into_string()?;
-
-        let fs = scan_context.dispatch.filesystem_for_path(&path)?;
-        let context = FileOpenContext::new(scan_context.database_context, &input.named);
-        let fs = fs.load_state(context).await?;
-        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+        let (mut provider, fs) =
+            MultiFileProvider::try_new_from_inputs(scan_context, &input).await?;
 
         let mut mf_data = MultiFileData::empty();
         // TODO: This is implicitly single threaded. It may make sense to
@@ -112,10 +98,7 @@ impl TableScanFunction for ReadText {
         provider.expand_all(&mut mf_data).await?;
 
         Ok(TableFunctionBindState {
-            state: ReadTextBindState {
-                fs: fs.clone(),
-                mf_data,
-            },
+            state: ReadTextBindState { fs, mf_data },
             input,
             data_schema: ColumnSchema::new([Field::new("content", DataType::utf8(), false)]),
             meta_schema: Some(provider.meta_schema()),

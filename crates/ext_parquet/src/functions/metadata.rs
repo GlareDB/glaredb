@@ -24,12 +24,9 @@ use glaredb_core::functions::table::{
     TableFunctionBindState,
     TableFunctionInput,
 };
-use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
-use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
 use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use glaredb_core::runtime::filesystem::{
     AnyFile,
-    FileOpenContext,
     FileSystemFuture,
     FileSystemWithState,
     OpenFlags,
@@ -320,14 +317,8 @@ where
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
-        let path = ConstFold::rewrite(input.positional[0].clone())?
-            .try_into_scalar()?
-            .try_into_string()?;
-
-        let fs = scan_context.dispatch.filesystem_for_path(&path)?;
-        let context = FileOpenContext::new(scan_context.database_context, &input.named);
-        let fs = fs.load_state(context).await?;
-        let mut provider = MultiFileProvider::try_new_from_path(&fs, &path)?;
+        let (mut provider, fs) =
+            MultiFileProvider::try_new_from_inputs(scan_context, &input).await?;
 
         let mut mf_data = MultiFileData::empty();
         provider.expand_all(&mut mf_data).await?;

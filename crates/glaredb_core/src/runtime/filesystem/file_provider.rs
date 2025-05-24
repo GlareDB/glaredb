@@ -2,12 +2,17 @@ use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
-use super::FileSystemWithState;
 use super::glob::is_glob;
+use super::{FileOpenContext, FileSystemWithState};
 use crate::arrays::datatype::DataType;
 use crate::arrays::field::{ColumnSchema, Field};
+use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
+use crate::functions::table::TableFunctionInput;
+use crate::functions::table::scan::ScanContext;
+use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
+use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 /// Trait for providing files to read.
 pub trait FileProvider: Debug + Sync + Send {
@@ -95,18 +100,97 @@ impl MultiFileProvider {
         ])
     }
 
-    pub fn try_new_from_path(fs: &FileSystemWithState, path: impl Into<String>) -> Result<Self> {
-        let path = path.into();
-        let provider = if is_glob(&path) {
-            fs.read_glob(&path)?
-        } else {
-            Box::new(StaticFileProvider::new([path]))
-        };
+    // TODO: Possibly doing a bit much?
+    //
+    // I wanted to pass in the filesystem directly, but to determine which
+    // filesystem to use, we need access to one of the paths, which we don't
+    // have until we get the underlying scalar value...
+    pub async fn try_new_from_inputs(
+        scan_context: ScanContext<'_>,
+        input: &TableFunctionInput,
+    ) -> Result<(Self, FileSystemWithState)> {
+        let path = ConstFold::rewrite(input.positional[0].clone())?.try_into_scalar()?;
 
-        Ok(MultiFileProvider {
-            provider,
-            exhausted: false,
-        })
+        match path {
+            ScalarValue::Utf8(s) => {
+                let s = s.into_owned();
+                let fs = scan_context.dispatch.filesystem_for_path(&s)?;
+                let context = FileOpenContext::new(scan_context.database_context, &input.named);
+                let fs = fs.load_state(context).await?;
+
+                let provider = if is_glob(&s) {
+                    fs.read_glob(&s)?
+                } else {
+                    Box::new(StaticFileProvider::new([s]))
+                };
+
+                let provider = MultiFileProvider {
+                    provider,
+                    exhausted: false,
+                };
+
+                Ok((provider, fs))
+            }
+            BorrowedScalarValue::List(list) => {
+                // Currently does not support list of globs.
+                //
+                // If we wanted to support that, then we can implement an
+                // additional file provider backed by multiple glob providers.
+                // However we should think if it's worth trying to do parallel
+                // expands in that case.
+                //
+                // Also semantically could be a bit confusing. Would something
+                // like `['data/**/*.csv', 'data/path/*.csv']` read the same
+                // files (yes but possibly surprising)?
+                let paths = list
+                    .into_iter()
+                    .map(|s| s.try_into_string())
+                    .collect::<Result<Vec<_>>>()?;
+
+                let fs = match paths.first() {
+                    Some(path) => {
+                        // Determine which filesystem to use based on the first
+                        // path.
+                        let fs = scan_context.dispatch.filesystem_for_path(path)?;
+
+                        // Now ensure that all paths can be handled by this
+                        // filesystem.
+                        for path in &paths[1..] {
+                            if !fs.call_can_handle_path(path) {
+                                return Err(DbError::new(format!(
+                                    "{} file system cannot handle path '{}'",
+                                    fs.name, path
+                                )));
+                            }
+                        }
+
+                        // TODO: We could possibly use multiple filesystems, but
+                        // I think the use case needs to be strong before trying
+                        // to support it.
+
+                        let context =
+                            FileOpenContext::new(scan_context.database_context, &input.named);
+                        fs.load_state(context).await?
+                    }
+                    None => {
+                        return Err(DbError::new(
+                            "No file paths provided, cannot determine which filesystem to use",
+                        ));
+                    }
+                };
+
+                let provider = MultiFileProvider {
+                    provider: Box::new(StaticFileProvider::new(paths)),
+                    exhausted: false,
+                };
+
+                Ok((provider, fs))
+            }
+            other => Err(DbError::new(format!(
+                "Cannot use {} as a file path. Provider either a string or list of strings.",
+                other,
+            ))),
+        }
     }
 
     /// Expands at least `n` paths.
