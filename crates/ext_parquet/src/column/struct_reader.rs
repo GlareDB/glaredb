@@ -32,6 +32,7 @@ use super::value_reader::primitive::{
     PlainFloat64ValueReader,
     PlainInt32ValueReader,
     PlainInt64ValueReader,
+    PlainTsMicrosValueReader,
     PlainTsNsValueReader,
 };
 use super::value_reader::varlen::{BinaryValueReader, Utf8ValueReader};
@@ -217,6 +218,14 @@ pub(crate) fn new_column_reader<'a>(
             match (m.unit, descr.physical_type()) {
                 (TimeUnit::Nanosecond, basic::Type::INT64) => {
                     Box::new(ValueColumnReader::<PlainTsNsValueReader, _>::try_new(
+                        manager,
+                        datatype,
+                        descr,
+                        NopRowGroupPruner::default(),
+                    )?)
+                }
+                (TimeUnit::Microsecond, basic::Type::INT64) => {
+                    Box::new(ValueColumnReader::<PlainTsMicrosValueReader, _>::try_new(
                         manager,
                         datatype,
                         descr,
