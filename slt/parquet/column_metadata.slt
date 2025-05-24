@@ -1,5 +1,7 @@
 # `parquet_column_metadata` tests.
 
+# TODO: Add (small) parquet file with multiple row groups and add tests for it.
+
 statement ok
 SET verify_optimized_plan TO true;
 
@@ -53,4 +55,13 @@ SELECT column_ordinal, physical_type, rowgroup_ordinal FROM parquet_column_metad
 11  BYTE_ARRAY  0
 12  BYTE_ARRAY  0
 
-# TODO: Add (small) parquet file with multiple row groups.
+
+# Ensure it works with multiple files.
+query ??????????
+SELECT * FROM parquet_column_metadata([
+    '../testdata/parquet/glob_numbers/200.parquet',
+    '../testdata/parquet/glob_numbers/400.parquet',
+    ]) ORDER BY 1;
+----
+../testdata/parquet/glob_numbers/200.parquet  0  0  INT64  1  0  965  100  961  961  821
+../testdata/parquet/glob_numbers/400.parquet  0  0  INT64  1  0  965  100  961  961  821
