@@ -71,7 +71,7 @@ Returns metadata for each row group within a Parquet file.
 | num_rows          | Number of rows in the row group.             |
 | num_columns       | Number of columns in the row group.          |
 | uncompressed_size | Uncompressed size of the row group in bytes. |
-| ordinal           | Zero-based ordinal of the row group.         |
+| ordinal           | Zero-based ordinal of the row group within the file.         |
 
 ### `parquet_column_metadata`
 
@@ -80,7 +80,7 @@ Returns metadata for each column in each row group within a Parquet file.
 | Column                  | Description                                        |
 |-------------------------|----------------------------------------------------|
 | filename                | Name of the file being queried.                    |
-| rowgroup_ordinal        | Zero-based ordinal of the row group.               |
+| rowgroup_ordinal        | Zero-based ordinal of the row group within the file.               |
 | column_ordinal          | Zero-based ordinal of the column within the row group. |
 | physical_type           | Physical storage type of the column (e.g., INT32, BYTE_ARRAY). |
 | max_definition_level    | Maximum definition level for the column.           |
