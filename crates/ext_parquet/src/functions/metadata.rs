@@ -7,6 +7,7 @@ use futures::FutureExt;
 use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
+    PhysicalI16,
     PhysicalI32,
     PhysicalI64,
     PhysicalUtf8,
@@ -133,7 +134,7 @@ pub struct FileMetadataTableState {
 
 impl MetadataTable for FileMetadataTable {
     const COLUMNS: &[MetadataColumn] = &[
-        MetadataColumn::new("file_name", DataType::utf8()),
+        MetadataColumn::new("filename", DataType::utf8()),
         MetadataColumn::new("version", DataType::int32()),
         MetadataColumn::new("num_rows", DataType::int64()),
         MetadataColumn::new("created_by", DataType::utf8()),
@@ -203,10 +204,11 @@ pub struct RowGroupMetadataTableState {
 
 impl MetadataTable for RowGroupMetadataTable {
     const COLUMNS: &[MetadataColumn] = &[
-        MetadataColumn::new("file_name", DataType::utf8()),
+        MetadataColumn::new("filename", DataType::utf8()),
         MetadataColumn::new("num_rows", DataType::int64()),
         MetadataColumn::new("num_columns", DataType::int64()),
         MetadataColumn::new("uncompressed_size", DataType::int64()),
+        MetadataColumn::new("ordinal", DataType::int16()),
     ];
 
     type State = RowGroupMetadataTableState;
@@ -230,10 +232,8 @@ impl MetadataTable for RowGroupMetadataTable {
 
         projections.for_each_column(output, &mut |col, arr| match col {
             ProjectedColumn::Data(0) => {
-                let mut names = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
-                for idx in 0..count {
-                    names.put(idx, file.file.call_path());
-                }
+                let names = PhysicalUtf8::buffer_downcast_mut(arr.data_mut())?;
+                names.put_duplicated(file.file.call_path().as_bytes(), 0..count)?;
                 Ok(())
             }
             ProjectedColumn::Data(1) => {
@@ -254,6 +254,13 @@ impl MetadataTable for RowGroupMetadataTable {
                 let mut uncompressed_sizes = PhysicalI64::get_addressable_mut(arr.data_mut())?;
                 for (idx, row_group) in row_groups.iter().enumerate() {
                     uncompressed_sizes.put(idx, &row_group.total_byte_size);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(4) => {
+                let mut ordinals = PhysicalI16::get_addressable_mut(arr.data_mut())?;
+                for (idx, row_group) in row_groups.iter().enumerate() {
+                    ordinals.put(idx, &row_group.ordinal.unwrap_or(0));
                 }
                 Ok(())
             }

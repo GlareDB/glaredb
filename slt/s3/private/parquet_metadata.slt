@@ -10,4 +10,4 @@ https://glaredb-private.s3.us-east-1.amazonaws.com/userdata0.parquet  1  1000  p
 query ????
 SELECT * FROM parquet_rowgroup_metadata('s3://glaredb-private/userdata0.parquet', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__')
 ----
-https://glaredb-private.s3.us-east-1.amazonaws.com/userdata0.parquet  1000  13  112492
+https://glaredb-private.s3.us-east-1.amazonaws.com/userdata0.parquet  1000  13  112492  0
