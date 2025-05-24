@@ -154,7 +154,11 @@ impl Reader {
     }
 
     /// Preprates this reader to begin reading from a new scan unit.
-    pub fn prepare(&mut self, unit: ScanUnit) {
+    pub fn prepare(&mut self, unit: ScanUnit) -> Result<()> {
+        // Reset the readers.
+        self.root
+            .prepare_scan_unit(&self.projections, &unit.metadata.file_metadata.schema_descr)?;
+
         self.unit = Some(unit);
         self.state = RowGroupState {
             current_group: ScanRowGroup {
@@ -165,6 +169,8 @@ impl Reader {
             relative_scan_offset: 0,
         };
         self.fetch_state = FetchState::NeedsFetch { column_idx: 0 };
+
+        Ok(())
     }
 
     /// Scan rows into the output batch.

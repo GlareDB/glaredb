@@ -1,0 +1,29 @@
+# Test that we can properly read RLE_DICTIONARY encoded BINARY columns with
+# definitition levels.
+#
+# This uses a hits (partitioned, hits_74) file from clickbench that's been
+# truncated down to 10_000 rows using an older version of glaredb.
+#
+# All columns are non-null, but all columns are encoded with definition levels,
+# with the max being 1.
+#
+# The problematic column was 'URL'. There might've been more, but solving that
+# issue let us read the file without errors.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# When running the unoptimized plan, this will read everything from the file.
+query I
+SELECT count(*) FROM '../submodules/testdata/hits_truncated_url_dict_def.parquet';
+----
+10000
+
+query IT
+SELECT _rowid, URL::TEXT
+  FROM '../submodules/testdata/hits_truncated_url_dict_def.parquet'
+  WHERE _rowid = 3 OR _rowid = 9987;
+----
+3     http://tienskaia-moda
+9987  http://tienskaia-moda-zhienskaia-moda
+

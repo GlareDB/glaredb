@@ -21,6 +21,13 @@ pub trait ColumnReader: Debug + Sync + Send {
     /// Reads `count` values into the output array.
     fn read(&mut self, output: &mut Array, count: usize) -> Result<()>;
 
+    /// Prepares this reader for reading from a new "scan unit" by updating the
+    /// column descriptor to use.
+    ///
+    /// Errors if the physical type of the new descriptor does not match the
+    /// physical type of the existing descriptor.
+    fn prepare_scan_unit(&mut self, descr: ColumnDescriptor) -> Result<()>;
+
     /// Prepares this reader for the next chunk.
     ///
     /// The underlying chunk buffers should be resized to accomadate the new
@@ -85,6 +92,10 @@ where
         Ok(())
     }
 
+    fn prepare_scan_unit(&mut self, descr: ColumnDescriptor) -> Result<()> {
+        self.page_reader.prepare_scan_unit(descr)
+    }
+
     fn chunk_buf_mut(&mut self) -> &mut [u8] {
         self.page_reader.chunk.as_slice_mut()
     }
@@ -95,6 +106,9 @@ where
 
         // Resize each buffer. The current values don't matter as they'll be
         // overwritten or not read at all.
+        //
+        // These are resized to the max size they can. In the below loop, we
+        // slice them down to the required sizes.
         self.definitions.resize(count, 0);
         self.repetitions.resize(count, 0);
 
@@ -106,19 +120,18 @@ where
                 continue;
             }
 
+            // Number of records we're going to be reading from this page.
             let count = usize::min(remaining, self.page_reader.state.remaining_page_values);
 
-            // Read in repetitions/definitions.
-            self.page_reader.read_levels(
-                &mut self.definitions,
-                &mut self.repetitions,
-                offset,
-                count,
-            )?;
+            // Read in repetitions/definitions. Ensure slices are exact-sized.
+            let definitions = &mut self.definitions[..count];
+            let repetitions = &mut self.repetitions[..count];
+            self.page_reader.read_levels(definitions, repetitions)?;
 
             let definitions = if self.page_reader.state.definitions.is_some() {
+                // Use the sliced definititions.
                 Definitions::HasDefinitions {
-                    levels: &self.definitions,
+                    levels: definitions,
                     max: self.page_reader.descr.max_def_level,
                 }
             } else {

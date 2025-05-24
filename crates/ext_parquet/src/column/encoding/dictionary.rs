@@ -96,6 +96,8 @@ where
 
         match definitions {
             Definitions::HasDefinitions { levels, max } => {
+                debug_assert_eq!(levels.len(), count);
+
                 // Read only the indices for valid values.
                 let valid_count = levels.iter().filter(|&&def| def == max).count();
                 self.sel_buf.resize(valid_count, 0);
@@ -107,14 +109,16 @@ where
                 // TODO: Slow?
                 let mut not_null_idx = 0;
                 let mapping = (0..count).map(|idx| {
+                    let write_offset = idx + offset;
+
                     if levels[idx] == max {
                         // Not null
                         let src = self.sel_buf[not_null_idx] as usize;
                         not_null_idx += 1;
-                        (src, idx + offset)
+                        (src, write_offset)
                     } else {
                         // Is null
-                        (null_idx, idx + offset)
+                        (null_idx, write_offset)
                     }
                 });
                 copy_rows_array(&dict.dictionary, mapping, output)?;
@@ -130,7 +134,7 @@ where
                     .sel_buf
                     .iter()
                     .enumerate()
-                    .map(|(dest, &src)| (src as usize, dest + offset));
+                    .map(|(dest_idx, &src)| (src as usize, dest_idx + offset));
                 copy_rows_array(&dict.dictionary, mapping, output)?;
 
                 Ok(())

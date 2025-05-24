@@ -276,7 +276,7 @@ impl TableScanFunction for ReadParquet {
                         Poll::Pending => return Ok(PollPull::Pending),
                     };
 
-                    state.reader.prepare(scan_unit);
+                    state.reader.prepare(scan_unit)?;
                     state.state = ReadState::Scanning;
                     // Continue...
                 }

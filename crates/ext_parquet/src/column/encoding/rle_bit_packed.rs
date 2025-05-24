@@ -45,6 +45,7 @@ impl RleBoolDecoder {
         // Only read valid values.
         let read_count = match definitions {
             Definitions::HasDefinitions { levels, max } => {
+                debug_assert_eq!(levels.len(), count);
                 levels.iter().filter(|&&def| def == max).count()
             }
             Definitions::NoDefinitions => count,
