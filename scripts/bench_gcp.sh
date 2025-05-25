@@ -30,6 +30,15 @@ type=hyperdisk-balanced \
     --shielded-integrity-monitoring \
     --reservation-affinity=any
 
+
+function cleanup() {
+  echo "Deleting instance ${instance_name}..."
+  gcloud compute instances delete "$instance_name" \
+    --project="$GCP_PROJECT" --zone="$GCP_ZONE" --quiet || true
+}
+# Delete instance on exit
+trap cleanup EXIT
+
 # Run a command on the remote GCP instance.
 function gc_run() {
     local cmd="$*"
@@ -57,13 +66,17 @@ until gcloud compute ssh "$instance_name" \
 done
 
 # Get tools.
-gc_run "sudo apt update && \
-        sudo apt install -y \
+gc_run "sudo apt update \
+        && sudo apt install -y \
           rustup \
           protobuf-compiler \
           build-essential \
           gcc \
-          git"
+          git \
+       && rustup install stable"
 
-# Clone repo
+# Clone repo.
 gc_run git clone https://github.com/glaredb/glaredb
+
+# Build benchmark bin.
+gc_run cargo build --release --bin bench_standard
