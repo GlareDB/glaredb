@@ -19,14 +19,14 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compile standard
-        run: |
-          cargo build \
-             --release \
-             --bin bench_standard
+      # - name: Compile standard
+      #   run: |
+      #     cargo build \
+      #        --release \
+      #        --bin bench_standard
 
-      - name: Run standard
-        run: |
-          ./target/release/bench_standard \
-             --print-results \
-             --print-explain
+      # - name: Run standard
+      #   run: |
+      #     ./target/release/bench_standard \
+      #        --print-results \
+      #        --print-explain

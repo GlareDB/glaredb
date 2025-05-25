@@ -10,12 +10,13 @@ glaredb_error = { path = '../crates/glaredb_error' }
 glaredb_core = { path = '../crates/glaredb_core' }
 glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_bench = { path = '../crates/glaredb_bench' }
+
+ext_spark = { path = '../crates/ext_spark' }
 ext_csv = { path = '../crates/ext_csv' }
-ext_delta = { path = '../crates/ext_delta' }
+ext_parquet = { path = '../crates/ext_parquet' }
+ext_tpch_gen = { path = '../crates/ext_tpch_gen' }
 ext_iceberg = { path = '../crates/ext_iceberg' }
 
-# TODO: Figure out the bench harness stuff.
-
 [[bin]]
-name = "bench_standard"
-path = "bench_standard.rs"
+name = "bench_runner"
+path = "bench_runner.rs"

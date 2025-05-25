@@ -1,143 +1,207 @@
 mod benchmark;
 mod runner;
 
-use std::collections::BTreeMap;
-use std::fs;
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use benchmark::Benchmark;
 use clap::Parser;
 use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_core::runtime::pipeline::PipelineRuntime;
+use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{DbError, Result, ResultExt};
-use glaredb_rt_native::runtime::{
-    NativeSystemRuntime,
-    ThreadedNativeExecutor,
-    new_tokio_runtime_for_io,
-};
-use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
+use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
+use runner::{BenchmarkRunner, BenchmarkTimes};
 use tokio::runtime::Runtime as TokioRuntime;
 
+// TODO: Move this out.
 #[derive(Parser)]
 #[clap(name = "glaredb_bench")]
-struct Arguments {
+pub struct Arguments {
     /// Print the EXPLAIN output for queries prior to running them.
     ///
     /// Only printed once.
     #[clap(long, env = "DEBUG_PRINT_EXPLAIN")]
-    print_explain: bool,
+    pub print_explain: bool,
     /// Print the profile data for a query after running it.
     ///
     /// Data is printed for every run of the query.
     #[clap(long, env = "DEBUG_PRINT_PROFILE_DATA")]
-    print_profile_data: bool,
+    pub print_profile_data: bool,
     /// Print the results of the benchmark queries.
     ///
     /// Results are printed for every run of the query.
     #[clap(long, env = "DEBUG_PRINT_RESULTS")]
-    print_results: bool,
-    /// Directory to search for benchmarks in.
-    #[clap(long)]
-    benches_dir: Option<String>,
-    /// Number of times to run benchmark queries
-    #[clap(long, short, default_value = "5")]
-    count: usize,
-    /// Pattern to match benchmark files to run.
+    pub print_results: bool,
+    /// Number of times to run benchmark queries.
+    #[clap(long, short, default_value = "3")]
+    pub count: usize,
+    /// Optionally save results as a TSV to the provided file.
+    #[clap(long, short)]
+    pub save: Option<PathBuf>,
+    /// Path pointing to either a single benchmark file, or a directory
+    /// containing benchmark files.
+    ///
+    /// If provided a directory, the directory will be walked recursively to
+    /// find all benchmark files to run.
     #[clap()]
-    pattern: Option<String>,
+    pub path: PathBuf,
+}
+
+impl Arguments {
+    pub fn parse() -> Self {
+        Parser::parse()
+    }
 }
 
 #[derive(Debug)]
-pub struct EngineBuilder {
-    tokio_rt: TokioRuntime,
-    executor: ThreadedNativeExecutor,
-    runtime: NativeSystemRuntime,
+pub struct RunConfig<E, R>
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    pub session: SingleUserEngine<E, R>,
+    pub tokio_rt: TokioRuntime,
 }
 
-impl EngineBuilder {
-    pub fn try_new() -> Result<Self> {
-        let tokio_rt = new_tokio_runtime_for_io()?;
-        let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
-
-        Ok(EngineBuilder {
-            tokio_rt,
-            executor: ThreadedNativeExecutor::try_new()?,
-            runtime,
-        })
-    }
-
-    fn build(&self) -> Result<SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>> {
-        SingleUserEngine::try_new(self.executor.clone(), self.runtime.clone())
-    }
+#[derive(Debug)]
+struct BenchmarkPath {
+    identifier: String,
+    path: PathBuf,
 }
 
-pub fn run(builder: EngineBuilder, default_dir: &str) -> Result<()> {
-    let args = Arguments::parse();
+#[derive(Debug)]
+pub struct TsvWriter {
+    file: Option<BufWriter<File>>,
+}
 
-    let dir = match &args.benches_dir {
-        Some(dir) => Path::new(dir),
-        None => Path::new(default_dir),
-    };
-    let paths = find_files(Path::new(dir))?;
+impl TsvWriter {
+    pub fn try_new(save: Option<PathBuf>) -> Result<Self> {
+        let file = match save {
+            Some(path) => {
+                let file = OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(path)
+                    .context("Failed to open file for write")?;
+                Some(BufWriter::new(file))
+            }
+            None => None,
+        };
 
-    // Times keyed by the file names.
-    let mut all_times: BTreeMap<String, BenchmarkTimes> = BTreeMap::new(); // BTree for sorted output.
+        Ok(TsvWriter { file })
+    }
 
-    for path in paths {
-        let path_str = path
-            .to_str()
-            .ok_or_else(|| DbError::new("File path not valid utf8"))?;
+    pub fn write_header(&mut self) -> Result<()> {
+        println!("benchmark_identifier\tcount\ttime_millis");
+        if let Some(file) = self.file.as_mut() {
+            writeln!(file, "benchmark_identifier\tcount\ttime_millis")?;
+        }
 
-        if let Some(pattern) = &args.pattern {
-            if !path_str.contains(pattern) {
-                continue;
+        Ok(())
+    }
+
+    pub fn write(&mut self, bench_identifier: &str, times: BenchmarkTimes) -> Result<()> {
+        for (idx, query_time) in times.query_times_ms.iter().enumerate() {
+            println!("{}\t{}\t{}", bench_identifier, idx + 1, query_time);
+        }
+
+        if let Some(file) = self.file.as_mut() {
+            for (idx, query_time) in times.query_times_ms.iter().enumerate() {
+                writeln!(file, "{}\t{}\t{}", bench_identifier, idx + 1, query_time)?;
             }
         }
 
-        let bench = Benchmark::from_file(&path)?;
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<()> {
+        if let Some(file) = self.file.as_mut() {
+            file.flush()?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunArgs {
+    pub print_explain: bool,
+    pub print_profile_data: bool,
+    pub print_results: bool,
+    pub count: usize,
+}
+
+/// Try to run benchmarks at the given paths, filtering out paths that don't
+/// match the pattern.
+pub fn run<F>(
+    writer: &mut TsvWriter,
+    args: RunArgs,
+    paths: impl IntoIterator<Item = PathBuf>,
+    session_fn: F,
+) -> Result<()>
+where
+    F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>,
+{
+    let paths: Vec<BenchmarkPath> = paths
+        .into_iter()
+        .filter_map(|path| {
+            let path_str = path.to_str().expect("valid utf8 paths");
+
+            // Make the identifier a bit nicer.
+            let identifier = path_str
+                .trim_start_matches("./")
+                .trim_start_matches("../")
+                .to_string();
+
+            Some(BenchmarkPath { identifier, path })
+        })
+        .collect();
+
+    if paths.is_empty() {
+        // Nothing to do.
+        return Ok(());
+    }
+
+    for path in paths {
+        let bench = Benchmark::from_file(&path.identifier, path.path)?;
+        let conf = session_fn()?;
+
         let runner = BenchmarkRunner {
-            engine: builder.build()?,
+            engine: conf.session,
             benchmark: bench,
         };
 
-        let times = builder.tokio_rt.block_on(runner.run(RunnerConfig {
-            count: args.count,
-            print_explain: args.print_explain,
-            print_results: args.print_results,
-            print_profile_data: args.print_profile_data,
-        }))?;
+        let times = conf.tokio_rt.block_on(runner.run(args))?;
 
-        let name = path_str
-            .trim_end_matches(".bench")
-            .trim_start_matches("./")
-            .trim_start_matches("../")
-            .to_string();
-        all_times.insert(name, times);
+        writer.write(&path.identifier, times)?;
     }
-
-    // Print results.
-    println!(
-        "{:<60}\t{:>6}\t{:>14}",
-        "benchmark_name", "count", "time_millis"
-    );
-
-    for (name, times) in &all_times {
-        for (idx, query_time) in times.query_times_ms.iter().enumerate() {
-            println!("{:<60}\t{:>6}\t{:>14}", name, idx + 1, query_time);
-        }
-    }
-
-    // TODO: Allow writing to csv/tsv
 
     Ok(())
 }
 
-/// Recursively find all files in the given directory.
-fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
+/// Recursively find all files at the given path.
+///
+/// If the provided path points to a file, then the returned vec will only
+/// contain a single path buf pointing to that file.
+pub fn find_files(path: &Path) -> Result<Vec<PathBuf>> {
     fn inner(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
         if dir.is_dir() {
-            for entry in fs::read_dir(dir).context("read dir")? {
-                let entry = entry.context("entry")?;
+            let readdir = fs::read_dir(dir).context("Failed to read directory")?;
+            for entry in readdir {
+                let entry = entry.context("Failed to get entry")?;
                 let path = entry.path();
+
+                let path_str = path
+                    .to_str()
+                    .ok_or_else(|| DbError::new("Expected utf8 path"))?;
+                // We might have READMEs interspersed. Only read .bench files.
+                if path.is_file() && !path_str.ends_with(".bench") {
+                    continue;
+                }
+
                 if path.is_dir() {
                     inner(&path, paths)?;
                 } else {
@@ -148,8 +212,12 @@ fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
         Ok(())
     }
 
+    if path.is_file() {
+        return Ok(vec![path.to_path_buf()]);
+    }
+
     let mut paths = Vec::new();
-    inner(dir, &mut paths)?;
+    inner(path, &mut paths)?;
 
     Ok(paths)
 }

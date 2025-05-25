@@ -23,6 +23,8 @@ use sqllogictest::DefaultColumnType;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
+// TODO: Get rid of the async nonsense.
+
 /// Environment variable for having printing out debug explain info.
 ///
 /// If set, this will will execute an EXPLAIN for a query before executing the

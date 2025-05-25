@@ -6,16 +6,8 @@ use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 
+use crate::RunArgs;
 use crate::benchmark::Benchmark;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RunnerConfig {
-    /// How many times to run each benchmark query.
-    pub count: usize,
-    pub print_explain: bool,
-    pub print_profile_data: bool,
-    pub print_results: bool,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BenchmarkTimes {
@@ -37,11 +29,11 @@ impl BenchmarkRunner {
     ///
     /// This will make use of the tokio runtime configured on the engine runtime
     /// for pulling the results.
-    pub async fn run(&self, conf: RunnerConfig) -> Result<BenchmarkTimes> {
+    pub async fn run(&self, conf: RunArgs) -> Result<BenchmarkTimes> {
         self.run_inner(conf).await
     }
 
-    async fn run_inner(&self, conf: RunnerConfig) -> Result<BenchmarkTimes> {
+    async fn run_inner(&self, conf: RunArgs) -> Result<BenchmarkTimes> {
         let setup_start = Instant::now();
         for setup_query in &self.benchmark.setup {
             for pending in self.engine.session().query_many(setup_query)? {
@@ -115,19 +107,6 @@ impl BenchmarkRunner {
                             )?
                         );
                     }
-
-                    // if conf.print_profile_data {
-                    //     println!("PLANNING PROFILE DATA");
-                    //     match results.planning_profile_data() {
-                    //         Some(data) => println!("{data}"),
-                    //         None => println!("missing planning profile data"),
-                    //     }
-                    //     println!("EXECUTION PROFILE DATA");
-                    //     match results.execution_profile_data() {
-                    //         Some(data) => println!("{data}"),
-                    //         None => println!("missing execution profile data"),
-                    //     }
-                    // }
                 }
             }
 
