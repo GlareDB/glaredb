@@ -57,12 +57,13 @@ until gcloud compute ssh "$instance_name" \
 done
 
 # Get tools.
-gc_run sudo apt update && sudo apt install -y \
-                               rustup \
-                               protobuf-compiler \
-                               build-essential \
-                               gcc \
-                               git
+gc_run "sudo apt update && \
+        sudo apt install -y \
+          rustup \
+          protobuf-compiler \
+          build-essential \
+          gcc \
+          git"
 
 # Clone repo
 gc_run git clone https://github.com/glaredb/glaredb
