@@ -15,7 +15,7 @@ impl Extension for CsvExtension {
             // Scan functions
             ExtensionTableFunction {
                 infer_scan: Some(FileInferScan {
-                    can_handle: |path| path.ends_with(".csv"), // TODO: See parquet... also tsv
+                    can_handle: |path| path.ends_with(".csv") || path.ends_with(".tsv"), // TODO: See parquet...
                 }),
                 function: &FUNCTION_SET_READ_CSV,
             },
