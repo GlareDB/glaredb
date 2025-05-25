@@ -79,4 +79,4 @@ gc_run "sudo apt update \
 gc_run git clone https://github.com/glaredb/glaredb
 
 # Build benchmark bin.
-gc_run cargo build --release --bin bench_standard
+gc_run "cd glaredb && cargo build --release --bin bench_standard"
