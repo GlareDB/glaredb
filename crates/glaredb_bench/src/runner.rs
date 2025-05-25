@@ -8,6 +8,7 @@ use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 
 use crate::RunArgs;
 use crate::benchmark::Benchmark;
+use crate::pagecache::drop_page_cache;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BenchmarkTimes {
@@ -34,6 +35,10 @@ impl BenchmarkRunner {
     }
 
     async fn run_inner(&self, conf: RunArgs) -> Result<BenchmarkTimes> {
+        if conf.drop_page_cache {
+            drop_page_cache()?;
+        }
+
         let setup_start = Instant::now();
         for setup_query in &self.benchmark.setup {
             for pending in self.engine.session().query_many(setup_query)? {

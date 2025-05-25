@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use ext_csv::extension::CsvExtension;
 use ext_iceberg::extension::IcebergExtension;
@@ -24,6 +24,7 @@ pub fn main() -> Result<()> {
         print_profile_data: args.print_profile_data,
         print_results: args.print_results,
         count: args.count,
+        drop_page_cache: args.drop_page_cache,
     };
 
     let mut writer = TsvWriter::try_new(args.save)?;

@@ -1,4 +1,5 @@
 mod benchmark;
+mod pagecache;
 mod runner;
 
 use std::fs::{self, File, OpenOptions};
@@ -34,6 +35,13 @@ pub struct Arguments {
     /// Results are printed for every run of the query.
     #[clap(long, env = "DEBUG_PRINT_RESULTS")]
     pub print_results: bool,
+    /// If we should drop the page cache before the setup phase of a benchmark
+    /// file.
+    ///
+    /// On linux, this will write to procfs. On mac, this will use the `purge`
+    /// tool. Both methods require running the binary with sudo.
+    #[clap(long, default_value = "false")]
+    pub drop_page_cache: bool,
     /// Number of times to run benchmark queries.
     #[clap(long, short, default_value = "3")]
     pub count: usize,
@@ -132,6 +140,7 @@ pub struct RunArgs {
     pub print_profile_data: bool,
     pub print_results: bool,
     pub count: usize,
+    pub drop_page_cache: bool,
 }
 
 /// Try to run benchmarks at the given paths, filtering out paths that don't
