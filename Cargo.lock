@@ -207,8 +207,10 @@ name = "bench_bin"
 version = "25.5.11"
 dependencies = [
  "ext_csv",
- "ext_delta",
  "ext_iceberg",
+ "ext_parquet",
+ "ext_spark",
+ "ext_tpch_gen",
  "glaredb_bench",
  "glaredb_core",
  "glaredb_error",
