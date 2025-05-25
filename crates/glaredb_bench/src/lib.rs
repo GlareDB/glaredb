@@ -156,7 +156,7 @@ where
 {
     let paths: Vec<BenchmarkPath> = paths
         .into_iter()
-        .filter_map(|path| {
+        .map(|path| {
             let path_str = path.to_str().expect("valid utf8 paths");
 
             // Make the identifier a bit nicer.
@@ -165,7 +165,7 @@ where
                 .trim_start_matches("../")
                 .to_string();
 
-            Some(BenchmarkPath { identifier, path })
+            BenchmarkPath { identifier, path }
         })
         .collect();
 
