@@ -5,7 +5,7 @@ use ext_iceberg::extension::IcebergExtension;
 use ext_parquet::extension::ParquetExtension;
 use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
-use glaredb_bench::{Arguments, RunArgs, RunConfig, TsvWriter};
+use glaredb_bench::{Arguments, RunArgs, RunConfig, TsvWriter, pagecache};
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
@@ -24,13 +24,12 @@ pub fn main() -> Result<()> {
         print_profile_data: args.print_profile_data,
         print_results: args.print_results,
         count: args.count,
-        drop_page_cache: args.drop_page_cache,
     };
 
     let mut writer = TsvWriter::try_new(args.save)?;
     writer.write_header()?;
 
-    run_with_setup::<DefaultSetup>(&mut writer, run_args, args.path)?;
+    run_with_setup::<DefaultSetup>(&mut writer, run_args, args.path, args.drop_page_cache)?;
 
     writer.flush()?;
 
@@ -66,13 +65,22 @@ where
     }
 }
 
-fn run_with_setup<S>(writer: &mut TsvWriter, run_args: RunArgs, path: PathBuf) -> Result<()>
+fn run_with_setup<S>(
+    writer: &mut TsvWriter,
+    run_args: RunArgs,
+    path: PathBuf,
+    drop_page_cache: bool,
+) -> Result<()>
 where
     S: EngineSetup<ThreadedNativeExecutor, NativeSystemRuntime>,
 {
     let paths = glaredb_bench::find_files(&path).unwrap();
 
     glaredb_bench::run(writer, run_args, paths, || {
+        if drop_page_cache {
+            pagecache::drop_page_cache()?;
+        }
+
         let tokio_rt = new_tokio_runtime_for_io()?;
 
         let executor = ThreadedNativeExecutor::try_new().unwrap();

@@ -1,5 +1,6 @@
+pub mod pagecache;
+
 mod benchmark;
-mod pagecache;
 mod runner;
 
 use std::fs::{self, File, OpenOptions};
@@ -140,16 +141,17 @@ pub struct RunArgs {
     pub print_profile_data: bool,
     pub print_results: bool,
     pub count: usize,
-    pub drop_page_cache: bool,
 }
 
-/// Try to run benchmarks at the given paths, filtering out paths that don't
-/// match the pattern.
+/// Runs all provide benchmark paths.
+///
+/// `engine_fn` is ran for each benchmark, and should return a fresh
+/// session/single user engine to use for the benchmark.
 pub fn run<F>(
     writer: &mut TsvWriter,
     args: RunArgs,
     paths: impl IntoIterator<Item = PathBuf>,
-    session_fn: F,
+    engine_fn: F,
 ) -> Result<()>
 where
     F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>,
@@ -176,7 +178,7 @@ where
 
     for path in paths {
         let bench = Benchmark::from_file(&path.identifier, path.path)?;
-        let conf = session_fn()?;
+        let conf = engine_fn()?;
 
         let runner = BenchmarkRunner {
             engine: conf.session,
@@ -191,7 +193,7 @@ where
     Ok(())
 }
 
-/// Recursively find all files at the given path.
+/// Recursively find all benchmark files at the given path.
 ///
 /// If the provided path points to a file, then the returned vec will only
 /// contain a single path buf pointing to that file.
@@ -221,6 +223,7 @@ pub fn find_files(path: &Path) -> Result<Vec<PathBuf>> {
         Ok(())
     }
 
+    // TODO: Error if it doesn't end in '.bench'
     if path.is_file() {
         return Ok(vec![path.to_path_buf()]);
     }
