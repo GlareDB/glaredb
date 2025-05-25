@@ -1,0 +1,34 @@
+# Read TSV files, aka what we'll be generating for benchmarks.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE read_csv('../testdata/csv/tsv_small.tsv')
+----
+benchmark_identifier  Utf8
+count                 Int64
+time_millis           Int64
+
+query TII
+SELECT * FROM read_csv('../testdata/csv/tsv_small.tsv') ORDER BY 2;
+----
+bench/micro/functions/trim_large_inputs_small_patterns.bench  1  63
+bench/micro/functions/trim_large_inputs_small_patterns.bench  2  59
+bench/micro/functions/trim_large_inputs_small_patterns.bench  3  54
+
+# Ensure we can can infer the function to use.
+
+query TT
+DESCRIBE '../testdata/csv/tsv_small.tsv'
+----
+benchmark_identifier  Utf8
+count                 Int64
+time_millis           Int64
+
+query TII
+SELECT * FROM '../testdata/csv/tsv_small.tsv' ORDER BY 2;
+----
+bench/micro/functions/trim_large_inputs_small_patterns.bench  1  63
+bench/micro/functions/trim_large_inputs_small_patterns.bench  2  59
+bench/micro/functions/trim_large_inputs_small_patterns.bench  3  54

@@ -1,0 +1,4 @@
+benchmark_identifier	count	time_millis
+bench/micro/functions/trim_large_inputs_small_patterns.bench	1	63
+bench/micro/functions/trim_large_inputs_small_patterns.bench	2	59
+bench/micro/functions/trim_large_inputs_small_patterns.bench	3	54
