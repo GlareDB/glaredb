@@ -18,7 +18,7 @@ use runner::{BenchmarkRunner, BenchmarkTimes, RunnerConfig};
 use tokio::runtime::Runtime as TokioRuntime;
 
 #[derive(Parser)]
-#[clap(name = "rayexec_bin")]
+#[clap(name = "glaredb_bench")]
 struct Arguments {
     /// Print the EXPLAIN output for queries prior to running them.
     ///
