@@ -91,7 +91,6 @@ where
             quiet: self.quiet,
             color: self.color,
             format: self.format,
-            logfile: self.logfile.as_deref(),
         }
     }
 

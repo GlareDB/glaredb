@@ -16,40 +16,44 @@ pub struct Printer {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PrinterOptions<'a> {
+pub struct PrinterOptions {
     pub quiet: bool,
     pub color: Option<ColorSetting>,
     pub format: Option<FormatSetting>,
-    pub logfile: Option<&'a str>,
 }
 
 impl Printer {
-    /// Creates a new printer configured by the given options.
-    pub fn new(args: PrinterOptions, tests: &[Trial]) -> Self {
-        let color_arg = args.color.unwrap_or(ColorSetting::Auto);
-
-        // Determine target of all output
-        let out: Box<dyn Write> = if let Some(logfile) = &args.logfile {
-            let f = File::create(logfile).expect("failed to create logfile");
-            if color_arg == ColorSetting::Always {
-                Box::new(AutoStream::always(f))
-            } else {
-                Box::new(AutoStream::never(f))
-            }
+    pub fn with_logfile(logfile: &str, options: PrinterOptions, tests: &[Trial]) -> Self {
+        let color_arg = options.color.unwrap_or(ColorSetting::Auto);
+        let f = File::create(logfile).expect("failed to create logfile");
+        let w = if color_arg == ColorSetting::Always {
+            Box::new(AutoStream::always(f))
         } else {
-            let choice = match color_arg {
-                ColorSetting::Auto => anstream::ColorChoice::Auto,
-                ColorSetting::Always => anstream::ColorChoice::Always,
-                ColorSetting::Never => anstream::ColorChoice::Never,
-            };
-            Box::new(AutoStream::new(std::io::stdout(), choice))
+            Box::new(AutoStream::never(f))
         };
 
+        Self::new_inner(w, options, tests)
+    }
+
+    pub fn new(options: PrinterOptions, tests: &[Trial]) -> Self {
+        let color_arg = options.color.unwrap_or(ColorSetting::Auto);
+        let choice = match color_arg {
+            ColorSetting::Auto => anstream::ColorChoice::Auto,
+            ColorSetting::Always => anstream::ColorChoice::Always,
+            ColorSetting::Never => anstream::ColorChoice::Never,
+        };
+        let w = Box::new(AutoStream::new(std::io::stdout(), choice));
+
+        Self::new_inner(w, options, tests)
+    }
+
+    /// Creates a new printer configured by the given options.
+    fn new_inner(out: Box<dyn Write>, options: PrinterOptions, tests: &[Trial]) -> Self {
         // Determine correct format
-        let format = if args.quiet {
+        let format = if options.quiet {
             FormatSetting::Terse
         } else {
-            args.format.unwrap_or(FormatSetting::Pretty)
+            options.format.unwrap_or(FormatSetting::Pretty)
         };
 
         // Determine max test name length to do nice formatting later.

@@ -13,26 +13,21 @@ pub use crate::args::{Arguments, ColorSetting, FormatSetting};
 
 /// Contains information about the entire test run. Is returned by[`run`].
 ///
-/// This type is marked as `#[must_use]`. Usually, you just call
-/// [`exit()`][Conclusion::exit] on the result of `run` to exit the application
-/// with the correct exit code. But you can also store this value and inspect
-/// its data.
+/// This type is marked as `#[must_use]`. Usually, you just call `exit()` on the
+/// result of `run` to exit the application with the correct exit code. But you
+/// can also store this value and inspect its data.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[must_use = "Call `exit()` or `exit_if_failed()` to set the correct return code"]
 pub struct Conclusion {
     /// Number of tests and benchmarks that were filtered out (either by the
     /// filter-in pattern or by `--skip` arguments).
     pub num_filtered_out: u64,
-
     /// Number of passed tests.
     pub num_passed: u64,
-
     /// Number of failed tests and benchmarks.
     pub num_failed: u64,
-
     /// Number of ignored tests and benchmarks.
     pub num_ignored: u64,
-
     /// Number of benchmarks that successfully ran.
     pub num_measured: u64,
 }
@@ -88,9 +83,9 @@ impl Conclusion {
 /// This is the central function of this crate. It provides the framework for
 /// the testing harness. It does all the printing and house keeping.
 ///
-/// The returned value contains a couple of useful information. See
-/// [`Conclusion`] for more information. If `--list` was specified, a list is
-/// printed and a dummy `Conclusion` is returned.
+/// The returned value contains a couple of useful information. See `Conclusion`
+/// for more information. If `--list` was specified, a list is printed and a
+/// dummy `Conclusion` is returned.
 pub fn run<A>(args: &Arguments<A>, mut tests: Vec<Trial>) -> Conclusion
 where
     A: Args,
@@ -107,7 +102,10 @@ where
     let tests = tests;
 
     // Create printer which is used for all output.
-    let mut printer = Printer::new(args.printer_options(), &tests);
+    let mut printer = match &args.logfile {
+        Some(path) => Printer::with_logfile(path, args.printer_options(), &tests),
+        None => Printer::new(args.printer_options(), &tests),
+    };
 
     // If `--list` is specified, just print the list and return.
     if args.list {
@@ -161,7 +159,7 @@ where
 }
 
 /// Runs the given runner, catching any panics and treating them as a failed test.
-fn run_single(runner: Box<dyn FnOnce(bool) -> Outcome + Send>, test_mode: bool) -> Outcome {
+fn run_single<'a>(runner: Box<dyn FnOnce(bool) -> Outcome + 'a>, test_mode: bool) -> Outcome {
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
     catch_unwind(AssertUnwindSafe(move || runner(test_mode))).unwrap_or_else(|e| {

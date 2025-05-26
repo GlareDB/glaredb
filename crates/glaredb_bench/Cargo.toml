@@ -10,8 +10,10 @@ workspace = true
 glaredb_error = { path = '../glaredb_error' }
 glaredb_core = { path = '../glaredb_core' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
-libtest-mimic = "0.7.3"
+
+harness = { path = '../harness' }
 logutil = { path = '../logutil' }
+
 futures = { workspace = true }
 tokio = { workspace = true }
 parking_lot = { workspace = true }

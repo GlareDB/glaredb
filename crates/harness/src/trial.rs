@@ -12,22 +12,22 @@ use std::fmt;
 /// trial is considered "failed". If you need the behavior of `#[should_panic]`
 /// you need to catch the panic yourself. You likely want to compare the panic
 /// payload to an expected value anyway.
-pub struct Trial {
-    pub(crate) runner: Box<dyn FnOnce(bool) -> Outcome + Send>,
+pub struct Trial<'a> {
+    pub(crate) runner: Box<dyn FnOnce(bool) -> Outcome + 'a>,
     pub(crate) info: TestInfo,
 }
 
-impl Trial {
+impl<'a> Trial<'a> {
     /// Creates a (non-benchmark) test with the given name and runner.
     ///
     /// The runner returning `Ok(())` is interpreted as the test passing. If the
     /// runner returns `Err(_)`, the test is considered failed.
     pub fn test<R>(name: impl Into<String>, runner: R) -> Self
     where
-        R: FnOnce() -> Result<(), Failed> + Send + 'static,
+        R: FnOnce() -> Result<(), Failed> + 'a,
     {
         Self {
-            runner: Box::new(move |_test_mode| match runner() {
+            runner: Box::new(|_test_mode| match runner() {
                 Ok(()) => Outcome::Passed,
                 Err(failed) => Outcome::Failed(failed),
             }),
@@ -54,10 +54,10 @@ impl Trial {
     /// ran at all, and both flags cannot be set at the same time.
     pub fn bench<R>(name: impl Into<String>, runner: R) -> Self
     where
-        R: FnOnce(bool) -> Result<Option<Measurement>, Failed> + Send + 'static,
+        R: FnOnce(bool) -> Result<Option<Measurement>, Failed> + 'a,
     {
         Self {
-            runner: Box::new(move |test_mode| match runner(test_mode) {
+            runner: Box::new(|test_mode| match runner(test_mode) {
                 Err(failed) => Outcome::Failed(failed),
                 Ok(_) if test_mode => Outcome::Passed,
                 Ok(Some(measurement)) => Outcome::Measured(measurement),
@@ -132,7 +132,7 @@ impl Trial {
     }
 }
 
-impl fmt::Debug for Trial {
+impl fmt::Debug for Trial<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         struct OpaqueRunner;
         impl fmt::Debug for OpaqueRunner {

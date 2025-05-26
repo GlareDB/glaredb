@@ -14,7 +14,9 @@ use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
-use libtest_mimic::{Arguments, Measurement, Trial};
+use harness::Arguments;
+use harness::args::NoExtraArgs;
+use harness::trial::{Measurement, Trial};
 use parking_lot::Mutex;
 use runner::{BenchmarkRunner, BenchmarkTimes};
 use tokio::runtime::Runtime as TokioRuntime;
@@ -117,10 +119,9 @@ where
     //
     // TODO: Probably just fork libtest_mimic. There's changes I want to make
     // for the slt runner too.
-    let mut args = Arguments::from_args();
+    let mut args = Arguments::<NoExtraArgs>::from_args();
     // Always run the "tests" with one thread (this thread) sequentially. We
     // spin up thread pools in the engine itself.
-    args.test_threads = Some(1);
     args.test = false;
     args.bench = true;
 
@@ -158,7 +159,7 @@ where
         })
         .collect();
 
-    libtest_mimic::run(&args, benches).exit_if_failed();
+    harness::run(&args, benches).exit_if_failed();
 
     Ok(())
 }
