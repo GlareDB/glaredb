@@ -30,8 +30,7 @@ pub trait FileHandle: Debug + Sync + Send + 'static {
     fn path(&self) -> &str;
 
     /// Get the size in bytes of this file.
-    // TODO: Probably u64
-    fn size(&self) -> usize;
+    fn size(&self) -> u64;
 
     /// Read from the current position into the buffer, returning the number of
     /// bytes read.
@@ -71,7 +70,7 @@ impl AnyFile {
         (self.vtable.path_fn)(self.file.as_ref())
     }
 
-    pub fn call_size(&self) -> usize {
+    pub fn call_size(&self) -> u64 {
         // TODO: We could probably just stick the size on the struct.
         (self.vtable.size_fn)(self.file.as_ref())
     }
@@ -111,7 +110,7 @@ impl AnyFile {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RawFileVTable {
     path_fn: fn(&dyn Any) -> &str,
-    size_fn: fn(&dyn Any) -> usize,
+    size_fn: fn(&dyn Any) -> u64,
     poll_read_fn: fn(&mut dyn Any, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>>,
     poll_seek_fn: fn(&mut dyn Any, cx: &mut Context, seek: io::SeekFrom) -> Poll<Result<()>>,
     read_fn: for<'a> fn(&'a mut dyn Any, buf: &'a mut [u8]) -> FileSystemFuture<'a, Result<usize>>,

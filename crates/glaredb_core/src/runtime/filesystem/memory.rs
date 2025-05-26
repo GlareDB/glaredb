@@ -119,8 +119,8 @@ impl FileHandle for MemoryFileHandle {
         &self.path
     }
 
-    fn size(&self) -> usize {
-        self.buffer.len()
+    fn size(&self) -> u64 {
+        self.buffer.len() as u64
     }
 
     fn poll_read(&mut self, _cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {

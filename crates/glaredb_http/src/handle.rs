@@ -19,9 +19,9 @@ pub trait RequestSigner: Sync + Send + Debug + 'static {
 #[derive(Debug)]
 pub struct HttpFileHandle<C: HttpClient, S: RequestSigner> {
     pub(crate) url: Url,
-    pub(crate) pos: usize,
     pub(crate) chunk: ChunkReadState<C>,
-    pub(crate) len: usize,
+    pub(crate) pos: u64,
+    pub(crate) len: u64,
     pub(crate) client: C,
     pub(crate) signer: S,
 }
@@ -34,11 +34,11 @@ where
     /// Create a new handle represting a file at the given location.
     ///
     /// The initial position will be at the start.
-    pub(crate) fn new(url: Url, len: usize, client: C, signer: S) -> Self {
+    pub(crate) fn new(url: Url, len: u64, client: C, signer: S) -> Self {
         HttpFileHandle {
             url,
-            pos: 0,
             chunk: ChunkReadState::None,
+            pos: 0,
             len,
             client,
             signer,
@@ -55,7 +55,7 @@ where
         self.url.as_str()
     }
 
-    fn size(&self) -> usize {
+    fn size(&self) -> u64 {
         self.len
     }
 
@@ -72,7 +72,9 @@ where
                     //
                     // We should never be making the request if buf_count > 0.
                     let remaining = self.len - self.pos;
-                    let range_count = usize::min(remaining, buf.len());
+                    // This is implicitly bounded by usize::MAX since buf.len()
+                    // will be returning a usize.
+                    let range_count = u64::min(remaining, buf.len() as u64);
                     if range_count == 0 {
                         // Nothing left to read.
                         return Poll::Ready(Ok(0));
@@ -166,7 +168,7 @@ where
                     // position.
                     buf_count += copy_count;
                     *pos += copy_count;
-                    self.pos += copy_count;
+                    self.pos += copy_count as u64;
 
                     if *pos >= chunk.len() {
                         // We've exhuasted this chunk. Get more from the stream.
@@ -203,27 +205,27 @@ where
         // position.
         self.chunk = ChunkReadState::None;
         match seek {
-            io::SeekFrom::Start(count) => self.pos = count as usize,
+            io::SeekFrom::Start(count) => self.pos = count,
             io::SeekFrom::End(count) => {
                 if count > 0 {
                     // It's legal to seek beyond the end, but the read may fail.
-                    self.pos = self.len + (count as usize);
+                    self.pos = self.len + count as u64;
                 } else {
-                    let count = count.abs();
-                    if count as usize > self.len {
+                    let count = count.unsigned_abs();
+                    if count > self.len {
                         return Poll::Ready(Err(DbError::new(
                             "Cannot seek to before beginning of file",
                         )));
                     }
-                    self.pos = self.len - (count as usize);
+                    self.pos = self.len - count;
                 }
             }
             io::SeekFrom::Current(count) => {
                 if count > 0 {
                     // Just add to current position, as above, it's legal to seek beyond the end.
-                    self.pos += count as usize;
+                    self.pos += count as u64;
                 } else {
-                    let count = count.unsigned_abs() as usize;
+                    let count = count.unsigned_abs();
                     if count > self.pos {
                         return Poll::Ready(Err(DbError::new(
                             "Cannot seek to before beginning of file",
@@ -307,7 +309,12 @@ mod tests {
 
         fn handle(&self) -> HttpFileHandle<Self, NopRequestSigner> {
             let loc = Url::parse("https://bigdatacompany.com/file").unwrap();
-            HttpFileHandle::new(loc, self.content.len(), self.clone(), NopRequestSigner)
+            HttpFileHandle::new(
+                loc,
+                self.content.len() as u64,
+                self.clone(),
+                NopRequestSigner,
+            )
         }
 
         fn generate_chunks_from_request(&self, req: &Request) -> Vec<Bytes> {

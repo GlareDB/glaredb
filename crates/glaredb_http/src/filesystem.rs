@@ -69,7 +69,7 @@ where
             Some(v) => v
                 .to_str()
                 .context("Failed convert Content-Length header to string")?
-                .parse::<usize>()
+                .parse::<u64>()
                 .context("Failed to parse Content-Length")?,
             None => return Err(DbError::new("Missing Content-Length header for file")),
         };

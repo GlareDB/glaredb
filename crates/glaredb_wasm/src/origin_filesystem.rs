@@ -31,9 +31,9 @@ pub struct OriginFileHandle {
     /// Path to the file.
     path: String,
     /// Size in bytes of the file.
-    len: usize,
+    len: u64,
     /// Current position within the file.
-    pos: usize,
+    pos: u64,
     /// Web sys handle to the file.
     handle: FileSystemSyncAccessHandle,
 }
@@ -52,7 +52,7 @@ impl FileHandle for OriginFileHandle {
         &self.path
     }
 
-    fn size(&self) -> usize {
+    fn size(&self) -> u64 {
         self.len
     }
 
@@ -64,7 +64,7 @@ impl FileHandle for OriginFileHandle {
             .map_err(|_val| DbError::new("Failed to read from file"))?;
         let n = n as usize;
 
-        self.pos += n;
+        self.pos += n as u64;
 
         Poll::Ready(Ok(n))
     }
@@ -78,27 +78,27 @@ impl FileHandle for OriginFileHandle {
 
     fn poll_seek(&mut self, _cx: &mut Context, seek: io::SeekFrom) -> Poll<Result<()>> {
         match seek {
-            io::SeekFrom::Start(count) => self.pos = count as usize,
+            io::SeekFrom::Start(count) => self.pos = count,
             io::SeekFrom::End(count) => {
                 if count > 0 {
                     // It's legal to seek beyond the end, but the read may fail.
-                    self.pos = self.len + (count as usize);
+                    self.pos = self.len + count as u64;
                 } else {
-                    let count = count.abs();
-                    if count as usize > self.len {
+                    let count = count.unsigned_abs();
+                    if count > self.len {
                         return Poll::Ready(Err(DbError::new(
                             "Cannot seek to before beginning of file",
                         )));
                     }
-                    self.pos = self.len - (count as usize);
+                    self.pos = self.len - count;
                 }
             }
             io::SeekFrom::Current(count) => {
                 if count > 0 {
                     // Just add to current position, as above, it's legal to seek beyond the end.
-                    self.pos += count as usize;
+                    self.pos += count as u64;
                 } else {
-                    let count = count.unsigned_abs() as usize;
+                    let count = count.unsigned_abs();
                     if count > self.pos {
                         return Poll::Ready(Err(DbError::new(
                             "Cannot seek to before beginning of file",
@@ -238,7 +238,7 @@ impl FileSystem for OriginFileSystem {
 
         Ok(OriginFileHandle {
             path: path.to_string(),
-            len: len as usize,
+            len: len as u64,
             pos: 0,
             handle,
         })
