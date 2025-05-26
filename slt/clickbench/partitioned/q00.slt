@@ -6,4 +6,4 @@ count  Int64
 query ?
 SELECT COUNT(*) FROM hits;
 ----
-1000000
+100000

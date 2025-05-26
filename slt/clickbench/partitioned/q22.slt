@@ -11,15 +11,8 @@ count         Int64
 query ?????
 SELECT SearchPhrase, MIN(URL), MIN(Title), COUNT(*) AS c, COUNT(DISTINCT UserID) FROM hits WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC, MIN(URL), MIN(Title) LIMIT 10;
 ----
-винки медведь смотреть фильмы 2013 смотреть http://smeshariki.ru/index.ua/newsru.com/iframe_right%3D43%26bt%3D43%26bn%3D0%26ad%3D0%26rnd%3D38%2F видеорегионалу Google 7 4
-кино 2009) смотреть онлайн бессмерти мк в россипед http://domchelove.ru/#!/search/page Далее о коллекции в GIMI LANCIA 0K3Y318104 продать Google, go-go в регистрии — Мой Крым 2 2
-скачатске происходов http://fitness indigo-tsrus.info/node/226246/#page=10&state/rent Фильму ПиКа - часы - Яндекс.Погоды: Смоленск фото, за плюс, текстовая комнатные смотри и Infiniti FX? • Volkswagen Palazzonia б/у, цена - Яндекс.Деньги - знакомства Уссурийских услуг компании Sven Mujah, Yulia Google Calzedon Hood, текстовые - Поинтернет-магазин. Переводные быстрые новый челов. Комены на Киев) - Яндекс 2 1
-вспышки нижний эльзы для http://mysw.info/newsru.ru/compatible Convent-менеджер с Google Players 1.3 кв. м.- Продажа: лет - купить Bisbal Systеms Aparty* 2 1
-авто ресоры в пенсии http://smeshariki.ru/index.ua/basket&ch=UTF-8&sF=11,1,7,7,7,79104/women.irr.ru/search?text=маша такое нижнее белое смотреть фильму Мечта Google Cuckold | Продажа 2 1
-игры+для+pc http://smeshariki.ru/index.ua/notifikator/two_chambered/main/news/70537.36 (KHTML, like Land P6 Google Edifieds: дверейтинг отели, свою любовники: Продажа Акип | Каталог 2 1
-секретарь оверка описан http://smeshariki.ru/recipes/showforum.materiod=30&page%3D158197%26width @дневники Google Player 1.4 л, Ярославль) Omega - Centiquest-Watch Der Screat Wall Deeperling 2 1
-секретарь оверка все серии порт http://viktori-decord.ru/a-album/login-alilinex_YOGURCY/ogurcomm @дневники Google Player 1.2.5 л, 2 2
 авторы для заданным и операта http%3A//unise.ru/carspringtau_trafkey=964113 Google Papa Rapalaxy Accer Travel.Ru — перименте - Пульс цене – Яндекс.Слова 1 1
-читать московую площадей http://auto.ria.ua/search/ab_district=1&cid=577&action&op AUTO.ria.ua: продажа | Востов-на-Дону, чашечка Google Cayennection Polo | б.у. и новых. Автопоиска и купить в Омск - IRR.ru - Роддово, ул. Гибочной день цене 1 1
-
-
+прогноз посад люберцах дома стробережье курорт чечная сель смотреть онлайн http:%2F%2Fvk.com/iframe/iframe-owa.html_parapleservices/483850.html?Messa SEMIR GEA Gamo — пробегом мошения, Спортал Мире Ламины в большой брита Google, аксессуары 1 1
+игры для дер блич http://kinopoisk.ru/a-albums_scroll_to_auto_id=363064472354&lb_id=1559843 Легко на купить автозаврам телась Google Anaissage_599-61 «Оверлок колепный рецепт: Тверсал, 20008 г.в. Цена: 300 с пробегом и новый магазине Wildberries.ru (Работа 1 1
+вспоминский языке 400 отзывы майнкрафт http://pogoda.yandex.ru/cgi-bin/click.cgi%3Fsid%3D10394,911894&op_provideo.yandex Чуваши условары к Samsung Galaxy S4 Google And Benrolf-autodoc.ru/viewsAndroid — Продам - Челябинск, Кирования. Коммерческая одежда, г. Санкт-Петербурге 1 1
+wwwwww.komplex hepburn manhattalibraheat http://xx-bikin.ru/catalog/SHHitovyj-97542.xhtml#newsru.com/ru/auto_id=2479&offe.30533&site_off=FORID:9&ie=wizbiz «factoria Google — Selena, 32, Москва предмет:Перов - loveplanet.ru. Не огромный медалии, Египертов в Через - Свободная блузки 1 1
