@@ -1,0 +1,10 @@
+[package]
+name = "harness"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+
+[lints]
+workspace = true

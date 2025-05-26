@@ -1287,6 +1287,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "harness"
+version = "25.5.11"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
