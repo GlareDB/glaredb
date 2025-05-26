@@ -169,11 +169,11 @@ fn run_single<'a>(runner: Box<dyn FnOnce(bool) -> Outcome + 'a>, test_mode: bool
         let payload = e
             .downcast_ref::<String>()
             .map(|s| s.as_str())
-            .or(e.downcast_ref::<&str>().map(|s| *s));
+            .or(e.downcast_ref::<&str>().copied());
 
         let msg = match payload {
             Some(payload) => format!("test panicked: {payload}"),
-            None => format!("test panicked"),
+            None => "test panicked".to_string(),
         };
         Outcome::Failed(msg.into())
     })

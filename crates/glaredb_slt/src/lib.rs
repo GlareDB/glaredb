@@ -129,7 +129,7 @@ where
         })
         .collect();
 
-    harness::run(&args, tests).exit_if_failed();
+    harness::run(args, tests).exit_if_failed();
 
     Ok(())
 }
