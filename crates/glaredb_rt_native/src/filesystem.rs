@@ -18,7 +18,7 @@ use glaredb_error::{DbError, Result, ResultExt};
 #[derive(Debug)]
 pub struct LocalFileHandle {
     path: String,
-    len: usize,
+    len: u64,
     file: StdFile,
 }
 
@@ -27,7 +27,7 @@ impl FileHandle for LocalFileHandle {
         &self.path
     }
 
-    fn size(&self) -> usize {
+    fn size(&self) -> u64 {
         self.len
     }
 
@@ -78,7 +78,7 @@ impl FileSystem for LocalFileSystem {
 
         Ok(LocalFileHandle {
             path: path.to_string(),
-            len: metadata.len() as usize,
+            len: metadata.len(),
             file,
         })
     }

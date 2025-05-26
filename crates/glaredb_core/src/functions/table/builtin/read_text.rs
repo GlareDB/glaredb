@@ -183,7 +183,11 @@ impl TableScanFunction for ReadText {
                     };
 
                     if op_state.projections.has_data_column(0) {
-                        state.buf.resize(file.call_size(), 0);
+                        let size: usize = file
+                            .call_size()
+                            .try_into()
+                            .context("File size exceeded max memory buffer size")?;
+                        state.buf.resize(size, 0);
                     }
 
                     state.state = ReadState::Scanning {

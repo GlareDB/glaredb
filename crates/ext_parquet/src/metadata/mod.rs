@@ -45,7 +45,7 @@ use crate::schema::types::{ColumnDescriptor, ColumnPath, GroupType, SchemaDescri
 pub const FOOTER_SIZE: usize = 8;
 
 /// Minimum file size for a valid parquet file.
-pub const MIN_FILE_SIZE: usize = 12;
+pub const MIN_FILE_SIZE: u64 = 12;
 
 /// Magic value for parquet files.
 pub const PARQUET_MAGIC: &[u8; 4] = b"PAR1";
