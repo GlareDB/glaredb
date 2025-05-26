@@ -4,8 +4,9 @@ DESCRIBE SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND Ev
 URL        Utf8
 PageViews  Int64
 
+# Extra ORDER BY
 query ??
-SELECT URL, COUNT(*) AS "PageViews" FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND URL <> '' GROUP BY URL ORDER BY "PageViews" DESC LIMIT 10;
+SELECT URL, COUNT(*) AS "PageViews" FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND URL <> '' GROUP BY URL ORDER BY "PageViews" DESC, 1 LIMIT 10;
 ----
 http://irr.ru/index.php?showalbum/login-leniya7777294,938303130 64
 http://irr.ru/index.php?showalbum/login-kapustic/product_name 59
@@ -16,4 +17,4 @@ http://irr.ru/index.php?showalbum/login-kapusta-advert27256.html_params 8
 http://irr.ru/index.php?showalbum/login.pl?cmd=showbiz/photo-7/#photo=6 8
 http://irr.ru/index.php?showalbum/login-kapustom%3D%26xpid%3D158197%26width%3D728%26height 7
 http://irr.ru/index.php?showalbum/list=0&vip=&int[22970][to]=&input_who2=1&isize%3D0%26ad%3D27888885%26bt%3D43%26bn%3DKeyword&ti=Толстуху если mastered/main.aspx?naId=6oBCPopQZUU&where=all&text=офис хилз 90216629 5
-http://irr.ru/index.php?showalbum/login-kapusta-advert27256.html_partner=1&last_auto.ria 5
+http://irr.ru/index.php?showalbum/login-kapusta-advert2486.html&services 5
