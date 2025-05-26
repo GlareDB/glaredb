@@ -6,6 +6,7 @@ mod runner;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use benchmark::Benchmark;
 use glaredb_core::engine::single_user::SingleUserEngine;
@@ -14,6 +15,7 @@ use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use libtest_mimic::{Arguments, Measurement, Trial};
+use parking_lot::Mutex;
 use runner::{BenchmarkRunner, BenchmarkTimes};
 use tokio::runtime::Runtime as TokioRuntime;
 
@@ -27,9 +29,12 @@ where
     pub tokio_rt: TokioRuntime,
 }
 
-#[derive(Debug)]
+// TODO: Clean this up. The lock + clone is because libtest mimic has very
+// strict requirements on the runner function.
+#[derive(Debug, Clone)]
 pub struct TsvWriter {
-    file: Option<BufWriter<File>>,
+    // TODO: Sue me
+    file: Arc<Mutex<Option<BufWriter<File>>>>,
 }
 
 impl TsvWriter {
@@ -47,34 +52,34 @@ impl TsvWriter {
             None => None,
         };
 
-        Ok(TsvWriter { file })
+        Ok(TsvWriter {
+            file: Arc::new(Mutex::new(file)),
+        })
     }
 
-    pub fn write_header(&mut self) -> Result<()> {
-        println!("benchmark_identifier\tcount\ttime_millis");
-        if let Some(file) = self.file.as_mut() {
-            writeln!(file, "benchmark_identifier\tcount\ttime_millis")?;
+    pub fn write_header(&self) -> Result<()> {
+        let mut file = self.file.lock();
+        if let Some(file) = file.as_mut() {
+            writeln!(file, "bench_name\tcount\ttime_ns")?;
         }
 
         Ok(())
     }
 
-    pub fn write(&mut self, bench_identifier: &str, times: BenchmarkTimes) -> Result<()> {
-        // for (idx, query_time) in times.query_times_ms.iter().enumerate() {
-        //     println!("{}\t{}\t{}", bench_identifier, idx + 1, query_time);
-        // }
-
-        // if let Some(file) = self.file.as_mut() {
-        //     for (idx, query_time) in times.query_times_ms.iter().enumerate() {
-        //         writeln!(file, "{}\t{}\t{}", bench_identifier, idx + 1, query_time)?;
-        //     }
-        // }
+    pub fn write(&self, bench_name: String, times: &BenchmarkTimes) -> Result<()> {
+        let mut file = self.file.lock();
+        if let Some(file) = file.as_mut() {
+            for (idx, query_time) in times.query_times_ns.iter().enumerate() {
+                writeln!(file, "{}\t{}\t{}", bench_name, idx + 1, query_time)?;
+            }
+        }
 
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<()> {
-        if let Some(file) = self.file.as_mut() {
+    pub fn flush(&self) -> Result<()> {
+        let mut file = self.file.lock();
+        if let Some(file) = file.as_mut() {
             file.flush()?;
         }
 
@@ -95,7 +100,7 @@ pub struct RunArgs {
 /// `engine_fn` is ran for each benchmark, and should return a fresh
 /// session/single user engine to use for the benchmark.
 pub fn run<F>(
-    writer: &mut TsvWriter,
+    writer: TsvWriter,
     run_args: RunArgs,
     paths: impl IntoIterator<Item = PathBuf>,
     engine_fn: F,
@@ -107,8 +112,11 @@ where
         + Clone
         + 'static,
 {
-    println!("HELLO?");
-
+    // TODO: Extend/override this for custom arguments (count, results
+    // location).
+    //
+    // TODO: Probably just fork libtest_mimic. There's changes I want to make
+    // for the slt runner too.
     let mut args = Arguments::from_args();
     // Always run the "tests" with one thread (this thread) sequentially. We
     // spin up thread pools in the engine itself.
@@ -128,8 +136,9 @@ where
                 .to_string();
 
             let engine_fn = engine_fn.clone();
+            let writer = writer.clone();
 
-            Trial::bench(bench_name, move |_test_mode| {
+            Trial::bench(bench_name.clone(), move |_test_mode| {
                 let bench = Benchmark::from_file(path)?;
                 let conf = engine_fn()?;
 
@@ -139,9 +148,7 @@ where
                 };
 
                 let times = conf.tokio_rt.block_on(runner.run(run_args))?;
-
-                // TODO
-                // writer.write(&path.identifier, times)?;
+                writer.write(bench_name, &times)?;
 
                 Ok(Some(Measurement {
                     avg: times.query_avg(),

@@ -24,10 +24,10 @@ pub fn main() -> Result<()> {
         count: 3,
     };
 
-    let mut writer = TsvWriter::try_new(None)?;
+    let writer = TsvWriter::try_new(Some("./results.tsv".into()))?;
     writer.write_header()?;
 
-    run_with_setup::<DefaultSetup>(&mut writer, run_args, "../bench/micros", false)?;
+    run_with_setup::<DefaultSetup>(writer.clone(), run_args, "../bench/micro", false)?;
 
     writer.flush()?;
 
@@ -64,7 +64,7 @@ where
 }
 
 fn run_with_setup<S>(
-    writer: &mut TsvWriter,
+    writer: TsvWriter,
     run_args: RunArgs,
     path: &str,
     drop_page_cache: bool,
