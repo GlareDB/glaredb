@@ -9,17 +9,36 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use benchmark::Benchmark;
+use clap::Parser;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use harness::Arguments;
-use harness::args::NoExtraArgs;
 use harness::trial::{Measurement, Trial};
 use parking_lot::Mutex;
 use runner::{BenchmarkRunner, BenchmarkTimes};
 use tokio::runtime::Runtime as TokioRuntime;
+
+#[derive(Debug, Parser, Clone, Copy)]
+pub struct BenchArguments {
+    /// Number of times to run each benchmark query.
+    #[clap(long, default_value_t = 3)]
+    pub count: usize,
+    /// Print the EXPLAIN output of a benchmark query before running it.
+    #[clap(long)]
+    pub print_explain: bool,
+    /// Print out the profile data for benchmark queries.
+    #[clap(long)]
+    pub print_profile_data: bool,
+    /// Print out the results of each benchmark query.
+    #[clap(long)]
+    pub print_results: bool,
+    /// Drop the fs cache before running the setup or benchmark query.
+    #[clap(long)]
+    pub drop_cache: bool,
+}
 
 #[derive(Debug)]
 pub struct RunConfig<E, R>
@@ -103,7 +122,7 @@ pub struct RunArgs {
 /// session/single user engine to use for the benchmark.
 pub fn run<F>(
     writer: TsvWriter,
-    run_args: RunArgs,
+    args: Arguments<BenchArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
     engine_fn: F,
 ) -> Result<()>
@@ -114,17 +133,6 @@ where
         + Clone
         + 'static,
 {
-    // TODO: Extend/override this for custom arguments (count, results
-    // location).
-    //
-    // TODO: Probably just fork libtest_mimic. There's changes I want to make
-    // for the slt runner too.
-    let mut args = Arguments::<NoExtraArgs>::from_args();
-    // Always run the "tests" with one thread (this thread) sequentially. We
-    // spin up thread pools in the engine itself.
-    args.test = false;
-    args.bench = true;
-
     let benches: Vec<Trial> = paths
         .into_iter()
         .map(|path| {
@@ -141,6 +149,11 @@ where
 
             Trial::bench(bench_name.clone(), move |_test_mode| {
                 let bench = Benchmark::from_file(path)?;
+
+                if args.extra.drop_cache {
+                    pagecache::drop_page_cache()?;
+                }
+
                 let conf = engine_fn()?;
 
                 let runner = BenchmarkRunner {
@@ -148,7 +161,7 @@ where
                     benchmark: bench,
                 };
 
-                let times = conf.tokio_rt.block_on(runner.run(run_args))?;
+                let times = conf.tokio_rt.block_on(runner.run(args.extra))?;
                 writer.write(bench_name, &times)?;
 
                 Ok(Some(Measurement {

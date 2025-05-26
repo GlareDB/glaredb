@@ -217,6 +217,7 @@ dependencies = [
  "glaredb_core",
  "glaredb_error",
  "glaredb_rt_native",
+ "harness",
 ]
 
 [[package]]
@@ -1080,6 +1081,7 @@ dependencies = [
 name = "glaredb_bench"
 version = "25.5.11"
 dependencies = [
+ "clap",
  "futures",
  "glaredb_core",
  "glaredb_error",
@@ -1214,12 +1216,13 @@ name = "glaredb_slt"
 version = "25.5.11"
 dependencies = [
  "async-trait",
+ "clap",
  "crossterm",
  "futures",
  "glaredb_core",
  "glaredb_error",
  "glaredb_rt_native",
- "libtest-mimic",
+ "harness",
  "rand",
  "sqllogictest",
  "tokio",
@@ -2863,6 +2866,7 @@ dependencies = [
  "glaredb_error",
  "glaredb_rt_native",
  "glaredb_slt",
+ "harness",
  "tokio",
 ]
 

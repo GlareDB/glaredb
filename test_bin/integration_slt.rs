@@ -16,38 +16,58 @@ use glaredb_rt_native::runtime::{
     new_tokio_runtime_for_io,
 };
 use glaredb_rt_native::threaded::ThreadedScheduler;
-use glaredb_slt::{ReplacementVars, RunConfig, VarValue};
+use glaredb_slt::{ReplacementVars, RunConfig, SltArguments, VarValue};
+use harness::Arguments;
 
 pub fn main() -> Result<()> {
+    let args = Arguments::<SltArguments>::from_args();
+
     // Standard tests.
-    run_with_all_thread_configurations::<StandardSetup>("../slt/standard", "slt_standard")?;
+    run_with_all_thread_configurations::<StandardSetup>(&args, "../slt/standard", "slt_standard")?;
 
     // TPC-H gen extension.
-    run_with_all_thread_configurations::<TpchGenSetup>("../slt/tpch_gen", "slt_tpch_gen")?;
+    run_with_all_thread_configurations::<TpchGenSetup>(&args, "../slt/tpch_gen", "slt_tpch_gen")?;
 
     // CSV extension.
-    run_with_all_thread_configurations::<CsvSetup>("../slt/csv", "slt_csv")?;
+    run_with_all_thread_configurations::<CsvSetup>(&args, "../slt/csv", "slt_csv")?;
 
     // Parquet extension.
-    run_with_all_thread_configurations::<ParquetSetup>("../slt/parquet", "slt_parquet")?;
+    run_with_all_thread_configurations::<ParquetSetup>(&args, "../slt/parquet", "slt_parquet")?;
 
     // Read files over http
-    run_with_all_thread_configurations::<HttpSetup>("../slt/http", "slt_http")?;
+    run_with_all_thread_configurations::<HttpSetup>(&args, "../slt/http", "slt_http")?;
 
     // Public S3 with CSV, parquet
-    run_with_all_thread_configurations::<S3PublicSetup>("../slt/s3/public", "slt_s3_public")?;
+    run_with_all_thread_configurations::<S3PublicSetup>(
+        &args,
+        "../slt/s3/public",
+        "slt_s3_public",
+    )?;
 
     // Private S3 with CSV, parquet
-    run_with_all_thread_configurations::<S3PrivateSetup>("../slt/s3/private", "slt_s3_private")?;
+    run_with_all_thread_configurations::<S3PrivateSetup>(
+        &args,
+        "../slt/s3/private",
+        "slt_s3_private",
+    )?;
 
     // Public GCS with CSV, parquet
-    run_with_all_thread_configurations::<GcsPublicSetup>("../slt/gcs/public", "slt_gcs_public")?;
+    run_with_all_thread_configurations::<GcsPublicSetup>(
+        &args,
+        "../slt/gcs/public",
+        "slt_gcs_public",
+    )?;
 
     // Private GCS with CSV, parquet
-    run_with_all_thread_configurations::<GcsPrivateSetup>("../slt/gcs/private", "slt_gcs_private")?;
+    run_with_all_thread_configurations::<GcsPrivateSetup>(
+        &args,
+        "../slt/gcs/private",
+        "slt_gcs_private",
+    )?;
 
     // Clickbench queries on a truncated dataset (single parquet file)
     run_with_all_thread_configurations::<ClickbenchSingleSetup>(
+        &args,
         "../slt/clickbench/single",
         "slt_clickbench_single",
     )?;
@@ -58,6 +78,7 @@ pub fn main() -> Result<()> {
     // plan will end up reading all columns from all files. The total row count
     // is 100,000.
     run_with_all_thread_configurations::<ClickbenchPartitionedSetup>(
+        &args,
         "../slt/clickbench/partitioned",
         "slt_clickbench_partitioned",
     )?;
@@ -67,7 +88,11 @@ pub fn main() -> Result<()> {
     // These should all run without 'verify_optimized_plan' as the unoptimized
     // plans will end up with cross joins, making some of these queries really
     // slow.
-    run_with_all_thread_configurations::<TpchBenchSetup>("../slt/tpchbench", "slt_tpchbench")?;
+    run_with_all_thread_configurations::<TpchBenchSetup>(
+        &args,
+        "../slt/tpchbench",
+        "slt_tpchbench",
+    )?;
 
     Ok(())
 }
@@ -400,7 +425,12 @@ where
     })
 }
 
-fn run_with_executor<S>(executor: ThreadedNativeExecutor, path: &str, tag: &str) -> Result<()>
+fn run_with_executor<S>(
+    args: &Arguments<SltArguments>,
+    executor: ThreadedNativeExecutor,
+    path: &str,
+    tag: &str,
+) -> Result<()>
 where
     S: EngineSetup<NativeExecutor<ThreadedScheduler>, NativeSystemRuntime>,
 {
@@ -409,6 +439,7 @@ where
 
     let paths = glaredb_slt::find_files(Path::new(path)).unwrap();
     glaredb_slt::run(
+        args,
         paths,
         move || {
             let executor = executor.clone();
@@ -423,12 +454,17 @@ where
     )
 }
 
-fn run_with_all_thread_configurations<S>(path: &str, tag: &str) -> Result<()>
+fn run_with_all_thread_configurations<S>(
+    args: &Arguments<SltArguments>,
+    path: &str,
+    tag: &str,
+) -> Result<()>
 where
     S: EngineSetup<NativeExecutor<ThreadedScheduler>, NativeSystemRuntime>,
 {
     // Executor with a the default number of threads (auto-detected).
     run_with_executor::<S>(
+        args,
         ThreadedNativeExecutor::try_new()?,
         path,
         &format!("{}/default", tag),
@@ -436,6 +472,7 @@ where
 
     // Executor using a single thread.
     run_with_executor::<S>(
+        args,
         ThreadedNativeExecutor::try_new_with_num_threads(1)?,
         path,
         &format!("{}/single", tag),
@@ -443,6 +480,7 @@ where
 
     // Executor using a hardcode number of threads.
     run_with_executor::<S>(
+        args,
         ThreadedNativeExecutor::try_new_with_num_threads(16)?,
         path,
         &format!("{}/multi", tag),

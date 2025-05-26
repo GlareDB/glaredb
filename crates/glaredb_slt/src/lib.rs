@@ -4,6 +4,8 @@ use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
+use harness::Arguments;
+use harness::trial::Trial;
 use uuid::Uuid;
 pub use vars::*;
 
@@ -15,33 +17,23 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use clap::Parser;
 use convert::{batches_to_rows, schema_to_types};
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
-use libtest_mimic::{Arguments, Trial};
 use sqllogictest::DefaultColumnType;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-// TODO: Get rid of the async nonsense.
-
-/// Environment variable for having printing out debug explain info.
-///
-/// If set, this will will execute an EXPLAIN for a query before executing the
-/// query itself. The explain output will be printed out.
-///
-/// Since many queries don't support EXPLAIN (e.g. CREATE TABLE), a message
-/// indicating explain not available will be printed out instead.
-pub const DEBUG_PRINT_EXPLAIN_VAR: &str = "DEBUG_PRINT_EXPLAIN";
-
-/// Environment variable for setting the number of partitions to use.
-///
-/// If set, the value is parsed as a number, and the session will execute 'SET
-/// partitions = ...' prior to running any query.
-pub const DEBUG_SET_PARTITIONS_VAR: &str = "DEBUG_SET_PARTITIONS";
-
-/// Environment variable for printing out profiling data after querye execution.
-pub const DEBUG_PRINT_PROFILE_VAR: &str = "DEBUG_PRINT_PROFILE";
+#[derive(Debug, Parser, Clone, Copy)]
+pub struct SltArguments {
+    /// Print the EXPLAIN output of a test query before running it.
+    #[clap(long, env = "PRINT_EXPLAIN")]
+    pub print_explain: bool,
+    /// Print out the profile data for test queries.
+    #[clap(long, env = "PRINT_PROFILE_DATA")]
+    pub print_profile_data: bool,
+}
 
 #[derive(Debug)]
 pub struct RunConfig<E, R>
@@ -79,6 +71,7 @@ where
 ///
 /// `kind` should be used to group these SLTs together.
 pub fn run<F, Fut>(
+    args: &Arguments<SltArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
     session_fn: F,
     kind: &str,
@@ -87,7 +80,6 @@ where
     F: Fn() -> Fut + Clone + Send + 'static,
     Fut: Future<Output = Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>>,
 {
-    let args = Arguments::from_args();
     let env_filter = EnvFilter::builder()
         .with_default_directive(tracing::Level::ERROR.into())
         .from_env_lossy()
@@ -128,7 +120,7 @@ where
             let session_fn = session_fn.clone();
             let handle = handle.clone();
             Trial::test(test_name, move || {
-                match handle.block_on(run_test(path, session_fn)) {
+                match handle.block_on(run_test(args.extra, path, session_fn)) {
                     Ok(_) => Ok(()),
                     Err(e) => Err(e.into()),
                 }
@@ -137,7 +129,7 @@ where
         })
         .collect();
 
-    libtest_mimic::run(&args, tests).exit_if_failed();
+    harness::run(&args, tests).exit_if_failed();
 
     Ok(())
 }
@@ -166,7 +158,7 @@ pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 /// Run an SLT at path, creating an engine from the provided function.
-async fn run_test<F, Fut>(path: impl AsRef<Path>, session_fn: F) -> Result<()>
+async fn run_test<F, Fut>(args: SltArguments, path: impl AsRef<Path>, session_fn: F) -> Result<()>
 where
     F: Fn() -> Fut + Clone + Send + 'static,
     Fut: Future<Output = Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>>,
@@ -176,10 +168,7 @@ where
     let mut runner = sqllogictest::Runner::new(|| async {
         let conf = session_fn().await?;
 
-        Ok(TestSession {
-            debug_partitions_set: false,
-            conf,
-        })
+        Ok(TestSession { args, conf })
     });
     runner
         .run_file_async(path)
@@ -191,14 +180,13 @@ where
 #[derive(Debug)]
 #[allow(dead_code)]
 struct TestSession {
-    /// If we've already set number of partitions for this session.
-    debug_partitions_set: bool,
+    args: SltArguments,
     conf: RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>,
 }
 
 impl TestSession {
     async fn debug_explain(&mut self, sql: &str) {
-        if std::env::var(DEBUG_PRINT_EXPLAIN_VAR).is_err() {
+        if !self.args.print_explain {
             // Not set.
             return;
         }
@@ -236,31 +224,8 @@ impl TestSession {
         );
     }
 
-    async fn debug_set_partitions(&mut self) {
-        if self.debug_partitions_set {
-            return;
-        }
-
-        let num: i64 = match std::env::var(DEBUG_SET_PARTITIONS_VAR) {
-            Ok(v) => v.parse().unwrap(),
-            Err(_) => return,
-        };
-
-        println!("---- SETTING PARTITIONS = {num} ----");
-
-        let _ = self
-            .conf
-            .engine
-            .session()
-            .query(&format!("SET partitions TO {num}"))
-            .await
-            .unwrap();
-
-        self.debug_partitions_set = true;
-    }
-
     async fn debug_print_profile(&self, query_id: Uuid) {
-        if std::env::var(DEBUG_PRINT_PROFILE_VAR).is_err() {
+        if !self.args.print_profile_data {
             // Not set.
             return;
         }
@@ -306,7 +271,6 @@ impl TestSession {
         }
 
         self.debug_explain(&sql_with_replacements).await;
-        self.debug_set_partitions().await;
 
         let mut query_res = self
             .conf

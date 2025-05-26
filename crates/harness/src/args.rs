@@ -3,12 +3,6 @@ use clap::{Args, Parser, ValueEnum};
 use crate::Trial;
 use crate::printer::PrinterOptions;
 
-/// Command line arguments.
-///
-/// This type represents everything the user can specify via CLI args.
-///
-/// `A` may be provided to extend the default set of arguments parsed. The extra
-/// arguments are flattened.
 #[derive(Parser, Debug, Clone)]
 pub struct Arguments<A: Args> {
     /// Run ignored and non-ignored tests.
@@ -36,7 +30,7 @@ pub struct Arguments<A: Args> {
     pub exact: bool,
 
     /// Display one character per test instead of one line. Alias to --format=terse
-    #[clap(short = 'q', long = "quiet", conflicts_with = "format")]
+    #[clap(long, short = 'q', conflicts_with = "format")]
     pub quiet: bool,
 
     /// Write logs to the specified file instead of stdout

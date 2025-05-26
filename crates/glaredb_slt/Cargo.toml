@@ -10,7 +10,9 @@ workspace = true
 glaredb_error = { path = '../glaredb_error' }
 glaredb_core = { path = '../glaredb_core' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
-libtest-mimic = "0.7.3"
+
+harness = { path = '../harness' }
+
 sqllogictest = "0.20.4"
 futures = { workspace = true, features = ["executor"] }
 async-trait = "0.1.88"
@@ -20,3 +22,4 @@ tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-fi
 rand = { workspace = true }
 crossterm = "0.29.0"
 uuid = { workspace = true }
+clap = { workspace = true }
