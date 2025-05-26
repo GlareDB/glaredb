@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use ext_csv::extension::CsvExtension;
 use ext_iceberg::extension::IcebergExtension;
@@ -16,7 +16,11 @@ use glaredb_rt_native::runtime::{
     new_tokio_runtime_for_io,
 };
 
+/// Environment variable for dropping cache before every engine/session create.
+pub const BENCH_DROP_CACHE_VAR: &str = "BENCH_DROP_CACHE";
+
 pub fn main() -> Result<()> {
+    // TODO: Allow providing these via args.
     let run_args = RunArgs {
         print_explain: false,
         print_profile_data: false,
@@ -27,7 +31,10 @@ pub fn main() -> Result<()> {
     let writer = TsvWriter::try_new(Some("./results.tsv".into()))?;
     writer.write_header()?;
 
-    run_with_setup::<DefaultSetup>(writer.clone(), run_args, "../bench/micro", false)?;
+    let drop_cache = std::env::var(BENCH_DROP_CACHE_VAR).is_ok();
+    println!("Drop cache: {drop_cache}");
+
+    run_with_setup::<DefaultSetup>(writer.clone(), run_args, "../bench/micro", drop_cache)?;
 
     writer.flush()?;
 
