@@ -4,17 +4,7 @@ DESCRIBE SELECT DATE_TRUNC('minute', epoch(EventTime)) AS M, COUNT(*) AS PageVie
 M          Timestamp(μs)
 PageViews  Int64
 
+# Empty correct for truncated dataset
 query ??
 SELECT DATE_TRUNC('minute', epoch(EventTime)) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', epoch(EventTime)) ORDER BY DATE_TRUNC('minute', epoch(EventTime)) LIMIT 10 OFFSET 1000;
 ----
-2013-07-15 13:12:00 UTC  6
-2013-07-15 13:13:00 UTC  9
-2013-07-15 13:14:00 UTC  7
-2013-07-15 13:15:00 UTC  1
-2013-07-15 13:16:00 UTC  3
-2013-07-15 13:17:00 UTC  3
-2013-07-15 13:18:00 UTC  11
-2013-07-15 13:19:00 UTC  8
-2013-07-15 13:20:00 UTC  6
-2013-07-15 13:21:00 UTC  12
-

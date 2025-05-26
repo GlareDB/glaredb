@@ -56,7 +56,7 @@ pub fn main() -> Result<()> {
     //
     // These should run without 'verify_optimized_plan' since the unoptimized
     // plan will end up reading all columns from all files. The total row count
-    // is 1,000,000.
+    // is 100,000.
     run_with_all_thread_configurations::<ClickbenchPartitionedSetup>(
         "../slt/clickbench/partitioned",
         "slt_clickbench_partitioned",

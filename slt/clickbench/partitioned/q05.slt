@@ -6,4 +6,4 @@ count Int64
 query ?
 SELECT COUNT(DISTINCT SearchPhrase) FROM hits;
 ----
-66003
+8124

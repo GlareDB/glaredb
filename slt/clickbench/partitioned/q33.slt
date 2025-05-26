@@ -7,13 +7,13 @@ c    Int64
 query ??
 SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;
 ----
-http://liver.ru/belgorod/page/1006.jки/доп_приборы     54806
-http://kinopoisk.ru                                    14260
-http://auto_fiat_dlya-bluzki%2F8536.30.18&he=900&with  9989
-http://bdsm_po_yers=0&with_video                       7948
-http://avtolit-symbian94/photo                         6820
-http://video.yandex                                    6165
-http://liver.ru/place_rukodel=365115eb7bbb90           5798
-http://pogoda-zhienskaia-moda-ploschaya-522814         4758
-http://tienskaia-moda                                  4694
-http://bjdleaks.php?produkty%2Fproduct                 4489
+http://liver.ru/belgorod/page/1006.jки/доп_приборы 3808
+http://video.yandex 1342
+http://kinopoisk.ru 1133
+http://auto_fiat_dlya-bluzki%2F8536.30.18&he=900&with 1000
+http://bdsm_po_yers=0&with_video 825
+http://sp-money.yandex.ru/comme%2F27.0.1453.116 Safari 586
+http://video.yandex.ru%26sid 523
+http://bjdleaks.php?produkty%2Fproduct 513
+http://liver.ru/place_rukodel=365115eb7bbb90 463
+http://smeshariki.ru/?id=6 439

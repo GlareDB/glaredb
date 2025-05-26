@@ -8,13 +8,13 @@ u                 Int64
 query ??
 SELECT MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhoneModel ORDER BY u DESC, 1 LIMIT 10;
 ----
-iPad             12043
-iPhone           414
-A500             114
-N8-00            69
-iPho             23
-LG/P760/V1       22
-GT-P7300B        21
-3110000          16
-ONE TOUCH 6030A  16
-HTC Desire       14
+iPad             1250
+iPhone           54
+N8-00            9
+A500             7
+3110000          5
+ONE TOUCH 6030A  5
+LG/P760/V1       4
+5250             3
+GT-I9100         2
+GT-I9500         2

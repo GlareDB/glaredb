@@ -6,4 +6,4 @@ count  Int64
 query ?
 SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0;
 ----
-6063
+528
