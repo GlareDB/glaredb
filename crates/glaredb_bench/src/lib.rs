@@ -6,63 +6,18 @@ mod runner;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use benchmark::Benchmark;
-use clap::Parser;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
+use libtest_mimic::{Arguments, Measurement, Trial};
+use parking_lot::Mutex;
 use runner::{BenchmarkRunner, BenchmarkTimes};
 use tokio::runtime::Runtime as TokioRuntime;
-
-// TODO: Move this out.
-#[derive(Parser)]
-#[clap(name = "glaredb_bench")]
-pub struct Arguments {
-    /// Print the EXPLAIN output for queries prior to running them.
-    ///
-    /// Only printed once.
-    #[clap(long, env = "DEBUG_PRINT_EXPLAIN")]
-    pub print_explain: bool,
-    /// Print the profile data for a query after running it.
-    ///
-    /// Data is printed for every run of the query.
-    #[clap(long, env = "DEBUG_PRINT_PROFILE_DATA")]
-    pub print_profile_data: bool,
-    /// Print the results of the benchmark queries.
-    ///
-    /// Results are printed for every run of the query.
-    #[clap(long, env = "DEBUG_PRINT_RESULTS")]
-    pub print_results: bool,
-    /// If we should drop the page cache before the setup phase of a benchmark
-    /// file.
-    ///
-    /// On linux, this will write to procfs. On mac, this will use the `purge`
-    /// tool. Both methods require running the binary with sudo.
-    #[clap(long, default_value = "false")]
-    pub drop_page_cache: bool,
-    /// Number of times to run benchmark queries.
-    #[clap(long, short, default_value = "3")]
-    pub count: usize,
-    /// Optionally save results as a TSV to the provided file.
-    #[clap(long, short)]
-    pub save: Option<PathBuf>,
-    /// Path pointing to either a single benchmark file, or a directory
-    /// containing benchmark files.
-    ///
-    /// If provided a directory, the directory will be walked recursively to
-    /// find all benchmark files to run.
-    #[clap()]
-    pub path: PathBuf,
-}
-
-impl Arguments {
-    pub fn parse() -> Self {
-        Parser::parse()
-    }
-}
 
 #[derive(Debug)]
 pub struct RunConfig<E, R>
@@ -74,15 +29,12 @@ where
     pub tokio_rt: TokioRuntime,
 }
 
-#[derive(Debug)]
-struct BenchmarkPath {
-    identifier: String,
-    path: PathBuf,
-}
-
-#[derive(Debug)]
+// TODO: Clean this up. The lock + clone is because libtest mimic has very
+// strict requirements on the runner function.
+#[derive(Debug, Clone)]
 pub struct TsvWriter {
-    file: Option<BufWriter<File>>,
+    // TODO: Sue me
+    file: Arc<Mutex<Option<BufWriter<File>>>>,
 }
 
 impl TsvWriter {
@@ -100,34 +52,34 @@ impl TsvWriter {
             None => None,
         };
 
-        Ok(TsvWriter { file })
+        Ok(TsvWriter {
+            file: Arc::new(Mutex::new(file)),
+        })
     }
 
-    pub fn write_header(&mut self) -> Result<()> {
-        println!("benchmark_identifier\tcount\ttime_millis");
-        if let Some(file) = self.file.as_mut() {
-            writeln!(file, "benchmark_identifier\tcount\ttime_millis")?;
+    pub fn write_header(&self) -> Result<()> {
+        let mut file = self.file.lock();
+        if let Some(file) = file.as_mut() {
+            writeln!(file, "bench_name\tcount\ttime_ns")?;
         }
 
         Ok(())
     }
 
-    pub fn write(&mut self, bench_identifier: &str, times: BenchmarkTimes) -> Result<()> {
-        for (idx, query_time) in times.query_times_ms.iter().enumerate() {
-            println!("{}\t{}\t{}", bench_identifier, idx + 1, query_time);
-        }
-
-        if let Some(file) = self.file.as_mut() {
-            for (idx, query_time) in times.query_times_ms.iter().enumerate() {
-                writeln!(file, "{}\t{}\t{}", bench_identifier, idx + 1, query_time)?;
+    pub fn write(&self, bench_name: String, times: &BenchmarkTimes) -> Result<()> {
+        let mut file = self.file.lock();
+        if let Some(file) = file.as_mut() {
+            for (idx, query_time) in times.query_times_ns.iter().enumerate() {
+                writeln!(file, "{}\t{}\t{}", bench_name, idx + 1, query_time)?;
             }
         }
 
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<()> {
-        if let Some(file) = self.file.as_mut() {
+    pub fn flush(&self) -> Result<()> {
+        let mut file = self.file.lock();
+        if let Some(file) = file.as_mut() {
             file.flush()?;
         }
 
@@ -148,47 +100,65 @@ pub struct RunArgs {
 /// `engine_fn` is ran for each benchmark, and should return a fresh
 /// session/single user engine to use for the benchmark.
 pub fn run<F>(
-    writer: &mut TsvWriter,
-    args: RunArgs,
+    writer: TsvWriter,
+    run_args: RunArgs,
     paths: impl IntoIterator<Item = PathBuf>,
     engine_fn: F,
 ) -> Result<()>
 where
-    F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>,
+    F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>
+        + Sync
+        + Send
+        + Clone
+        + 'static,
 {
-    let paths: Vec<BenchmarkPath> = paths
+    // TODO: Extend/override this for custom arguments (count, results
+    // location).
+    //
+    // TODO: Probably just fork libtest_mimic. There's changes I want to make
+    // for the slt runner too.
+    let mut args = Arguments::from_args();
+    // Always run the "tests" with one thread (this thread) sequentially. We
+    // spin up thread pools in the engine itself.
+    args.test_threads = Some(1);
+    args.test = false;
+    args.bench = true;
+
+    let benches: Vec<Trial> = paths
         .into_iter()
         .map(|path| {
-            let path_str = path.to_str().expect("valid utf8 paths");
+            let path_str = path.to_string_lossy();
 
-            // Make the identifier a bit nicer.
-            let identifier = path_str
+            let bench_name = path_str
+                .as_ref()
                 .trim_start_matches("./")
                 .trim_start_matches("../")
                 .to_string();
 
-            BenchmarkPath { identifier, path }
+            let engine_fn = engine_fn.clone();
+            let writer = writer.clone();
+
+            Trial::bench(bench_name.clone(), move |_test_mode| {
+                let bench = Benchmark::from_file(path)?;
+                let conf = engine_fn()?;
+
+                let runner = BenchmarkRunner {
+                    engine: conf.session,
+                    benchmark: bench,
+                };
+
+                let times = conf.tokio_rt.block_on(runner.run(run_args))?;
+                writer.write(bench_name, &times)?;
+
+                Ok(Some(Measurement {
+                    avg: times.query_avg(),
+                    variance: 0, // TODO
+                }))
+            })
         })
         .collect();
 
-    if paths.is_empty() {
-        // Nothing to do.
-        return Ok(());
-    }
-
-    for path in paths {
-        let bench = Benchmark::from_file(&path.identifier, path.path)?;
-        let conf = engine_fn()?;
-
-        let runner = BenchmarkRunner {
-            engine: conf.session,
-            benchmark: bench,
-        };
-
-        let times = conf.tokio_rt.block_on(runner.run(args))?;
-
-        writer.write(&path.identifier, times)?;
-    }
+    libtest_mimic::run(&args, benches).exit_if_failed();
 
     Ok(())
 }

@@ -28,3 +28,6 @@ lineedit.log
 
 # Scratch dir for tests queries and stuff.
 /scratch
+
+# Results output for bench runner benchmarks
+/bench_bin/results.tsv

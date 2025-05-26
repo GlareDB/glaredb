@@ -1078,12 +1078,13 @@ dependencies = [
 name = "glaredb_bench"
 version = "25.5.11"
 dependencies = [
- "clap",
  "futures",
  "glaredb_core",
  "glaredb_error",
  "glaredb_rt_native",
+ "libtest-mimic",
  "logutil",
+ "parking_lot",
  "tokio",
 ]
 

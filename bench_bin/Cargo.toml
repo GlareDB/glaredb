@@ -17,6 +17,8 @@ ext_parquet = { path = '../crates/ext_parquet' }
 ext_tpch_gen = { path = '../crates/ext_tpch_gen' }
 ext_iceberg = { path = '../crates/ext_iceberg' }
 
-[[bin]]
+[[bench]]
+harness = false
 name = "bench_runner"
 path = "bench_runner.rs"
+

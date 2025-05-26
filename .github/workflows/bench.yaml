@@ -19,14 +19,9 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Compile standard
-      #   run: |
-      #     cargo build \
-      #        --release \
-      #        --bin bench_standard
+      - name: Benchmark (micro)
+        run: |
+          cargo bench \
+             --bench bench_runner \
+             -- bench/micro
 
-      # - name: Run standard
-      #   run: |
-      #     ./target/release/bench_standard \
-      #        --print-results \
-      #        --print-explain
