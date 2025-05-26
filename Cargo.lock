@@ -1083,6 +1083,7 @@ dependencies = [
  "glaredb_core",
  "glaredb_error",
  "glaredb_rt_native",
+ "libtest-mimic",
  "logutil",
  "tokio",
 ]

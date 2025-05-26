@@ -11,8 +11,15 @@ use crate::benchmark::Benchmark;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BenchmarkTimes {
-    pub setup_time_ms: u64,
-    pub query_times_ms: Vec<u64>,
+    pub setup_time_ns: u64,
+    pub query_times_ns: Vec<u64>,
+}
+
+impl BenchmarkTimes {
+    pub fn query_avg(&self) -> u64 {
+        let sum: u64 = self.query_times_ns.iter().sum();
+        sum / self.query_times_ns.len() as u64
+    }
 }
 
 #[derive(Debug)]
@@ -42,12 +49,12 @@ impl BenchmarkRunner {
             }
         }
 
-        let setup_time_ms = Instant::now().duration_since(setup_start).as_millis() as u64;
+        let setup_time_ns = Instant::now().duration_since(setup_start).as_millis() as u64;
 
-        let mut query_times_ms = Vec::with_capacity(conf.count);
+        let mut query_times_ns = Vec::with_capacity(conf.count);
 
         for idx in 0..conf.count {
-            let mut query_time_ms = 0;
+            let mut query_time_ns = 0;
 
             for query in &self.benchmark.queries {
                 if idx == 0 && conf.print_results {
@@ -83,7 +90,7 @@ impl BenchmarkRunner {
 
                 let start = Instant::now();
                 let pending = self.engine.session().query_many(query)?;
-                query_time_ms += Instant::now().duration_since(start).as_millis();
+                query_time_ns += Instant::now().duration_since(start).as_nanos();
 
                 for pending in pending {
                     let start = Instant::now();
@@ -93,7 +100,7 @@ impl BenchmarkRunner {
                     let mut q_res = pending.execute().await?;
                     let batches = q_res.output.collect().await?;
 
-                    query_time_ms += Instant::now().duration_since(start).as_millis();
+                    query_time_ns += Instant::now().duration_since(start).as_nanos();
 
                     if conf.print_results {
                         println!(
@@ -110,12 +117,12 @@ impl BenchmarkRunner {
                 }
             }
 
-            query_times_ms.push(query_time_ms as u64);
+            query_times_ns.push(query_time_ns as u64);
         }
 
         Ok(BenchmarkTimes {
-            setup_time_ms,
-            query_times_ms,
+            setup_time_ns,
+            query_times_ns,
         })
     }
 }

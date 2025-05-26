@@ -7,7 +7,6 @@ use glaredb_error::{DbError, Result, ResultExt};
 /// Describes a benchmark to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Benchmark {
-    pub identifier: String,
     /// Setup queries to run prior to running the actual benchmark queries.
     pub setup: Vec<String>,
     /// The benchmark queries.
@@ -15,10 +14,10 @@ pub struct Benchmark {
 }
 
 impl Benchmark {
-    pub fn from_file(identifier: impl Into<String>, path: impl AsRef<Path>) -> Result<Self> {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        Self::from_buf_read(identifier, reader)
+        Self::from_buf_read(reader)
     }
 
     /// Construct a benchmark run from some reader.
@@ -42,7 +41,7 @@ impl Benchmark {
     /// Any number of setup and benchmark queries can be provided, however a
     /// setup query cannot be defined after a benchmark query has already been
     /// defined.
-    pub fn from_buf_read(identifier: impl Into<String>, reader: impl BufRead) -> Result<Self> {
+    pub fn from_buf_read(reader: impl BufRead) -> Result<Self> {
         let lines = reader.lines();
 
         let mut setup = Vec::new();
@@ -99,11 +98,7 @@ impl Benchmark {
             return Err(DbError::new("No benchmark queries"));
         }
 
-        Ok(Benchmark {
-            identifier: identifier.into(),
-            setup,
-            queries,
-        })
+        Ok(Benchmark { setup, queries })
     }
 }
 
@@ -144,9 +139,8 @@ run
 SELECT * FROM hello
 "#;
 
-        let bench = Benchmark::from_buf_read("single_setup", Cursor::new(contents)).unwrap();
+        let bench = Benchmark::from_buf_read(Cursor::new(contents)).unwrap();
         let expected = Benchmark {
-            identifier: "single_setup".to_string(),
             setup: vec!["CREATE TABLE hello (a INT)".to_string()],
             queries: vec!["SELECT * FROM hello".to_string()],
         };
@@ -160,9 +154,8 @@ SELECT * FROM hello
 SELECT * FROM hello
 "#;
 
-        let bench = Benchmark::from_buf_read("single_query", Cursor::new(contents)).unwrap();
+        let bench = Benchmark::from_buf_read(Cursor::new(contents)).unwrap();
         let expected = Benchmark {
-            identifier: "single_query".to_string(),
             setup: vec![],
             queries: vec!["SELECT * FROM hello".to_string()],
         };
@@ -179,7 +172,7 @@ setup
 CREATE TABLE hello (a INT)
 "#;
 
-        let _ = Benchmark::from_buf_read("missing_run", Cursor::new(contents)).unwrap_err();
+        let _ = Benchmark::from_buf_read(Cursor::new(contents)).unwrap_err();
     }
 
     #[test]
@@ -200,9 +193,8 @@ run
 SELECT * FROM hello2
 "#;
 
-        let bench = Benchmark::from_buf_read("multiple_setups", Cursor::new(contents)).unwrap();
+        let bench = Benchmark::from_buf_read(Cursor::new(contents)).unwrap();
         let expected = Benchmark {
-            identifier: "multiple_setups".to_string(),
             setup: vec![
                 "CREATE TABLE hello (a INT)".to_string(),
                 "CREATE TABLE hello2 (a INT)".to_string(),
@@ -229,7 +221,7 @@ setup
 CREATE TABLE hello2 (a INT)
 "#;
 
-        let _ = Benchmark::from_buf_read("invalid_order", Cursor::new(contents)).unwrap_err();
+        let _ = Benchmark::from_buf_read(Cursor::new(contents)).unwrap_err();
     }
 
     #[test]
@@ -243,9 +235,8 @@ run
 SELECT * FROM hello
 "#;
 
-        let bench = Benchmark::from_buf_read("multiline", Cursor::new(contents)).unwrap();
+        let bench = Benchmark::from_buf_read(Cursor::new(contents)).unwrap();
         let expected = Benchmark {
-            identifier: "multiline".to_string(),
             setup: vec!["CREATE TABLE\n  hello (a INT)".to_string()],
             queries: vec!["SELECT * FROM hello".to_string()],
         };
