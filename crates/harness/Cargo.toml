@@ -1,0 +1,13 @@
+[package]
+name = "harness"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+escape8259 = "0.5.2"
+anstream = "0.6.14"
+anstyle = "1.0.7"
+
+[lints]
+workspace = true

@@ -23,4 +23,4 @@ tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 futures = { workspace = true }
 crossterm = "0.29.0"
-clap = { version = "4.5.38", features = ["derive"] }
+clap = { workspace = true }
