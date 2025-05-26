@@ -1299,6 +1299,8 @@ dependencies = [
  "anstyle",
  "clap",
  "escape8259",
+ "regex",
+ "thiserror 2.0.12",
 ]
 
 [[package]]

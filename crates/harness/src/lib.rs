@@ -1,5 +1,6 @@
 pub mod args;
 mod printer;
+pub mod sqlfile;
 pub mod trial;
 
 use std::process::{self, ExitCode};
