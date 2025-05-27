@@ -1300,8 +1300,6 @@ dependencies = [
  "clap",
  "escape8259",
  "glaredb_error",
- "regex",
- "thiserror 2.0.12",
 ]
 
 [[package]]
