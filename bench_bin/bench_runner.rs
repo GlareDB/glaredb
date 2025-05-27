@@ -68,6 +68,7 @@ where
         let path = format!("results-{tag}.tsv");
         TsvWriter::try_new(Some(path.into()))?
     };
+    writer.write_header()?;
 
     glaredb_bench::run(
         writer.clone(),
