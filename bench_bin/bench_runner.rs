@@ -16,19 +16,12 @@ use glaredb_rt_native::runtime::{
     new_tokio_runtime_for_io,
 };
 use harness::Arguments;
-
-/// Environment variable for dropping cache before every engine/session create.
-pub const BENCH_DROP_CACHE_VAR: &str = "BENCH_DROP_CACHE";
+use harness::sqlfile::find::find_files;
 
 pub fn main() -> Result<()> {
     let args = Arguments::<BenchArguments>::from_args();
 
-    let writer = TsvWriter::try_new(Some("./results.tsv".into()))?;
-    writer.write_header()?;
-
-    run_with_setup::<DefaultSetup>(writer.clone(), args, "../bench/micro")?;
-
-    writer.flush()?;
+    run_with_setup::<DefaultSetup>(args, "../bench/micro", "micro")?;
 
     Ok(())
 }
@@ -62,21 +55,39 @@ where
     }
 }
 
-fn run_with_setup<S>(writer: TsvWriter, args: Arguments<BenchArguments>, path: &str) -> Result<()>
+fn run_with_setup<S>(args: Arguments<BenchArguments>, path: &str, tag: &str) -> Result<()>
 where
     S: EngineSetup<ThreadedNativeExecutor, NativeSystemRuntime>,
 {
-    let paths = glaredb_bench::find_files(Path::new(path)).unwrap();
+    let paths = find_files(Path::new(path), ".bench").unwrap();
 
-    glaredb_bench::run(writer, args, paths, move || {
-        let tokio_rt = new_tokio_runtime_for_io()?;
+    // TODO: Weird but whatever.
+    let writer = if paths.is_empty() {
+        TsvWriter::try_new(None)?
+    } else {
+        let path = format!("results-{tag}.tsv");
+        TsvWriter::try_new(Some(path.into()))?
+    };
 
-        let executor = ThreadedNativeExecutor::try_new().unwrap();
-        let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
+    glaredb_bench::run(
+        writer.clone(),
+        args,
+        paths,
+        || {
+            let tokio_rt = new_tokio_runtime_for_io()?;
 
-        let engine = SingleUserEngine::try_new(executor.clone(), runtime.clone())?;
-        let session = S::setup(engine)?;
+            let executor = ThreadedNativeExecutor::try_new().unwrap();
+            let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
-        Ok(RunConfig { session, tokio_rt })
-    })
+            let engine = SingleUserEngine::try_new(executor.clone(), runtime.clone())?;
+            let session = S::setup(engine)?;
+
+            Ok(RunConfig { session, tokio_rt })
+        },
+        tag,
+    )?;
+
+    writer.flush()?;
+
+    Ok(())
 }

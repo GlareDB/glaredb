@@ -30,4 +30,4 @@ lineedit.log
 /scratch
 
 # Results output for bench runner benchmarks
-/bench_bin/results.tsv
+/bench_bin/results-*.tsv
