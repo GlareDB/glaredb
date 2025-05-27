@@ -18,7 +18,7 @@ SELECT v1.a, b FROM v1 ORDER BY 1;
 cat  3
 dog  4
 
-query TI
+query TTI
 SELECT v1.a, a, b FROM v1 ORDER BY 1;
 ----
 cat  cat  3

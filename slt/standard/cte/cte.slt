@@ -69,19 +69,19 @@ with cte1 as (select 4 as a) select t1.a + d from cte1 as t1, cte1 as t2(d);
 ----
 8
 
-query I
+query II
 with cte1 as (select 4 as a) select t1.a + d, a from cte1 as t1, cte1 as t2(d);
 ----
 8  4
 
-query I
+query II
 with cte1 as (select 4 as a),
      cte2 as (select 5 as b)
 select b, a from cte1, cte2;
 ----
 5  4
 
-query I
+query II
 with cte1 as (select 4 as a),
      cte2 as (select 5 as b)
 select b, a from cte1, cte2 where (select a = 4 from cte1 where a = 4);

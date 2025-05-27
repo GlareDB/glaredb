@@ -22,7 +22,7 @@ test1
 statement ok
 set batch_size to 8096;
 
-query I
+query ?
 show batch_size;
 ----
 8096

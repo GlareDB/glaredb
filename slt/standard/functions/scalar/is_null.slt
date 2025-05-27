@@ -6,72 +6,72 @@ SET verify_optimized_plan TO true;
 statement ok
 CREATE TEMP TABLE t1 as (SELECT * FROM (VALUES (1), (2), (NULL)) v(a));
 
-query IT rowsort
+query IB rowsort
 SELECT a, is_null(a) from t1;
 ----
 1     false
 2     false
 NULL  true
 
-query T
+query B
 SELECT is_null(4 + 2);
 ----
 false
 
-query T
+query B
 SELECT is_null(NULL + 2);
 ----
 true
 
-query IT rowsort
+query IB rowsort
 SELECT a, is_not_null(a) from t1;
 ----
 1     true
 2     true
 NULL  false
 
-query T
+query B
 SELECT is_not_null(4 + 2);
 ----
 true
 
-query T
+query B
 SELECT is_not_null(NULL + 2);
 ----
 false
 
 # Keywords
 
-query IT rowsort
+query IB rowsort
 SELECT a, a IS NULL from t1;
 ----
 1     false
 2     false
 NULL  true
 
-query T
+query B
 SELECT 4 + 2 IS NULL;
 ----
 false
 
-query T
+query B
 SELECT NULL + 2 IS NULL;
 ----
 true
 
-query IT rowsort
+query IB rowsort
 SELECT a, a IS NOT NULL from t1;
 ----
 1     true
 2     true
 NULL  false
 
-query T
+query B
 SELECT 4 + 2 IS NOT NULL;
 ----
 true
 
-query T
+query B
 SELECT NULL + 2 IS NOT NULL;
 ----
 false

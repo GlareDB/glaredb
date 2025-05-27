@@ -6,7 +6,7 @@ SET verify_optimized_plan TO true;
 statement ok
 set partitions = 1;
 
-query I
+query ?
 show partitions
 ----
 1
@@ -20,7 +20,7 @@ b
 statement ok
 set partitions = 8;
 
-query I
+query ?
 show partitions
 ----
 8
@@ -34,7 +34,7 @@ b
 statement ok
 set partitions = 13;
 
-query I
+query ?
 show partitions
 ----
 13

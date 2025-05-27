@@ -50,7 +50,7 @@ SELECT pow(2, 3);
 ----
 8
 
-query T
+query R
 SELECT pow(4, 0.5);
 ----
 2

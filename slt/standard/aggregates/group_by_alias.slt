@@ -15,12 +15,12 @@ select a as c1, sum(b) from t1 group by c1;
 a  1
 c  5
 
-query TI
+query II
 select 1 as c1, sum(b) from t1 group by c1;
 ----
 1  6
 
-query TI rowsort
+query II rowsort
 select 1 as a, sum(b) from t1 group by a;
 ----
 1  1

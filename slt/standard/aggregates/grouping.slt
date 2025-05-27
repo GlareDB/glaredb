@@ -125,7 +125,7 @@ SELECT min(g), max(g)
 ----
 0  1
 
-query II
+query IIII
 SELECT min(g1), max(g1), min(g2), max(g2)
   FROM (SELECT make, model, GROUPING(make,make,make) g1, GROUPING(model) g2, sum(sales)
           FROM items_sold

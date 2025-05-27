@@ -30,33 +30,33 @@ NULL
 
 # TODO: round would be nice here.
 
-query T
+query B
 SELECT stddev_pop(a) >= 3.0 AND stddev_pop(a) < 3.00001 FROM VALUES (0), (6), (6), (8) v(a);
 ----
 true
 
-query T
+query B
 SELECT stddev_pop(a) > 4.9 AND stddev_pop(a) < 5 FROM VALUES (0), (6), (6), (14) v(a);
 ----
 true
 
-query T
+query B
 SELECT var_pop(a) >= 9.0 AND var_pop(a) < 9.00001 FROM VALUES (0), (6), (6), (8) v(a);
 ----
 true
 
-query T
+query B
 SELECT stddev_samp(a) > 5.74 AND stddev_samp(a) < 5.75 FROM VALUES (0), (6), (6), (14) v(a);
 ----
 true
 
 # Alias
-query T
+query B
 SELECT stddev(a) > 5.74 AND stddev(a) < 5.75 FROM VALUES (0), (6), (6), (14) v(a);
 ----
 true
 
-query T
+query B
 SELECT var_samp(a) >= 33.0 AND var_samp(a) < 33.00001 FROM VALUES (0), (6), (6), (14) v(a);
 ----
 true

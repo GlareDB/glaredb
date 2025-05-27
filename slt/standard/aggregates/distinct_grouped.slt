@@ -58,7 +58,7 @@ SELECT avg(DISTINCT a), avg(DISTINCT b) FROM nums GROUP BY a % 4, b % 2 ORDER BY
 502  500
 502  501
 
-query RR
+query RI
 SELECT avg(DISTINCT a), sum(DISTINCT b) FROM nums GROUP BY a % 4, b % 2 ORDER BY 1,2;
 ----
 499  250000
@@ -70,7 +70,7 @@ SELECT avg(DISTINCT a), sum(DISTINCT b) FROM nums GROUP BY a % 4, b % 2 ORDER BY
 502  250000
 502  250500
 
-query RR
+query RII
 SELECT avg(DISTINCT a), sum(DISTINCT b), sum(b) FROM nums GROUP BY a % 4, b % 2 ORDER BY 1,2;
 ----
 499  250000  62500000

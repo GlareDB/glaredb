@@ -26,7 +26,7 @@ select a from t1 group by a;
 1
 2
 
-query I rowsort
+query T rowsort
 select b from t1 group by b;
 ----
 a

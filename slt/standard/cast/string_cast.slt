@@ -18,22 +18,22 @@ select '2'::TINYINT;
 ----
 2
 
-query I
+query R
 select '2'::FLOAT;
 ----
 2
 
-query I
+query R
 select '2'::REAL;
 ----
 2
 
-query I
+query R
 select '2.2'::REAL;
 ----
 2.2
 
-query I
+query R
 select '2'::DOUBLE;
 ----
 2

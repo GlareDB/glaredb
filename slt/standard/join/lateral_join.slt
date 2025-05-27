@@ -45,7 +45,7 @@ SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i + 1) t2(j) ORDER BY 
 4  5
 
 # Multiple references to column
-query II
+query III
 SELECT * FROM generate_series(1, 4) g(i), LATERAL (SELECT i AS j, i + 1) t2 ORDER BY i;
 ----
 1  1  2

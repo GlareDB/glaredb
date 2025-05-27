@@ -39,12 +39,12 @@ select '1.001'::DECIMAL(3, 2)
 # ----
 # 100
 
-query I
+query R
 select 10.3::DECIMAL(8, 2);
 ----
 10.30
 
-query I
+query R
 select 10.308::DECIMAL(8, 2);
 ----
 10.31
@@ -90,7 +90,7 @@ DESCRIBE SELECT a, a::DECIMAL(8,2)
 a  Decimal64(5,3)
 a  Decimal64(8,2)
 
-query R
+query RR
 SELECT a, a::DECIMAL(8,2)
   FROM VALUES (10.308), (10.301), (-10.308), (-10.301) v(a) ORDER BY 1;
 ----

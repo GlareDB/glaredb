@@ -53,7 +53,7 @@ select and(true, true, false);
 ----
 false
 
-statement error No function matches 'and\(\)'. You may need to add explicit type casts.
+statement error No function matches 'and()'. You may need to add explicit type casts.
 select and();
 
 query B
@@ -71,8 +71,8 @@ select or(false, false, false);
 ----
 false
 
-statement error No function matches 'or\(\)'. You may need to add explicit type casts.
+statement error No function matches 'or()'. You may need to add explicit type casts.
 select or();
 
-statement error No function matches 'or\(\)'. You may need to add explicit type casts.
+statement error No function matches 'or()'. You may need to add explicit type casts.
 select or() from (values (1), (1), (1));

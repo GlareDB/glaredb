@@ -43,7 +43,7 @@ select * from (select 1), (select 2), (select 3), (select 4)
 ----
 1  2  3  4
 
-query IIII
+query IIIII
 select d, a, b, c, c from (select 1 a), (select 2 b), (select 3 c), (select 4 d)
 ----
 4  1  2  3  3

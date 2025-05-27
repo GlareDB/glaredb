@@ -3,12 +3,12 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query T
+query B
 SELECT 2 IN (2, 3);
 ----
 true
 
-query T
+query B
 SELECT 4 IN (2, 3);
 ----
 false
@@ -19,7 +19,7 @@ CREATE TEMP TABLE ints (i INT);
 statement ok
 INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
-query IT rowsort
+query IB rowsort
 SELECT i, i IN (2, 4, 6) FROM ints;
 ----
 4     true

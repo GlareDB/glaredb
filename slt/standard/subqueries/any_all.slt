@@ -9,12 +9,12 @@ CREATE TEMP TABLE ints (i INT);
 statement ok
 INSERT INTO ints VALUES (4), (5), (6), (NULL);
 
-query T
+query B
 SELECT 5 = ANY(SELECT * FROM ints);
 ----
 true
 
-query T
+query B
 SELECT 9 = ANY(SELECT * FROM ints);
 ----
 false

@@ -1,4 +1,3 @@
-mod convert;
 mod vars;
 
 use std::path::{Path, PathBuf};
@@ -185,10 +184,18 @@ where
 
                 // Check schema matches what we expect.
                 let got_types = schema_to_types(&schema);
-                if got_types != record.types {
+                let types_count_eq = got_types.len() == record.types.len();
+                let types_eq = record.types.iter().zip(&got_types).all(|(expected, got)| {
+                    if *expected == ColumnType::Any {
+                        return true;
+                    }
+                    expected == got
+                });
+
+                if !(types_count_eq && types_eq) {
                     return Err(record
                         .loc
-                        .format_error("Results types do not match expected types")
+                        .format_error("Result types do not match expected types")
                         .with_field(
                             "got",
                             got_types.iter().map(|t| t.to_char()).collect::<String>(),
@@ -208,13 +215,15 @@ where
                 let row_count_eq = rows.len() == record.results.len();
                 let rows_eq = || {
                     for (expected, got) in record.results.iter().zip(&rows) {
-                        let normalized_expected = normalize_row(expected);
+                        let normalized_expected = normalize(expected);
                         let mut remaining = normalized_expected.trim();
 
                         // Now for each column we got, check that it matches the
                         // start of the remaining expected string, then trim it.
                         for column in got {
-                            match remaining.strip_prefix(column) {
+                            let column = normalize(column);
+
+                            match remaining.strip_prefix(&column) {
                                 Some(substr) => {
                                     // String matches, set remaining to trimmed
                                     // substr after the match.
@@ -225,6 +234,10 @@ where
                                     return false;
                                 }
                             }
+                        }
+
+                        if !remaining.is_empty() {
+                            return false;
                         }
                     }
                     true
@@ -252,17 +265,11 @@ where
     Ok(())
 }
 
-/// This normalization currently matches what
-/// sqllogictest-rs does which is essentially just ignore
-/// all extra whitespace.
-///
-/// We may want to be more stringent and explicitly split
-/// on tabs or two spaces.
-fn normalize_row(expected: &str) -> String {
-    expected
-        .split_ascii_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+/// Normalize a value be stripping repeated whitespace characters.
+// TODO: This is what sqllogictest-rs does, but we might want to be a bit more
+// stringent (e.g. tab separated values).
+fn normalize(value: &str) -> String {
+    value.split_ascii_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 async fn run_query(
@@ -327,16 +334,23 @@ fn schema_to_types(schema: &ColumnSchema) -> Vec<ColumnType> {
     let mut typs = Vec::new();
     for field in &schema.fields {
         let typ = match field.datatype.id() {
+            DataTypeId::Boolean => ColumnType::Bool,
             DataTypeId::Int8
             | DataTypeId::Int16
             | DataTypeId::Int32
             | DataTypeId::Int64
+            | DataTypeId::Int128
             | DataTypeId::UInt8
             | DataTypeId::UInt16
             | DataTypeId::UInt32
-            | DataTypeId::UInt64 => ColumnType::Integer,
-            DataTypeId::Float32 | DataTypeId::Float64 => ColumnType::Float,
-            DataTypeId::Utf8 | DataTypeId::Boolean => ColumnType::Text,
+            | DataTypeId::UInt64
+            | DataTypeId::UInt128 => ColumnType::Integer,
+            DataTypeId::Float16
+            | DataTypeId::Float32
+            | DataTypeId::Float64
+            | DataTypeId::Decimal64
+            | DataTypeId::Decimal128 => ColumnType::Float,
+            DataTypeId::Utf8 | DataTypeId::Binary => ColumnType::Text,
             _ => ColumnType::Any,
         };
         typs.push(typ);

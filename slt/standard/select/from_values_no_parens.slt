@@ -9,7 +9,7 @@ SELECT * FROM VALUES ('cat', 2), ('dog', 1) ORDER BY 1;
 cat  2
 dog  1
 
-query TI
+query T
 SELECT v.a FROM VALUES ('cat', 2), ('dog', 1) AS v(a, b) ORDER BY v.b;
 ----
 dog
