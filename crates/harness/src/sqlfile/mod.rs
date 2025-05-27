@@ -1,4 +1,5 @@
-pub mod column_type;
-pub mod connection;
+//! Helpers for parsing a "sqlfile" format shared by the sql logic tests and
+//! benchmark files.
+
 pub mod parser;
-pub mod section;
+pub mod slt_parser;
