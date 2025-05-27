@@ -442,7 +442,7 @@ where
 
 fn run_with_executor<S>(
     args: &Arguments<SltArguments>,
-    executor: ThreadedNativeExecutor,
+    executor_fn: impl Fn() -> Result<ThreadedNativeExecutor>,
     path: &str,
     tag: &str,
 ) -> Result<()>
@@ -453,13 +453,13 @@ where
     glaredb_slt::run(
         args,
         paths,
-        move || {
+        || {
             let tokio_rt = new_tokio_runtime_for_io()?;
 
-            let executor = ThreadedNativeExecutor::try_new().unwrap();
+            let executor = executor_fn()?;
             let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
-            let engine = SingleUserEngine::try_new(executor.clone(), runtime.clone())?;
+            let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
             S::setup(tokio_rt, engine)
         },
         tag,
@@ -477,7 +477,7 @@ where
     // Executor with a the default number of threads (auto-detected).
     run_with_executor::<S>(
         args,
-        ThreadedNativeExecutor::try_new()?,
+        || ThreadedNativeExecutor::try_new(),
         path,
         &format!("{}/default", tag),
     )?;
@@ -485,7 +485,7 @@ where
     // Executor using a single thread.
     run_with_executor::<S>(
         args,
-        ThreadedNativeExecutor::try_new_with_num_threads(1)?,
+        || ThreadedNativeExecutor::try_new_with_num_threads(1),
         path,
         &format!("{}/single", tag),
     )?;
@@ -493,7 +493,7 @@ where
     // Executor using a hardcode number of threads.
     run_with_executor::<S>(
         args,
-        ThreadedNativeExecutor::try_new_with_num_threads(16)?,
+        || ThreadedNativeExecutor::try_new_with_num_threads(16),
         path,
         &format!("{}/multi", tag),
     )?;
