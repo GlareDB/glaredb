@@ -20,7 +20,11 @@ pub struct Location<'a> {
     pub file: &'a str,
 }
 
-impl Location<'_> {
+impl<'a> Location<'a> {
+    pub const fn new(file: &'a str, line: usize) -> Self {
+        Location { line, file }
+    }
+
     pub fn emit_error<T>(&self, msg: impl Into<String>) -> Result<T> {
         Err(self.format_error(msg))
     }
