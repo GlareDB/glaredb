@@ -18,6 +18,7 @@ use glaredb_rt_native::runtime::{
 use glaredb_rt_native::threaded::ThreadedScheduler;
 use glaredb_slt::{ReplacementVars, RunConfig, SltArguments, VarValue};
 use harness::Arguments;
+use harness::sqlfile::find::find_files;
 
 pub fn main() -> Result<()> {
     let args = Arguments::<SltArguments>::from_args();
@@ -437,7 +438,7 @@ where
     let tokio_rt = new_tokio_runtime_for_io()?;
     let rt = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
-    let paths = glaredb_slt::find_files(Path::new(path)).unwrap();
+    let paths = find_files(Path::new(path), ".slt").unwrap();
     glaredb_slt::run(
         args,
         paths,

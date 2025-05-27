@@ -73,35 +73,13 @@ where
 pub fn run<F, Fut>(
     args: &Arguments<SltArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
-    session_fn: F,
+    engine_fn: F,
     kind: &str,
 ) -> Result<()>
 where
     F: Fn() -> Fut + Clone + Send + 'static,
     Fut: Future<Output = Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>>,
 {
-    let env_filter = EnvFilter::builder()
-        .with_default_directive(tracing::Level::ERROR.into())
-        .from_env_lossy()
-        .add_directive("h2=info".parse().unwrap())
-        .add_directive("hyper=info".parse().unwrap())
-        .add_directive("sqllogictest=info".parse().unwrap());
-    let subscriber = FmtSubscriber::builder()
-        .with_test_writer() // TODO: Actually capture
-        .with_env_filter(env_filter)
-        .with_file(true)
-        .with_line_number(true)
-        .finish();
-    // Ignore the error. `run` may be called more than once if we're setting up
-    // different environments in the same test binary.
-    let _ = tracing::subscriber::set_global_default(subscriber);
-
-    std::panic::set_hook(Box::new(|info| {
-        let backtrace = std::backtrace::Backtrace::force_capture();
-        println!("---- PANIC ----\nInfo: {}\n\nBacktrace:{}", info, backtrace);
-        std::process::abort();
-    }));
-
     let tokio = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_io()
@@ -117,7 +95,7 @@ where
         .map(|path| {
             let test_name = path.to_string_lossy().to_string();
             let test_name = test_name.trim_start_matches("../");
-            let session_fn = session_fn.clone();
+            let session_fn = engine_fn.clone();
             let handle = handle.clone();
             Trial::test(test_name, move || {
                 match handle.block_on(run_test(args.extra, path, session_fn)) {
@@ -132,29 +110,6 @@ where
     harness::run(args, tests).exit_if_failed();
 
     Ok(())
-}
-
-/// Recursively find all files in the given directory.
-pub fn find_files(dir: &Path) -> Result<Vec<PathBuf>> {
-    fn inner(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
-        if dir.is_dir() {
-            for entry in fs::read_dir(dir).context("read dir")? {
-                let entry = entry.context("entry")?;
-                let path = entry.path();
-                if path.is_dir() {
-                    inner(&path, paths)?;
-                } else {
-                    paths.push(path.to_path_buf());
-                }
-            }
-        }
-        Ok(())
-    }
-
-    let mut paths = Vec::new();
-    inner(dir, &mut paths)?;
-
-    Ok(paths)
 }
 
 /// Run an SLT at path, creating an engine from the provided function.
