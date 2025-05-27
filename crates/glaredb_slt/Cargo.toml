@@ -13,12 +13,7 @@ glaredb_rt_native = { path = '../glaredb_rt_native' }
 
 harness = { path = '../harness' }
 
-sqllogictest = "0.20.4"
-futures = { workspace = true, features = ["executor"] }
-async-trait = "0.1.88"
 tokio = { version = "1", features = ["full"] }
-tracing = { workspace = true }
-tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
 rand = { workspace = true }
 crossterm = "0.29.0"
 uuid = { workspace = true }
