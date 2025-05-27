@@ -51,7 +51,7 @@ _filename  Utf8
 content    Utf8
 _rowid     Int64
 
-query TT
+query TTI
 SELECT _filename, *, _rowid FROM read_text('s3://glaredb-public/testdata/text/glob_simple/*.txt') ORDER BY 1
 ----
 https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/text/glob_simple/aaa.txt  aaa  0

@@ -35,7 +35,7 @@ SELECT count(*) FROM read_csv('../testdata/csv/userdata1.csv') WHERE title IS NU
 ----
 197
 
-query TITTTTTTTTTTT
+query TITTTTTITTRTT
 select * from read_csv('../testdata/csv/userdata1.csv') where id = 1 limit 1;
 ----
 2016-02-03T07:55:29.000000000  1  Amanda  Jordan  ajordan0@com.com  Female  1.197.201.2  6759521864920116  Indonesia  3/8/1971  49756.53  Internal  Auditor  1E+02

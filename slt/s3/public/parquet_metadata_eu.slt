@@ -1,6 +1,6 @@
 # Test that we can set the region properly
 
-query ????
+query ?????
 SELECT * FROM parquet_rowgroup_metadata('s3://glaredb-public-eu/userdata0.parquet', region='eu-west-1')
 ----
 https://glaredb-public-eu.s3.eu-west-1.amazonaws.com/userdata0.parquet  1000  13  112492  0

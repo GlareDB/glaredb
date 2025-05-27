@@ -16,9 +16,10 @@ use glaredb_rt_native::runtime::{
     new_tokio_runtime_for_io,
 };
 use glaredb_rt_native::threaded::ThreadedScheduler;
-use glaredb_slt::{ReplacementVars, RunConfig, SltArguments, VarValue};
+use glaredb_slt::{RunConfig, SltArguments};
 use harness::Arguments;
 use harness::sqlfile::find::find_files;
+use harness::sqlfile::vars::{ReplacementVars, VarValue};
 use tokio::runtime::Runtime as TokioRuntime;
 
 pub fn main() -> Result<()> {

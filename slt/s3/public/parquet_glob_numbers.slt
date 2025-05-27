@@ -38,7 +38,7 @@ https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/parquet/glob_numbers/
 https://glaredb-public.s3.us-east-1.amazonaws.com/testdata/parquet/glob_numbers/500.parquet 100 500 599
 
 
-query TIII
+query TII
 SELECT _filename, _rowid, numbers
   FROM 's3://glaredb-public/testdata/parquet/glob_numbers/*.parquet'
   WHERE _rowid IN (1, 82)

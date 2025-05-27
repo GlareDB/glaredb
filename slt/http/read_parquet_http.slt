@@ -3,7 +3,7 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query I
+query T
 select last_name
   from read_parquet('https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet')
   order by id desc limit 8;
@@ -18,7 +18,7 @@ Williams
 Henderson
 
 # Using registered file handler
-query I
+query T
 select last_name
   from 'https://github.com/GlareDB/glaredb/raw/main/testdata/parquet/userdata0.parquet'
   order by id desc limit 8;

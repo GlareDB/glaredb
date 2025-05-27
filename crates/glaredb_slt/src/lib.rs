@@ -1,5 +1,3 @@
-mod vars;
-
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -23,9 +21,9 @@ use harness::sqlfile::slt_parser::{
     SortMode,
     StatementExpect,
 };
+use harness::sqlfile::vars::ReplacementVars;
 use harness::trial::Trial;
 use tokio::runtime::Runtime as TokioRuntime;
-pub use vars::*;
 
 #[derive(Debug, Parser, Clone, Copy)]
 pub struct SltArguments {
@@ -121,6 +119,8 @@ where
             SltRecord::Halt(_) => return Ok(()),
             SltRecord::Statement(record) => {
                 let sql = record.sql.lines.join("\n");
+                let sql = conf.vars.replace_in_query(sql);
+
                 let result =
                     conf.tokio_rt
                         .block_on(run_query(args, &conf.engine, sql, conf.query_timeout));
@@ -168,6 +168,8 @@ where
             }
             SltRecord::Query(record) => {
                 let sql = record.sql.join("\n");
+                let sql = conf.vars.replace_in_query(sql);
+
                 let result =
                     conf.tokio_rt
                         .block_on(run_query(args, &conf.engine, sql, conf.query_timeout));

@@ -14,7 +14,7 @@ SELECT count(*) FROM '../submodules/parquet-testing/data/datapage_v1-uncompresse
 ----
 5120
 
-query III
+query IIII
 SELECT min(a), max(a), min(b), max(b) FROM '../submodules/parquet-testing/data/datapage_v1-uncompressed-checksum.parquet';
 ----
 -2122153084  2138996092  -2088599168  2138996092
