@@ -1299,6 +1299,7 @@ dependencies = [
  "anstyle",
  "clap",
  "escape8259",
+ "glaredb_error",
 ]
 
 [[package]]
