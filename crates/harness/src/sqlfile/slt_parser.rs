@@ -175,7 +175,6 @@ impl<'a> ParseableRecord<'a> for RecordStatement<'a> {
             }
             (_, _) => {
                 // End of this record.
-                ()
             }
         }
 
@@ -207,7 +206,7 @@ impl<'a> ParseableRecord<'a> for RecordQuery<'a> {
                 .chars()
                 .map(|c| {
                     ColumnType::from_char(c)
-                        .ok_or_else(|| line.loc.format_error(format!("Unexpected type: 'c'")))
+                        .ok_or_else(|| line.loc.format_error(format!("Unexpected type: '{c}'")))
                 })
                 .collect::<Result<Vec<_>>>()?,
             None => return line.loc.emit_error("Missing types for 'query'"),

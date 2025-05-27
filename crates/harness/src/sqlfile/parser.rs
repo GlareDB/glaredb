@@ -89,7 +89,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
-            let prefix = trimmed.splitn(2, ' ').next().unwrap();
+            let prefix = trimmed.split(' ').next().unwrap();
             let out = dispatch(self, prefix)?;
 
             return Ok(Some(out));
@@ -104,7 +104,7 @@ impl<'a> Parser<'a> {
     /// - End of file
     pub fn take_lines_delimited(&mut self) -> Result<DelimitedLines<'a>> {
         let mut lines = Vec::new();
-        while let Some(line) = self.lines.next() {
+        for line in self.lines.by_ref() {
             self.curr_loc.line += 1;
             match line.trim() {
                 "----" => {
