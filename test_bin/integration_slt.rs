@@ -19,6 +19,7 @@ use glaredb_rt_native::threaded::ThreadedScheduler;
 use glaredb_slt::{ReplacementVars, RunConfig, SltArguments, VarValue};
 use harness::Arguments;
 use harness::sqlfile::find::find_files;
+use tokio::runtime::Runtime as TokioRuntime;
 
 pub fn main() -> Result<()> {
     let args = Arguments::<SltArguments>::from_args();
@@ -103,7 +104,8 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>>;
+    // TODO: Remove passing rt here.
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -114,9 +116,10 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(30),
@@ -132,9 +135,10 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(TpchGenExtension)?;
         Ok(RunConfig {
+            tokio_rt,
             engine,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
@@ -151,9 +155,10 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         Ok(RunConfig {
+            tokio_rt,
             engine,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
@@ -170,9 +175,10 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
         Ok(RunConfig {
+            tokio_rt,
             engine,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
@@ -189,11 +195,12 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
@@ -209,11 +216,12 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
@@ -229,7 +237,7 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
 
@@ -240,6 +248,7 @@ where
 
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars,
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
@@ -255,11 +264,12 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
@@ -275,7 +285,7 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
 
@@ -288,6 +298,7 @@ where
 
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars,
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
@@ -303,7 +314,7 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
 
         run_setup_query(
@@ -317,6 +328,7 @@ where
 
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(15),
@@ -332,7 +344,7 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
 
         run_setup_query(
@@ -376,6 +388,7 @@ where
 
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(30), // Single-partition, unoptimized, debug, not a good time
@@ -391,7 +404,7 @@ where
     E: PipelineRuntime,
     R: SystemRuntime,
 {
-    fn setup(engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
 
         let tables = [
@@ -407,6 +420,7 @@ where
 
         Ok(RunConfig {
             engine,
+            tokio_rt,
             vars: ReplacementVars::default(),
             create_slt_tmp: false,
             query_timeout: Duration::from_secs(30),
@@ -435,21 +449,18 @@ fn run_with_executor<S>(
 where
     S: EngineSetup<NativeExecutor<ThreadedScheduler>, NativeSystemRuntime>,
 {
-    let tokio_rt = new_tokio_runtime_for_io()?;
-    let rt = NativeSystemRuntime::new(tokio_rt.handle().clone());
-
     let paths = find_files(Path::new(path), ".slt").unwrap();
     glaredb_slt::run(
         args,
         paths,
         move || {
-            let executor = executor.clone();
-            let rt = rt.clone();
+            let tokio_rt = new_tokio_runtime_for_io()?;
 
-            async move {
-                let engine = SingleUserEngine::try_new(executor.clone(), rt.clone())?;
-                S::setup(engine)
-            }
+            let executor = ThreadedNativeExecutor::try_new().unwrap();
+            let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
+
+            let engine = SingleUserEngine::try_new(executor.clone(), runtime.clone())?;
+            S::setup(tokio_rt, engine)
         },
         tag,
     )

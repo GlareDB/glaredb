@@ -1,7 +1,6 @@
 mod convert;
 mod vars;
 
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -15,10 +14,16 @@ use glaredb_core::arrays::format::{BinaryFormat, FormatOptions, Formatter};
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{DbError, Result};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use harness::Arguments;
-use harness::sqlfile::slt_parser::{ColumnType, ExpectedError, SltRecord, StatementExpect};
+use harness::sqlfile::slt_parser::{
+    ColumnType,
+    ExpectedError,
+    SltRecord,
+    SortMode,
+    StatementExpect,
+};
 use harness::trial::Trial;
 use tokio::runtime::Runtime as TokioRuntime;
 pub use vars::*;
@@ -42,20 +47,17 @@ where
     /// The session to use for this run.
     pub engine: SingleUserEngine<E, R>,
     pub tokio_rt: TokioRuntime,
-
     /// Variables to replace in the query.
     ///
     /// Variables are shared across all runs for a single "test" (multiple
     /// files).
     pub vars: ReplacementVars,
-
     /// Create the slt tmp dir that the variable '__SLT_TMP__' points to.
     ///
     /// If false, the directory won't be created, but the '__SLT_TMP__' will
     /// still be populated, which allows for testing if a certain action can
     /// create a directory.
     pub create_slt_tmp: bool,
-
     /// Max duration a query can be executing before being canceled.
     pub query_timeout: Duration,
 }
@@ -69,39 +71,30 @@ where
 /// associated configuration) for just the file.
 ///
 /// `kind` should be used to group these SLTs together.
-pub fn run<F, Fut>(
+pub fn run<F>(
     args: &Arguments<SltArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
-    engine_fn: F,
+    conf_fn: F,
     kind: &str,
 ) -> Result<()>
 where
-    F: Fn() -> Fut + Clone + Send + 'static,
-    Fut: Future<Output = Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>>,
+    F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>> + Clone,
 {
-    let tokio = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_io()
-        .enable_time()
-        .thread_name("rayexec_slt")
-        .build()
-        .context("Failed to build tokio runtime")?;
-
-    let handle = tokio.handle();
-
     let tests = paths
         .into_iter()
         .map(|path| {
-            let test_name = path.to_string_lossy().to_string();
-            let test_name = test_name.trim_start_matches("../");
-            let session_fn = engine_fn.clone();
-            let handle = handle.clone();
+            let path_str = path.to_string_lossy();
+            let test_name = path_str
+                .as_ref()
+                .trim_start_matches("./")
+                .trim_start_matches("../")
+                .to_string();
+
+            let conf_fn = conf_fn.clone();
+
             Trial::test(test_name, move || {
-                unimplemented!()
-                // match handle.block_on(run_test(args.extra, path, session_fn)) {
-                //     Ok(_) => Ok(()),
-                //     Err(e) => Err(e.into()),
-                // }
+                run_test(args.extra, path, conf_fn)?;
+                Ok(())
             })
             .with_kind(kind)
         })
@@ -113,7 +106,7 @@ where
 }
 
 /// Run an SLT at path, creating an engine from the provided function.
-fn run_test<F, Fut>(args: SltArguments, path: impl AsRef<Path>, conf_fn: F) -> Result<()>
+fn run_test<F>(args: SltArguments, path: impl AsRef<Path>, conf_fn: F) -> Result<()>
 where
     F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>,
 {
@@ -206,13 +199,70 @@ where
                         ));
                 }
 
-                //
-                unimplemented!()
+                let mut rows = batches_to_rows(batches)?;
+                match record.sort_mode {
+                    SortMode::NoSort => (),
+                    SortMode::RowSort => rows.sort_unstable(),
+                }
+
+                let row_count_eq = rows.len() == record.results.len();
+                let rows_eq = || {
+                    for (expected, got) in record.results.iter().zip(&rows) {
+                        let normalized_expected = normalize_row(expected);
+                        let mut remaining = normalized_expected.trim();
+
+                        // Now for each column we got, check that it matches the
+                        // start of the remaining expected string, then trim it.
+                        for column in got {
+                            match remaining.strip_prefix(column) {
+                                Some(substr) => {
+                                    // String matches, set remaining to trimmed
+                                    // substr after the match.
+                                    remaining = substr.trim();
+                                }
+                                None => {
+                                    // Doesn't match.
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                    true
+                };
+
+                if !(row_count_eq && rows_eq()) {
+                    let got = rows
+                        .iter()
+                        .map(|row| row.join(" "))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    let expected = record.results.join("\n");
+
+                    return Err(record
+                        .loc
+                        .format_error("Query results do not match expected")
+                        .with_field("got", format!("\n{got}"))
+                        .with_field("expected", format!("\n{expected}")));
+                }
             }
         }
     }
 
     Ok(())
+}
+
+/// This normalization currently matches what
+/// sqllogictest-rs does which is essentially just ignore
+/// all extra whitespace.
+///
+/// We may want to be more stringent and explicitly split
+/// on tabs or two spaces.
+fn normalize_row(expected: &str) -> String {
+    expected
+        .split_ascii_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 async fn run_query(
