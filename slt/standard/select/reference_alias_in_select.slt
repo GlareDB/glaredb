@@ -29,7 +29,7 @@ select  1
 select  2
 
 # Prefer unaliased columns.
-query TI rowsort
+query IT rowsort
 SELECT a, 'select' AS a FROM (VALUES (1), (2)) v(a);
 ----
 1  select

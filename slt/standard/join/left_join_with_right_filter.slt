@@ -19,7 +19,7 @@ INSERT INTO t2 VALUES (2), (3), (4), (5);
 #
 # This catches a bug where the join condition extractor was accidentally pushing
 # it to the left filters.
-query I rowsort
+query II rowsort
 SELECT * FROM t1 LEFT JOIN t2 ON a = b AND b > 2;
 ----
 1  NULL

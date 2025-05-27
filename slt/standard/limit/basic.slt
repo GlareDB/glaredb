@@ -71,7 +71,7 @@ select * from (values ('d'), ('b'), ('c'), ('a'))
 b
 c
 
-query IT
+query TI
 select * from (values ('d', 1), ('b', 2), ('c', 3), ('a', 4))
     order by column1
     limit 2

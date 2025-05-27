@@ -20,7 +20,7 @@ total_compressed_size    Int64
 total_uncompressed_size  Int64
 data_page_offset         Int64
 
-query ??????????
+query ???????????
 SELECT * FROM parquet_column_metadata('../testdata/parquet/userdata0.parquet') ORDER BY column_ordinal;
 ----
 ../testdata/parquet/userdata0.parquet  0  0   INT96       1  0  4       1000  13270  13270  4
@@ -38,7 +38,7 @@ SELECT * FROM parquet_column_metadata('../testdata/parquet/userdata0.parquet') O
 ../testdata/parquet/userdata0.parquet  0  12  BYTE_ARRAY  1  0  108208  1000  4288   4288   108208
 
 # Sanity check projection.
-query I
+query ITI
 SELECT column_ordinal, physical_type, rowgroup_ordinal FROM parquet_column_metadata('../testdata/parquet/userdata0.parquet') ORDER BY 1;
 ----
 0   INT96       0
@@ -57,7 +57,7 @@ SELECT column_ordinal, physical_type, rowgroup_ordinal FROM parquet_column_metad
 
 
 # Ensure it works with multiple files.
-query ??????????
+query ???????????
 SELECT * FROM parquet_column_metadata([
     '../testdata/parquet/glob_numbers/200.parquet',
     '../testdata/parquet/glob_numbers/400.parquet',

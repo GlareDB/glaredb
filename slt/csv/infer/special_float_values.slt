@@ -13,7 +13,7 @@ row    Int64
 name   Utf8
 value  Float64
 
-query TR
+query ITR
 SELECT * FROM '../testdata/csv/special_float_values.csv' ORDER BY 1;
 ----
 1  normal     123.456

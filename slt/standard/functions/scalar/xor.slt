@@ -3,20 +3,20 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query II
+query IIII
 select xor(0, 1), xor(0, 0), xor(1,1), xor(5, 3);
 ----
 1 0 0 6
 
 # Infix operator
 # Ugly, but it's what a postgres person would expect.
-query I
+query IIII
 select 0 # 1, 0 # 0, 1 # 1, 5 # 3;
 ----
 1 0 0 6
 
 # Alternative infix.
-query I
+query IIII
 SELECT 0 XOR 1, 0 XOR 0, 1 XOR 1, 5 XOR 3;
 ----
 1 0 0 6

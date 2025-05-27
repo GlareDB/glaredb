@@ -37,7 +37,7 @@ https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/300.
 https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/400.parquet 100 400 499
 https://storage.googleapis.com/glaredb-public/testdata/parquet/glob_numbers/500.parquet 100 500 599
 
-query TIII
+query TII
 SELECT _filename, _rowid, numbers
   FROM 'gs://glaredb-public/testdata/parquet/glob_numbers/*.parquet'
   WHERE _rowid IN (1, 82)

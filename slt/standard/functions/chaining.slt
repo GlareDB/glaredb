@@ -32,7 +32,7 @@ NULL
 statement error Cannot resolve scalar function or aggregate function with name 'missing_function'
 SELECT t.b.missing_function() FROM t ORDER BY 1;
 
-statement error No function matches 'upper\(Utf8, Int32\)'. You may need to add explicit type casts.
+statement error No function matches 'upper(Utf8, Int32)'. You may need to add explicit type casts.
 SELECT t.b.upper(4) FROM t ORDER BY 1;
 
 query T
@@ -67,7 +67,7 @@ SELECT a.sum() FROM t;
 # SELECT 'hello'.repeat(3);
 # ----
 
-query T
+query TT
 SELECT 'hello' AS s, s.repeat(3);
 ----
 hello  hellohellohello

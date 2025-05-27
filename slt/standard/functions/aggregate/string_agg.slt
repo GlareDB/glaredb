@@ -13,7 +13,7 @@ SELECT string_agg(NULL, ',');
 ----
 NULL
 
-statement error No function matches 'string_agg\(Utf8\)'. You may need to add explicit type casts.
+statement error No function matches 'string_agg(Utf8)'. You may need to add explicit type casts.
 SELECT string_agg('hello');
 
 query T

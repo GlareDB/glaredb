@@ -3,7 +3,7 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query R
+query TT
 DESCRIBE SELECT 8 - '4.20'::DECIMAL
 ----
 ?column?  Decimal64(18,3)

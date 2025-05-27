@@ -10,22 +10,22 @@ select sum(column1) from (values (1, 2), (3, 4));
 ----
 4
 
-query I
+query II
 select sum(column2), sum(column1) from (values (1, 2), (3, 4));
 ----
 6  4
 
-query I
+query II
 select sum(c2), sum(c1) from (values (1, 2), (3, 4)) as t(c1, c2);
 ----
 6  4
 
-query I
+query III
 select count(*), sum(c2), sum(c1) from (values (1, 2), (3, 4)) as t(c1, c2);
 ----
 2  6  4
 
-query I
+query II
 select sum(t.c2), sum(t.c1) from (values (1, 2), (3, 4)) as t(c1, c2);
 ----
 6  4
@@ -141,7 +141,7 @@ select column1, sum(column2) from
 burger  5
 hotdog  10
 
-query TI rowsort
+query IT rowsort
 select sum(column2), column1 from
     (values ('burger', 1),
             ('hotdog', 2),

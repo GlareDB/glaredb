@@ -1,4 +1,4 @@
-query TI
+query TT
 DESCRIBE SELECT
     c_count,
     count(*) AS custdist

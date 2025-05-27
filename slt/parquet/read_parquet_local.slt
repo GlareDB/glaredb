@@ -1,11 +1,11 @@
 # read_parquet from local file source
 
-query I
+query II
 select * from read_parquet('../testdata/parquet/small.parquet')
 ----
 1  2
 
-query I
+query T
 select last_name from read_parquet('../testdata/parquet/userdata0.parquet') order by id desc limit 8;
 ----
 Meyer
@@ -18,7 +18,7 @@ Williams
 Henderson
 
 # Using registered file handler
-query I
+query T
 select last_name from '../testdata/parquet/userdata0.parquet' order by id desc limit 8;
 ----
 Meyer

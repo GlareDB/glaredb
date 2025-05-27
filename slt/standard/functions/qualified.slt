@@ -3,12 +3,12 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query I
+query R
 SELECT default.abs(-48);
 ----
 48
 
-query I
+query R
 SELECT system.default.abs(-48);
 ----
 48

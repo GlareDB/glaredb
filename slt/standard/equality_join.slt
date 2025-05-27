@@ -23,7 +23,7 @@ select b, d from
 ----
 2  5
 
-query II
+query IIT
 select b, d, c from
     (values (1, 2, 'mario'),
             (3, 4, 'wario')) as t1(a, b, c)
@@ -34,7 +34,7 @@ select b, d, c from
 2  1  mario
 
 
-query II
+query III
 select * from
     (values (1, 2),
             (3, 4)) as t1(a, b)

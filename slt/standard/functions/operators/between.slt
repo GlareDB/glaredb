@@ -3,17 +3,17 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query T
+query B
 SELECT 4 BETWEEN 2 AND 8;
 ----
 true
 
-query T
+query B
 SELECT 9 BETWEEN 2 AND 8;
 ----
 false
 
-query T
+query B
 SELECT NULL BETWEEN 2 AND 8;
 ----
 NULL

@@ -73,6 +73,7 @@ pub enum ColumnType {
     Text,
     Integer,
     Float,
+    Bool,
     Any,
 }
 
@@ -82,15 +83,17 @@ impl ColumnType {
             'T' => Some(Self::Text),
             'I' => Some(Self::Integer),
             'R' => Some(Self::Float),
+            'B' => Some(Self::Bool),
             _ => Some(Self::Any),
         }
     }
 
-    pub fn to_char(&self) -> char {
+    pub const fn to_char(&self) -> char {
         match self {
             Self::Text => 'T',
             Self::Integer => 'I',
             Self::Float => 'R',
+            Self::Bool => 'B',
             Self::Any => '?',
         }
     }
@@ -140,7 +143,7 @@ impl<'a> ParseableRecord<'a> for RecordStatement<'a> {
                 StatementExpect::Ok
             }
             Some("error") => match labels.next() {
-                Some(rem) => StatementExpect::Error(ExpectedError::Inline(rem)),
+                Some(rem) => StatementExpect::Error(ExpectedError::Inline(rem.trim())),
                 None => StatementExpect::Error(ExpectedError::Empty),
             },
             other => {
@@ -365,6 +368,33 @@ SELECT 'different record';"#,
             let got = RecordStatement::parse(&mut parser).unwrap();
             assert_eq!(test_case.expected, got);
         }
+    }
+
+    #[test]
+    fn statement_errror_strip_leading_whitespace() {
+        // Note the two spaces between 'error' and the start of the message.
+        let input = r#"statement error  No function matches 'concat()'. You may need to add explicit type casts.
+select concat();"#;
+
+        let records = SltRecord::parse_many("test", input).unwrap();
+        assert_eq!(1, records.len());
+
+        assert_eq!(
+            SltRecord::Statement(RecordStatement {
+                loc: Location {
+                    line: 1,
+                    file: "test"
+                },
+                sql: DelimitedLines {
+                    lines: vec!["select concat();"],
+                    delimited_by: DelimitedBy::Eof,
+                },
+                expected: StatementExpect::Error(ExpectedError::Inline(
+                    "No function matches 'concat()'. You may need to add explicit type casts."
+                ))
+            }),
+            records[0]
+        );
     }
 
     #[test]

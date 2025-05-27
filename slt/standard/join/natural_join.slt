@@ -45,7 +45,7 @@ SELECT * FROM t1 NATURAL INNER JOIN t2 NATURAL INNER JOIN t3;
 ----
 3  c  yyy  cat
 
-query IITT
+query IITTT
 SELECT t1.num, * FROM t1 NATURAL INNER JOIN t2 NATURAL INNER JOIN t3;
 ----
 3  3  c  yyy  cat

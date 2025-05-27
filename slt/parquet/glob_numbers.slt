@@ -42,7 +42,7 @@ SELECT _filename, count(*), min(numbers), max(numbers)
 ../testdata/parquet/glob_numbers/400.parquet  100  400  499
 ../testdata/parquet/glob_numbers/500.parquet  100  500  599
 
-query TIII
+query TII
 SELECT _filename, _rowid, numbers
   FROM '../testdata/parquet/glob_numbers/*.parquet'
   WHERE _rowid IN (1, 82)

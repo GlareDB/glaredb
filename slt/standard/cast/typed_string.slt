@@ -13,7 +13,7 @@ select bool 't';
 ----
 true
 
-query B
+query I
 select int '48';
 ----
 48

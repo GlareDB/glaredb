@@ -1,7 +1,7 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query II
+query IIII
 select * from (select 1, 2), (select 3, 4);
 ----
 1  2  3  4

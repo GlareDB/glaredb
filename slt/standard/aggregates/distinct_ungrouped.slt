@@ -24,7 +24,7 @@ SELECT count(a), count(DISTINCT b) FROM t1;
 ----
 5  3
 
-query II
+query III
 SELECT count(a), count(DISTINCT b), count(DISTINCT a) FROM t1;
 ----
 5  3  4

@@ -25,7 +25,7 @@ statement error Expected subquery to return 1 column, returns 2 columns
 select 1 + (select 1, 2);
 
 # Accounts for existing input into the plan.
-query I
+query II
 select a, 1 + (select 1) from (values (4,5,6)) v(a,b,c);
 ----
 4  2

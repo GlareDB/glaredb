@@ -3,22 +3,22 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query T
+query B
 SELECT not(true);
 ----
 false
 
-query T
+query B
 SELECT not(false);
 ----
 true
 
-query T
+query B
 SELECT not(NULL);
 ----
 NULL
 
-query TT rowsort
+query BB rowsort
 SELECT a, NOT a FROM (VALUES (true), (false), (NULL)) v(a);
 ----
 NULL  NULL

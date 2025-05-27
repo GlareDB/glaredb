@@ -14,7 +14,7 @@ select count(*) from t1;
 ----
 3
 
-query II
+query TI
 select c1, count(*) from t1 group by c1 order by c1;
 ----
 a  2

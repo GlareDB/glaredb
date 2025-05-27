@@ -3,7 +3,7 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-statement error  No function matches 'concat\(\)'. You may need to add explicit type casts.
+statement error  No function matches 'concat()'. You may need to add explicit type casts.
 select concat();
 
 query T

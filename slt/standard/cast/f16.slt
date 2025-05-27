@@ -3,7 +3,7 @@
 statement ok
 SET verify_optimized_plan TO true;
 
-query R
+query TT
 DESCRIBE SELECT 2.0::HALF;
 ----
 ?column?  Float16

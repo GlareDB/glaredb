@@ -21,7 +21,7 @@ l_shipinstruct   Utf8
 l_shipmode       Utf8
 l_comment        Utf8
 
-query RRR
+query RRI
 SELECT min(l_discount), max(l_discount), count(*) FROM '../testdata/csv/tpch_small/lineitem.csv';
 ----
 0  0.1  60175

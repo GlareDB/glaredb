@@ -23,7 +23,7 @@ SELECT * FROM parquet_file_metadata('../submodules/testdata/firebolt_sample/ecom
 ----
 ../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet  1  262144  parquet-cpp version 1.5.1-SNAPSHOT  4
 
-query ????
+query ?????
 SELECT * FROM parquet_rowgroup_metadata('../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet') ORDER BY ordinal;
 ----
 ../submodules/testdata/firebolt_sample/ecommerce_1_0_104.gz.parquet  65536  9  2017011  0

@@ -21,7 +21,7 @@ SELECT * FROM (VALUES (1, 1), (2, 2)) UNION SELECT a, a FROM generate_series(1, 
 4  4
 5  5
 
-query II rowsort
+query I rowsort
 SELECT * FROM (VALUES (1), (2)) UNION SELECT 1 FROM generate_series(1, 10000);
 ----
 1

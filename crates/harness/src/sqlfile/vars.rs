@@ -95,6 +95,18 @@ impl Default for ReplacementVars {
 }
 
 impl ReplacementVars {
+    pub fn replace_in_query(&self, mut sql: String) -> String {
+        let contains_any = self.vars.keys().any(|key| sql.contains(key));
+
+        if contains_any {
+            for (k, v) in &self.vars {
+                sql = sql.replace(k, v.as_ref());
+            }
+        }
+
+        sql
+    }
+
     pub fn add_var(&mut self, key: &str, val: VarValue) {
         let key = format!("__{}__", key.to_uppercase());
         self.vars.insert(key, val);

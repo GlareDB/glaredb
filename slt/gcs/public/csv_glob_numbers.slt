@@ -35,7 +35,7 @@ https://storage.googleapis.com/glaredb-public/testdata/csv/glob_numbers/300.csv 
 https://storage.googleapis.com/glaredb-public/testdata/csv/glob_numbers/400.csv 100 400 499
 https://storage.googleapis.com/glaredb-public/testdata/csv/glob_numbers/500.csv 100 500 599
 
-query TIII
+query TII
 SELECT _filename, _rowid, numbers
   FROM 'gs://glaredb-public/testdata/csv/glob_numbers/*.csv'
   WHERE _rowid IN (1, 82)

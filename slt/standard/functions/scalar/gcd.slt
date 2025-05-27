@@ -51,17 +51,17 @@ SELECT gcd(-12, -8);
 4
 
 # Test with NULL values
-query T
+query I
 SELECT gcd(NULL, 8);
 ----
 NULL
 
-query T
+query I
 SELECT gcd(12, NULL);
 ----
 NULL
 
-query T
+query I
 SELECT gcd(NULL, NULL);
 ----
 NULL
