@@ -1,6 +1,6 @@
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 
-use super::parser::{DelimitedBy, DelimitedLines, Location, ParseableRecord, Parser};
+use super::parser::{DelimitedBy, Location, ParseableRecord, Parser};
 
 /// Records that can be found in an SLT file.
 #[derive(Debug, PartialEq, Eq)]
@@ -16,16 +16,14 @@ impl<'a> SltRecord<'a> {
         let mut parser = Parser::new(filename, input);
 
         loop {
-            let record = parser
-                .dispatch_parse(|parser, prefix| match prefix {
-                    RecordStatement::RECORD_START => {
-                        Ok(SltRecord::Statement(RecordStatement::parse(parser)?))
-                    }
-                    RecordQuery::RECORD_START => Ok(SltRecord::Query(RecordQuery::parse(parser)?)),
-                    RecordHalt::RECORD_START => Ok(SltRecord::Halt(RecordHalt::parse(parser)?)),
-                    other => panic!("Unexpected prefix: {other}"),
-                })
-                .unwrap();
+            let record = parser.dispatch_parse(|parser, prefix| match prefix {
+                RecordStatement::RECORD_START => {
+                    Ok(SltRecord::Statement(RecordStatement::parse(parser)?))
+                }
+                RecordQuery::RECORD_START => Ok(SltRecord::Query(RecordQuery::parse(parser)?)),
+                RecordHalt::RECORD_START => Ok(SltRecord::Halt(RecordHalt::parse(parser)?)),
+                other => Err(DbError::new(format!("Unexpected prefix: {other}"))),
+            })?;
 
             match record {
                 Some(record) => records.push(record),
@@ -122,7 +120,7 @@ impl<'a> ParseableRecord<'a> for RecordHalt<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct RecordStatement<'a> {
     pub loc: Location<'a>,
-    pub sql: DelimitedLines<'a>,
+    pub sql: Vec<&'a str>,
     pub expected: StatementExpect<'a>,
 }
 
@@ -183,7 +181,7 @@ impl<'a> ParseableRecord<'a> for RecordStatement<'a> {
 
         Ok(RecordStatement {
             loc: line.loc,
-            sql,
+            sql: sql.lines,
             expected,
         })
     }
@@ -273,10 +271,7 @@ SELECT 1;"#,
                         line: 1,
                         file: "test",
                     },
-                    sql: DelimitedLines {
-                        lines: vec!["SELECT 1;"],
-                        delimited_by: DelimitedBy::Eof,
-                    },
+                    sql: vec!["SELECT 1;"],
                     expected: StatementExpect::Ok,
                 },
             },
@@ -289,10 +284,7 @@ SELECT 1,
                         line: 1,
                         file: "test",
                     },
-                    sql: DelimitedLines {
-                        lines: vec!["SELECT 1,", "2;"],
-                        delimited_by: DelimitedBy::Eof,
-                    },
+                    sql: vec!["SELECT 1,", "2;"],
                     expected: StatementExpect::Ok,
                 },
             },
@@ -308,10 +300,7 @@ SELECT 'different record';"#,
                         line: 1,
                         file: "test",
                     },
-                    sql: DelimitedLines {
-                        lines: vec!["SELECT 1,", "2;"],
-                        delimited_by: DelimitedBy::Newline,
-                    },
+                    sql: vec!["SELECT 1,", "2;"],
                     expected: StatementExpect::Ok,
                 },
             },
@@ -327,10 +316,7 @@ SELECT 'different record';"#,
                         line: 1,
                         file: "test",
                     },
-                    sql: DelimitedLines {
-                        lines: vec!["SELECT 1,", "2;"],
-                        delimited_by: DelimitedBy::Newline,
-                    },
+                    sql: vec!["SELECT 1,", "2;"],
                     expected: StatementExpect::Error(ExpectedError::Inline("my inline error")),
                 },
             },
@@ -350,10 +336,7 @@ SELECT 'different record';"#,
                         line: 1,
                         file: "test",
                     },
-                    sql: DelimitedLines {
-                        lines: vec!["SELECT 1,", "2;"],
-                        delimited_by: DelimitedBy::Dashes,
-                    },
+                    sql: vec!["SELECT 1,", "2;"],
                     expected: StatementExpect::Error(ExpectedError::Multiline(vec![
                         "my",
                         "multiline",
@@ -385,10 +368,7 @@ select concat();"#;
                     line: 1,
                     file: "test"
                 },
-                sql: DelimitedLines {
-                    lines: vec!["select concat();"],
-                    delimited_by: DelimitedBy::Eof,
-                },
+                sql: vec!["select concat();"],
                 expected: StatementExpect::Error(ExpectedError::Inline(
                     "No function matches 'concat()'. You may need to add explicit type casts."
                 ))
@@ -531,10 +511,7 @@ select func_does_not_exist();
                     line: 4,
                     file: "test"
                 },
-                sql: DelimitedLines {
-                    lines: vec!["SELECT 4;"],
-                    delimited_by: DelimitedBy::Newline,
-                },
+                sql: vec!["SELECT 4;"],
                 expected: StatementExpect::Ok,
             }),
             records[0]
@@ -567,10 +544,7 @@ select func_does_not_exist();
                     line: 17,
                     file: "test"
                 },
-                sql: DelimitedLines {
-                    lines: vec!["select func_does_not_exist();"],
-                    delimited_by: DelimitedBy::Newline,
-                },
+                sql: vec!["select func_does_not_exist();"],
                 expected: StatementExpect::Error(ExpectedError::Inline("does not exist"))
             }),
             records[3]

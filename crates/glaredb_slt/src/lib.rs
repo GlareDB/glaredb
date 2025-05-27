@@ -118,7 +118,7 @@ where
         match record {
             SltRecord::Halt(_) => return Ok(()),
             SltRecord::Statement(record) => {
-                let sql = record.sql.lines.join("\n");
+                let sql = record.sql.join("\n");
                 let sql = conf.vars.replace_in_query(sql);
 
                 let result =
