@@ -86,7 +86,7 @@ impl ColumnType {
         }
     }
 
-    pub fn to_char(&self) -> char {
+    pub const fn to_char(&self) -> char {
         match self {
             Self::Text => 'T',
             Self::Integer => 'I',

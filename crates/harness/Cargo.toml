@@ -10,6 +10,7 @@ clap = { workspace = true }
 escape8259 = "0.5.2"
 anstream = "0.6.14"
 anstyle = "1.0.7"
+rand = { workspace = true }
 
 [lints]
 workspace = true

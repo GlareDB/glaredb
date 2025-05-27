@@ -1,29 +1,27 @@
-mod vars;
-use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
-use glaredb_core::arrays::format::pretty::table::PrettyTable;
-use glaredb_core::engine::single_user::SingleUserEngine;
-use glaredb_core::runtime::pipeline::PipelineRuntime;
-use glaredb_core::runtime::system::SystemRuntime;
-use harness::Arguments;
-use harness::trial::Trial;
-use uuid::Uuid;
-pub use vars::*;
-
 mod convert;
+mod vars;
 
-use std::fs;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use async_trait::async_trait;
 use clap::Parser;
-use convert::{batches_to_rows, schema_to_types};
+use glaredb_core::arrays::batch::Batch;
+use glaredb_core::arrays::datatype::DataTypeId;
+use glaredb_core::arrays::field::ColumnSchema;
+use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
+use glaredb_core::arrays::format::pretty::table::PrettyTable;
+use glaredb_core::arrays::format::{BinaryFormat, FormatOptions, Formatter};
+use glaredb_core::engine::single_user::SingleUserEngine;
+use glaredb_core::runtime::pipeline::PipelineRuntime;
+use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::{DbError, Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
-use sqllogictest::DefaultColumnType;
-use tracing::info;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use harness::Arguments;
+use harness::sqlfile::slt_parser::{ColumnType, ExpectedError, SltRecord, StatementExpect};
+use harness::trial::Trial;
+use tokio::runtime::Runtime as TokioRuntime;
+pub use vars::*;
 
 #[derive(Debug, Parser, Clone, Copy)]
 pub struct SltArguments {
@@ -43,6 +41,7 @@ where
 {
     /// The session to use for this run.
     pub engine: SingleUserEngine<E, R>,
+    pub tokio_rt: TokioRuntime,
 
     /// Variables to replace in the query.
     ///
@@ -98,10 +97,11 @@ where
             let session_fn = engine_fn.clone();
             let handle = handle.clone();
             Trial::test(test_name, move || {
-                match handle.block_on(run_test(args.extra, path, session_fn)) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(e.into()),
-                }
+                unimplemented!()
+                // match handle.block_on(run_test(args.extra, path, session_fn)) {
+                //     Ok(_) => Ok(()),
+                //     Err(e) => Err(e.into()),
+                // }
             })
             .with_kind(kind)
         })
@@ -113,86 +113,132 @@ where
 }
 
 /// Run an SLT at path, creating an engine from the provided function.
-async fn run_test<F, Fut>(args: SltArguments, path: impl AsRef<Path>, session_fn: F) -> Result<()>
+fn run_test<F, Fut>(args: SltArguments, path: impl AsRef<Path>, conf_fn: F) -> Result<()>
 where
-    F: Fn() -> Fut + Clone + Send + 'static,
-    Fut: Future<Output = Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>>,
+    F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>,
 {
     let path = path.as_ref();
+    let input = std::fs::read_to_string(path)?;
 
-    let mut runner = sqllogictest::Runner::new(|| async {
-        let conf = session_fn().await?;
+    let path_str = path.to_string_lossy();
+    let records = SltRecord::parse_many(&path_str, &input)?;
+    let conf = conf_fn()?;
 
-        Ok(TestSession { args, conf })
-    });
-    runner
-        .run_file_async(path)
-        .await
-        .context("Failed to run SLT")?;
+    for record in records {
+        match record {
+            SltRecord::Halt(_) => return Ok(()),
+            SltRecord::Statement(record) => {
+                let sql = record.sql.lines.join("\n");
+                let result =
+                    conf.tokio_rt
+                        .block_on(run_query(args, &conf.engine, sql, conf.query_timeout));
+
+                match (result, record.expected) {
+                    (Ok(_), StatementExpect::Ok) => (), // Ok!
+                    (Ok(_), StatementExpect::Error(_)) => {
+                        return record
+                            .loc
+                            .emit_error("Expected query to error, but it passed");
+                    }
+                    (Err(e), StatementExpect::Ok) => {
+                        return record.loc.emit_error(format!("Query error: {e}"));
+                    }
+                    (Err(e), StatementExpect::Error(expect)) => {
+                        let err_str = e.to_string();
+                        match expect {
+                            ExpectedError::Empty => {
+                                // We expected an error, we got an error.
+                            }
+                            ExpectedError::Inline(inline) => {
+                                if !err_str.contains(inline) {
+                                    let err = record
+                                        .loc
+                                        .format_error("Error does not contain expected string")
+                                        .with_field("error", err_str)
+                                        .with_field("expected", inline.to_string());
+                                    return Err(err);
+                                }
+                            }
+                            ExpectedError::Multiline(lines) => {
+                                let expect_str = lines.join("\n");
+                                if !err_str.contains(&expect_str) {
+                                    let err = record
+                                        .loc
+                                        .format_error("Error does not contain expected string")
+                                        .with_field("error", err_str)
+                                        .with_field("expected", expect_str);
+                                    return Err(err);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            SltRecord::Query(record) => {
+                let sql = record.sql.join("\n");
+                let result =
+                    conf.tokio_rt
+                        .block_on(run_query(args, &conf.engine, sql, conf.query_timeout));
+
+                let (schema, batches) = match result {
+                    Ok(out) => out,
+                    Err(e) => {
+                        return Err(record
+                            .loc
+                            .format_error("Query error")
+                            .with_field("error", e));
+                    }
+                };
+
+                // Check schema matches what we expect.
+                let got_types = schema_to_types(&schema);
+                if got_types != record.types {
+                    return Err(record
+                        .loc
+                        .format_error("Results types do not match expected types")
+                        .with_field(
+                            "got",
+                            got_types.iter().map(|t| t.to_char()).collect::<String>(),
+                        )
+                        .with_field(
+                            "expected",
+                            record.types.iter().map(|t| t.to_char()).collect::<String>(),
+                        ));
+                }
+
+                //
+                unimplemented!()
+            }
+        }
+    }
+
     Ok(())
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
-struct TestSession {
+async fn run_query(
     args: SltArguments,
-    conf: RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>,
-}
-
-impl TestSession {
-    async fn debug_explain(&mut self, sql: &str) {
-        if !self.args.print_explain {
-            // Not set.
-            return;
-        }
-
+    engine: &SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>,
+    sql: String,
+    timeout: Duration,
+) -> Result<(ColumnSchema, Vec<Batch>)> {
+    // EXPLAIN...
+    if args.print_explain {
         let (cols, _rows) = crossterm::terminal::size().unwrap_or((100, 0));
 
         println!("---- EXPLAIN ----");
         println!("{sql}");
 
-        let mut query_res = match self
-            .conf
-            .engine
+        match engine
             .session()
             .query(&format!("EXPLAIN VERBOSE {sql}"))
             .await
         {
-            Ok(results) => results,
-            Err(_) => {
-                println!("Explain not available");
-                return;
-            }
-        };
-
-        let batches = query_res.output.collect().await.unwrap();
-        println!(
-            "{}",
-            PrettyTable::try_new(
-                &query_res.output_schema,
-                &batches,
-                cols as usize,
-                Some(200),
-                PRETTY_COMPONENTS
-            )
-            .unwrap()
-        );
-    }
-
-    async fn debug_print_profile(&self, query_id: Uuid) {
-        if !self.args.print_profile_data {
-            // Not set.
-            return;
-        }
-
-        let (cols, _rows) = crossterm::terminal::size().unwrap_or((100, 0));
-        let run_and_print = async |query: String| {
-            if let Ok(mut res) = self.conf.engine.session().query(&query).await {
-                let batches = res.output.collect().await.unwrap();
+            Ok(mut q_res) => {
+                let batches = q_res.output.collect().await.unwrap();
                 println!(
                     "{}",
                     PrettyTable::try_new(
-                        &res.output_schema,
+                        &q_res.output_schema,
                         &batches,
                         cols as usize,
                         Some(200),
@@ -201,80 +247,80 @@ impl TestSession {
                     .unwrap()
                 );
             }
+            Err(_) => {
+                println!("Explain not available");
+            }
         };
-
-        println!("---- PLANNING PROFILE ----");
-        run_and_print(format!("SELECT * FROM planning_profile('{query_id}')")).await;
-
-        println!("---- EXECUTION PROFILE ----");
-        run_and_print(format!("SELECT * FROM execution_profile('{query_id}')")).await;
     }
 
-    async fn run_inner(
-        &mut self,
-        sql: &str,
-    ) -> Result<sqllogictest::DBOutput<DefaultColumnType>, DbError> {
-        info!(%sql, "query");
+    // Run the query with a timeout.
+    let mut q_res = engine.session().query(&sql).await?;
+    let mut timeout = Box::pin(tokio::time::sleep(timeout));
 
-        let mut sql_with_replacements = sql.to_string();
-        for (k, v) in self.conf.vars.iter() {
-            if k == "__SLT_TMP__" && self.conf.create_slt_tmp {
-                std::fs::create_dir_all(v.as_ref()).context("failed to create slt tmp dir")?
-            }
-
-            sql_with_replacements = sql_with_replacements.replace(k, v.as_ref());
+    // Continually read from the stream, erroring if we exceed timeout.
+    tokio::select! {
+        materialized = q_res.output.collect() => {
+            // TODO: Debug print profile
+            let batches = materialized?;
+            Ok((q_res.output_schema, batches))
         }
+        _ = &mut timeout => {
+             // Timed out.
+            q_res.output.query_handle().cancel();
 
-        self.debug_explain(&sql_with_replacements).await;
-
-        let mut query_res = self
-            .conf
-            .engine
-            .session()
-            .query(&sql_with_replacements)
-            .await?;
-
-        // Timeout for the entire query.
-        let mut timeout = Box::pin(tokio::time::sleep(self.conf.query_timeout));
-
-        // Continually read from the stream, erroring if we exceed timeout.
-        tokio::select! {
-            materialized = query_res.output.collect() => {
-                let materialized = materialized?;
-                self.debug_print_profile(query_res.query_id).await;
-
-                Ok(sqllogictest::DBOutput::Rows {
-                    types: schema_to_types(&query_res.output_schema),
-                    rows: batches_to_rows(materialized)?,
-                })
-            }
-            _ = &mut timeout => {
-                 // Timed out.
-                query_res.output.query_handle().cancel();
-
-                // let prof_data = handle.generate_execution_profile_data().await.unwrap();
-                Err(DbError::new(format!(
-                    "Variables\n{}\nQuery timed out\n---",
-                    self.conf.vars
-                )))
-            }
+            Err(DbError::new("Query timed out"))
         }
     }
 }
 
-#[async_trait]
-impl sqllogictest::AsyncDB for TestSession {
-    type Error = DbError;
-    type ColumnType = DefaultColumnType;
-
-    async fn run(
-        &mut self,
-        sql: &str,
-    ) -> Result<sqllogictest::DBOutput<Self::ColumnType>, Self::Error> {
-        self.run_inner(sql).await
+fn schema_to_types(schema: &ColumnSchema) -> Vec<ColumnType> {
+    let mut typs = Vec::new();
+    for field in &schema.fields {
+        let typ = match field.datatype.id() {
+            DataTypeId::Int8
+            | DataTypeId::Int16
+            | DataTypeId::Int32
+            | DataTypeId::Int64
+            | DataTypeId::UInt8
+            | DataTypeId::UInt16
+            | DataTypeId::UInt32
+            | DataTypeId::UInt64 => ColumnType::Integer,
+            DataTypeId::Float32 | DataTypeId::Float64 => ColumnType::Float,
+            DataTypeId::Utf8 | DataTypeId::Boolean => ColumnType::Text,
+            _ => ColumnType::Any,
+        };
+        typs.push(typ);
     }
 
-    fn engine_name(&self) -> &str {
-        "rayexec"
+    typs
+}
+
+/// Converts batches into rows of columns.
+fn batches_to_rows(batches: Vec<Batch>) -> Result<Vec<Vec<String>>> {
+    const OPTS: FormatOptions = FormatOptions {
+        null: "NULL",
+        empty_string: "(empty)",
+        binary_format: BinaryFormat::Hex,
+    };
+    let formatter = Formatter::new(OPTS);
+
+    let mut rows = Vec::new();
+
+    for batch in batches {
+        for row_idx in 0..batch.num_rows() {
+            let col_strings = batch
+                .arrays()
+                .iter()
+                .map(|arr| {
+                    formatter
+                        .format_array_value(arr, row_idx)
+                        .map(|v| v.to_string())
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            rows.push(col_strings)
+        }
     }
+
+    Ok(rows)
 }

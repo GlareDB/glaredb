@@ -1300,6 +1300,7 @@ dependencies = [
  "clap",
  "escape8259",
  "glaredb_error",
+ "rand",
 ]
 
 [[package]]

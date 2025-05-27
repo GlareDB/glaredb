@@ -4,3 +4,4 @@
 pub mod find;
 pub mod parser;
 pub mod slt_parser;
+pub mod vars;
