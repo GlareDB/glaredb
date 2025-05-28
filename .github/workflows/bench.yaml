@@ -23,11 +23,13 @@ jobs:
         run: echo "ts=$(date +%s)" >> $GITHUB_OUTPUT
 
   gcp_bench:
+    name: Benchmarks on GCP
     needs: timestamp
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # TODO: Add c4-standard-2 to test very low resource machines.
+        # TODO: Add c4-standard-2 to test very low resource machines. Will need
+        # to add/improve spilling.
         machine_type: [c4-standard-8, c4-standard-32]
     env:
       UNIX_TIMESTAMP:        ${{ needs.timestamp.outputs.ts }}
@@ -45,6 +47,6 @@ jobs:
       - name: Setup GCP
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Run benchmarks on GCP
+      - name: Run benchmarks
         run: |
           ./scripts/bench_gcp.sh
