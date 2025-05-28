@@ -12,7 +12,7 @@ GIT_COMMIT="${GIT_HASH:-$(git rev-parse --short HEAD)}"
 instance_name="bench-${RANDOM}"
 
 # c4-standard-32-hyperdisk-balanced-500
-# TODO: 2 -> 32 once the script works
+# TODO: 2 -> 32 once everything is verified working.
 gcloud compute instances create $instance_name \
     --project="$GCP_PROJECT" \
     --zone="$GCP_ZONE" \
@@ -82,8 +82,8 @@ gc_run "sudo apt update \
 # Clone repo.
 gc_run "git clone https://github.com/glaredb/glaredb && cd glaredb && git checkout ${GIT_COMMIT}"
 
-# Build benchmark bin.
-gc_run "cd glaredb && cargo build --release --bin bench_standard"
+# Run micro benchmarks.
+gc_run "cd glaredb && cargo bench --bench bench_runner -- bench/micro"
 
-# Run it...
-gc_run "cd glaredb && ./target/release/bench_standard"
+# TODO: Other benchmark suites...
+# TODO: Upload to gcs...
