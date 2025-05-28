@@ -114,7 +114,8 @@ fn run_with_setup<S>(args: &Arguments<BenchArguments>, path: &str, tag: &str) ->
 where
     S: EngineSetup<ThreadedNativeExecutor, NativeSystemRuntime>,
 {
-    let paths = find_files(Path::new(path), ".bench").unwrap();
+    let mut paths = find_files(Path::new(path), ".bench").unwrap();
+    paths.sort_unstable();
 
     // TODO: Weird but whatever.
     let writer = if paths.is_empty() {
