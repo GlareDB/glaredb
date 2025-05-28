@@ -5,19 +5,27 @@ set -e
 # GCP variables
 GCP_PROJECT="${GCP_PROJECT:-glaredb-dev-playground}"
 GCP_ZONE="${GCP_ZONE:-us-central1-c}"
+# Defaults to 'glaredb-bench', a public bucket with CORS configured.
+GCP_BUCKET="${GCP_BUCKET:-glaredb-bench}"
+# TODO: 2 -> 32 once everything is verified working.
+GCP_MACHINE_TYPE="${GCP_MACHINE_TYPE:-c4-standard-2}"
 
 # Commit to benchmark.
 GIT_COMMIT="${GIT_HASH:-$(git rev-parse --short HEAD)}"
 
-instance_name="bench-${RANDOM}"
+# Current timestamp
+unix_timestamp_s=$(date +%s)
 
-# c4-standard-32-hyperdisk-balanced-500
-# TODO: 2 -> 32 once everything is verified working.
-gcloud compute instances create $instance_name \
+instance_name="bench-${unix_timestamp_s}"
+
+# hyperdisk-balanced
+# 500G, 6000 iops, 890 throughput
+# TODO: Probably paramterize disk.
+gcloud compute instances create "$instance_name" \
     --project="$GCP_PROJECT" \
     --zone="$GCP_ZONE" \
-    --machine-type=c4-standard-2 \
-   --network-interface=network-tier=PREMIUM,nic-type=GVNIC,stack-type=IPV4_ONLY,subnet=default \
+    --machine-type="$GCP_MACHINE_TYPE" \
+    --network-interface=network-tier=PREMIUM,nic-type=GVNIC,stack-type=IPV4_ONLY,subnet=default \
     --maintenance-policy=MIGRATE \
     --provisioning-model=STANDARD \
     --service-account=810251374963-compute@developer.gserviceaccount.com \
@@ -82,8 +90,11 @@ gc_run "sudo apt update \
 # Clone repo.
 gc_run "git clone https://github.com/glaredb/glaredb && cd glaredb && git checkout ${GIT_COMMIT}"
 
-# Run micro benchmarks.
-gc_run "cd glaredb && cargo bench --bench bench_runner -- bench/micro"
+gc_run "cd glaredb \
+          && cargo bench --bench bench_runner -- bench/micro"
 
 # TODO: Other benchmark suites...
-# TODO: Upload to gcs...
+
+# Upload results to gcs.
+gc_run "cd glaredb && \
+        gsutil cp ./bench_bin/results-*.tsv gs://${GCP_BUCKET}/results/${GCP_MACHINE_TYPE}/${unix_timestamp_s}/"
