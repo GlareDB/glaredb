@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::time::Duration;
 
 /// A single test or benchmark.
 ///
@@ -172,11 +173,12 @@ impl TestInfo {
 /// Output of a benchmark.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Measurement {
-    /// Average time in ns.
-    pub avg: u64,
-
-    /// Variance in ns.
-    pub variance: u64,
+    /// Average duration.
+    pub avg: Duration,
+    /// Min duration.
+    pub min: Duration,
+    /// Max duration.
+    pub max: Duration,
 }
 
 /// Indicates that a test/benchmark has failed. Optionally carries a message.

@@ -90,9 +90,9 @@ impl TsvWriter {
     pub fn write(&self, bench_name: String, times: &BenchmarkTimes) -> Result<()> {
         let mut file = self.file.lock();
         if let Some(file) = file.as_mut() {
-            for (idx, query_time) in times.query_times_ns.iter().enumerate() {
-                writeln!(file, "{}\t{}\t{}", bench_name, idx + 1, query_time)?;
-            }
+            // for (idx, query_time) in times.query_times_ns.iter().enumerate() {
+            //     writeln!(file, "{}\t{}\t{}", bench_name, idx + 1, query_time)?;
+            // }
         }
 
         Ok(())
@@ -169,7 +169,8 @@ where
 
                 Ok(Some(Measurement {
                     avg: times.query_avg(),
-                    variance: 0, // TODO
+                    min: times.query_min(),
+                    max: times.query_max(),
                 }))
             })
             .with_kind(tag)

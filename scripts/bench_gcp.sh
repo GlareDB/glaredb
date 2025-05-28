@@ -107,4 +107,4 @@ gc_run "cd glaredb \
 
 # Upload results to gcs.
 gc_run "cd glaredb && \
-        gsutil cp ./bench_bin/results-*.tsv gs://${GCP_BUCKET}/results/${GCP_MACHINE_TYPE}/${unix_timestamp_s}/"
+        gsutil cp ./bench/results-*.tsv gs://${GCP_BUCKET}/results/${GCP_MACHINE_TYPE}/${unix_timestamp_s}/"

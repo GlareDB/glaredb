@@ -65,7 +65,7 @@ where
     let writer = if paths.is_empty() {
         TsvWriter::try_new(None)?
     } else {
-        let path = format!("results-{tag}.tsv");
+        let path = format!("../bench/results-{tag}.tsv");
         TsvWriter::try_new(Some(path.into()))?
     };
     writer.write_header()?;

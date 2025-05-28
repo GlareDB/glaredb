@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
@@ -11,14 +11,22 @@ use crate::benchmark::Benchmark;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BenchmarkTimes {
-    pub setup_time_ns: u64,
-    pub query_times_ns: Vec<u64>,
+    pub setup_time: Duration,
+    pub query_times: Vec<Duration>,
 }
 
 impl BenchmarkTimes {
-    pub fn query_avg(&self) -> u64 {
-        let sum: u64 = self.query_times_ns.iter().sum();
-        sum / self.query_times_ns.len() as u64
+    pub fn query_avg(&self) -> Duration {
+        let sum: Duration = self.query_times.iter().sum();
+        sum / self.query_times.len() as u32
+    }
+
+    pub fn query_min(&self) -> Duration {
+        self.query_times.iter().min().copied().unwrap()
+    }
+
+    pub fn query_max(&self) -> Duration {
+        self.query_times.iter().max().copied().unwrap()
     }
 }
 
@@ -49,12 +57,12 @@ impl BenchmarkRunner {
             }
         }
 
-        let setup_time_ns = Instant::now().duration_since(setup_start).as_millis() as u64;
+        let setup_time = Instant::now().duration_since(setup_start);
 
-        let mut query_times_ns = Vec::with_capacity(conf.count);
+        let mut query_times = Vec::with_capacity(conf.count);
 
         for idx in 0..conf.count {
-            let mut query_time_ns = 0;
+            let mut query_time = Duration::default();
 
             for query in &self.benchmark.queries {
                 if idx == 0 && conf.print_results {
@@ -90,7 +98,7 @@ impl BenchmarkRunner {
 
                 let start = Instant::now();
                 let pending = self.engine.session().query_many(query)?;
-                query_time_ns += Instant::now().duration_since(start).as_nanos();
+                query_time += Instant::now().duration_since(start);
 
                 for pending in pending {
                     let start = Instant::now();
@@ -100,7 +108,7 @@ impl BenchmarkRunner {
                     let mut q_res = pending.execute().await?;
                     let batches = q_res.output.collect().await?;
 
-                    query_time_ns += Instant::now().duration_since(start).as_nanos();
+                    query_time += Instant::now().duration_since(start);
 
                     if conf.print_results {
                         println!(
@@ -117,12 +125,12 @@ impl BenchmarkRunner {
                 }
             }
 
-            query_times_ns.push(query_time_ns as u64);
+            query_times.push(query_time);
         }
 
         Ok(BenchmarkTimes {
-            setup_time_ns,
-            query_times_ns,
+            setup_time,
+            query_times,
         })
     }
 }
