@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+#
+# Run benchmarks on GCP instances and uploads the results to a GCS bucket.
+#
+# CI will run this script using a machine type matrix.
+#
+# This is fine the run locally given you're authenticated with the google cloud
+# project. The results will be uploaded under a 'dev' namespace.
+#
+# See the environment variables for the defaults used.
 
 set -e
 
@@ -13,7 +22,6 @@ GCP_PROJECT="${GCP_PROJECT:-glaredb-dev-playground}"
 GCP_ZONE="${GCP_ZONE:-us-central1-c}"
 # Defaults to 'glaredb-bench', a public bucket with CORS configured.
 GCP_BUCKET="${GCP_BUCKET:-glaredb-bench}"
-# TODO: 2 -> 32 once everything is verified working.
 GCP_MACHINE_TYPE="${GCP_MACHINE_TYPE:-c4-standard-2}"
 # Namespace for the results in the bucket. Lets us separate out results ran on
 # main vs in prs.
