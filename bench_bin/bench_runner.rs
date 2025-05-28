@@ -1,11 +1,11 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ext_csv::extension::CsvExtension;
 use ext_iceberg::extension::IcebergExtension;
 use ext_parquet::extension::ParquetExtension;
 use ext_spark::SparkExtension;
 use ext_tpch_gen::TpchGenExtension;
-use glaredb_bench::{BenchArguments, RunConfig, TsvWriter};
+use glaredb_bench::{BenchArguments, RunConfig};
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
@@ -178,17 +178,9 @@ where
     let mut paths = find_files(Path::new(path), ".bench").unwrap();
     paths.sort_unstable();
 
-    // TODO: Weird but whatever.
-    let writer = if paths.is_empty() {
-        TsvWriter::try_new(None)?
-    } else {
-        let path = format!("../bench/results-{tag}.tsv");
-        TsvWriter::try_new(Some(path.into()))?
-    };
-    writer.write_header()?;
+    let tsv_results_path = PathBuf::from(format!("../bench/results-{tag}.tsv"));
 
     glaredb_bench::run(
-        writer.clone(),
         args,
         paths,
         || {
@@ -203,9 +195,8 @@ where
             Ok(RunConfig { session, tokio_rt })
         },
         tag,
+        &tsv_results_path,
     )?;
-
-    writer.flush()?;
 
     Ok(())
 }

@@ -66,8 +66,8 @@ function cleanup() {
   gcloud compute instances delete "$instance_name" \
     --project="$GCP_PROJECT" --zone="$GCP_ZONE" --quiet || true
 }
-# Delete instance on exit
-trap cleanup EXIT
+# # Delete instance on exit
+# trap cleanup EXIT
 
 # Run a command on the remote GCP instance.
 function gc_run() {

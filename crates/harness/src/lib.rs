@@ -7,8 +7,9 @@ use std::process::{self, ExitCode};
 use std::time::Instant;
 
 use clap::Args;
+use glaredb_error::Result;
 use printer::Printer;
-use trial::{Outcome, TestInfo, Trial};
+use trial::{Measurement, Outcome, TestInfo, Trial};
 
 pub use crate::args::{Arguments, ColorSetting, FormatSetting};
 
@@ -87,9 +88,10 @@ impl Conclusion {
 /// The returned value contains a couple of useful information. See `Conclusion`
 /// for more information. If `--list` was specified, a list is printed and a
 /// dummy `Conclusion` is returned.
-pub fn run<A>(args: &Arguments<A>, mut tests: Vec<Trial>) -> Conclusion
+pub fn run<A, S>(args: &Arguments<A>, mut tests: Vec<Trial>, mut measurements_sink: S) -> Conclusion
 where
     A: Args,
+    S: FnMut(TestInfo, Measurement) -> Result<()>,
 {
     let start_instant = Instant::now();
     let mut conclusion = Conclusion::empty();
@@ -118,20 +120,6 @@ where
     printer.print_title(tests.len() as u64);
 
     let mut failed_tests = Vec::new();
-    let mut handle_outcome = |outcome: Outcome, test: TestInfo, printer: &mut Printer| {
-        printer.print_single_outcome(&test, &outcome);
-
-        // Handle outcome
-        match outcome {
-            Outcome::Passed => conclusion.num_passed += 1,
-            Outcome::Failed(failed) => {
-                failed_tests.push((test, failed.msg));
-                conclusion.num_failed += 1;
-            }
-            Outcome::Ignored => conclusion.num_ignored += 1,
-            Outcome::Measured(_) => conclusion.num_measured += 1,
-        }
-    };
 
     // Execute all tests.
     let test_mode = !args.bench;
@@ -146,7 +134,21 @@ where
         } else {
             run_single(test.runner, test_mode)
         };
-        handle_outcome(outcome, test.info, &mut printer);
+        printer.print_single_outcome(&test.info, &outcome);
+
+        // Handle outcome
+        match outcome {
+            Outcome::Passed => conclusion.num_passed += 1,
+            Outcome::Failed(failed) => {
+                failed_tests.push((test.info, failed.msg));
+                conclusion.num_failed += 1;
+            }
+            Outcome::Ignored => conclusion.num_ignored += 1,
+            Outcome::Measured(measurement) => {
+                conclusion.num_measured += 1;
+                measurements_sink(test.info, measurement).unwrap(); // TODO?
+            }
+        }
     }
 
     // Print failures if there were any, and the final summary.
