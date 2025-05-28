@@ -120,7 +120,7 @@ gc_run "cd glaredb \
 
 # Clickbench (parquet-single)
 gc_run "cd glaredb \
-          && ./scripts/bench_download_clickbench_data.sh single
+          && ./scripts/bench_download_clickbench_data.sh single \
           && sudo -E cargo bench --bench bench_runner -- bench/clickbench/single --drop-cache"
 
 # TODO: Other benchmark suites...
