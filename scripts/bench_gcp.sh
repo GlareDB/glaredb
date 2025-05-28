@@ -91,7 +91,7 @@ gc_run "sudo apt update \
 gc_run "git clone https://github.com/glaredb/glaredb && cd glaredb && git checkout ${GIT_COMMIT}"
 
 gc_run "cd glaredb \
-          && cargo bench --bench bench_runner -- bench/micro --drop-cache"
+          && sudo cargo bench --bench bench_runner -- bench/micro --drop-cache"
 
 # TODO: Other benchmark suites...
 
