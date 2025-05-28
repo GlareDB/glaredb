@@ -9,6 +9,7 @@ use glaredb_bench::{BenchArguments, RunConfig, TsvWriter};
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
+use glaredb_core::util::future::block_on;
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{
     NativeSystemRuntime,
@@ -21,7 +22,15 @@ use harness::sqlfile::find::find_files;
 pub fn main() -> Result<()> {
     let args = Arguments::<BenchArguments>::from_args();
 
-    run_with_setup::<DefaultSetup>(args, "../bench/micro", "micro")?;
+    // Micro benches.
+    run_with_setup::<DefaultSetup>(&args, "../bench/micro", "micro")?;
+
+    // Clickbench with a single hits file.
+    run_with_setup::<ClickbenchSingleSetup>(
+        &args,
+        "../bench/clickbench/single",
+        "clickbench-parquet-single",
+    )?;
 
     Ok(())
 }
@@ -32,6 +41,33 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>>;
+}
+
+// TODO: Move this to an 'ext_default' crate then shared with benches, cli,
+// wasm, python.
+fn register_default_extensions<E, R>(engine: &SingleUserEngine<E, R>) -> Result<()>
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    engine.register_extension(SparkExtension)?;
+    engine.register_extension(TpchGenExtension)?;
+    engine.register_extension(CsvExtension)?;
+    engine.register_extension(ParquetExtension)?;
+    engine.register_extension(IcebergExtension)?;
+    Ok(())
+}
+
+fn run_setup_query<E, R>(engine: &SingleUserEngine<E, R>, query: &str) -> Result<()>
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    block_on(async {
+        let mut q_res = engine.session().query(query).await?;
+        let _ = q_res.output.collect().await?;
+        Ok(())
+    })
 }
 
 /// Default setup that registers all extensions equivalent to our release
@@ -45,21 +81,41 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        engine.register_extension(SparkExtension)?;
-        engine.register_extension(TpchGenExtension)?;
-        engine.register_extension(CsvExtension)?;
-        engine.register_extension(ParquetExtension)?;
-        engine.register_extension(IcebergExtension)?;
+        register_default_extensions(&engine)?;
+        Ok(engine)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClickbenchSingleSetup;
+
+impl<E, R> EngineSetup<E, R> for ClickbenchSingleSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+        register_default_extensions(&engine)?;
+
+        run_setup_query(
+            &engine,
+            "
+            CREATE TEMP VIEW hits AS
+              SELECT * REPLACE (EventDate::DATE AS EventDate)
+                FROM read_parquet('../bench/data/clickbench/hits.parquet')
+            ",
+        )?;
 
         Ok(engine)
     }
 }
 
-fn run_with_setup<S>(args: Arguments<BenchArguments>, path: &str, tag: &str) -> Result<()>
+fn run_with_setup<S>(args: &Arguments<BenchArguments>, path: &str, tag: &str) -> Result<()>
 where
     S: EngineSetup<ThreadedNativeExecutor, NativeSystemRuntime>,
 {
-    let paths = find_files(Path::new(path), ".bench").unwrap();
+    let mut paths = find_files(Path::new(path), ".bench").unwrap();
+    paths.sort_unstable();
 
     // TODO: Weird but whatever.
     let writer = if paths.is_empty() {

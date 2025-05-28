@@ -130,7 +130,7 @@ pub struct RunArgs {
 /// `tag` is used to group the benchmarks.
 pub fn run<F>(
     writer: TsvWriter,
-    args: Arguments<BenchArguments>,
+    args: &Arguments<BenchArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
     conf_fn: F,
     tag: &str,
@@ -183,7 +183,7 @@ where
         })
         .collect();
 
-    harness::run(&args, benches).exit_if_failed();
+    harness::run(args, benches).exit_if_failed();
 
     Ok(())
 }

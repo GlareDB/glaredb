@@ -13,9 +13,11 @@ venv/
 __pycache__
 
 # Benchmark stuff
-**/benchmarks/data/
 **/.tmp
 profile.json
+# Results output for bench runner benchmarks
+/bench/results-*.tsv
+/bench/data/
 
 # Coverage reports
 lcov.info
@@ -29,5 +31,3 @@ lineedit.log
 # Scratch dir for tests queries and stuff.
 /scratch
 
-# Results output for bench runner benchmarks
-/bench/results-*.tsv
