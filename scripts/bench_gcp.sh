@@ -114,8 +114,14 @@ gc_run "git clone https://github.com/glaredb/glaredb && cd glaredb && git checko
 # The '-E' just inherits the running user's environment, so it's able to find
 # the correct cargo, etc.
 
+# Micro
 gc_run "cd glaredb \
           && sudo -E cargo bench --bench bench_runner -- bench/micro --drop-cache"
+
+# Clickbench (parquet-single)
+gc_run "cd glaredb \
+          && ./scripts/bench_download_clickbench_data.sh single
+          && sudo -E cargo bench --bench bench_runner -- bench/clickbench/single --drop-cache"
 
 # TODO: Other benchmark suites...
 
