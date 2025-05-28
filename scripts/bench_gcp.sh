@@ -22,7 +22,7 @@ GCP_PROJECT="${GCP_PROJECT:-glaredb-dev-playground}"
 GCP_ZONE="${GCP_ZONE:-us-central1-c}"
 # Defaults to 'glaredb-bench', a public bucket with CORS configured.
 GCP_BUCKET="${GCP_BUCKET:-glaredb-bench}"
-GCP_MACHINE_TYPE="${GCP_MACHINE_TYPE:-c4-standard-2}"
+GCP_MACHINE_TYPE="${GCP_MACHINE_TYPE:-c4-standard-8}"
 # Namespace for the results in the bucket. Lets us separate out results ran on
 # main vs in prs.
 GCP_RESULTS_NAMESPACE="${GCP_RESULTS_NAMESPACE:-dev}"
