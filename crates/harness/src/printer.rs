@@ -168,13 +168,14 @@ impl Printer {
                 write!(self.out, "{style}{}{style:#}", c).unwrap();
             }
             FormatSetting::Json => {
-                if let Outcome::Measured(Measurement { avg, variance }) = outcome {
+                if let Outcome::Measured(Measurement { avg, min, max }) = outcome {
                     writeln!(
                         self.out,
-                        r#"{{ "type": "bench", "name": "{}", "median": {}, "deviation": {} }}"#,
+                        r#"{{ "type": "bench", "name": "{}", "avg_micros": {}, "min_micros": {}, "max_micros": {} }}"#,
                         escape8259::escape(&info.name),
-                        avg,
-                        variance,
+                        avg.as_micros(),
+                        min.as_micros(),
+                        max.as_micros(),
                     )
                     .unwrap();
                 } else {
@@ -328,14 +329,15 @@ impl Printer {
         };
 
         let style = color_of_outcome(outcome);
-        write!(self.out, "{style}{}{style:#}", s).unwrap();
+        writeln!(self.out, "{style}{}{style:#}", s).unwrap();
 
-        if let Outcome::Measured(Measurement { avg, variance }) = outcome {
+        if let Outcome::Measured(Measurement { avg, min, max }) = outcome {
             write!(
                 self.out,
-                ": {:>11} ns/iter (+/- {})",
-                fmt_with_thousand_sep(*avg),
-                fmt_with_thousand_sep(*variance),
+                "      avg: {:>11} micros,  min: {:>11}  micros,  max: {:>11} micros",
+                fmt_with_thousand_sep(avg.as_micros() as u64),
+                fmt_with_thousand_sep(min.as_micros() as u64),
+                fmt_with_thousand_sep(max.as_micros() as u64),
             )
             .unwrap();
         }

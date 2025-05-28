@@ -5,11 +5,33 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      results_namespace:
+        description: 'Namespace in GCP bucket where results will be stored'
+        required: false
+        default: 'workflow-dispatch'
 
 jobs:
-  benchmark:
-    name: Run benchmarks
-    runs-on: ubuntu-latest-8-cores
+  # Generate a single timestamp to use across all runs.
+  timestamp:
+    runs-on: ubuntu-latest
+    outputs:
+      ts: ${{ steps.set_ts.outputs.ts }}
+    steps:
+      - name: Compute UNIX timestamp
+        id: set_ts
+        run: echo "ts=$(date +%s)" >> $GITHUB_OUTPUT
+
+  gcp_bench:
+    needs: timestamp
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        machine_type: [c4-standard-2, c4-standard-8, c4-standard-32]
+    env:
+      UNIX_TIMESTAMP:        ${{ needs.timestamp.outputs.ts }}
+      GCP_MACHINE_TYPE:      ${{ matrix.machine_type }}
+      GCP_RESULTS_NAMESPACE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.results_namespace || 'main' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,7 +44,6 @@ jobs:
       - name: Setup GCP
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Bench - GCP (c4-standard-8, 500 GB hyperdisk-balanced)
-        env:
-          GCP_MACHINE_TYPE: c4-standard-8
-        run: ./scripts/bench_gcp.sh
+      - name: Run benchmarks on GCP
+        run: |
+          ./scripts/bench_gcp.sh
