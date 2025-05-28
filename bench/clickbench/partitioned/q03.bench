@@ -1,0 +1,2 @@
+run
+SELECT AVG(UserID) FROM hits;

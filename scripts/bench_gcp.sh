@@ -123,6 +123,11 @@ gc_run "cd glaredb \
           && ./scripts/bench_download_clickbench_data.sh single \
           && sudo -E cargo bench --bench bench_runner -- bench/clickbench/single --drop-cache"
 
+# Clickbench (parquet-partitioned)
+gc_run "cd glaredb \
+          && ./scripts/bench_download_clickbench_data.sh partitioned \
+          && sudo -E cargo bench --bench bench_runner -- bench/clickbench/partitioned --drop-cache"
+
 # TODO: Other benchmark suites...
 
 # Upload results to gcs.
