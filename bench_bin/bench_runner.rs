@@ -25,8 +25,13 @@ pub fn main() -> Result<()> {
     // Micro benches.
     run_with_setup::<DefaultSetup>(&args, "../bench/micro", "micro")?;
 
-    // TPCH SF=1
+    // TPCH
+    // SF=1
     run_with_setup::<TpchSetup<1>>(&args, "../bench/tpch/1", "tpch-parquet-sf-1")?;
+    // SF=10
+    run_with_setup::<TpchSetup<10>>(&args, "../bench/tpch/10", "tpch-parquet-sf-10")?;
+    // SF=50
+    run_with_setup::<TpchSetup<50>>(&args, "../bench/tpch/50", "tpch-parquet-sf-50")?;
 
     // Clickbench with a single hits file.
     run_with_setup::<ClickbenchSingleSetup>(
