@@ -194,7 +194,7 @@ where
         || {
             let tokio_rt = new_tokio_runtime_for_io()?;
 
-            let executor = ThreadedNativeExecutor::try_new().unwrap();
+            let executor = ThreadedNativeExecutor::try_new()?;
             let runtime = NativeSystemRuntime::new(tokio_rt.handle().clone());
 
             let engine = SingleUserEngine::try_new(executor.clone(), runtime.clone())?;
