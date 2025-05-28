@@ -9,7 +9,7 @@ on:
       results_namespace:
         description: 'Namespace in GCP bucket where results will be stored'
         required: false
-        default: 'manual-${{ github.run_id }}'
+        default: 'workflow-dispatch'
 
 jobs:
   # Generate a single timestamp to use across all runs.
@@ -27,7 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # List of machine types you want to spin up.
         machine_type: [c4-standard-2, c4-standard-8]
     env:
       UNIX_TIMESTAMP:        ${{ needs.timestamp.outputs.ts }}
