@@ -22,7 +22,7 @@ jobs:
       - name: Setup GCP
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Bench - GCP (c4-standard-8, 500G hyperdisk-balanced)
+      - name: Bench - GCP (c4-standard-8, 500 GB hyperdisk-balanced)
         env:
           GCP_MACHINE_TYPE: c4-standard-8
         run: ./scripts/bench_gcp.sh
