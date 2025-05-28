@@ -14,14 +14,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
+      - name: Authenticate GCP
+        uses: google-github-actions/auth@v2
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
 
-      - name: Benchmark (micro)
-        run: |
-          cargo bench \
-             --bench bench_runner \
-             -- bench/micro
+      - name: Setup GCP
+        uses: google-github-actions/setup-gcloud@v2
 
+      - name: Bench - GCP (c4-standard-8, 500 GB hyperdisk-balanced)
+        env:
+          GCP_MACHINE_TYPE: c4-standard-8
+        run: ./scripts/bench_gcp.sh

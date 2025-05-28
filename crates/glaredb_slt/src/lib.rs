@@ -67,12 +67,12 @@ where
 /// For each path, `session_fn` will be called to create a session (and
 /// associated configuration) for just the file.
 ///
-/// `kind` should be used to group these SLTs together.
+/// `tag` should be used to group these SLTs together.
 pub fn run<F>(
     args: &Arguments<SltArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
     conf_fn: F,
-    kind: &str,
+    tag: &str,
 ) -> Result<()>
 where
     F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>> + Clone,
@@ -93,7 +93,7 @@ where
                 run_test(args.extra, path, conf_fn)?;
                 Ok(())
             })
-            .with_kind(kind)
+            .with_kind(tag)
         })
         .collect();
 

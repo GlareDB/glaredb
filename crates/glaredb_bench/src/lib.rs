@@ -3,9 +3,9 @@ pub mod pagecache;
 mod benchmark;
 mod runner;
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use benchmark::Benchmark;
@@ -13,7 +13,7 @@ use clap::Parser;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
-use glaredb_error::{DbError, Result, ResultExt};
+use glaredb_error::{Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use harness::Arguments;
 use harness::trial::{Measurement, Trial};
@@ -118,13 +118,16 @@ pub struct RunArgs {
 
 /// Runs all provide benchmark paths.
 ///
-/// `engine_fn` is ran for each benchmark, and should return a fresh
+/// `conf_fn` is ran for each benchmark, and should return a fresh
 /// session/single user engine to use for the benchmark.
+///
+/// `tag` is used to group the benchmarks.
 pub fn run<F>(
     writer: TsvWriter,
     args: Arguments<BenchArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
-    engine_fn: F,
+    conf_fn: F,
+    tag: &str,
 ) -> Result<()>
 where
     F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>
@@ -144,7 +147,7 @@ where
                 .trim_start_matches("../")
                 .to_string();
 
-            let engine_fn = engine_fn.clone();
+            let engine_fn = conf_fn.clone();
             let writer = writer.clone();
 
             Trial::bench(bench_name.clone(), move |_test_mode| {
@@ -169,51 +172,11 @@ where
                     variance: 0, // TODO
                 }))
             })
+            .with_kind(tag)
         })
         .collect();
 
     harness::run(&args, benches).exit_if_failed();
 
     Ok(())
-}
-
-/// Recursively find all benchmark files at the given path.
-///
-/// If the provided path points to a file, then the returned vec will only
-/// contain a single path buf pointing to that file.
-pub fn find_files(path: &Path) -> Result<Vec<PathBuf>> {
-    fn inner(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
-        if dir.is_dir() {
-            let readdir = fs::read_dir(dir).context("Failed to read directory")?;
-            for entry in readdir {
-                let entry = entry.context("Failed to get entry")?;
-                let path = entry.path();
-
-                let path_str = path
-                    .to_str()
-                    .ok_or_else(|| DbError::new("Expected utf8 path"))?;
-                // We might have READMEs interspersed. Only read .bench files.
-                if path.is_file() && !path_str.ends_with(".bench") {
-                    continue;
-                }
-
-                if path.is_dir() {
-                    inner(&path, paths)?;
-                } else {
-                    paths.push(path.to_path_buf());
-                }
-            }
-        }
-        Ok(())
-    }
-
-    // TODO: Error if it doesn't end in '.bench'
-    if path.is_file() {
-        return Ok(vec![path.to_path_buf()]);
-    }
-
-    let mut paths = Vec::new();
-    inner(path, &mut paths)?;
-
-    Ok(paths)
 }
