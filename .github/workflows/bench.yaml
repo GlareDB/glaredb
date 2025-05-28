@@ -1,9 +1,9 @@
 name: Benchmark
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    # 2pm CDT (UTC–5)
+    - cron: '0 19 * * *'
   workflow_dispatch:
     inputs:
       results_namespace:
