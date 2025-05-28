@@ -14,10 +14,22 @@ version="${GLAREDB_VERSION:-latest}"
 
 dest="$install_dir/glaredb"
 
-echo "***"
-echo "Running GlareDB install script"
-echo "Installing to '${install_dir}'"
-echo "***"
+# Only enable colors when stdout is a TTY and TERM isn't "dumb"
+if [ -t 1 ] && [ "${TERM:-}" != "dumb" ]; then
+  RED="$(printf '\033[0;31m')"
+  GREEN="$(printf '\033[0;32m')"
+  YELLOW="$(printf '\033[0;33m')"
+  BLUE="$(printf '\033[0;34m')"
+  BOLD="$(printf '\033[1m')"
+  RESET="$(printf '\033[0m')"
+else
+  RED='' GREEN='' YELLOW='' BLUE='' BOLD='' RESET=''
+fi
+
+
+printf "%b\n" \
+  "${BOLD}Running GlareDB install script${RESET}" \
+  "Installing to ${BOLD}${install_dir}${RESET}"
 
 # Detect OS
 case "$(uname -s)" in
@@ -65,6 +77,9 @@ chmod +x "${tmpf}"
 mkdir -p "${install_dir}"
 mv "${tmpf}" "${dest}"
 
-echo "GlareDB installed!"
-echo "You can run it by typing:"
-echo "    ${dest}"
+printf "%b\n" \
+  "GlareDB installed!" \
+  "You can run it by typing:" \
+  "    ${BOLD}${dest}${RESET}" \
+  "Or add it to your path:" \
+  "    ${BOLD}export PATH=\${PATH}:${install_dir}${RESET}"
