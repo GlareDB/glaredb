@@ -21,6 +21,9 @@ instance_name="bench-${unix_timestamp_s}"
 # hyperdisk-balanced
 # 500G, 6000 iops, 890 throughput
 # TODO: Probably paramterize disk.
+# TODO: Make service account configurable. Currently the github actions
+# one has write access to the bucket, so just use it for now (which
+# makes sense since we're calling this from github actions).
 gcloud compute instances create "$instance_name" \
     --project="$GCP_PROJECT" \
     --zone="$GCP_ZONE" \
@@ -28,7 +31,8 @@ gcloud compute instances create "$instance_name" \
     --network-interface=network-tier=PREMIUM,nic-type=GVNIC,stack-type=IPV4_ONLY,subnet=default \
     --maintenance-policy=MIGRATE \
     --provisioning-model=STANDARD \
-    --service-account=810251374963-compute@developer.gserviceaccount.com \
+    --service-account=github-actions@glaredb-dev-playground.iam.gserviceaccount.com \
+    --scopes=https://www.googleapis.com/auth/devstorage.read_write \
     --create-disk=auto-delete=yes,\
 boot=yes,\
 image=projects/ubuntu-os-cloud/global/images/ubuntu-minimal-2504-plucky-amd64-v20250430,\
