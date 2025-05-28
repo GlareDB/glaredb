@@ -14,12 +14,12 @@ case "$1" in
     single)
         mkdir -p ./bench/data/clickbench/
         pushd ./bench/data/clickbench/
-        wget --continue https://storage.googleapis.com/glaredb-bench/data/clickbench/hits.parquet
+        wget --continue --quiet https://storage.googleapis.com/glaredb-bench/data/clickbench/hits.parquet
         ;;
     partitioned)
         mkdir -p ./bench/data/clickbench/partitioned/
         pushd ./bench/data/clickbench/partitioned/
-        seq 0 99 | xargs -P100 -I{} bash -c 'wget --continue https://storage.googleapis.com/glaredb-bench/data/clickbench/partitioned/hits_{}.parquet'
+        seq 0 99 | xargs -P100 -I{} bash -c 'wget --continue --quiet https://storage.googleapis.com/glaredb-bench/data/clickbench/partitioned/hits_{}.parquet'
         ;;
     *)
         echo "Invalid argument, expected 'single' or 'partitioned'"
