@@ -90,8 +90,14 @@ gc_run "sudo apt update \
 # Clone repo.
 gc_run "git clone https://github.com/glaredb/glaredb && cd glaredb && git checkout ${GIT_COMMIT}"
 
+# Benchmarks are ran with sudo since they try to drop caches by writing to
+# /proc/fs/...
+#
+# The '-E' just inherits the running user's environment, so it's able to find
+# the correct cargo, etc.
+
 gc_run "cd glaredb \
-          && sudo cargo bench --bench bench_runner -- bench/micro --drop-cache"
+          && sudo -E cargo bench --bench bench_runner -- bench/micro --drop-cache"
 
 # TODO: Other benchmark suites...
 
