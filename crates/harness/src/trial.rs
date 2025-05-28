@@ -153,7 +153,7 @@ impl fmt::Debug for Trial<'_> {
 }
 
 #[derive(Debug)]
-pub(crate) struct TestInfo {
+pub struct TestInfo {
     pub name: String,
     pub kind: String,
     pub is_ignored: bool,
@@ -171,14 +171,25 @@ impl TestInfo {
 }
 
 /// Output of a benchmark.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Measurement {
-    /// Average duration.
-    pub avg: Duration,
-    /// Min duration.
-    pub min: Duration,
-    /// Max duration.
-    pub max: Duration,
+    /// All durations the make up the measurement.
+    pub durations: Vec<Duration>,
+}
+
+impl Measurement {
+    pub fn avg(&self) -> Duration {
+        let sum: Duration = self.durations.iter().sum();
+        sum / self.durations.len() as u32
+    }
+
+    pub fn min(&self) -> Duration {
+        self.durations.iter().min().copied().unwrap_or_default()
+    }
+
+    pub fn max(&self) -> Duration {
+        self.durations.iter().max().copied().unwrap_or_default()
+    }
 }
 
 /// Indicates that a test/benchmark has failed. Optionally carries a message.

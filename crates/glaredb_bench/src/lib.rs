@@ -5,8 +5,7 @@ mod runner;
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
 
 use benchmark::Benchmark;
 use clap::Parser;
@@ -17,8 +16,7 @@ use glaredb_error::{Result, ResultExt};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use harness::Arguments;
 use harness::trial::{Measurement, Trial};
-use parking_lot::Mutex;
-use runner::{BenchmarkRunner, BenchmarkTimes};
+use runner::BenchmarkRunner;
 use tokio::runtime::Runtime as TokioRuntime;
 
 #[derive(Debug, Parser, Clone, Copy)]
@@ -50,70 +48,6 @@ where
     pub tokio_rt: TokioRuntime,
 }
 
-// TODO: Clean this up. The lock + clone is because libtest mimic has very
-// strict requirements on the runner function.
-#[derive(Debug, Clone)]
-pub struct TsvWriter {
-    // TODO: Sue me
-    file: Arc<Mutex<Option<BufWriter<File>>>>,
-}
-
-impl TsvWriter {
-    pub fn try_new(save: Option<PathBuf>) -> Result<Self> {
-        let file = match save {
-            Some(path) => {
-                let file = OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .truncate(true)
-                    .open(path)
-                    .context("Failed to open file for write")?;
-                Some(BufWriter::new(file))
-            }
-            None => None,
-        };
-
-        Ok(TsvWriter {
-            file: Arc::new(Mutex::new(file)),
-        })
-    }
-
-    pub fn write_header(&self) -> Result<()> {
-        let mut file = self.file.lock();
-        if let Some(file) = file.as_mut() {
-            writeln!(file, "bench_name\tcount\tduration_micros")?;
-        }
-
-        Ok(())
-    }
-
-    pub fn write(&self, bench_name: String, times: &BenchmarkTimes) -> Result<()> {
-        let mut file = self.file.lock();
-        if let Some(file) = file.as_mut() {
-            for (idx, query_time) in times.query_times.iter().enumerate() {
-                writeln!(
-                    file,
-                    "{}\t{}\t{}",
-                    bench_name,
-                    idx + 1,
-                    query_time.as_micros()
-                )?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn flush(&self) -> Result<()> {
-        let mut file = self.file.lock();
-        if let Some(file) = file.as_mut() {
-            file.flush()?;
-        }
-
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RunArgs {
     pub print_explain: bool,
@@ -129,11 +63,11 @@ pub struct RunArgs {
 ///
 /// `tag` is used to group the benchmarks.
 pub fn run<F>(
-    writer: TsvWriter,
     args: &Arguments<BenchArguments>,
     paths: impl IntoIterator<Item = PathBuf>,
     conf_fn: F,
     tag: &str,
+    results_tsv_path: &Path,
 ) -> Result<()>
 where
     F: Fn() -> Result<RunConfig<ThreadedNativeExecutor, NativeSystemRuntime>>
@@ -154,7 +88,6 @@ where
                 .to_string();
 
             let engine_fn = conf_fn.clone();
-            let writer = writer.clone();
 
             Trial::bench(bench_name.clone(), move |_test_mode| {
                 let bench = Benchmark::from_file(path)?;
@@ -171,19 +104,57 @@ where
                 };
 
                 let times = conf.tokio_rt.block_on(runner.run(args.extra))?;
-                writer.write(bench_name, &times)?;
 
                 Ok(Some(Measurement {
-                    avg: times.query_avg(),
-                    min: times.query_min(),
-                    max: times.query_max(),
+                    durations: times.query_times,
                 }))
             })
             .with_kind(tag)
         })
         .collect();
 
-    harness::run(args, benches).exit_if_failed();
+    // TSV results file gets initialized on first measurement to avoid
+    // truncating an existing file even if all benchmarks are filtered out.
+    let mut tsv_file: Option<BufWriter<File>> = None;
+
+    harness::run(args, benches, |info, measurement| {
+        let file = match tsv_file.as_mut() {
+            Some(file) => file,
+            None => {
+                // Open up file, truncate, and write header.
+                let file = OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(results_tsv_path)
+                    .context("Failed to open file for write")?;
+                let mut file = BufWriter::new(file);
+
+                // Header
+                writeln!(file, "bench_name\tcount\tduration_micros")?;
+                tsv_file = Some(file);
+
+                tsv_file.as_mut().unwrap()
+            }
+        };
+
+        for (idx, query_time) in measurement.durations.into_iter().enumerate() {
+            writeln!(
+                file,
+                "{}\t{}\t{}",
+                info.name,
+                idx + 1,
+                query_time.as_micros()
+            )?;
+        }
+
+        Ok(())
+    })
+    .exit_if_failed();
+
+    if let Some(mut file) = tsv_file {
+        file.flush()?;
+    }
 
     Ok(())
 }

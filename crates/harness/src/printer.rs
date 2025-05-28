@@ -5,7 +5,7 @@ use std::time::Duration;
 use anstream::AutoStream;
 use anstyle::{AnsiColor, Color, Style};
 
-use crate::trial::{Failed, Measurement};
+use crate::trial::Failed;
 use crate::{ColorSetting, Conclusion, FormatSetting, Outcome, TestInfo, Trial};
 
 pub struct Printer {
@@ -168,14 +168,14 @@ impl Printer {
                 write!(self.out, "{style}{}{style:#}", c).unwrap();
             }
             FormatSetting::Json => {
-                if let Outcome::Measured(Measurement { avg, min, max }) = outcome {
+                if let Outcome::Measured(measurement) = outcome {
                     writeln!(
                         self.out,
                         r#"{{ "type": "bench", "name": "{}", "avg_micros": {}, "min_micros": {}, "max_micros": {} }}"#,
                         escape8259::escape(&info.name),
-                        avg.as_micros(),
-                        min.as_micros(),
-                        max.as_micros(),
+                        measurement.avg().as_micros(),
+                        measurement.min().as_micros(),
+                        measurement.max().as_micros(),
                     )
                     .unwrap();
                 } else {
@@ -331,13 +331,13 @@ impl Printer {
         let style = color_of_outcome(outcome);
         writeln!(self.out, "{style}{}{style:#}", s).unwrap();
 
-        if let Outcome::Measured(Measurement { avg, min, max }) = outcome {
+        if let Outcome::Measured(measurement) = outcome {
             write!(
                 self.out,
                 "      avg: {:>11} micros,  min: {:>11}  micros,  max: {:>11} micros",
-                fmt_with_thousand_sep(avg.as_micros() as u64),
-                fmt_with_thousand_sep(min.as_micros() as u64),
-                fmt_with_thousand_sep(max.as_micros() as u64),
+                fmt_with_thousand_sep(measurement.avg().as_micros() as u64),
+                fmt_with_thousand_sep(measurement.min().as_micros() as u64),
+                fmt_with_thousand_sep(measurement.max().as_micros() as u64),
             )
             .unwrap();
         }

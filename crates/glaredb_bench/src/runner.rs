@@ -15,21 +15,6 @@ pub struct BenchmarkTimes {
     pub query_times: Vec<Duration>,
 }
 
-impl BenchmarkTimes {
-    pub fn query_avg(&self) -> Duration {
-        let sum: Duration = self.query_times.iter().sum();
-        sum / self.query_times.len() as u32
-    }
-
-    pub fn query_min(&self) -> Duration {
-        self.query_times.iter().min().copied().unwrap()
-    }
-
-    pub fn query_max(&self) -> Duration {
-        self.query_times.iter().max().copied().unwrap()
-    }
-}
-
 #[derive(Debug)]
 pub struct BenchmarkRunner {
     pub engine: SingleUserEngine<ThreadedNativeExecutor, NativeSystemRuntime>,
