@@ -334,7 +334,7 @@ impl Printer {
         if let Outcome::Measured(Measurement { avg, min, max }) = outcome {
             write!(
                 self.out,
-                "    avg: {:>11} micros, min: {:>11} micros, max: {:>11} micros",
+                "      avg: {:>11} micros,  min: {:>11}  micros,  max: {:>11} micros",
                 fmt_with_thousand_sep(avg.as_micros() as u64),
                 fmt_with_thousand_sep(min.as_micros() as u64),
                 fmt_with_thousand_sep(max.as_micros() as u64),

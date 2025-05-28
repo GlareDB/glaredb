@@ -2,6 +2,12 @@
 
 set -e
 
+# Unix timestamp to use to namespace uploaded results.
+#
+# Can be provided as input to allow a matrix of runs to shared the same
+# timestamp.
+UNIX_TIMESTAMP="${UNIX_TIMESTAMP:-$(date +%s)}"
+
 # GCP variables
 GCP_PROJECT="${GCP_PROJECT:-glaredb-dev-playground}"
 GCP_ZONE="${GCP_ZONE:-us-central1-c}"
@@ -9,14 +15,14 @@ GCP_ZONE="${GCP_ZONE:-us-central1-c}"
 GCP_BUCKET="${GCP_BUCKET:-glaredb-bench}"
 # TODO: 2 -> 32 once everything is verified working.
 GCP_MACHINE_TYPE="${GCP_MACHINE_TYPE:-c4-standard-2}"
+# Namespace for the results in the bucket. Lets us separate out results ran on
+# main vs in prs.
+GCP_RESULTS_NAMESPACE="${GCP_RESULTS_NAMESPACE:-dev}"
 
 # Commit to benchmark.
 GIT_COMMIT="${GIT_HASH:-$(git rev-parse --short HEAD)}"
 
-# Current timestamp
-unix_timestamp_s=$(date +%s)
-
-instance_name="bench-${unix_timestamp_s}"
+instance_name="bench-${UNIX_TIMESTAMP}-${RANDOM}"
 
 # hyperdisk-balanced
 # 500G, 6000 iops, 890 throughput
@@ -107,4 +113,4 @@ gc_run "cd glaredb \
 
 # Upload results to gcs.
 gc_run "cd glaredb && \
-        gsutil cp ./bench/results-*.tsv gs://${GCP_BUCKET}/results/${GCP_MACHINE_TYPE}/${unix_timestamp_s}/"
+        gsutil cp ./bench/results-*.tsv gs://${GCP_BUCKET}/results/${GCP_RESULTS_NAMESPACE}/${UNIX_TIMESTAMP}/${GCP_MACHINE_TYPE}/"

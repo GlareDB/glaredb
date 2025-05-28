@@ -81,7 +81,7 @@ impl TsvWriter {
     pub fn write_header(&self) -> Result<()> {
         let mut file = self.file.lock();
         if let Some(file) = file.as_mut() {
-            writeln!(file, "bench_name\tcount\ttime_ns")?;
+            writeln!(file, "bench_name\tcount\tduration_micros")?;
         }
 
         Ok(())
@@ -90,9 +90,15 @@ impl TsvWriter {
     pub fn write(&self, bench_name: String, times: &BenchmarkTimes) -> Result<()> {
         let mut file = self.file.lock();
         if let Some(file) = file.as_mut() {
-            // for (idx, query_time) in times.query_times_ns.iter().enumerate() {
-            //     writeln!(file, "{}\t{}\t{}", bench_name, idx + 1, query_time)?;
-            // }
+            for (idx, query_time) in times.query_times.iter().enumerate() {
+                writeln!(
+                    file,
+                    "{}\t{}\t{}",
+                    bench_name,
+                    idx + 1,
+                    query_time.as_micros()
+                )?;
+            }
         }
 
         Ok(())
