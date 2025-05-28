@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        machine_type: [c4-standard-2, c4-standard-8]
+        machine_type: [c4-standard-2, c4-standard-8, c4-standard-32]
     env:
       UNIX_TIMESTAMP:        ${{ needs.timestamp.outputs.ts }}
       GCP_MACHINE_TYPE:      ${{ matrix.machine_type }}
