@@ -183,7 +183,7 @@ where
         })
         .collect();
 
-    harness::run(&args, benches).exit_if_failed();
+    harness::run(args, benches).exit_if_failed();
 
     Ok(())
 }
