@@ -31,7 +31,9 @@ jobs:
       matrix:
         # TODO: Add c4-standard-2 to test very low resource machines. Will need
         # to add/improve spilling.
-        machine_type: [c4-standard-8, c4-standard-32]
+        #
+        # TODO: Add c4-standard-8 when script is less flaky.
+        machine_type: [c4-standard-32]
     env:
       UNIX_TIMESTAMP:        ${{ needs.timestamp.outputs.ts }}
       GCP_MACHINE_TYPE:      ${{ matrix.machine_type }}
