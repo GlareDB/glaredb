@@ -25,6 +25,14 @@ pub fn main() -> Result<()> {
     // Micro benches.
     run_with_setup::<DefaultSetup>(&args, "../bench/micro", "micro")?;
 
+    // TPCH
+    // SF=1
+    run_with_setup::<TpchSetup<1>>(&args, "../bench/tpch/1", "tpch-parquet-sf-1")?;
+    // SF=10
+    run_with_setup::<TpchSetup<10>>(&args, "../bench/tpch/10", "tpch-parquet-sf-10")?;
+    // SF=50
+    run_with_setup::<TpchSetup<50>>(&args, "../bench/tpch/50", "tpch-parquet-sf-50")?;
+
     // Clickbench with a single hits file.
     run_with_setup::<ClickbenchSingleSetup>(
         &args,
@@ -88,6 +96,34 @@ where
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
         register_default_extensions(&engine)?;
+        Ok(engine)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TpchSetup<const SF: usize>; // sure
+
+impl<E, R, const SF: usize> EngineSetup<E, R> for TpchSetup<SF>
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
+        register_default_extensions(&engine)?;
+
+        let tables = [
+            "customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier",
+        ];
+
+        for table in tables {
+            let query = format!(
+                "CREATE TEMP VIEW {table}
+                   AS SELECT *
+                   FROM read_parquet('../bench/data/tpch/{SF}/{table}.parquet')"
+            );
+            run_setup_query(&engine, &query)?;
+        }
+
         Ok(engine)
     }
 }
