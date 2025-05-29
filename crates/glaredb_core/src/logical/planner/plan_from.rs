@@ -83,18 +83,6 @@ impl FromPlanner {
             }
             BoundFromItem::Join(join) => self.plan_join(bind_context, join),
             BoundFromItem::TableFunction(func) => {
-                let mut types = Vec::new();
-                let mut names = Vec::new();
-                for table in bind_context.iter_tables_in_scope(from.bind_ref)? {
-                    types.extend(table.column_types.iter().cloned());
-                    names.extend(
-                        table
-                            .column_names
-                            .iter()
-                            .map(|name| name.as_raw_str().to_string()),
-                    );
-                }
-
                 match func.function.raw.function_type() {
                     TableFunctionType::Execute => {
                         let cardinality = func.function.bind_state.cardinality;

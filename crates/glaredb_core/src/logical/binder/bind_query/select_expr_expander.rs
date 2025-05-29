@@ -7,7 +7,7 @@ use regex::Regex;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::logical::binder::bind_context::{BindContext, BindScopeRef};
 use crate::logical::binder::ident::BinderIdent;
-use crate::logical::binder::table_list::TableAlias;
+use crate::logical::binder::table_list::{TableAlias, TableType};
 use crate::logical::resolver::ResolvedMeta;
 
 /// An expanded select expression.
@@ -108,7 +108,7 @@ impl<'a> SelectExprExpander<'a> {
                 }
 
                 for table in self.bind_context.iter_tables_in_scope(self.current)? {
-                    if !table.star_expandable {
+                    if table.table_type != TableType::Data {
                         // Skip!
                         continue;
                     }

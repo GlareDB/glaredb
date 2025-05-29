@@ -3,7 +3,7 @@ use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
 use super::bind_query::BoundQuery;
-use super::table_list::TableRef;
+use super::table_list::{TableRef, TableType};
 use crate::arrays::datatype::DataType;
 use crate::expr::column_expr::{ColumnExpr, ColumnReference};
 use crate::expr::{Expression, cast};
@@ -90,6 +90,7 @@ impl<'a> InsertBinder<'a> {
         // Types from the source plan.
         let source_types: Vec<(TableRef, usize, &DataType)> = bind_context
             .iter_tables_in_scope(source_scope)?
+            .filter(|t| t.table_type == TableType::Data)
             .flat_map(|t| {
                 let table_ref = t.reference;
                 t.column_types
