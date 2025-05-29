@@ -131,17 +131,17 @@ gc_run "cd glaredb \
 # TPCH SF=1
 gc_run "cd glaredb \
           && ./scripts/bench_download_tpch_data.sh 1 \
-          && sudo -E cargo bench --bench bench_runner -- bench/tpch/1 --drop-cache"
+          && sudo -E cargo bench --bench bench_runner -- bench/tpch/1/ --drop-cache"
 
 # TPCH SF=10
 gc_run "cd glaredb \
           && ./scripts/bench_download_tpch_data.sh 10 \
-          && sudo -E cargo bench --bench bench_runner -- bench/tpch/10 --drop-cache"
+          && sudo -E cargo bench --bench bench_runner -- bench/tpch/10/ --drop-cache"
 
 # TPCH SF=50
 gc_run "cd glaredb \
           && ./scripts/bench_download_tpch_data.sh 50 \
-          && sudo -E cargo bench --bench bench_runner -- bench/tpch/50 --drop-cache"
+          && sudo -E cargo bench --bench bench_runner -- bench/tpch/50/ --drop-cache"
 
 # Upload results to gcs.
 gc_run "cd glaredb && \
