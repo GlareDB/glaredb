@@ -60,6 +60,21 @@ impl fmt::Display for TableAlias {
     }
 }
 
+/// Type of the table in the bind context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TableType {
+    /// Normal data table.
+    ///
+    /// - Star expandable
+    /// - Columns implicitly joined in NATURAL joins.
+    Data,
+    /// Metadata table with extra columns.
+    ///
+    /// - Not star expandable
+    /// - Not used in NATURAL joins.
+    Metadata,
+}
+
 /// A "table" in the context.
 ///
 /// A table is a logical collection of columns that get output from a node in
@@ -75,15 +90,10 @@ pub struct Table {
     pub alias: Option<TableAlias>,
     pub column_types: Vec<DataType>,
     pub column_names: Vec<BinderIdent>,
-    /// If this table can have its columns expanded with a `SELECT *`
-    /// expression.
     // TODO: This will have to become a per-column attribute. I'm adding this in
     // to avoid expanding "metadata" columns, however there will be metadata
     // columns that we will want to expand, specifically hive columns.
-    //
-    // TODO: Probably rename to "metadata". Could also be an enum with the
-    // "metadata" variant having a "hidden" column mask.
-    pub star_expandable: bool,
+    pub table_type: TableType,
 }
 
 impl Table {
@@ -150,7 +160,7 @@ impl TableList {
             alias,
             column_types,
             column_names,
-            star_expandable: true,
+            table_type: TableType::Data,
         };
         self.tables.push(table);
 

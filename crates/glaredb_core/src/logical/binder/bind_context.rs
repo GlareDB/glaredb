@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::bind_query::BoundQuery;
 use super::ident::BinderIdent;
-use super::table_list::{Table, TableAlias, TableList, TableRef};
+use super::table_list::{Table, TableAlias, TableList, TableRef, TableType};
 use crate::arrays::datatype::DataType;
 use crate::expr::Expression;
 use crate::expr::column_expr::ColumnReference;
@@ -504,14 +504,14 @@ impl BindContext {
         // tables, since we'll actually end up with two table refs for a single
         // table.
         //
-        // However our current column lookup code will only return a single table, so
-        // it not just as easy as remving the "if".
+        // However our current column lookup code will only return a single
+        // table, so it not just as easy as remving the "if".
         //
-        // So we just use the normal push table, and set the star expandable
-        // field manually for now.
+        // So we just use the normal push table, and set the table type
+        // manually.
         let table_ref = self.push_table(bind_ref, alias, column_types, column_names)?;
         let table = self.get_table_mut(table_ref)?;
-        table.star_expandable = false;
+        table.table_type = TableType::Metadata;
 
         Ok(table_ref)
     }
