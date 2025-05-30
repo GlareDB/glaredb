@@ -7,7 +7,7 @@ edition.workspace = true
 glaredb_error = { path = '../glaredb_error' }
 
 clap = { workspace = true }
-escape8259 = "0.5.2"
+escape8259 = "0.5.3"
 anstream = "0.6.14"
 anstyle = "1.0.7"
 rand = { workspace = true }
