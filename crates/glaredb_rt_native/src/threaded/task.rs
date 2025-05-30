@@ -10,7 +10,6 @@ use rayon::ThreadPool;
 
 use crate::time::NativeInstant;
 
-/// State shared by the partition pipeline task and the waker.
 #[derive(Debug)]
 pub(crate) struct TaskState {
     /// The partition pipeline we're operating on alongside a boolean for if the
@@ -22,6 +21,18 @@ pub(crate) struct TaskState {
     pub(crate) pool: Arc<ThreadPool>,
     /// Where to put the profile when this pipeline completes.
     pub(crate) profile_sink: ProfileSink,
+}
+
+impl Wake for TaskState {
+    fn wake(self: Arc<Self>) {
+        let pool = self.pool.clone();
+        let task = PartitionPipelineTask { state: self };
+        pool.spawn(|| task.execute());
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        Arc::clone(self).wake();
+    }
 }
 
 #[derive(Debug)]
@@ -48,12 +59,9 @@ impl PartitionPipelineTask {
             return;
         }
 
-        let waker: Waker = Arc::new(PartitionPipelineWaker {
-            state: self.state.clone(),
-        })
-        .into();
-
+        let waker: Waker = self.state.clone().into();
         let mut cx = Context::from_waker(&waker);
+
         match pipeline_state
             .pipeline
             .poll_execute::<NativeInstant>(&mut cx)
@@ -72,24 +80,5 @@ impl PartitionPipelineTask {
                 // this operator chain can start executing.
             }
         }
-    }
-}
-
-/// A waker implementation that will re-execute the pipeline once woken.
-struct PartitionPipelineWaker {
-    state: Arc<TaskState>,
-}
-
-impl Wake for PartitionPipelineWaker {
-    fn wake(self: Arc<Self>) {
-        self.wake_by_ref()
-    }
-
-    fn wake_by_ref(self: &Arc<Self>) {
-        let pool = self.state.pool.clone();
-        let task = PartitionPipelineTask {
-            state: self.state.clone(),
-        };
-        pool.spawn(|| task.execute());
     }
 }
