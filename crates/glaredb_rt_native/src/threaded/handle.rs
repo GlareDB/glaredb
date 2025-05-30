@@ -4,7 +4,7 @@ use glaredb_core::runtime::pipeline::QueryHandle;
 use glaredb_core::runtime::profile_buffer::ProfileBuffer;
 use parking_lot::Mutex;
 
-use super::task::{PartitionPipelineTask, TaskState};
+use super::task::TaskState;
 
 /// Query handle for queries being executed on the threaded runtime.
 #[derive(Debug)]
@@ -26,8 +26,7 @@ impl QueryHandle for ThreadedQueryHandle {
 
             // Re-execute the pipeline so it picks up the set bool. This lets us
             // cancel the pipeline regardless of if it's pending.
-            let task = PartitionPipelineTask::from_task_state(state.clone());
-            task.execute()
+            Arc::clone(state).execute();
         }
     }
 
