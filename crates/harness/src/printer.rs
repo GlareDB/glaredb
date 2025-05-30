@@ -329,12 +329,12 @@ impl Printer {
         };
 
         let style = color_of_outcome(outcome);
-        writeln!(self.out, "{style}{}{style:#}", s).unwrap();
+        write!(self.out, "{style}{}{style:#}", s).unwrap();
 
         if let Outcome::Measured(measurement) = outcome {
             write!(
                 self.out,
-                "      avg: {:>11} micros,  min: {:>11} micros,  max: {:>11} micros",
+                "\n      avg: {:>11} micros,  min: {:>11} micros,  max: {:>11} micros",
                 fmt_with_thousand_sep(measurement.avg().as_micros() as u64),
                 fmt_with_thousand_sep(measurement.min().as_micros() as u64),
                 fmt_with_thousand_sep(measurement.max().as_micros() as u64),

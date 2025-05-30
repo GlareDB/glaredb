@@ -21,7 +21,7 @@ use crate::logical::binder::bind_context::{
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};
 use crate::logical::binder::ident::BinderIdent;
-use crate::logical::binder::table_list::{TableAlias, TableRef};
+use crate::logical::binder::table_list::{TableAlias, TableRef, TableType};
 use crate::logical::logical_join::JoinType;
 use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::resolve_context::ResolveContext;
@@ -587,9 +587,6 @@ impl<'a> FromBinder<'a> {
                 (Vec::new(), using_cols)
             }
             ast::JoinCondition::Natural => {
-                // TODO: Need to check if this inadvertantly picks up metadata
-                // columns.
-
                 // Get tables refs from the left.
                 //
                 // We want to prune these tables out from the right. Tables are
@@ -602,6 +599,7 @@ impl<'a> FromBinder<'a> {
                 // Get columns from the left.
                 let left_cols: HashSet<_> = bind_context
                     .iter_tables_in_scope(left_idx)?
+                    .filter(|table| table.table_type == TableType::Data)
                     .flat_map(|table| table.column_names.iter())
                     .collect();
 
@@ -609,7 +607,12 @@ impl<'a> FromBinder<'a> {
                 // would generate a lateral reference.
                 let right_cols = bind_context
                     .iter_tables_in_scope(right_idx)?
-                    .filter(|table| !left_tables.contains(&table.reference))
+                    .filter(|table| {
+                        // Only implicitly use data columns.
+                        table.table_type == TableType::Data
+                            // Don't generate a lateral reference.
+                            && !left_tables.contains(&table.reference)
+                    })
                     .flat_map(|table| table.column_names.iter());
 
                 let mut common = Vec::new();

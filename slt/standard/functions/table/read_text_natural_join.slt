@@ -1,0 +1,56 @@
+# NATURAL join with read_text. This ensures we're not including metadata in the
+# USING columns implicitly.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT *
+  FROM read_text('../testdata/text/same_content_different_name/1.txt') r1
+  NATURAL JOIN read_text('../testdata/text/same_content_different_name/2.txt') r2;
+----
+content  Utf8
+
+# This would return nothing if the '_filename' metadata column was included in
+# the USING.
+query T
+SELECT *
+  FROM read_text('../testdata/text/same_content_different_name/1.txt') r1
+  NATURAL JOIN read_text('../testdata/text/same_content_different_name/2.txt') r2;
+----
+cbb
+
+query TT
+DESCRIBE SELECT *
+  FROM read_text('../testdata/text/same_content_different_name/1.txt') r1
+  JOIN read_text('../testdata/text/same_content_different_name/2.txt') r2
+  USING (_rowid);
+----
+_rowid   Int64
+content  Utf8
+content  Utf8
+
+# Allow defining metadata columns in USING.
+query ITT
+SELECT *
+  FROM read_text('../testdata/text/same_content_different_name/1.txt') r1
+  JOIN read_text('../testdata/text/same_content_different_name/2.txt') r2
+  USING (_rowid);
+----
+0  cbb  cbb
+
+query IT
+SELECT *
+  FROM read_text('../testdata/text/same_content_different_name/1.txt') r1
+  JOIN read_text('../testdata/text/same_content_different_name/2.txt') r2
+  USING (_rowid, content);
+----
+0  cbb
+
+# Empty is correct, filenames differ.
+query TT
+SELECT *
+  FROM read_text('../testdata/text/same_content_different_name/1.txt') r1
+  JOIN read_text('../testdata/text/same_content_different_name/2.txt') r2
+  USING (_filename, content);
+----
