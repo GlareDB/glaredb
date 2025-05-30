@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicBool};
 use std::task::{Context, Poll, Wake, Waker};
 
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
@@ -22,6 +23,34 @@ pub(crate) struct TaskState {
     pub(crate) pool: Arc<ThreadPool>,
     /// Where to put the profile when this pipeline completes.
     pub(crate) profile_sink: ProfileSink,
+    /// If we already have a scheduled/running task.
+    pub(crate) scheduled: AtomicBool,
+}
+
+impl Wake for TaskState {
+    fn wake(self: Arc<Self>) {
+        // Try to flip from false->true. Only the frist caller succeeds.
+        if self
+            .scheduled
+            .compare_exchange(
+                false,
+                true,
+                atomic::Ordering::AcqRel,
+                atomic::Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            let pool = self.pool.clone();
+            pool.spawn(move || {
+                let task = PartitionPipelineTask::from_task_state(self);
+                task.execute();
+            });
+        }
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.clone().wake()
+    }
 }
 
 #[derive(Debug)]
@@ -48,12 +77,9 @@ impl PartitionPipelineTask {
             return;
         }
 
-        let waker: Waker = Arc::new(PartitionPipelineWaker {
-            state: self.state.clone(),
-        })
-        .into();
-
+        let waker: Waker = Waker::from(self.state.clone());
         let mut cx = Context::from_waker(&waker);
+
         match pipeline_state
             .pipeline
             .poll_execute::<NativeInstant>(&mut cx)
@@ -67,29 +93,9 @@ impl PartitionPipelineTask {
                 self.state.errors.set_error(e);
             }
             Poll::Pending => {
-                // Exit the loop. Waker was already stored in the pending
-                // sink/source, we'll be woken back up when there's more
-                // this operator chain can start executing.
+                // Clear the scheduled flag so the next wake can spawn.
+                self.state.scheduled.store(false, atomic::Ordering::Release);
             }
         }
-    }
-}
-
-/// A waker implementation that will re-execute the pipeline once woken.
-struct PartitionPipelineWaker {
-    state: Arc<TaskState>,
-}
-
-impl Wake for PartitionPipelineWaker {
-    fn wake(self: Arc<Self>) {
-        self.wake_by_ref()
-    }
-
-    fn wake_by_ref(self: &Arc<Self>) {
-        let pool = self.state.pool.clone();
-        let task = PartitionPipelineTask {
-            state: self.state.clone(),
-        };
-        pool.spawn(|| task.execute());
     }
 }

@@ -3,6 +3,7 @@ mod task;
 
 use std::fmt;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::runtime::pipeline::ErrorSink;
@@ -74,6 +75,7 @@ impl Scheduler for ThreadedScheduler {
                     errors: errors.clone(),
                     pool: self.pool.clone(),
                     profile_sink,
+                    scheduled: AtomicBool::new(false),
                 })
             })
             .collect();
