@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{self, AtomicBool};
+use std::sync::atomic::{self, AtomicBool, AtomicU8, AtomicUsize};
 use std::task::{Context, Poll, Wake, Waker};
 
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
@@ -10,6 +10,9 @@ use parking_lot::Mutex;
 use rayon::ThreadPool;
 
 use crate::time::NativeInstant;
+
+const SCHEDULED: u8 = 0b01;
+const PENDING: u8 = 0b10;
 
 #[derive(Debug)]
 pub(crate) struct PipelineState {
@@ -28,8 +31,7 @@ pub(crate) struct TaskState {
     pub(crate) pool: Arc<ThreadPool>,
     /// Where to put the profile when this pipeline completes.
     pub(crate) profile_sink: ProfileSink,
-    pub(crate) scheduled: AtomicBool,
-    pub(crate) pending_wake: AtomicBool,
+    pub(crate) sched_state: AtomicU8,
 }
 
 impl Wake for TaskState {
@@ -44,39 +46,45 @@ impl Wake for TaskState {
 
 impl TaskState {
     pub(crate) fn schedule(self: Arc<Self>) {
-        // If we were not already scheduled, go ahead and spwn now.
-        if !self.scheduled.swap(true, atomic::Ordering::AcqRel) {
+        // Set SCHEDULED bit.
+        let old = self
+            .sched_state
+            .fetch_or(SCHEDULED, atomic::Ordering::AcqRel);
+
+        if old & SCHEDULED == 0 {
+            // Not previously scheduled, spawn...
             let state = self.clone();
             self.pool.spawn(move || {
                 // As long as there's a pending wake, keep polling.
                 loop {
                     // Clear pending.
-                    state.pending_wake.store(false, atomic::Ordering::Release);
+                    state
+                        .sched_state
+                        .fetch_and(!PENDING, atomic::Ordering::AcqRel);
 
                     // Execute! (locks internally)
                     state.clone().execute();
 
                     // If nobody woke us in the meantime, we're done.
-                    if !state.pending_wake.swap(false, atomic::Ordering::AcqRel) {
+                    let bits = state.sched_state.load(atomic::Ordering::Acquire);
+                    if bits & PENDING == 0 {
                         break;
                     }
                     // Otherwise there was at least one wake. Continue...
                     // execute again.
                 }
                 // Set no tasks inflight.
-                state.scheduled.store(false, atomic::Ordering::Release);
-
-                // We may have had a wakeup between setting `pending_wake` to
-                // false and setting `scheduled` to false.
-                //
-                // Recheck and reschedule if that happened.
-                if state.pending_wake.swap(false, atomic::Ordering::AcqRel) {
+                let old = state
+                    .sched_state
+                    .fetch_and(!SCHEDULED, atomic::Ordering::AcqRel);
+                if old & PENDING != 0 {
                     state.schedule();
                 }
             });
         } else {
-            // If we are already scheduled, just record that a wake happened.
-            self.pending_wake.store(true, atomic::Ordering::Release);
+            // Already scheduled, so record that we got another wake.
+            self.sched_state
+                .fetch_or(PENDING, atomic::Ordering::Release);
         }
     }
 
