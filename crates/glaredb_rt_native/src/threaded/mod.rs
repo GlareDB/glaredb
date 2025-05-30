@@ -12,7 +12,7 @@ use glaredb_error::{DbError, Result};
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use task::{PipelineState, TaskState};
+use task::{PipelineState, ScheduleState, TaskState};
 use tracing::debug;
 
 use crate::runtime::Scheduler;
@@ -75,7 +75,10 @@ impl Scheduler for ThreadedScheduler {
                     errors: errors.clone(),
                     pool: self.pool.clone(),
                     profile_sink,
-                    sched_state: AtomicU8::new(0),
+                    sched_state: Mutex::new(ScheduleState {
+                        running: false,
+                        pending: false,
+                    }),
                 })
             })
             .collect();
@@ -86,7 +89,7 @@ impl Scheduler for ThreadedScheduler {
         };
 
         for state in task_states {
-            self.pool.spawn(|| state.execute());
+            state.schedule();
         }
 
         handle

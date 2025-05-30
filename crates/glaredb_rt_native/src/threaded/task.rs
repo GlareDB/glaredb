@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::sync::atomic::{self, AtomicBool, AtomicU8, AtomicUsize};
 use std::task::{Context, Poll, Wake, Waker};
 
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
@@ -21,6 +20,12 @@ pub(crate) struct PipelineState {
 }
 
 #[derive(Debug)]
+pub(crate) struct ScheduleState {
+    pub(crate) running: bool,
+    pub(crate) pending: bool,
+}
+
+#[derive(Debug)]
 pub(crate) struct TaskState {
     /// The partition pipeline we're operating on alongside a boolean for if the
     /// query's been canceled.
@@ -31,7 +36,7 @@ pub(crate) struct TaskState {
     pub(crate) pool: Arc<ThreadPool>,
     /// Where to put the profile when this pipeline completes.
     pub(crate) profile_sink: ProfileSink,
-    pub(crate) sched_state: AtomicU8,
+    pub(crate) sched_state: Mutex<ScheduleState>,
 }
 
 impl Wake for TaskState {
@@ -46,49 +51,33 @@ impl Wake for TaskState {
 
 impl TaskState {
     pub(crate) fn schedule(self: Arc<Self>) {
-        // Set SCHEDULED bit.
-        let old = self
-            .sched_state
-            .fetch_or(SCHEDULED, atomic::Ordering::AcqRel);
+        let mut sched_guard = self.sched_state.lock();
+        if sched_guard.running {
+            sched_guard.pending = true;
+        } else {
+            sched_guard.running = true;
+            std::mem::drop(sched_guard);
 
-        if old & SCHEDULED == 0 {
-            // Not previously scheduled, spawn...
             let state = self.clone();
             self.pool.spawn(move || {
-                // As long as there's a pending wake, keep polling.
                 loop {
-                    // Clear pending.
-                    state
-                        .sched_state
-                        .fetch_and(!PENDING, atomic::Ordering::AcqRel);
+                    state.execute();
 
-                    // Execute! (locks internally)
-                    state.clone().execute();
-
-                    // If nobody woke us in the meantime, we're done.
-                    let bits = state.sched_state.load(atomic::Ordering::Acquire);
-                    if bits & PENDING == 0 {
+                    let mut sched_guard = state.sched_state.lock();
+                    if sched_guard.pending {
+                        sched_guard.pending = false;
+                        // Continue...
+                    } else {
+                        // Nom more work.
+                        sched_guard.running = false;
                         break;
                     }
-                    // Otherwise there was at least one wake. Continue...
-                    // execute again.
-                }
-                // Set no tasks inflight.
-                let old = state
-                    .sched_state
-                    .fetch_and(!SCHEDULED, atomic::Ordering::AcqRel);
-                if old & PENDING != 0 {
-                    state.schedule();
                 }
             });
-        } else {
-            // Already scheduled, so record that we got another wake.
-            self.sched_state
-                .fetch_or(PENDING, atomic::Ordering::Release);
         }
     }
 
-    pub(crate) fn execute(self: Arc<Self>) {
+    pub(crate) fn execute(self: &Arc<Self>) {
         let mut pipeline_state = self.pipeline.lock();
 
         if pipeline_state.query_canceled {
