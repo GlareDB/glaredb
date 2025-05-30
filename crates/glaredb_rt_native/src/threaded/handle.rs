@@ -20,9 +20,9 @@ impl QueryHandle for ThreadedQueryHandle {
         let states = self.states.lock();
 
         for state in states.iter() {
-            let mut pipeline = state.pipeline.lock();
-            pipeline.query_canceled = true;
-            std::mem::drop(pipeline);
+            let mut sched_guard = state.sched_state.lock();
+            sched_guard.canceled = true;
+            std::mem::drop(sched_guard);
 
             // Re-execute the pipeline so it picks up the set bool. This lets us
             // cancel the pipeline regardless of if it's pending.

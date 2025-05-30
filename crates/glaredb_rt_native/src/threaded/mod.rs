@@ -3,7 +3,6 @@ mod task;
 
 use std::fmt;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU8};
 
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
 use glaredb_core::runtime::pipeline::ErrorSink;
@@ -12,7 +11,7 @@ use glaredb_error::{DbError, Result};
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use task::{PipelineState, ScheduleState, TaskState};
+use task::{ScheduleState, TaskState};
 use tracing::debug;
 
 use crate::runtime::Scheduler;
@@ -68,16 +67,15 @@ impl Scheduler for ThreadedScheduler {
             .zip(profile_sinks)
             .map(|(pipeline, profile_sink)| {
                 Arc::new(TaskState {
-                    pipeline: Mutex::new(PipelineState {
-                        pipeline,
-                        query_canceled: false,
-                    }),
+                    pipeline: Mutex::new(pipeline),
                     errors: errors.clone(),
                     pool: self.pool.clone(),
                     profile_sink,
                     sched_state: Mutex::new(ScheduleState {
                         running: false,
                         pending: false,
+                        completed: false,
+                        canceled: false,
                     }),
                 })
             })

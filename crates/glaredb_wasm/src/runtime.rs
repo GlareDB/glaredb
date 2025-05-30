@@ -11,7 +11,7 @@ use glaredb_http::filesystem::HttpFileSystem;
 use glaredb_http::gcs::filesystem::GcsFileSystem;
 use glaredb_http::s3::filesystem::S3FileSystem;
 use parking_lot::Mutex;
-use tracing::{debug, warn};
+use tracing::debug;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::http::WasmHttpClient;
@@ -87,10 +87,12 @@ impl PipelineRuntime for WasmExecutor {
                 Arc::new(WasmTaskState {
                     profile_sink,
                     errors: errors.clone(),
-                    pipeline: Mutex::new(WasmPipelineState {
-                        pipeline,
-                        query_canceled: false,
-                        finished: false,
+                    pipeline: Mutex::new(pipeline),
+                    sched_state: Mutex::new(WasmScheduleState {
+                        running: false,
+                        pending: false,
+                        completed: false,
+                        canceled: false,
                     }),
                 })
             })
@@ -106,23 +108,24 @@ impl PipelineRuntime for WasmExecutor {
 }
 
 #[derive(Debug)]
-pub(crate) struct WasmPipelineState {
-    pub(crate) pipeline: ExecutablePartitionPipeline,
-    pub(crate) query_canceled: bool,
-    // TODO: See native runtime.
-    pub(crate) finished: bool,
+pub(crate) struct WasmScheduleState {
+    pub(crate) running: bool,
+    pub(crate) pending: bool,
+    pub(crate) completed: bool,
+    pub(crate) canceled: bool,
 }
 
 #[derive(Debug)]
 pub(crate) struct WasmTaskState {
     profile_sink: ProfileSink,
     errors: Arc<dyn ErrorSink>,
-    pipeline: Mutex<WasmPipelineState>,
+    pipeline: Mutex<ExecutablePartitionPipeline>,
+    sched_state: Mutex<WasmScheduleState>,
 }
 
 impl Wake for WasmTaskState {
     fn wake(self: Arc<Self>) {
-        spawn_local(async move { self.execute() })
+        self.schedule();
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
@@ -131,26 +134,48 @@ impl Wake for WasmTaskState {
 }
 
 impl WasmTaskState {
-    fn execute(self: Arc<Self>) {
-        let mut pipeline_state = self.pipeline.lock();
-
-        if pipeline_state.query_canceled {
+    fn schedule(self: Arc<Self>) {
+        let mut sched_guard = self.sched_state.lock();
+        if sched_guard.completed {
+            return;
+        }
+        if sched_guard.canceled {
             self.errors.set_error(DbError::new("Query canceled"));
             return;
         }
 
-        if pipeline_state.finished {
-            warn!("Attempted to execute task that's finished");
-            return;
+        if sched_guard.running {
+            sched_guard.pending = true;
+        } else {
+            sched_guard.running = true;
+            std::mem::drop(sched_guard);
+
+            let state = self.clone();
+            spawn_local(async move {
+                loop {
+                    state.execute();
+
+                    let mut sched_guard = state.sched_state.lock();
+                    if sched_guard.pending {
+                        sched_guard.pending = false;
+                        // Continue...
+                    } else {
+                        // Nom more work.
+                        sched_guard.running = false;
+                        break;
+                    }
+                }
+            });
         }
+    }
+
+    fn execute(self: &Arc<Self>) {
+        let mut pipeline = self.pipeline.lock();
 
         let waker: Waker = self.clone().into();
         let mut cx = Context::from_waker(&waker);
 
-        match pipeline_state
-            .pipeline
-            .poll_execute::<PerformanceInstant>(&mut cx)
-        {
+        match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
             Poll::Ready(Ok(profile)) => {
                 // Pushing through the pipeline was successful.
                 self.profile_sink.put(profile);

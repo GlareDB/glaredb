@@ -10,26 +10,18 @@ use rayon::ThreadPool;
 
 use crate::time::NativeInstant;
 
-const SCHEDULED: u8 = 0b01;
-const PENDING: u8 = 0b10;
-
-#[derive(Debug)]
-pub(crate) struct PipelineState {
-    pub(crate) pipeline: ExecutablePartitionPipeline,
-    pub(crate) query_canceled: bool,
-}
-
 #[derive(Debug)]
 pub(crate) struct ScheduleState {
     pub(crate) running: bool,
     pub(crate) pending: bool,
+    pub(crate) completed: bool,
+    pub(crate) canceled: bool,
 }
 
 #[derive(Debug)]
 pub(crate) struct TaskState {
-    /// The partition pipeline we're operating on alongside a boolean for if the
-    /// query's been canceled.
-    pub(crate) pipeline: Mutex<PipelineState>,
+    /// The partition pipeline we're operating on.
+    pub(crate) pipeline: Mutex<ExecutablePartitionPipeline>,
     /// Error sink for any errors that occur during execution.
     pub(crate) errors: Arc<dyn ErrorSink>,
     /// The threadpool to execute on.
@@ -52,6 +44,14 @@ impl Wake for TaskState {
 impl TaskState {
     pub(crate) fn schedule(self: Arc<Self>) {
         let mut sched_guard = self.sched_state.lock();
+        if sched_guard.completed {
+            return;
+        }
+        if sched_guard.canceled {
+            self.errors.set_error(DbError::new("Query canceled"));
+            return;
+        }
+
         if sched_guard.running {
             sched_guard.pending = true;
         } else {
@@ -78,20 +78,12 @@ impl TaskState {
     }
 
     pub(crate) fn execute(self: &Arc<Self>) {
-        let mut pipeline_state = self.pipeline.lock();
-
-        if pipeline_state.query_canceled {
-            self.errors.set_error(DbError::new("Query canceled"));
-            return;
-        }
+        let mut pipeline = self.pipeline.lock();
 
         let waker: Waker = self.clone().into();
         let mut cx = Context::from_waker(&waker);
 
-        match pipeline_state
-            .pipeline
-            .poll_execute::<NativeInstant>(&mut cx)
-        {
+        match pipeline.poll_execute::<NativeInstant>(&mut cx) {
             Poll::Ready(Ok(prof)) => {
                 // Pushing through the pipeline was successful. Put our profile.
                 // We'll never execute again.
