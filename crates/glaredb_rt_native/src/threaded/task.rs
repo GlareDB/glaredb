@@ -63,8 +63,16 @@ impl TaskState {
                     // Otherwise there was at least one wake. Continue...
                     // execute again.
                 }
-                // No tasks inflight.
+                // Set no tasks inflight.
                 state.scheduled.store(false, atomic::Ordering::Release);
+
+                // We may have had a wakeup between setting `pending_wake` to
+                // false and setting `scheduled` to false.
+                //
+                // Recheck and reschedule if that happened.
+                if state.pending_wake.swap(false, atomic::Ordering::AcqRel) {
+                    state.schedule();
+                }
             });
         } else {
             // If we are already scheduled, just record that a wake happened.
