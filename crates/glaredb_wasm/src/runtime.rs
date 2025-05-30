@@ -110,6 +110,16 @@ pub(crate) struct WasmTaskState {
     pipeline: Mutex<ExecutablePartitionPipeline>,
 }
 
+impl Wake for WasmTaskState {
+    fn wake(self: Arc<Self>) {
+        let task = WasmPartitionPipelineTask { state: self };
+        spawn_local(async move { task.execute() })
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        Arc::clone(self).wake()
+    }
+}
 #[derive(Debug, Clone)]
 pub(crate) struct WasmPartitionPipelineTask {
     state: Arc<WasmTaskState>,
@@ -117,10 +127,7 @@ pub(crate) struct WasmPartitionPipelineTask {
 
 impl WasmPartitionPipelineTask {
     fn execute(&self) {
-        let waker: Waker = Arc::new(WasmWaker {
-            state: self.state.clone(),
-        })
-        .into();
+        let waker: Waker = self.state.clone().into();
         let mut cx = Context::from_waker(&waker);
 
         let mut pipeline = self.state.pipeline.lock();
@@ -155,23 +162,5 @@ impl QueryHandle for WasmQueryHandle {
 
     fn get_profile_buffer(&self) -> &ProfileBuffer {
         &self.profiles
-    }
-}
-
-#[derive(Debug)]
-struct WasmWaker {
-    state: Arc<WasmTaskState>,
-}
-
-impl Wake for WasmWaker {
-    fn wake_by_ref(self: &Arc<Self>) {
-        self.clone().wake()
-    }
-
-    fn wake(self: Arc<Self>) {
-        let task = WasmPartitionPipelineTask {
-            state: self.state.clone(),
-        };
-        spawn_local(async move { task.execute() })
     }
 }
