@@ -28,7 +28,7 @@ use glaredb_error::{DbError, Result};
 
 use crate::decoder::{ByteRecords, CsvDecoder};
 use crate::dialect::DialectOptions;
-use crate::reader::CsvReader;
+use crate::reader::{CsvReader, CsvShape};
 use crate::schema::CsvSchema;
 
 pub const FUNCTION_SET_READ_CSV: TableFunctionSet = TableFunctionSet {
@@ -58,14 +58,14 @@ pub struct ReadCsv;
 pub struct ReadCsvBindState {
     fs: FileSystemWithState,
     mf_data: MultiFileData,
-    has_header: bool,
+    shape: CsvShape,
     dialect: DialectOptions,
 }
 
 pub struct ReadCsvOperatorState {
     fs: FileSystemWithState,
     mf_data: MultiFileData,
-    has_header: bool,
+    shape: CsvShape,
     projections: Projections,
     dialect: DialectOptions,
 }
@@ -143,7 +143,10 @@ impl TableScanFunction for ReadCsv {
             state: ReadCsvBindState {
                 fs: fs.clone(),
                 mf_data,
-                has_header: schema.has_header,
+                shape: CsvShape {
+                    has_header: schema.has_header,
+                    num_columns: col_schema.fields.len(),
+                },
                 dialect,
             },
             input,
@@ -164,7 +167,7 @@ impl TableScanFunction for ReadCsv {
         Ok(ReadCsvOperatorState {
             fs: bind_state.fs.clone(),
             mf_data: bind_state.mf_data.clone(), // TODO
-            has_header: bind_state.has_header,
+            shape: bind_state.shape,
             projections,
             dialect: bind_state.dialect,
         })
@@ -197,7 +200,7 @@ impl TableScanFunction for ReadCsv {
                 let records = ByteRecords::with_buffer_capacity(READ_BUF_SIZE);
 
                 let reader = CsvReader::new(
-                    op_state.has_header,
+                    op_state.shape,
                     op_state.projections.clone(),
                     read_buf,
                     decoder,
