@@ -40,14 +40,20 @@ use glaredb_error::{DbError, Result, ResultExt};
 
 use crate::decoder::{ByteRecords, CsvDecoder};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CsvShape {
+    pub has_header: bool,
+    pub num_columns: usize,
+}
+
 #[derive(Debug)]
 pub struct CsvReader {
     /// Source file.
     ///
     /// This may be None if we need to reset the reader to read from a new file.
     file: Option<AnyFile>,
-    /// If we should skip the header of the file.
-    skip_header: bool,
+    /// Shape of the files we expect to read.
+    shape: CsvShape,
     /// Reusable read buffer.
     read_buf: Vec<u8>,
     /// Buffered decoded records.
@@ -81,7 +87,7 @@ enum ReaderState {
 
 impl CsvReader {
     pub fn new(
-        skip_header: bool,
+        shape: CsvShape,
         projections: Projections,
         read_buf: Vec<u8>,
         decoder: CsvDecoder,
@@ -89,13 +95,13 @@ impl CsvReader {
     ) -> Self {
         CsvReader {
             file: None,
-            skip_header,
+            shape,
             read_buf,
             records,
             decoder,
             projections,
             state: ReaderState::Reading {
-                skip_first: skip_header,
+                skip_first: shape.has_header,
             },
             current_count: 0,
         }
@@ -108,7 +114,7 @@ impl CsvReader {
         self.file = Some(file);
         self.records.clear_all(); // TODO: Would this ever have a partial record?
         self.state = ReaderState::Reading {
-            skip_first: self.skip_header,
+            skip_first: self.shape.has_header,
         };
         self.current_count = 0;
     }
@@ -308,13 +314,16 @@ impl CsvReader {
             // through record.
 
             let record = self.records.get_record(record_idx);
+            if record.num_fields() != self.shape.num_columns {
+                return Err(DbError::new(format!(
+                    "Expected {} columns in file, got {}",
+                    self.shape.num_columns,
+                    record.num_fields()
+                )));
+            }
             // TODO: We could make accessing the field not return an option, and instead
             // verify the number of records decoded >= `(count + records_offset) * expected_fields`
-            let field = record.field(field_idx).ok_or_else(|| {
-                DbError::new(format!(
-                    "Missing field at field index '{field_idx}' for record at record index '{record_idx}'"
-                ))
-            })?;
+            let field = record.field(field_idx).unwrap();
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
             if field.is_empty() {
@@ -350,11 +359,14 @@ impl CsvReader {
             // through record.
 
             let record = self.records.get_record(record_idx);
-            let field = record.field(field_idx).ok_or_else(|| {
-                DbError::new(format!(
-                    "Missing field at field index '{field_idx}' for record at record index '{record_idx}'"
-                ))
-            })?;
+            if record.num_fields() != self.shape.num_columns {
+                return Err(DbError::new(format!(
+                    "Expected {} columns in file, got {}",
+                    self.shape.num_columns,
+                    record.num_fields()
+                )));
+            }
+            let field = record.field(field_idx).unwrap();
             let field = std::str::from_utf8(field).context("failed to parse field as utf8")?;
 
             if field.is_empty() {
@@ -396,7 +408,10 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            false,
+            CsvShape {
+                has_header: false,
+                num_columns: 3,
+            },
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
@@ -436,7 +451,10 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            false,
+            CsvShape {
+                has_header: false,
+                num_columns: 3,
+            },
             Projections::new([0, 1, 2]),
             vec![0; 16],
             decoder,
@@ -475,7 +493,10 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            false,
+            CsvShape {
+                has_header: false,
+                num_columns: 3,
+            },
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
@@ -519,7 +540,10 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            false,
+            CsvShape {
+                has_header: false,
+                num_columns: 3,
+            },
             Projections::new([0, 1, 2]),
             vec![0; 16],
             decoder,
@@ -561,7 +585,10 @@ yoshi,4.5,10000
         let decoder = CsvDecoder::new(DialectOptions::default());
         let output = ByteRecords::with_buffer_capacity(16);
         let mut reader = CsvReader::new(
-            true,
+            CsvShape {
+                has_header: true,
+                num_columns: 3,
+            },
             Projections::new([0, 1, 2]),
             vec![0; 256],
             decoder,
