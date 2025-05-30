@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicBool};
 use std::task::{Context, Poll, Wake, Waker};
 
 use glaredb_core::execution::partition_pipeline::ExecutablePartitionPipeline;
@@ -7,7 +8,6 @@ use glaredb_core::runtime::profile_buffer::ProfileSink;
 use glaredb_error::DbError;
 use parking_lot::Mutex;
 use rayon::ThreadPool;
-use tracing::warn;
 
 use crate::time::NativeInstant;
 
@@ -15,10 +15,6 @@ use crate::time::NativeInstant;
 pub(crate) struct PipelineState {
     pub(crate) pipeline: ExecutablePartitionPipeline,
     pub(crate) query_canceled: bool,
-    /// If the pipeline is finished.
-    // TODO: This should be removed, and instead ensure we schedule execution
-    // exactly once per waker.
-    pub(crate) finished: bool,
 }
 
 #[derive(Debug)]
@@ -32,12 +28,13 @@ pub(crate) struct TaskState {
     pub(crate) pool: Arc<ThreadPool>,
     /// Where to put the profile when this pipeline completes.
     pub(crate) profile_sink: ProfileSink,
+    pub(crate) scheduled: AtomicBool,
+    pub(crate) pending_wake: AtomicBool,
 }
 
 impl Wake for TaskState {
     fn wake(self: Arc<Self>) {
-        let pool = self.pool.clone();
-        pool.spawn(|| self.execute());
+        self.schedule();
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
@@ -46,19 +43,40 @@ impl Wake for TaskState {
 }
 
 impl TaskState {
+    pub(crate) fn schedule(self: Arc<Self>) {
+        // If we were not already scheduled, go ahead and spwn now.
+        if !self.scheduled.swap(true, atomic::Ordering::AcqRel) {
+            let state = self.clone();
+            self.pool.spawn(move || {
+                // As long as there's a pending wake, keep polling.
+                loop {
+                    // Clear pending.
+                    state.pending_wake.store(false, atomic::Ordering::Release);
+
+                    // Execute! (locks internally)
+                    state.clone().execute();
+
+                    // If nobody woke us in the meantime, we're done.
+                    if !state.pending_wake.swap(false, atomic::Ordering::AcqRel) {
+                        break;
+                    }
+                    // Otherwise there was at least one wake. Continue...
+                    // execute again.
+                }
+                // No tasks inflight.
+                state.scheduled.store(false, atomic::Ordering::Release);
+            });
+        } else {
+            // If we are already scheduled, just record that a wake happened.
+            self.pending_wake.store(true, atomic::Ordering::Release);
+        }
+    }
+
     pub(crate) fn execute(self: Arc<Self>) {
         let mut pipeline_state = self.pipeline.lock();
 
         if pipeline_state.query_canceled {
             self.errors.set_error(DbError::new("Query canceled"));
-            return;
-        }
-
-        // TODO: This a temporary measure to handle spurious wakeups. It's fine
-        // for now, but we should instead ensure a waker will be scheduled for
-        // execution exactly once.
-        if pipeline_state.finished {
-            warn!("Attempted to execute task that's finished");
             return;
         }
 
@@ -73,7 +91,6 @@ impl TaskState {
                 // Pushing through the pipeline was successful. Put our profile.
                 // We'll never execute again.
                 self.profile_sink.put(prof);
-                pipeline_state.finished = true;
             }
             Poll::Ready(Err(e)) => {
                 self.errors.set_error(e);
