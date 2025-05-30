@@ -99,8 +99,7 @@ impl PipelineRuntime for WasmExecutor {
             .collect();
 
         for state in &states {
-            let state = state.clone();
-            spawn_local(async move { state.execute() })
+            state.clone().schedule();
         }
 
         Arc::new(WasmQueryHandle { profiles, states })
@@ -153,9 +152,10 @@ impl WasmTaskState {
             let state = self.clone();
             spawn_local(async move {
                 loop {
-                    state.execute();
+                    let completed = state.execute();
 
                     let mut sched_guard = state.sched_state.lock();
+                    sched_guard.completed = completed;
                     if sched_guard.pending {
                         sched_guard.pending = false;
                         // Continue...
@@ -169,7 +169,7 @@ impl WasmTaskState {
         }
     }
 
-    fn execute(self: &Arc<Self>) {
+    fn execute(self: &Arc<Self>) -> bool {
         let mut pipeline = self.pipeline.lock();
 
         let waker: Waker = self.clone().into();
@@ -179,14 +179,17 @@ impl WasmTaskState {
             Poll::Ready(Ok(profile)) => {
                 // Pushing through the pipeline was successful.
                 self.profile_sink.put(profile);
+                true
             }
             Poll::Ready(Err(e)) => {
                 self.errors.set_error(e);
+                false
             }
             Poll::Pending => {
-                // Exit the loop. Waker was already stored in the pending
+                // Waker was already stored in the pending
                 // sink/source, we'll be woken back up when there's more
                 // this operator chain can start executing.
+                false
             }
         }
     }

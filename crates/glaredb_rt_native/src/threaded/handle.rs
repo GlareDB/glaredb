@@ -26,7 +26,7 @@ impl QueryHandle for ThreadedQueryHandle {
 
             // Re-execute the pipeline so it picks up the set bool. This lets us
             // cancel the pipeline regardless of if it's pending.
-            Arc::clone(state).execute();
+            Arc::clone(state).schedule();
         }
     }
 

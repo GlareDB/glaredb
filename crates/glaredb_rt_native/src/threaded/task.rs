@@ -61,9 +61,10 @@ impl TaskState {
             let state = self.clone();
             self.pool.spawn(move || {
                 loop {
-                    state.execute();
+                    let completed = state.execute();
 
                     let mut sched_guard = state.sched_state.lock();
+                    sched_guard.completed = completed;
                     if sched_guard.pending {
                         sched_guard.pending = false;
                         // Continue...
@@ -77,7 +78,7 @@ impl TaskState {
         }
     }
 
-    pub(crate) fn execute(self: &Arc<Self>) {
+    fn execute(self: &Arc<Self>) -> bool {
         let mut pipeline = self.pipeline.lock();
 
         let waker: Waker = self.clone().into();
@@ -88,14 +89,17 @@ impl TaskState {
                 // Pushing through the pipeline was successful. Put our profile.
                 // We'll never execute again.
                 self.profile_sink.put(prof);
+                true
             }
             Poll::Ready(Err(e)) => {
                 self.errors.set_error(e);
+                false
             }
             Poll::Pending => {
-                // Exit the loop. Waker was already stored in the pending
+                //  Waker was already stored in the pending
                 // sink/source, we'll be woken back up when there's more
                 // this operator chain can start executing.
+                false
             }
         }
     }
