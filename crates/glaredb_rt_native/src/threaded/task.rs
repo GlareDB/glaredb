@@ -7,8 +7,19 @@ use glaredb_core::runtime::profile_buffer::ProfileSink;
 use glaredb_error::DbError;
 use parking_lot::Mutex;
 use rayon::ThreadPool;
+use tracing::warn;
 
 use crate::time::NativeInstant;
+
+#[derive(Debug)]
+pub(crate) struct PipelineState {
+    pub(crate) pipeline: ExecutablePartitionPipeline,
+    pub(crate) query_canceled: bool,
+    /// If the pipeline is finished.
+    // TODO: This should be removed, and instead ensure we schedule execution
+    // exactly once per waker.
+    pub(crate) finished: bool,
+}
 
 #[derive(Debug)]
 pub(crate) struct TaskState {
@@ -26,8 +37,7 @@ pub(crate) struct TaskState {
 impl Wake for TaskState {
     fn wake(self: Arc<Self>) {
         let pool = self.pool.clone();
-        let task = PartitionPipelineTask { state: self };
-        pool.spawn(|| task.execute());
+        pool.spawn(|| self.execute());
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
@@ -35,31 +45,24 @@ impl Wake for TaskState {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct PipelineState {
-    pub(crate) pipeline: ExecutablePartitionPipeline,
-    pub(crate) query_canceled: bool,
-}
-
-/// Task for executing a partition pipeline.
-pub struct PartitionPipelineTask {
-    state: Arc<TaskState>,
-}
-
-impl PartitionPipelineTask {
-    pub(crate) fn from_task_state(state: Arc<TaskState>) -> Self {
-        PartitionPipelineTask { state }
-    }
-
-    pub(crate) fn execute(self) {
-        let mut pipeline_state = self.state.pipeline.lock();
+impl TaskState {
+    pub(crate) fn execute(self: Arc<Self>) {
+        let mut pipeline_state = self.pipeline.lock();
 
         if pipeline_state.query_canceled {
-            self.state.errors.set_error(DbError::new("Query canceled"));
+            self.errors.set_error(DbError::new("Query canceled"));
             return;
         }
 
-        let waker: Waker = self.state.clone().into();
+        // TODO: This a temporary measure to handle spurious wakeups. It's fine
+        // for now, but we should instead ensure a waker will be scheduled for
+        // execution exactly once.
+        if pipeline_state.finished {
+            warn!("Attempted to execute task that's finished");
+            return;
+        }
+
+        let waker: Waker = self.clone().into();
         let mut cx = Context::from_waker(&waker);
 
         match pipeline_state
@@ -69,10 +72,11 @@ impl PartitionPipelineTask {
             Poll::Ready(Ok(prof)) => {
                 // Pushing through the pipeline was successful. Put our profile.
                 // We'll never execute again.
-                self.state.profile_sink.put(prof);
+                self.profile_sink.put(prof);
+                pipeline_state.finished = true;
             }
             Poll::Ready(Err(e)) => {
-                self.state.errors.set_error(e);
+                self.errors.set_error(e);
             }
             Poll::Pending => {
                 // Exit the loop. Waker was already stored in the pending
