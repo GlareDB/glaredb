@@ -9,7 +9,7 @@ workspace = true
 [dependencies]
 glaredb_error = { path = '../glaredb_error' }
 glaredb_core = { path = '../glaredb_core' }
-reqwest = { version = "0.12.15", default-features = false, features = ["rustls-tls", "stream"] }
+reqwest = { version = "0.12.18", default-features = false, features = ["rustls-tls", "stream"] }
 url = { workspace = true, features = ["serde"] }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
 serde = { workspace = true }
