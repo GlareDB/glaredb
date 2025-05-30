@@ -6,12 +6,12 @@ use glaredb_core::runtime::filesystem::dispatch::FileSystemDispatch;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_core::runtime::system::SystemRuntime;
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 use glaredb_http::filesystem::HttpFileSystem;
 use glaredb_http::gcs::filesystem::GcsFileSystem;
 use glaredb_http::s3::filesystem::S3FileSystem;
 use parking_lot::Mutex;
-use tracing::debug;
+use tracing::{debug, warn};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::http::WasmHttpClient;
@@ -83,16 +83,18 @@ impl PipelineRuntime for WasmExecutor {
         let states: Vec<_> = pipelines
             .into_iter()
             .zip(profile_sinks)
-            .map(|(pipeline, profile_sink)| WasmPartitionPipelineTask {
-                state: Arc::new(WasmTaskState {
+            .map(|(pipeline, profile_sink)| {
+                Arc::new(WasmTaskState {
                     profile_sink,
                     errors: errors.clone(),
-                    pipeline: Mutex::new(pipeline),
-                }),
+                    pipeline: Mutex::new(WasmPipelineState {
+                        pipeline,
+                        query_canceled: false,
+                        finished: false,
+                    }),
+                })
             })
             .collect();
-
-        // TODO: Put references into query handle to allow canceling.
 
         for state in &states {
             let state = state.clone();
@@ -104,40 +106,57 @@ impl PipelineRuntime for WasmExecutor {
 }
 
 #[derive(Debug)]
+pub(crate) struct WasmPipelineState {
+    pub(crate) pipeline: ExecutablePartitionPipeline,
+    pub(crate) query_canceled: bool,
+    // TODO: See native runtime.
+    pub(crate) finished: bool,
+}
+
+#[derive(Debug)]
 pub(crate) struct WasmTaskState {
     profile_sink: ProfileSink,
     errors: Arc<dyn ErrorSink>,
-    pipeline: Mutex<ExecutablePartitionPipeline>,
+    pipeline: Mutex<WasmPipelineState>,
 }
 
 impl Wake for WasmTaskState {
     fn wake(self: Arc<Self>) {
-        let task = WasmPartitionPipelineTask { state: self };
-        spawn_local(async move { task.execute() })
+        spawn_local(async move { self.execute() })
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
         Arc::clone(self).wake()
     }
 }
-#[derive(Debug, Clone)]
-pub(crate) struct WasmPartitionPipelineTask {
-    state: Arc<WasmTaskState>,
-}
 
-impl WasmPartitionPipelineTask {
-    fn execute(&self) {
-        let waker: Waker = self.state.clone().into();
+impl WasmTaskState {
+    fn execute(self: Arc<Self>) {
+        let mut pipeline_state = self.pipeline.lock();
+
+        if pipeline_state.query_canceled {
+            self.errors.set_error(DbError::new("Query canceled"));
+            return;
+        }
+
+        if pipeline_state.finished {
+            warn!("Attempted to execute task that's finished");
+            return;
+        }
+
+        let waker: Waker = self.clone().into();
         let mut cx = Context::from_waker(&waker);
 
-        let mut pipeline = self.state.pipeline.lock();
-        match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
+        match pipeline_state
+            .pipeline
+            .poll_execute::<PerformanceInstant>(&mut cx)
+        {
             Poll::Ready(Ok(profile)) => {
                 // Pushing through the pipeline was successful.
-                self.state.profile_sink.put(profile);
+                self.profile_sink.put(profile);
             }
             Poll::Ready(Err(e)) => {
-                self.state.errors.set_error(e);
+                self.errors.set_error(e);
             }
             Poll::Pending => {
                 // Exit the loop. Waker was already stored in the pending
@@ -152,7 +171,7 @@ impl WasmPartitionPipelineTask {
 pub struct WasmQueryHandle {
     profiles: ProfileBuffer,
     #[allow(unused)]
-    states: Vec<WasmPartitionPipelineTask>,
+    states: Vec<Arc<WasmTaskState>>,
 }
 
 impl QueryHandle for WasmQueryHandle {
