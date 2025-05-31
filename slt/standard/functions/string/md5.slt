@@ -1,0 +1,29 @@
+# MD5 hash function tests
+
+statement ok
+CREATE TEMP TABLE test_strings (s TEXT);
+
+statement ok
+INSERT INTO test_strings VALUES 
+('hello'),
+(''),
+('The quick brown fox jumps over the lazy dog'),
+(NULL);
+
+query T
+SELECT md5(s) FROM test_strings ORDER BY s NULLS LAST;
+----
+d41d8cd98f00b204e9800998ecf8427e
+9e107d9d372bb6826bd81d3542a419d6
+5d41402abc4b2a76b9719d911017c592
+NULL
+
+query T
+SELECT md5('hello');
+----
+5d41402abc4b2a76b9719d911017c592
+
+query T
+SELECT md5('');
+----
+d41d8cd98f00b204e9800998ecf8427e
