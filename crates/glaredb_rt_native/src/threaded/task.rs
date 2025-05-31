@@ -67,6 +67,10 @@ impl TaskState {
                     sched_guard.completed = completed;
                     if sched_guard.pending {
                         sched_guard.pending = false;
+                        // Only continue if we're not complete.
+                        if completed {
+                            break;
+                        }
                         // Continue...
                     } else {
                         // Nom more work.
