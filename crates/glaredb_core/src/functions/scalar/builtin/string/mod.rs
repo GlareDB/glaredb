@@ -59,3 +59,6 @@ pub use regexp_count::*;
 
 mod initcap;
 pub use initcap::*;
+
+mod split_part;
+pub use split_part::*;

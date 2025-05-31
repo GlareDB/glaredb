@@ -1,0 +1,127 @@
+# SPLIT_PART function tests
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Basic positive indexing
+query T
+SELECT split_part('abc~@~def~@~ghi', '~@~', 1);
+----
+abc
+
+query T
+SELECT split_part('abc~@~def~@~ghi', '~@~', 2);
+----
+def
+
+query T
+SELECT split_part('abc~@~def~@~ghi', '~@~', 3);
+----
+ghi
+
+query T
+SELECT split_part('abc~@~def~@~ghi', '~@~', 4);
+----
+(empty)
+
+# Negative indexing
+query T
+SELECT split_part('abc,def,ghi,jkl', ',', -1);
+----
+jkl
+
+query T
+SELECT split_part('abc,def,ghi,jkl', ',', -2);
+----
+ghi
+
+query T
+SELECT split_part('abc,def,ghi,jkl', ',', -4);
+----
+abc
+
+query T
+SELECT split_part('abc,def,ghi,jkl', ',', -5);
+----
+(empty)
+
+# Edge cases
+query T
+SELECT split_part('hello', ',', 1);
+----
+hello
+
+query T
+SELECT split_part('hello', ',', 2);
+----
+(empty)
+
+query T
+SELECT split_part('', ',', 1);
+----
+(empty)
+
+query T
+SELECT split_part('abc', '', 1);
+----
+abc
+
+query T
+SELECT split_part('abc', '', 2);
+----
+(empty)
+
+query T
+SELECT split_part('a,b,c', ',', 0);
+----
+(empty)
+
+# Multiple consecutive delimiters
+query T
+SELECT split_part('a,,c', ',', 1);
+----
+a
+
+query T
+SELECT split_part('a,,c', ',', 2);
+----
+(empty)
+
+query T
+SELECT split_part('a,,c', ',', 3);
+----
+c
+
+# NULL handling
+query T
+SELECT split_part(NULL, ',', 1);
+----
+NULL
+
+query T
+SELECT split_part('abc', NULL, 1);
+----
+NULL
+
+query T
+SELECT split_part('abc', ',', NULL);
+----
+NULL
+
+# Test with table data
+query T
+SELECT split_part(column1, column2, column3) FROM (VALUES 
+    ('path/to/file.txt', '/', 1),
+    ('path/to/file.txt', '/', 2),
+    ('path/to/file.txt', '/', 3),
+    ('path/to/file.txt', '/', -1),
+    ('a.b.c.d', '.', 2),
+    ('a.b.c.d', '.', -2)
+) AS input_data;
+----
+path
+to
+file.txt
+file.txt
+b
+c
