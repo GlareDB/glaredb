@@ -1,0 +1,65 @@
+# Tests to ensure we're properly exluding metadata columns when inserting into
+# tables.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Technically won't touch any metadata tables since there's a table ref for the
+# projection. These tests are here for completion.
+#
+# We may at some point support `INSERT INTO table <from-item>` and that may
+# expose metadata tables.
+
+
+# CTAS
+
+statement ok
+CREATE TEMP TABLE t1 AS SELECT * FROM read_text('../README.md');
+
+query TT
+DESCRIBE t1;
+----
+content Utf8
+
+statement ok
+CREATE TEMP TABLE t2 AS SELECT *, _filename FROM read_text('../README.md');
+
+query TT
+DESCRIBE t2;
+----
+content    Utf8
+_filename  Utf8
+
+query B
+SELECT contains(_filename, 'README') FROM t2;
+----
+true
+
+# Inserts
+
+statement ok
+CREATE TEMP TABLE t3 (content TEXT);
+
+statement ok
+INSERT INTO t3 SELECT * FROM read_text('../README.md');
+
+query TT
+DESCRIBE t3;
+----
+content Utf8
+
+query I
+SELECT count(*) FROM t3;
+----
+1
+
+statement ok
+CREATE TEMP TABLE t4 (content TEXT, _filename TEXT);
+
+statement ok
+INSERT INTO t4 SELECT *, _filename FROM read_text('../README.md');
+
+query B
+SELECT contains(_filename, 'README') FROM t4;
+----
+true

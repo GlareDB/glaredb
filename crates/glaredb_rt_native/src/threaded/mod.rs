@@ -11,7 +11,7 @@ use glaredb_error::{DbError, Result};
 use handle::ThreadedQueryHandle;
 use parking_lot::Mutex;
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use task::{PartitionPipelineTask, PipelineState, TaskState};
+use task::{ScheduleState, TaskState};
 use tracing::debug;
 
 use crate::runtime::Scheduler;
@@ -67,13 +67,16 @@ impl Scheduler for ThreadedScheduler {
             .zip(profile_sinks)
             .map(|(pipeline, profile_sink)| {
                 Arc::new(TaskState {
-                    pipeline: Mutex::new(PipelineState {
-                        pipeline,
-                        query_canceled: false,
-                    }),
+                    pipeline: Mutex::new(pipeline),
                     errors: errors.clone(),
                     pool: self.pool.clone(),
                     profile_sink,
+                    sched_state: Mutex::new(ScheduleState {
+                        running: false,
+                        pending: false,
+                        completed: false,
+                        canceled: false,
+                    }),
                 })
             })
             .collect();
@@ -84,8 +87,7 @@ impl Scheduler for ThreadedScheduler {
         };
 
         for state in task_states {
-            let task = PartitionPipelineTask::from_task_state(state);
-            self.pool.spawn(|| task.execute());
+            state.schedule();
         }
 
         handle

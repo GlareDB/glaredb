@@ -2,6 +2,7 @@ use glaredb_error::Result;
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
+use super::table_list::TableType;
 use crate::arrays::datatype::DataType;
 use crate::arrays::field::{ColumnSchema, Field};
 use crate::logical::binder::bind_query::QueryBinder;
@@ -57,9 +58,12 @@ impl<'a> DescribeBinder<'a> {
         //
         // Could be interesting to have like a 'DESCRIBE ALL' or something that
         // will emit metadata columns too.
+        //
+        // TODO: `iter_data_tables_in_scope` that removes the need for the
+        // separate filter.
         let fields = bind_context
             .iter_tables_in_scope(query_scope)?
-            .filter(|t| t.star_expandable)
+            .filter(|t| t.table_type == TableType::Data)
             .flat_map(|t| {
                 t.column_names
                     .iter()

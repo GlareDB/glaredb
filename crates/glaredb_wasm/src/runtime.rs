@@ -6,7 +6,7 @@ use glaredb_core::runtime::filesystem::dispatch::FileSystemDispatch;
 use glaredb_core::runtime::pipeline::{ErrorSink, PipelineRuntime, QueryHandle};
 use glaredb_core::runtime::profile_buffer::{ProfileBuffer, ProfileSink};
 use glaredb_core::runtime::system::SystemRuntime;
-use glaredb_error::Result;
+use glaredb_error::{DbError, Result};
 use glaredb_http::filesystem::HttpFileSystem;
 use glaredb_http::gcs::filesystem::GcsFileSystem;
 use glaredb_http::s3::filesystem::S3FileSystem;
@@ -83,20 +83,23 @@ impl PipelineRuntime for WasmExecutor {
         let states: Vec<_> = pipelines
             .into_iter()
             .zip(profile_sinks)
-            .map(|(pipeline, profile_sink)| WasmPartitionPipelineTask {
-                state: Arc::new(WasmTaskState {
+            .map(|(pipeline, profile_sink)| {
+                Arc::new(WasmTaskState {
                     profile_sink,
                     errors: errors.clone(),
                     pipeline: Mutex::new(pipeline),
-                }),
+                    sched_state: Mutex::new(WasmScheduleState {
+                        running: false,
+                        pending: false,
+                        completed: false,
+                        canceled: false,
+                    }),
+                })
             })
             .collect();
 
-        // TODO: Put references into query handle to allow canceling.
-
         for state in &states {
-            let state = state.clone();
-            spawn_local(async move { state.execute() })
+            state.clone().schedule();
         }
 
         Arc::new(WasmQueryHandle { profiles, states })
@@ -104,38 +107,89 @@ impl PipelineRuntime for WasmExecutor {
 }
 
 #[derive(Debug)]
+pub(crate) struct WasmScheduleState {
+    pub(crate) running: bool,
+    pub(crate) pending: bool,
+    pub(crate) completed: bool,
+    pub(crate) canceled: bool,
+}
+
+#[derive(Debug)]
 pub(crate) struct WasmTaskState {
     profile_sink: ProfileSink,
     errors: Arc<dyn ErrorSink>,
     pipeline: Mutex<ExecutablePartitionPipeline>,
+    sched_state: Mutex<WasmScheduleState>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct WasmPartitionPipelineTask {
-    state: Arc<WasmTaskState>,
+impl Wake for WasmTaskState {
+    fn wake(self: Arc<Self>) {
+        self.schedule();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        Arc::clone(self).wake()
+    }
 }
 
-impl WasmPartitionPipelineTask {
-    fn execute(&self) {
-        let waker: Waker = Arc::new(WasmWaker {
-            state: self.state.clone(),
-        })
-        .into();
+impl WasmTaskState {
+    fn schedule(self: Arc<Self>) {
+        let mut sched_guard = self.sched_state.lock();
+        if sched_guard.completed {
+            return;
+        }
+        if sched_guard.canceled {
+            self.errors.set_error(DbError::new("Query canceled"));
+            return;
+        }
+
+        if sched_guard.running {
+            sched_guard.pending = true;
+        } else {
+            sched_guard.running = true;
+            std::mem::drop(sched_guard);
+
+            let state = self.clone();
+            spawn_local(async move {
+                loop {
+                    let completed = state.execute();
+
+                    let mut sched_guard = state.sched_state.lock();
+                    sched_guard.completed = completed;
+                    if sched_guard.pending {
+                        sched_guard.pending = false;
+                        // Continue...
+                    } else {
+                        // Nom more work.
+                        sched_guard.running = false;
+                        break;
+                    }
+                }
+            });
+        }
+    }
+
+    fn execute(self: &Arc<Self>) -> bool {
+        let mut pipeline = self.pipeline.lock();
+
+        let waker: Waker = self.clone().into();
         let mut cx = Context::from_waker(&waker);
 
-        let mut pipeline = self.state.pipeline.lock();
         match pipeline.poll_execute::<PerformanceInstant>(&mut cx) {
             Poll::Ready(Ok(profile)) => {
                 // Pushing through the pipeline was successful.
-                self.state.profile_sink.put(profile);
+                self.profile_sink.put(profile);
+                true
             }
             Poll::Ready(Err(e)) => {
-                self.state.errors.set_error(e);
+                self.errors.set_error(e);
+                false
             }
             Poll::Pending => {
-                // Exit the loop. Waker was already stored in the pending
+                // Waker was already stored in the pending
                 // sink/source, we'll be woken back up when there's more
                 // this operator chain can start executing.
+                false
             }
         }
     }
@@ -145,7 +199,7 @@ impl WasmPartitionPipelineTask {
 pub struct WasmQueryHandle {
     profiles: ProfileBuffer,
     #[allow(unused)]
-    states: Vec<WasmPartitionPipelineTask>,
+    states: Vec<Arc<WasmTaskState>>,
 }
 
 impl QueryHandle for WasmQueryHandle {
@@ -155,23 +209,5 @@ impl QueryHandle for WasmQueryHandle {
 
     fn get_profile_buffer(&self) -> &ProfileBuffer {
         &self.profiles
-    }
-}
-
-#[derive(Debug)]
-struct WasmWaker {
-    state: Arc<WasmTaskState>,
-}
-
-impl Wake for WasmWaker {
-    fn wake_by_ref(self: &Arc<Self>) {
-        self.clone().wake()
-    }
-
-    fn wake(self: Arc<Self>) {
-        let task = WasmPartitionPipelineTask {
-            state: self.state.clone(),
-        };
-        spawn_local(async move { task.execute() })
     }
 }

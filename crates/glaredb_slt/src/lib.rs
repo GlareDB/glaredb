@@ -257,7 +257,7 @@ where
                     return Err(record
                         .loc
                         .format_error("Query results do not match expected")
-                        .with_field("got", format!("\n{got}"))
+                        .with_field("got", format!("\n{got}\n----"))
                         .with_field("expected", format!("\n{expected}")));
                 }
             }

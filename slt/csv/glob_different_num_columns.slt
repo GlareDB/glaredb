@@ -20,3 +20,20 @@ times_watched  Int64
 # TODO: Assert that we provide a good error at some point.
 statement error
 SELECT * FROM '../testdata/csv/glob_num_cols/*_cols.csv';
+
+# TODO: These errors may change if we move some of the checks to infer.
+
+# Expliticitly list out the files to ensure we error no matter the order.
+statement error Expected 2 columns in file, got 3
+SELECT * FROM
+  read_csv([
+          '../testdata/csv/glob_num_cols/2_cols.csv',
+          '../testdata/csv/glob_num_cols/3_cols.csv'
+          ]);
+
+statement error Expected 3 columns in file, got 2
+SELECT * FROM
+  read_csv([
+          '../testdata/csv/glob_num_cols/3_cols.csv',
+          '../testdata/csv/glob_num_cols/2_cols.csv'
+          ]);
