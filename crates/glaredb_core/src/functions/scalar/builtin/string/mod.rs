@@ -62,3 +62,6 @@ pub use initcap::*;
 
 mod split_part;
 pub use split_part::*;
+
+mod translate;
+pub use translate::*;
