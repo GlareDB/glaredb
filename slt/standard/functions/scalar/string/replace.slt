@@ -1,0 +1,88 @@
+# REPLACE function tests
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Basic replacement
+query T
+SELECT replace('abcdefabcdef', 'cd', 'XX');
+----
+abXXefabXXef
+
+query T
+SELECT replace('hello world', 'l', 'L');
+----
+heLLo worLd
+
+# No match
+query T
+SELECT replace('test', 'missing', 'X');
+----
+test
+
+# Empty string cases
+query T
+SELECT replace('', 'a', 'b');
+----
+(empty)
+
+query T
+SELECT replace('abc', '', 'X');
+----
+abc
+
+query T
+SELECT replace('abc', 'abc', '');
+----
+(empty)
+
+# Overlapping matches
+query T
+SELECT replace('aaaa', 'aa', 'b');
+----
+bb
+
+# Complete replacement
+query T
+SELECT replace('abcabc', 'abc', 'xyz');
+----
+xyzxyz
+
+# NULL handling
+query T
+SELECT replace(NULL, 'a', 'b');
+----
+NULL
+
+query T
+SELECT replace('abc', NULL, 'b');
+----
+NULL
+
+query T
+SELECT replace('abc', 'a', NULL);
+----
+NULL
+
+# Test with table data
+query IT
+SELECT id, replace(input_text, old_text, new_text) FROM (VALUES
+    (1, 'hello world', 'world', 'universe'),
+    (2, 'test test test', 'test', 'exam'),
+    (3, 'no match here', 'xyz', 'abc')
+) AS t(id, input_text, old_text, new_text) ORDER BY id;
+----
+1  hello universe
+2  exam exam exam
+3  no match here
+
+# Case sensitivity
+query T
+SELECT replace('Hello World', 'hello', 'hi');
+----
+Hello World
+
+query T
+SELECT replace('Hello World', 'Hello', 'hi');
+----
+hi World
