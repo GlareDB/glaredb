@@ -100,8 +100,13 @@ impl AggregateState<(&f64, &f64), f64> for ApproxQuantileState {
     where
         M: AddressableMut<T = f64>,
     {
-        let v = self.digest.quantile(state.quantile);
-        output.put(&v);
+        match self.digest.quantile(state.quantile) {
+            Some(v) => output.put(&v),
+            None => {
+                // No inputs, return NULL.
+                output.put_null();
+            }
+        }
         Ok(())
     }
 }

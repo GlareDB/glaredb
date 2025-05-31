@@ -162,10 +162,10 @@ impl TDigest {
 
     /// Query the approximate value at some quantile.
     ///
-    /// If there are no points (total_weight == 0), returns nan.
-    pub fn quantile(&self, q: f64) -> f64 {
+    /// If there are no points (total_weight == 0), returns None.
+    pub fn quantile(&self, q: f64) -> Option<f64> {
         if self.centroids.is_empty() || self.total_weight == 0.0 {
-            return f64::NAN;
+            return None;
         }
         let target = q.clamp(0.0, 1.0) * self.total_weight;
         let mut cumulative = 0.0;
@@ -187,12 +187,12 @@ impl TDigest {
                     m_i
                 };
                 // Linear interpolate between m_i and next_mean
-                return m_i + offset * (next_mean - m_i);
+                return Some(m_i + offset * (next_mean - m_i));
             }
             cumulative += w_i;
         }
         // If q == 1.0 or due to rounding, return the last centroid's mean.
-        self.centroids.last().map(|c| c.mean).unwrap_or(f64::NAN)
+        self.centroids.last().map(|c| c.mean)
     }
 
     /// Run one full compression pass.
@@ -276,14 +276,14 @@ mod tests {
             td.add(x);
         }
         // The 50th percentile should be near 499.5
-        let median = td.quantile(0.5);
+        let median = td.quantile(0.5).unwrap();
         assert!(
             (median - 499.5).abs() < 20.0,
             "median estimate was {}, expected ~499.5",
             median
         );
         // The 90th percentile should be near 899.0
-        let p90 = td.quantile(0.9);
+        let p90 = td.quantile(0.9).unwrap();
         assert!(
             (p90 - 899.0).abs() < 20.0,
             "90th percentile was {}, expected ~899.0",
@@ -303,7 +303,7 @@ mod tests {
         }
         // Merge into a single digest
         td1.merge(&td2);
-        let median = td1.quantile(0.5);
+        let median = td1.quantile(0.5).unwrap();
         assert!(
             (median - 499.5).abs() < 20.0,
             "merged median = {}, expected ~499.5",
@@ -314,6 +314,6 @@ mod tests {
     #[test]
     fn empty_quantile() {
         let td: TDigest = TDigest::new(50);
-        assert!(td.quantile(0.5).is_nan());
+        assert!(td.quantile(0.5).is_none());
     }
 }
