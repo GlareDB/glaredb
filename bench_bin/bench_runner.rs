@@ -32,6 +32,8 @@ pub fn main() -> Result<()> {
     run_with_setup::<TpchSetup<10>>(&args, "../bench/tpch/10", "tpch-parquet-sf-10")?;
     // SF=50
     run_with_setup::<TpchSetup<50>>(&args, "../bench/tpch/50", "tpch-parquet-sf-50")?;
+    // SF=100
+    run_with_setup::<TpchSetup<100>>(&args, "../bench/tpch/100", "tpch-parquet-sf-100")?;
 
     // Clickbench with a single hits file.
     run_with_setup::<ClickbenchSingleSetup>(
