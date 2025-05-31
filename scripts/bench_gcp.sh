@@ -11,6 +11,9 @@
 
 set -e
 
+# TODO: Arguments for specifying which set of benchmarks to run.
+# TODO: Upload results after each run, not just at the end.
+
 # Unix timestamp to use to namespace uploaded results.
 #
 # Can be provided as input to allow a matrix of runs to shared the same
@@ -142,6 +145,11 @@ gc_run "cd glaredb \
 gc_run "cd glaredb \
           && ./scripts/bench_download_tpch_data.sh 50 \
           && sudo -E cargo bench --bench bench_runner -- bench/tpch/50/ --drop-cache"
+
+# TPCH SF=100
+gc_run "cd glaredb \
+          && ./scripts/bench_download_tpch_data.sh 100 \
+          && sudo -E cargo bench --bench bench_runner -- bench/tpch/100/ --drop-cache"
 
 # Upload results to gcs.
 gc_run "cd glaredb && \
