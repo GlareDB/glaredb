@@ -109,17 +109,15 @@ SELECT split_part('abc', ',', NULL);
 NULL
 
 # Test with table data
-statement ok
-CREATE TEMP TABLE input_data AS VALUES 
+query T
+SELECT split_part(column1, column2, column3) FROM (VALUES 
     ('path/to/file.txt', '/', 1),
     ('path/to/file.txt', '/', 2),
     ('path/to/file.txt', '/', 3),
     ('path/to/file.txt', '/', -1),
     ('a.b.c.d', '.', 2),
-    ('a.b.c.d', '.', -2);
-
-query T
-SELECT split_part(column1, column2, column3) FROM input_data ORDER BY column3;
+    ('a.b.c.d', '.', -2)
+) AS input_data;
 ----
 path
 to
@@ -127,6 +125,3 @@ file.txt
 file.txt
 b
 c
-
-statement ok
-DROP TABLE input_data;
