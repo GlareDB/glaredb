@@ -63,26 +63,26 @@ SELECT translate('🌍🌎🌏', '🌍🌏', 'AB');
 A🌎B
 
 # NULL handling
-query T rowsort
-SELECT translate(input_text, 'abc', 'xyz') FROM (VALUES ('hello'), (NULL), ('abc')) v(input_text);
+query IT
+SELECT id, translate(input_text, 'abc', 'xyz') FROM (VALUES (1, 'hello'), (2, NULL), (3, 'abc')) v(id, input_text) ORDER BY id;
 ----
-NULL
-hello
-xyz
+1	hello
+2	NULL
+3	xyz
 
-query T rowsort
-SELECT translate('hello', from_chars, 'XYZ') FROM (VALUES ('abc'), (NULL), ('el')) v(from_chars);
+query IT
+SELECT id, translate('hello', from_chars, 'XYZ') FROM (VALUES (1, 'abc'), (2, NULL), (3, 'el')) v(id, from_chars) ORDER BY id;
 ----
-NULL
-hXYYo
-hello
+1	hello
+2	NULL
+3	hXYYo
 
-query T rowsort
-SELECT translate('hello', 'el', to_chars) FROM (VALUES ('XY'), (NULL), ('AB')) v(to_chars);
+query IT
+SELECT id, translate('hello', 'el', to_chars) FROM (VALUES (1, 'XY'), (2, NULL), (3, 'AB')) v(id, to_chars) ORDER BY id;
 ----
-NULL
-hABBo
-hXYYo
+1	hXYYo
+2	NULL
+3	hABBo
 
 # Case sensitivity
 query T
