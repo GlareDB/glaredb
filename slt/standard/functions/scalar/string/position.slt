@@ -1,0 +1,30 @@
+# POSITION syntax
+#
+# Uses strpos under the hood.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query I
+SELECT position('ll' IN 'hello');
+----
+3
+
+query I
+SELECT position('yy' IN 'hello');
+----
+0
+
+query II
+SELECT id, position(substr IN searchstr) FROM (VALUES
+  (1, 'l', 'hello'),
+  (2, 'lo', 'hello'),
+  (3, 'a', 'hello'),
+  (4, 'hello', 'hello')
+) v(id, substr, searchstr) ORDER BY id;
+----
+1  3
+2  4
+3  0
+4  1
+

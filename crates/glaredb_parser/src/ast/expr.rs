@@ -299,6 +299,13 @@ pub enum Expr<T: AstMeta> {
         from: Box<Expr<T>>,
         count: Option<Box<Expr<T>>>,
     },
+    /// Position expression.
+    ///
+    /// `POSTITION(<substring> IN <string>)`
+    Position {
+        substring: Box<Expr<T>>,
+        string: Box<Expr<T>>,
+    },
     /// Extract expression.
     ///
     /// `EXTRACT(<date_part> FROM <expr>)`
@@ -454,6 +461,18 @@ impl Expr<Raw> {
                             results,
                             else_expr,
                         }
+                    }
+                    Keyword::POSITION => {
+                        parser.expect_token(&Token::LeftParen)?;
+                        let substring =
+                            Box::new(Expr::parse_subexpr(parser, Self::PREC_CONTAINMENT)?);
+                        if !parser.parse_keyword(Keyword::IN) {
+                            return Err(DbError::new("Missing IN keyword for POSITION"));
+                        }
+                        let string = Box::new(Expr::parse(parser)?);
+                        parser.expect_token(&Token::RightParen)?;
+
+                        Expr::Position { substring, string }
                     }
                     Keyword::SUBSTRING => {
                         parser.expect_token(&Token::LeftParen)?;

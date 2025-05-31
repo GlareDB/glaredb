@@ -14,7 +14,7 @@ use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_STRPOS: ScalarFunctionSet = ScalarFunctionSet {
     name: "strpos",
-    aliases: &[],
+    aliases: &["instr"],
     doc: &[&Documentation {
         category: Category::String,
         description: "Returns the position of a substring within a string. Returns 0 if the substring is not found.",

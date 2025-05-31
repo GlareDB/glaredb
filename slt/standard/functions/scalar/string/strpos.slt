@@ -49,3 +49,4 @@ SELECT strpos(a, 'll') FROM (VALUES ('hello'), ('ball'), ('mill')) v(a);
 3
 3
 3
+

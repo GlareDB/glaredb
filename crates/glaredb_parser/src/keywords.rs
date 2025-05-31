@@ -177,6 +177,7 @@ define_keywords!(
     OVER,
     PARTITION,
     PIVOT,
+    POSITION,
     PRECEDING,
     PRIMARY,
     QUALIFY,
