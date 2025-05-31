@@ -17,7 +17,7 @@ pub const FUNCTION_SET_MD5: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,
-        description: "Compute the MD5 hash of a string.",
+        description: "Compute the MD5 hash of a string, returning the result as a hexadecimal string.",
         arguments: &["string"],
         example: Some(Example {
             example: "md5('hello')",
@@ -56,7 +56,7 @@ impl ScalarFunction for Md5Function {
             OutBuffer::from_array(output)?,
             |v, buf| {
                 let digest = md5::compute(v.as_bytes());
-                
+
                 result_buf.clear();
                 hex_encode(&digest.0, &mut result_buf);
                 buf.put(&result_buf)
