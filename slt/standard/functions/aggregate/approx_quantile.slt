@@ -1,0 +1,53 @@
+# approx_quantile tests
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query B
+SELECT abs(approx_quantile(a, 0.5) - 50) < 5
+  FROM generate_series(1, 100) g(a)
+----
+true
+
+query B
+SELECT abs(approx_quantile(a, 0.75) - 75) < 5
+  FROM generate_series(1, 100) g(a)
+----
+true
+
+query B
+SELECT abs(approx_quantile(a, 1) - 100) < 5
+  FROM generate_series(1, 100) g(a)
+----
+true
+
+query B
+SELECT abs(approx_quantile(a, 0.5) - 50) < 5
+  FROM generate_series(1, 100) g(a), (VALUES (1), (2), (3))
+----
+true
+
+query B
+SELECT abs(approx_quantile(a, 0.75) - 75) < 5
+  FROM generate_series(1, 100) g(a), (VALUES (1), (2), (3))
+----
+true
+
+query B
+SELECT abs(approx_quantile(a, 1) - 100) < 5
+  FROM generate_series(1, 100) g(a), (VALUES (1), (2), (3))
+----
+true
+
+# No inputs.
+query R
+SELECT approx_quantile(a, .5)
+  FROM generate_series(1, 100) g(a), (VALUES (1), (2), (3))
+  WHERE false;
+----
+NULL
+
+# Quantile outside of [0, 1]
+statement error Quantile argument must be in the range [0, 1]
+SELECT approx_quantile(a, 1.5)
+  FROM generate_series(1, 100) g(a), (VALUES (1), (2), (3));

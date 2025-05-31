@@ -1,4 +1,5 @@
 pub mod hll;
+pub mod tdigest;
 pub mod value;
 
 pub mod assumptions {

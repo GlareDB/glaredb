@@ -22,7 +22,7 @@ use crate::statistics::hll::HyperLogLog;
 
 pub const FUNCTION_SET_APPROX_COUNT_DISTINCT: AggregateFunctionSet = AggregateFunctionSet {
     name: "approx_count_distinct",
-    aliases: &[],
+    aliases: &["approx_unique"],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Return an estimated number of distinct, non-NULL values in the input.",
