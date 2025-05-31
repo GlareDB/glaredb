@@ -68,3 +68,6 @@ pub use replace::*;
 
 mod translate;
 pub use translate::*;
+
+mod md5;
+pub use md5::*;
