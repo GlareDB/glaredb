@@ -1,0 +1,108 @@
+# TRANSLATE function
+
+statement ok
+SET verify_optimized_plan TO true;
+
+# Basic translate functionality
+query T
+SELECT translate('12345', '143', 'ax');
+----
+a2x5
+
+query T
+SELECT translate('hello', 'el', 'XY');
+----
+hXYYo
+
+query T
+SELECT translate('hello world', 'lo', 'XY');
+----
+heXXY wYrXd
+
+# Delete characters when from_set is longer than to_set
+query T
+SELECT translate('hello', 'elo', 'X');
+----
+hX
+
+query T
+SELECT translate('hello', 'helo', '');
+----
+(empty)
+
+query T
+SELECT translate('abcdef', 'ace', 'XY');
+----
+XbYdf
+
+# Empty strings
+query T
+SELECT translate('', 'abc', 'xyz');
+----
+(empty)
+
+query T
+SELECT translate('hello', '', '');
+----
+hello
+
+query T
+SELECT translate('hello', 'abc', '');
+----
+hello
+
+# Unicode support
+query T
+SELECT translate('héllo', 'é', 'e');
+----
+hello
+
+query T
+SELECT translate('🌍🌎🌏', '🌍🌏', 'AB');
+----
+A🌎B
+
+# NULL handling
+query IT
+SELECT id, translate(input_text, 'abc', 'xyz') FROM (VALUES (1, 'hello'), (2, NULL), (3, 'abc')) v(id, input_text) ORDER BY id;
+----
+1	hello
+2	NULL
+3	xyz
+
+query IT
+SELECT id, translate('hello', from_chars, 'XYZ') FROM (VALUES (1, 'abc'), (2, NULL), (3, 'el')) v(id, from_chars) ORDER BY id;
+----
+1	hello
+2	NULL
+3	hXYYo
+
+query IT
+SELECT id, translate('hello', 'el', to_chars) FROM (VALUES (1, 'XY'), (2, NULL), (3, 'AB')) v(id, to_chars) ORDER BY id;
+----
+1	hXYYo
+2	NULL
+3	hABBo
+
+# Case sensitivity
+query T
+SELECT translate('Hello', 'H', 'h');
+----
+hello
+
+query T
+SELECT translate('Hello', 'h', 'H');
+----
+Hello
+
+# Repeated characters in from_set (first occurrence wins)
+query T
+SELECT translate('hello', 'ell', 'XYZ');
+----
+hXYYo
+
+# Complex example
+query T
+SELECT translate('The quick brown fox', 'aeiou', '12345');
+----
+Th2 q53ck br4wn f4x

@@ -65,3 +65,6 @@ pub use split_part::*;
 
 mod replace;
 pub use replace::*;
+
+mod translate;
+pub use translate::*;
