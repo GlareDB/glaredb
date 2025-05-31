@@ -54,7 +54,8 @@ impl BinaryAggregate for ApproxQuantile {
             .try_into_scalar()?
             .try_as_f64()?;
 
-        if quantile < 0.0 || quantile > 1.0 {
+        // Clippy told me to do this. Personally I find it kind of disgusting.
+        if !(0.0..=1.0).contains(&quantile) {
             return Err(DbError::new(
                 "Quantile argument must be in the range [0, 1]",
             ));
