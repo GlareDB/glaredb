@@ -301,7 +301,7 @@ pub enum Expr<T: AstMeta> {
     },
     /// Position expression.
     ///
-    /// `POSTITION(<substring> IN <string>)`
+    /// `POSITION(<substring> IN <string>)`
     Position {
         substring: Box<Expr<T>>,
         string: Box<Expr<T>>,
