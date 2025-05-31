@@ -190,6 +190,14 @@ Trim whitespace from the right side of the string.
 
 **Output**: `  hello`
 
+## `split_part`
+
+Splits string at occurrences of delimiter and returns the n'th field (counting from one), or when n is negative, returns the |n|'th-from-last field.
+
+**Example**: `split_part('abc~@~def~@~ghi', '~@~', 2)`
+
+**Output**: `def`
+
 ## `starts_with`
 
 Check if a string starts with a prefix.
