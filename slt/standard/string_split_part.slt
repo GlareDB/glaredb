@@ -110,7 +110,7 @@ NULL
 
 # Test with table data
 statement ok
-CREATE TABLE input_data AS VALUES 
+CREATE TEMP TABLE input_data AS VALUES 
     ('path/to/file.txt', '/', 1),
     ('path/to/file.txt', '/', 2),
     ('path/to/file.txt', '/', 3),
