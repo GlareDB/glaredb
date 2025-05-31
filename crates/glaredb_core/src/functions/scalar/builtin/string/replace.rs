@@ -68,30 +68,3 @@ impl ScalarFunction for Replace {
         )
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn replace_cases() {
-        let test_cases = [
-            (("abcdefabcdef", "cd", "XX"), "abXXefabXXef"),
-            (("hello world", "l", "L"), "heLLo worLd"),
-            (("test", "missing", "X"), "test"),
-            (("", "a", "b"), ""),
-            (("abc", "", "X"), "abc"),
-            (("abc", "abc", ""), ""),
-            (("aaaa", "aa", "b"), "bb"),
-            (("abcabc", "abc", "xyz"), "xyzxyz"),
-        ];
-
-        for case in test_cases {
-            let out = if case.0.1.is_empty() {
-                case.0.0.to_string()
-            } else {
-                case.0.0.replace(case.0.1, case.0.2)
-            };
-            assert_eq!(case.1, out, "case: {case:?}");
-        }
-    }
-}
