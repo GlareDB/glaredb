@@ -362,7 +362,7 @@ impl TableFormat {
         // Grow based on column average.
         Self::grow_using_stats(
             &mut header_widths,
-            &samples,
+            samples,
             max_width,
             has_ellided,
             |stat| stat.avg,
@@ -370,7 +370,7 @@ impl TableFormat {
         // Grow based on column max.
         Self::grow_using_stats(
             &mut header_widths,
-            &samples,
+            samples,
             max_width,
             has_ellided,
             |stat| stat.max,
