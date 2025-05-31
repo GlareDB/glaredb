@@ -109,19 +109,19 @@ SELECT split_part('abc', ',', NULL);
 NULL
 
 # Test with table data
-query T
-SELECT split_part(column1, column2, column3) FROM (VALUES 
-    ('path/to/file.txt', '/', 1),
-    ('path/to/file.txt', '/', 2),
-    ('path/to/file.txt', '/', 3),
-    ('path/to/file.txt', '/', -1),
-    ('a.b.c.d', '.', 2),
-    ('a.b.c.d', '.', -2)
-) AS input_data;
+query IT
+SELECT id, split_part(s, del, n) FROM (VALUES
+    (1, 'path/to/file.txt', '/', 1),
+    (2, 'path/to/file.txt', '/', 2),
+    (3, 'path/to/file.txt', '/', 3),
+    (4, 'path/to/file.txt', '/', -1),
+    (5, 'a.b.c.d', '.', 2),
+    (6, 'a.b.c.d', '.', -2)
+) AS input_data(id, s, del, n) ORDER BY id;
 ----
-path
-to
-file.txt
-file.txt
-b
-c
+1  path
+2  to
+3  file.txt
+4  file.txt
+5  b
+6  c

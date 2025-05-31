@@ -68,23 +68,19 @@ fn split_part<'a>(s: &'a str, delimiter: &str, n: i64) -> &'a str {
         return if n == 1 { s } else { "" };
     }
 
-    let parts: Vec<&str> = s.split(delimiter).collect();
-
-    if n == 0 {
-        return "";
+    if n > 0 {
+        // From the start.
+        return s.split(delimiter).nth(n as usize - 1).unwrap_or("");
     }
 
-    let index = if n > 0 {
-        (n - 1) as usize
-    } else {
-        let from_end = (-n) as usize;
-        if from_end > parts.len() {
-            return "";
-        }
-        parts.len() - from_end
-    };
+    if n < 0 {
+        // From the end.
+        let n = (-n) as usize;
+        return s.rsplit(delimiter).nth(n - 1).unwrap_or("");
+    }
 
-    parts.get(index).unwrap_or(&"")
+    // n==0, empty string
+    ""
 }
 
 #[cfg(test)]
