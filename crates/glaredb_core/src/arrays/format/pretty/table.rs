@@ -21,6 +21,8 @@ const NUM_VALS_FOR_AVG: usize = 30;
 /// Default number of rows to display.
 const DEFAULT_MAX_ROWS: usize = 50;
 
+const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
+
 #[derive(Debug)]
 pub struct PrettyTable {
     header: PrettyHeader,
@@ -77,24 +79,11 @@ impl PrettyTable {
             })
             .collect();
 
-        // Try to get some of the values from the first batch. This will be used
-        // to help determine the size of the columns.
-        let samples = match batches.first() {
-            Some(batch) => batch
-                .borrow()
-                .arrays()
-                .iter()
-                .map(|col| {
-                    ColumnValues::try_from_array(
-                        col,
-                        Some(0..NUM_VALS_FOR_AVG),
-                        batch.borrow().num_rows(),
-                        None,
-                    )
-                })
-                .collect::<Result<Vec<_>>>()?,
-            None => vec![ColumnValues::default(); headers.len()],
-        };
+        // Get column width stats from first sample of rows. We'll use these to
+        // determine best widths to use per column.
+        let samples = (0..schema.fields.len())
+            .map(|col_idx| ColumnWidthSizeStats::from_batches(batches, col_idx, NUM_VALS_FOR_AVG))
+            .collect::<Result<Vec<_>>>()?;
 
         let format = TableFormat::from_headers_and_samples(&headers, &samples, max_width);
 
@@ -329,7 +318,7 @@ impl TableFormat {
     /// samples generated from a batch.
     fn from_headers_and_samples(
         headers: &[ColumnValues],
-        samples: &[ColumnValues],
+        samples: &[ColumnWidthSizeStats],
         max_width: usize,
     ) -> Self {
         let mut header_widths: Vec<_> = headers
@@ -370,19 +359,22 @@ impl TableFormat {
             has_ellided = true;
         }
 
-        let stats: Vec<_> = samples
-            .iter()
-            .map(ColumnWidthSizeStats::from_column_values)
-            .collect();
-
         // Grow based on column average.
-        Self::grow_using_stats(&mut header_widths, &stats, max_width, has_ellided, |stat| {
-            stat.avg
-        });
+        Self::grow_using_stats(
+            &mut header_widths,
+            &samples,
+            max_width,
+            has_ellided,
+            |stat| stat.avg,
+        );
         // Grow based on column max.
-        Self::grow_using_stats(&mut header_widths, &stats, max_width, has_ellided, |stat| {
-            stat.max
-        });
+        Self::grow_using_stats(
+            &mut header_widths,
+            &samples,
+            max_width,
+            has_ellided,
+            |stat| stat.max,
+        );
 
         let mut format = TableFormat {
             widths: vec![None; headers.len()],
@@ -566,8 +558,6 @@ impl ColumnValues {
         num_rows: usize,
         max_width: Option<usize>,
     ) -> Result<Self> {
-        const FORMATTER: Formatter = Formatter::new(FormatOptions::new());
-
         let mut buf = String::new();
         let mut indices = vec![0];
         let mut temp_buf = String::new();
@@ -586,10 +576,10 @@ impl ColumnValues {
         };
 
         let mut row_heights = HashMap::new();
-        for (value_idx, array_idx) in range.enumerate() {
+        for (value_idx, row_idx) in range.enumerate() {
             temp_buf.clear();
             let scalar = FORMATTER
-                .format_array_value(array, array_idx)
+                .format_array_value(array, row_idx)
                 .expect("scalar to exist at index");
             write!(temp_buf, "{scalar}")?;
 
@@ -664,30 +654,58 @@ struct ColumnWidthSizeStats {
 }
 
 impl ColumnWidthSizeStats {
-    /// Compute various size stats on the column. Used when determining a good
-    /// width for the column.
-    fn from_column_values(vals: &ColumnValues) -> Self {
-        let mut avg = 0.0;
-        let mut min = vals.iter().next().map(display_width).unwrap_or_default();
-        let mut max = 0;
-        for (idx, val) in vals.iter().enumerate() {
-            let width = display_width(val);
-
-            avg += (width as f64 - avg) / ((idx + 1) as f64);
-
-            if width < min {
-                min = width;
-            }
-            if width > max {
-                max = width;
-            }
+    fn from_batches<B>(batches: &[B], col_idx: usize, max_rows: usize) -> Result<Self>
+    where
+        B: Borrow<Batch>,
+    {
+        let row_count: usize = batches.iter().map(|b| b.borrow().num_rows()).sum();
+        if row_count == 0 {
+            return Ok(ColumnWidthSizeStats {
+                avg: 0,
+                _min: 0,
+                max: 0,
+            });
         }
 
-        ColumnWidthSizeStats {
-            avg: avg as usize,
+        let mut sum = 0;
+        let mut min = usize::MAX;
+        let mut max = 0;
+
+        let mut count = 0;
+        let mut temp_buf = String::new();
+
+        for batch in batches {
+            let rem = max_rows - count;
+            if rem == 0 {
+                break;
+            }
+            let row_count = usize::min(rem, batch.borrow().num_rows);
+
+            let col = &batch.borrow().arrays[col_idx];
+            for row_idx in 0..row_count {
+                // TODO: Duplicated.
+                temp_buf.clear();
+                let scalar = FORMATTER
+                    .format_array_value(col, row_idx)
+                    .expect("scalar to exist at index");
+                write!(temp_buf, "{scalar}")?;
+
+                sum += temp_buf.len();
+                min = usize::min(temp_buf.len(), min);
+                max = usize::max(temp_buf.len(), max);
+            }
+
+            count += row_count;
+        }
+
+        // Bias towards larger average.
+        let avg = (sum + 1) / count;
+
+        Ok(ColumnWidthSizeStats {
+            avg,
             _min: min,
             max,
-        }
+        })
     }
 }
 
@@ -944,16 +962,16 @@ mod tests {
         let table = pretty_format_batches(&schema, &[batch], 80, None).unwrap();
 
         let expected = [
-            "┌──────┬───────┬────────────┐",
-            "│ c1   │ c2    │ c3         │",
-            "│ Utf8 │ Int32 │ Utf8       │",
-            "├──────┼───────┼────────────┤",
-            "│ a  + │     1 │ Mario      │",
-            "│ b    │       │            │",
-            "│ c    │    10 │ Yoshi      │",
-            "│ d    │   100 │ Luigi    + │",
-            "│      │       │ Peach      │",
-            "└──────┴───────┴────────────┘",
+            "┌──────┬───────┬─────────────┐",
+            "│ c1   │ c2    │ c3          │",
+            "│ Utf8 │ Int32 │ Utf8        │",
+            "├──────┼───────┼─────────────┤",
+            "│ a  + │     1 │ Mario       │",
+            "│ b    │       │             │",
+            "│ c    │    10 │ Yoshi       │",
+            "│ d    │   100 │ Luigi     + │",
+            "│      │       │ Peach       │",
+            "└──────┴───────┴─────────────┘",
         ]
         .join("\n");
 
@@ -1145,19 +1163,16 @@ mod tests {
 
         let table = pretty_format_batches(&schema, &batches, 40, None).unwrap();
 
-        // Note this doesn't grow great since we're only computing column stats
-        // on the first batch. The next test shows the growth behavior better by
-        // having the first batch have the longest value.
         let expected = [
-            "┌──────┬───────┬──────┬──────┐",
-            "│ a    │ b     │ c    │ d    │",
-            "│ Utf8 │ Int32 │ Utf8 │ Utf8 │",
-            "├──────┼───────┼──────┼──────┤",
-            "│ a    │     1 │ c    │ d    │",
-            "│ a    │     2 │ ccc… │ d    │",
-            "│ a    │     3 │ ccc… │ d    │",
-            "│ a    │     4 │ ccc… │ d    │",
-            "└──────┴───────┴──────┴──────┘",
+            "┌──────┬───────┬────────────────┬──────┐",
+            "│ a    │ b     │ c              │ d    │",
+            "│ Utf8 │ Int32 │ Utf8           │ Utf8 │",
+            "├──────┼───────┼────────────────┼──────┤",
+            "│ a    │     1 │ c              │ d    │",
+            "│ a    │     2 │ ccccc          │ d    │",
+            "│ a    │     3 │ cccccccccc     │ d    │",
+            "│ a    │     4 │ ccccccccccccc… │ d    │",
+            "└──────┴───────┴────────────────┴──────┘",
         ];
 
         // I'm just copy pasting output I'm getting. This is here to make sure
@@ -1493,14 +1508,13 @@ mod tests {
         let table = pretty_format_batches(&schema, &[batch], 40, Some(5)).unwrap();
 
         let expected = [
-            "┌─────────────┐",
-            "│ a           │",
-            "│ Utf8        │",
-            "├─────────────┤",
-            "│ yoshi     + │",
-            "│ mario     + │",
-            "│             │",
-            "└─────────────┘",
+            "┌───────────────┐",
+            "│ a             │",
+            "│ Utf8          │",
+            "├───────────────┤",
+            "│ yoshi mario + │",
+            "│               │",
+            "└───────────────┘",
         ];
         assert_eq_print(expected.join("\n"), table.to_string())
     }
