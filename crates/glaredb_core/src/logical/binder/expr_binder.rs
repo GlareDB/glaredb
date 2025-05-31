@@ -6,7 +6,11 @@ use super::column_binder::ExpressionColumnBinder;
 use super::ident::BinderIdent;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::decimal::{
-    Decimal64Scalar, Decimal64Type, Decimal128Scalar, Decimal128Type, DecimalType,
+    Decimal64Scalar,
+    Decimal64Type,
+    Decimal128Scalar,
+    Decimal128Type,
+    DecimalType,
 };
 use crate::arrays::scalar::interval::Interval;
 use crate::arrays::scalar::{BorrowedScalarValue, ScalarValue};
@@ -26,18 +30,29 @@ use crate::expr::{self, Expression, bind_aggregate_function};
 use crate::functions::aggregate::builtin::count::FUNCTION_SET_COUNT;
 use crate::functions::cast::parse::{Decimal64Parser, Decimal128Parser, Parser};
 use crate::functions::scalar::builtin::binary::{
-    FUNCTION_SET_BITAND, FUNCTION_SET_BITNOT, FUNCTION_SET_BITOR, FUNCTION_SET_SHL,
-    FUNCTION_SET_SHR, FUNCTION_SET_XOR,
+    FUNCTION_SET_BITAND,
+    FUNCTION_SET_BITNOT,
+    FUNCTION_SET_BITOR,
+    FUNCTION_SET_SHL,
+    FUNCTION_SET_SHR,
+    FUNCTION_SET_XOR,
 };
 use crate::functions::scalar::builtin::datetime::FUNCTION_SET_DATE_PART;
 use crate::functions::scalar::builtin::is::{
-    FUNCTION_SET_IS_FALSE, FUNCTION_SET_IS_NOT_FALSE, FUNCTION_SET_IS_NOT_NULL,
-    FUNCTION_SET_IS_NOT_TRUE, FUNCTION_SET_IS_NULL, FUNCTION_SET_IS_TRUE,
+    FUNCTION_SET_IS_FALSE,
+    FUNCTION_SET_IS_NOT_FALSE,
+    FUNCTION_SET_IS_NOT_NULL,
+    FUNCTION_SET_IS_NOT_TRUE,
+    FUNCTION_SET_IS_NULL,
+    FUNCTION_SET_IS_TRUE,
 };
 use crate::functions::scalar::builtin::list::{FUNCTION_SET_LIST_EXTRACT, FUNCTION_SET_LIST_VALUE};
 use crate::functions::scalar::builtin::numeric::FUNCTION_SET_POWER;
 use crate::functions::scalar::builtin::string::{
-    FUNCTION_SET_CONCAT, FUNCTION_SET_LIKE, FUNCTION_SET_STARTS_WITH, FUNCTION_SET_SUBSTRING,
+    FUNCTION_SET_CONCAT,
+    FUNCTION_SET_LIKE,
+    FUNCTION_SET_STARTS_WITH,
+    FUNCTION_SET_SUBSTRING,
 };
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::binder::bind_query::bind_modifier::BoundOrderByExpr;

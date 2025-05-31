@@ -37,7 +37,10 @@ use crate::logical::binder::bind_context::BindContext;
 use crate::logical::binder::table_list::TableRef;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
-    JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin,
+    JoinType,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
 };
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};
 use crate::optimizer::filter_pushdown::extracted_filter::ExtractedFilter;

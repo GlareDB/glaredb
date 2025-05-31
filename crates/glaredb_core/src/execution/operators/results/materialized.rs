@@ -5,11 +5,16 @@ use glaredb_error::Result;
 
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::concurrent::{
-    ColumnCollectionAppendState, ConcurrentColumnCollection,
+    ColumnCollectionAppendState,
+    ConcurrentColumnCollection,
 };
 use crate::arrays::datatype::DataType;
 use crate::execution::operators::{
-    BaseOperator, ExecutionProperties, PollFinalize, PollPush, PushOperator,
+    BaseOperator,
+    ExecutionProperties,
+    PollFinalize,
+    PollPush,
+    PushOperator,
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 

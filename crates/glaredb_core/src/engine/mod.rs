@@ -9,8 +9,11 @@ use session::Session;
 
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
 use crate::catalog::create::{
-    CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
-    CreateTableFunctionInfo, OnConflict,
+    CreateAggregateFunctionInfo,
+    CreateScalarFunctionInfo,
+    CreateSchemaInfo,
+    CreateTableFunctionInfo,
+    OnConflict,
 };
 use crate::catalog::database::{AccessMode, Database};
 use crate::catalog::system::{DEFAULT_SCHEMA, new_system_catalog};

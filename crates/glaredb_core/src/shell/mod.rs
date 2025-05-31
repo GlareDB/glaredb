@@ -17,7 +17,9 @@ use raw::RawTerminalWriter;
 use tracing::trace;
 
 use crate::arrays::format::pretty::components::{
-    ASCII_COMPONENTS, PRETTY_COMPONENTS, TableComponents,
+    ASCII_COMPONENTS,
+    PRETTY_COMPONENTS,
+    TableComponents,
 };
 use crate::arrays::format::pretty::table::PrettyTable;
 use crate::engine::single_user::SingleUserEngine;

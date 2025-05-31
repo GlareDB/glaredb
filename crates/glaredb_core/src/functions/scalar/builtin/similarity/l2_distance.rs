@@ -6,7 +6,11 @@ use num_traits::{AsPrimitive, Float};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    MutableScalarStorage, PhysicalF16, PhysicalF32, PhysicalF64, ScalarStorage,
+    MutableScalarStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    ScalarStorage,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};

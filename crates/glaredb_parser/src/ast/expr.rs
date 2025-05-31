@@ -5,7 +5,13 @@ use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AstParseable, DataType, Ident, ObjectReference, QueryNode, WindowDefinition, WindowSpec,
+    AstParseable,
+    DataType,
+    Ident,
+    ObjectReference,
+    QueryNode,
+    WindowDefinition,
+    WindowSpec,
 };
 use crate::keywords::{Keyword, keyword_from_str};
 use crate::meta::{AstMeta, Raw};

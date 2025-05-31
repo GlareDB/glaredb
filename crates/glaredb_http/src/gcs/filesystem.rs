@@ -4,7 +4,12 @@ use std::task::{Context, Poll};
 
 use glaredb_core::runtime::filesystem::glob::{GlobSegments, is_glob};
 use glaredb_core::runtime::filesystem::{
-    FileHandle, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags,
+    FileHandle,
+    FileOpenContext,
+    FileStat,
+    FileSystem,
+    FileType,
+    OpenFlags,
 };
 use glaredb_error::{DbError, OptionExt, Result, ResultExt, not_implemented};
 use reqwest::header::{AUTHORIZATION, CONTENT_LENGTH, HeaderValue};

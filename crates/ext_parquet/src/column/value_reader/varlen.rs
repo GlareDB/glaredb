@@ -1,5 +1,8 @@
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut, MutableScalarStorage, PhysicalBinary, PhysicalUtf8,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
+    PhysicalUtf8,
 };
 use glaredb_error::DbError;
 

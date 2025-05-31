@@ -7,7 +7,9 @@ use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::functions::table::{
-    AnyTableOperatorState, AnyTablePartitionState, PlannedTableFunction,
+    AnyTableOperatorState,
+    AnyTablePartitionState,
+    PlannedTableFunction,
 };
 use crate::storage::projections::Projections;
 use crate::storage::scan_filter::PhysicalScanFilter;

@@ -1,8 +1,12 @@
 use glaredb_error::Result;
 
 use super::create::{
-    CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
-    CreateTableFunctionInfo, CreateViewInfo, OnConflict,
+    CreateAggregateFunctionInfo,
+    CreateScalarFunctionInfo,
+    CreateSchemaInfo,
+    CreateTableFunctionInfo,
+    CreateViewInfo,
+    OnConflict,
 };
 use super::memory::MemoryCatalog;
 use super::{Catalog, Schema};

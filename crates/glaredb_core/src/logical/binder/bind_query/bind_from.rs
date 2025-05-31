@@ -12,7 +12,11 @@ use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::{self, Expression};
 use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
 use crate::logical::binder::bind_context::{
-    BindContext, BindScopeRef, CorrelatedColumn, CteRef, UsingColumn,
+    BindContext,
+    BindScopeRef,
+    CorrelatedColumn,
+    CteRef,
+    UsingColumn,
 };
 use crate::logical::binder::column_binder::DefaultColumnBinder;
 use crate::logical::binder::expr_binder::{BaseExpressionBinder, RecursionContext};

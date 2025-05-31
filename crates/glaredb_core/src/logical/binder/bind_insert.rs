@@ -12,7 +12,8 @@ use crate::logical::operator::LocationRequirement;
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 use crate::logical::resolver::resolved_table::{
-    ResolvedTableOrCteReference, ResolvedTableReference,
+    ResolvedTableOrCteReference,
+    ResolvedTableReference,
 };
 
 #[derive(Debug, Clone, PartialEq)]

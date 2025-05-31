@@ -8,10 +8,28 @@ use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{AnyArrayBuffer, ArrayBufferDowncast, ListBuffer};
 use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::physical_type::{
-    Addressable, PhysicalBinary, PhysicalBool, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8,
-    PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128, PhysicalInterval, PhysicalType,
-    PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU128, PhysicalUntypedNull,
-    PhysicalUtf8, ScalarStorage, UntypedNull,
+    Addressable,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUntypedNull,
+    PhysicalUtf8,
+    ScalarStorage,
+    UntypedNull,
 };
 use crate::arrays::array::selection::Selection;
 use crate::arrays::array::validity::Validity;

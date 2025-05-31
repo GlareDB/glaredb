@@ -1,6 +1,10 @@
 use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
 use glaredb_core::runtime::filesystem::{
-    FileOpenContext, FileStat, FileSystem, FileType, OpenFlags,
+    FileOpenContext,
+    FileStat,
+    FileSystem,
+    FileType,
+    OpenFlags,
 };
 use glaredb_error::{DbError, Result, ResultExt, not_implemented};
 use reqwest::header::CONTENT_LENGTH;

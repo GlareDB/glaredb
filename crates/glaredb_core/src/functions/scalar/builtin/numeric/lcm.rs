@@ -6,7 +6,12 @@ use num_traits::{PrimInt, Signed, Zero};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    MutableScalarStorage, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128,
+    MutableScalarStorage,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};

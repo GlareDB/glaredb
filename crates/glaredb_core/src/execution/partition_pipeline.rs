@@ -6,7 +6,12 @@ use glaredb_error::{DbError, Result};
 
 use super::execution_stack::{Effects, ExecutionStack};
 use super::operators::{
-    AnyOperatorState, AnyPartitionState, PlannedOperator, PollExecute, PollFinalize, PollPull,
+    AnyOperatorState,
+    AnyPartitionState,
+    PlannedOperator,
+    PollExecute,
+    PollFinalize,
+    PollPull,
     PollPush,
 };
 use crate::arrays::batch::Batch;

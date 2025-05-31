@@ -23,7 +23,12 @@ use std::sync::Arc;
 use glaredb_error::{DbError, Result};
 
 use crate::basic::{
-    ColumnOrder, ConvertedType, LogicalType, Repetition, SortOrder, Type as PhysicalType,
+    ColumnOrder,
+    ConvertedType,
+    LogicalType,
+    Repetition,
+    SortOrder,
+    Type as PhysicalType,
 };
 use crate::format;
 

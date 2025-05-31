@@ -9,7 +9,11 @@ use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::{self, Expression};
 use crate::logical::logical_join::{
-    JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin, LogicalMagicJoin,
+    JoinType,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+    LogicalMagicJoin,
 };
 use crate::logical::operator::{self, LocationRequirement, LogicalNode, Node};
 

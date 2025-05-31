@@ -9,7 +9,9 @@ use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::functions::table::{
-    AnyTableOperatorState, AnyTablePartitionState, PlannedTableFunction,
+    AnyTableOperatorState,
+    AnyTablePartitionState,
+    PlannedTableFunction,
 };
 
 #[derive(Debug)]

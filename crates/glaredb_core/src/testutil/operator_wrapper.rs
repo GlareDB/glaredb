@@ -7,7 +7,13 @@ use glaredb_error::Result;
 use super::database_context::test_db_context;
 use crate::arrays::batch::Batch;
 use crate::execution::operators::{
-    BaseOperator, ExecuteOperator, PollExecute, PollFinalize, PollPull, PollPush, PullOperator,
+    BaseOperator,
+    ExecuteOperator,
+    PollExecute,
+    PollFinalize,
+    PollPull,
+    PollPush,
+    PullOperator,
     PushOperator,
 };
 

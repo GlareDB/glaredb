@@ -8,20 +8,40 @@ use num_traits::{CheckedAdd, CheckedDiv, CheckedMul, Float, NumCast, PrimInt};
 use super::null::NullToAnything;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64,
-    PhysicalI128, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU128, PhysicalUtf8,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUtf8,
     ScalarStorage,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{
-    Decimal64Type, Decimal128Type, DecimalPrimitive, DecimalType,
+    Decimal64Type,
+    Decimal128Type,
+    DecimalPrimitive,
+    DecimalType,
 };
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{DecimalParser, Parser};
 use crate::functions::cast::{
-    CastFlatten, CastFunction, CastFunctionSet, CastRule, RawCastFunction, TO_DECIMAL64_CAST_RULE,
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    CastRule,
+    RawCastFunction,
+    TO_DECIMAL64_CAST_RULE,
     TO_DECIMAL128_CAST_RULE,
 };
 use crate::util::iter::IntoExactSizeIterator;

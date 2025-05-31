@@ -18,7 +18,10 @@ use super::logical_filter::LogicalFilter;
 use super::logical_inout::LogicalTableExecute;
 use super::logical_insert::LogicalInsert;
 use super::logical_join::{
-    LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin, LogicalMagicJoin,
+    LogicalArbitraryJoin,
+    LogicalComparisonJoin,
+    LogicalCrossJoin,
+    LogicalMagicJoin,
 };
 use super::logical_limit::LogicalLimit;
 use super::logical_materialization::{LogicalMagicMaterializationScan, LogicalMaterializationScan};

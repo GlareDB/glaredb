@@ -2,22 +2,59 @@ use glaredb_error::{DbError, Result, not_implemented};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{
-    AnyArrayBuffer, ArrayBufferDowncast, ListBuffer, ListItemMetadata,
+    AnyArrayBuffer,
+    ArrayBufferDowncast,
+    ListBuffer,
+    ListItemMetadata,
 };
 use crate::arrays::array::execution_format::ExecutionFormatMut;
 use crate::arrays::array::physical_type::{
-    AddressableMut, MutableScalarStorage, PhysicalBinary, PhysicalBool, PhysicalF16, PhysicalF32,
-    PhysicalF64, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128, PhysicalInterval,
-    PhysicalType, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU128,
-    PhysicalUntypedNull, PhysicalUtf8,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUntypedNull,
+    PhysicalUtf8,
 };
 use crate::arrays::array::validity::Validity;
 use crate::arrays::datatype::DataType;
 use crate::arrays::scalar::BorrowedScalarValue;
 use crate::arrays::scalar::unwrap::{
-    NullableValue, ScalarValueUnwrap, UnwrapBinary, UnwrapBool, UnwrapF16, UnwrapF32, UnwrapF64,
-    UnwrapI8, UnwrapI16, UnwrapI32, UnwrapI64, UnwrapI128, UnwrapInterval, UnwrapU8, UnwrapU16,
-    UnwrapU32, UnwrapU64, UnwrapU128, UnwrapUntypedNull, UnwrapUtf8,
+    NullableValue,
+    ScalarValueUnwrap,
+    UnwrapBinary,
+    UnwrapBool,
+    UnwrapF16,
+    UnwrapF32,
+    UnwrapF64,
+    UnwrapI8,
+    UnwrapI16,
+    UnwrapI32,
+    UnwrapI64,
+    UnwrapI128,
+    UnwrapInterval,
+    UnwrapU8,
+    UnwrapU16,
+    UnwrapU32,
+    UnwrapU64,
+    UnwrapU128,
+    UnwrapUntypedNull,
+    UnwrapUtf8,
 };
 
 /// Set the list value for a given row.

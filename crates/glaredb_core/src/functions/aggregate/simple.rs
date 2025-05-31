@@ -10,7 +10,9 @@ use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{MutableScalarStorage, ScalarStorage};
 use crate::arrays::executor::PutBuffer;
 use crate::arrays::executor::aggregate::{
-    AggregateState, BinaryNonNullUpdater, UnaryNonNullUpdater,
+    AggregateState,
+    BinaryNonNullUpdater,
+    UnaryNonNullUpdater,
 };
 use crate::expr::Expression;
 use crate::functions::bind_state::BindState;

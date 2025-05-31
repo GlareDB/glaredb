@@ -10,7 +10,9 @@ use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::functions::documentation::Category;
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{
-    NativeSystemRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io,
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
 };
 use section::FunctionSectionWriter;
 use session::DocsSession;

@@ -5,7 +5,10 @@ use futures::FutureExt;
 use glaredb_error::{Result, ResultExt};
 
 use crate::arrays::array::physical_type::{
-    AddressableMut, MutableScalarStorage, PhysicalI64, PhysicalUtf8,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalI64,
+    PhysicalUtf8,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};

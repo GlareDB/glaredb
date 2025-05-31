@@ -7,12 +7,17 @@ use std::collections::BTreeSet;
 use std::task::Context;
 
 use distinct_aggregates::{
-    AggregateSelection, DistinctAggregateInfo, DistinctCollection, DistinctCollectionOperatorState,
+    AggregateSelection,
+    DistinctAggregateInfo,
+    DistinctCollection,
+    DistinctCollectionOperatorState,
     DistinctCollectionPartitionState,
 };
 use glaredb_error::{DbError, Result};
 use hash_table::partitioned::{
-    PartitionedHashTable, PartitionedHashTableOperatorState, PartitionedHashTablePartitionState,
+    PartitionedHashTable,
+    PartitionedHashTableOperatorState,
+    PartitionedHashTablePartitionState,
 };
 use parking_lot::Mutex;
 

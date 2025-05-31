@@ -5,7 +5,12 @@ use glaredb_error::Result;
 use parking_lot::Mutex;
 
 use super::{
-    BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize, PollPush,
+    BaseOperator,
+    ExecuteOperator,
+    ExecutionProperties,
+    PollExecute,
+    PollFinalize,
+    PollPush,
     PushOperator,
 };
 use crate::arrays::batch::Batch;

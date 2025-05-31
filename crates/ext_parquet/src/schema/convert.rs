@@ -1,5 +1,9 @@
 use glaredb_core::arrays::datatype::{
-    DataType, DataTypeId, DecimalTypeMeta, TimeUnit, TimestampTypeMeta,
+    DataType,
+    DataTypeId,
+    DecimalTypeMeta,
+    TimeUnit,
+    TimestampTypeMeta,
 };
 use glaredb_core::arrays::field::{ColumnSchema, Field};
 use glaredb_error::{DbError, Result, ResultExt, not_implemented};

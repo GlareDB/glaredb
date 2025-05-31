@@ -18,7 +18,12 @@ use crate::column::encoding::rle_bit_packed::RleBoolDecoder;
 use crate::compression::Codec;
 use crate::format;
 use crate::page::{
-    DataPageHeader, DataPageHeaderV2, DictionaryPageHeader, PageHeader, PageMetadata, PageType,
+    DataPageHeader,
+    DataPageHeaderV2,
+    DictionaryPageHeader,
+    PageHeader,
+    PageMetadata,
+    PageType,
 };
 use crate::schema::types::ColumnDescriptor;
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};

@@ -6,23 +6,48 @@ use glaredb_error::{DbError, Result};
 use super::null::NullToAnything;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    PhysicalBinary, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8, PhysicalI16, PhysicalI32,
-    PhysicalI64, PhysicalI128, PhysicalInterval, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64,
-    PhysicalU128, PhysicalUtf8, ScalarStorage,
+    PhysicalBinary,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalInterval,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::datatype::{DataType, DataTypeId, TimeUnit};
 use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{
-    Decimal64Type, Decimal128Type, DecimalPrimitive, DecimalType,
+    Decimal64Type,
+    Decimal128Type,
+    DecimalPrimitive,
+    DecimalType,
 };
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::format::{
-    DecimalFormatter, Formatter, TimestampMicrosecondsFormatter, TimestampMillisecondsFormatter,
-    TimestampNanosecondsFormatter, TimestampSecondsFormatter,
+    DecimalFormatter,
+    Formatter,
+    TimestampMicrosecondsFormatter,
+    TimestampMillisecondsFormatter,
+    TimestampNanosecondsFormatter,
+    TimestampSecondsFormatter,
 };
 use crate::functions::cast::{
-    CastFlatten, CastFunction, CastFunctionSet, RawCastFunction, TO_STRING_CAST_RULE,
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    RawCastFunction,
+    TO_STRING_CAST_RULE,
 };
 use crate::util::iter::IntoExactSizeIterator;
 

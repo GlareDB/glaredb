@@ -3,7 +3,11 @@ use glaredb_error::Result;
 use crate::arrays::array::Array;
 use crate::arrays::array::execution_format::{ExecutionFormat, SelectionFormat};
 use crate::arrays::array::physical_type::{
-    Addressable, AddressableMut, MutableScalarStorage, PhysicalBool, ScalarStorage,
+    Addressable,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBool,
+    ScalarStorage,
 };
 use crate::arrays::executor::{OutBuffer, PutBuffer};
 use crate::util::iter::IntoExactSizeIterator;
@@ -225,7 +229,9 @@ mod tests {
     use super::*;
     use crate::arrays::array::Array;
     use crate::arrays::array::physical_type::{
-        PhysicalI32, PhysicalUtf8, StringViewAddressableMut,
+        PhysicalI32,
+        PhysicalUtf8,
+        StringViewAddressableMut,
     };
     use crate::arrays::datatype::DataType;
     use crate::buffer::buffer_manager::DefaultBufferManager;

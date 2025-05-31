@@ -11,8 +11,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use create::{
-    CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
-    CreateTableFunctionInfo, CreateTableInfo, CreateViewInfo,
+    CreateAggregateFunctionInfo,
+    CreateScalarFunctionInfo,
+    CreateSchemaInfo,
+    CreateTableFunctionInfo,
+    CreateTableInfo,
+    CreateViewInfo,
 };
 use drop::DropInfo;
 use entry::{CatalogEntry, CatalogEntryType};

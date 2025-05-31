@@ -5,8 +5,16 @@ use std::ops::BitOr;
 use glaredb_error::Result;
 
 use crate::arrays::array::physical_type::{
-    AddressableMut, MutableScalarStorage, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64,
-    PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
 };
 use crate::arrays::datatype::DataTypeId;
 use crate::arrays::executor::PutBuffer;

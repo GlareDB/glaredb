@@ -5,7 +5,10 @@ use glaredb_error::{DbError, Result};
 use parking_lot::Mutex;
 
 use super::hash_aggregate::distinct_aggregates::{
-    AggregateSelection, DistinctAggregateInfo, DistinctCollection, DistinctCollectionOperatorState,
+    AggregateSelection,
+    DistinctAggregateInfo,
+    DistinctCollection,
+    DistinctCollectionOperatorState,
     DistinctCollectionPartitionState,
 };
 use super::util::delayed_count::DelayedPartitionCount;
@@ -14,7 +17,9 @@ use super::{BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, Pol
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::aggregate_layout::{
-    AggregateLayout, AggregateUpdateSelector, CompleteInputSelector,
+    AggregateLayout,
+    AggregateUpdateSelector,
+    CompleteInputSelector,
 };
 use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::db_vec::DbVec;

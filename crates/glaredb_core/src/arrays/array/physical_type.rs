@@ -5,8 +5,14 @@ use glaredb_proto::ProtoConv;
 use half::f16;
 
 use super::array_buffer::{
-    AnyArrayBuffer, ArrayBuffer, ArrayBufferDowncast, ListBuffer, ListItemMetadata, ScalarBuffer,
-    StringBuffer, StringViewBuffer,
+    AnyArrayBuffer,
+    ArrayBuffer,
+    ArrayBufferDowncast,
+    ListBuffer,
+    ListItemMetadata,
+    ScalarBuffer,
+    StringBuffer,
+    StringViewBuffer,
 };
 use super::execution_format::{ExecutionFormat, ExecutionFormatMut};
 use crate::arrays::scalar::interval::Interval;

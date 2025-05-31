@@ -8,7 +8,11 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::{
-    CastFlatten, CastFunction, CastFunctionSet, CastRule, RawCastFunction,
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    CastRule,
+    RawCastFunction,
 };
 use crate::util::iter::IntoExactSizeIterator;
 

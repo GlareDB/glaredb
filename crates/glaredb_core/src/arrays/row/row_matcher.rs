@@ -7,9 +7,25 @@ use glaredb_error::{Result, not_implemented};
 use super::row_layout::RowLayout;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    Addressable, PhysicalBinary, PhysicalBool, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8,
-    PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128, PhysicalInterval, PhysicalType,
-    PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU128, PhysicalUntypedNull,
+    Addressable,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUntypedNull,
     ScalarStorage,
 };
 use crate::arrays::bitmap::view::BitmapView;
@@ -17,8 +33,16 @@ use crate::arrays::string::StringPtr;
 use crate::buffer::buffer_manager::{BufferManager, DefaultBufferManager};
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::functions::scalar::builtin::comparison::{
-    DistinctComparisonOperation, EqOperation, GtEqOperation, GtOperation, IsDistinctFromOperation,
-    IsNotDistinctFromOperation, LtEqOperation, LtOperation, NotEqOperation, NullCoercedComparison,
+    DistinctComparisonOperation,
+    EqOperation,
+    GtEqOperation,
+    GtOperation,
+    IsDistinctFromOperation,
+    IsNotDistinctFromOperation,
+    LtEqOperation,
+    LtOperation,
+    NotEqOperation,
+    NullCoercedComparison,
 };
 
 /// Matches rows by comparing encoded values with non-encoded values.

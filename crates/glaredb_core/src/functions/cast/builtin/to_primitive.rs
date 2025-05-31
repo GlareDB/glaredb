@@ -8,9 +8,22 @@ use num_traits::{Float, NumCast, ToPrimitive};
 use super::null::NullToAnything;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    MutableScalarStorage, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8, PhysicalI16,
-    PhysicalI32, PhysicalI64, PhysicalI128, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64,
-    PhysicalU128, PhysicalUtf8, ScalarStorage,
+    MutableScalarStorage,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUtf8,
+    ScalarStorage,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
@@ -18,9 +31,21 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::{
-    CastFlatten, CastFunction, CastFunctionSet, CastRule, RawCastFunction, TO_F16_CAST_RULE,
-    TO_F32_CAST_RULE, TO_F64_CAST_RULE, TO_INT8_CAST_RULE, TO_INT16_CAST_RULE, TO_INT32_CAST_RULE,
-    TO_INT64_CAST_RULE, TO_UINT16_CAST_RULE, TO_UINT32_CAST_RULE, TO_UINT64_CAST_RULE,
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    CastRule,
+    RawCastFunction,
+    TO_F16_CAST_RULE,
+    TO_F32_CAST_RULE,
+    TO_F64_CAST_RULE,
+    TO_INT8_CAST_RULE,
+    TO_INT16_CAST_RULE,
+    TO_INT32_CAST_RULE,
+    TO_INT64_CAST_RULE,
+    TO_UINT16_CAST_RULE,
+    TO_UINT32_CAST_RULE,
+    TO_UINT64_CAST_RULE,
 };
 use crate::util::iter::IntoExactSizeIterator;
 

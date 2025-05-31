@@ -22,7 +22,12 @@ use std::task::{Context, Poll};
 
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut, MutableScalarStorage, PhysicalBool, PhysicalF64, PhysicalI64, PhysicalUtf8,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBool,
+    PhysicalF64,
+    PhysicalI64,
+    PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::DataTypeId;

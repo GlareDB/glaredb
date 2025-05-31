@@ -4,8 +4,14 @@ use super::{AsScalarFunctionSet, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::builtin::comparison::{
-    FUNCTION_SET_EQ, FUNCTION_SET_GT, FUNCTION_SET_GT_EQ, FUNCTION_SET_IS_DISTINCT_FROM,
-    FUNCTION_SET_IS_NOT_DISTINCT_FROM, FUNCTION_SET_LT, FUNCTION_SET_LT_EQ, FUNCTION_SET_NEQ,
+    FUNCTION_SET_EQ,
+    FUNCTION_SET_GT,
+    FUNCTION_SET_GT_EQ,
+    FUNCTION_SET_IS_DISTINCT_FROM,
+    FUNCTION_SET_IS_NOT_DISTINCT_FROM,
+    FUNCTION_SET_LT,
+    FUNCTION_SET_LT_EQ,
+    FUNCTION_SET_NEQ,
 };
 use crate::logical::logical_join::JoinCondition;
 

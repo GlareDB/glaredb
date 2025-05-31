@@ -7,7 +7,11 @@ use hashbrown::HashMap;
 use uuid::Uuid;
 
 use super::query_result::{
-    Output, QueryResult, StreamOutput, VerifyQueryHandle, VerifyStreamOutput,
+    Output,
+    QueryResult,
+    StreamOutput,
+    VerifyQueryHandle,
+    VerifyStreamOutput,
 };
 use crate::arrays::collection::concurrent::ConcurrentColumnCollection;
 use crate::arrays::field::{ColumnSchema, Field};

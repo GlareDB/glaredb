@@ -9,7 +9,9 @@ use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::DbError;
 use glaredb_rt_native::runtime::{
-    NativeSystemRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io,
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
 };
 use pyo3::{Python, pyclass, pyfunction, pymethods};
 

@@ -28,8 +28,15 @@ use statistics::Statistics;
 
 use crate::basic::{ColumnOrder, Compression, Encoding, Type};
 use crate::format::{
-    self, BoundaryOrder, ColumnChunk, ColumnIndex, ColumnMetaData, OffsetIndex, PageLocation,
-    RowGroup, SortingColumn,
+    self,
+    BoundaryOrder,
+    ColumnChunk,
+    ColumnIndex,
+    ColumnMetaData,
+    OffsetIndex,
+    PageLocation,
+    RowGroup,
+    SortingColumn,
 };
 use crate::metadata::page_index::index::Index;
 use crate::schema::types::{ColumnDescriptor, ColumnPath, GroupType, SchemaDescriptor};

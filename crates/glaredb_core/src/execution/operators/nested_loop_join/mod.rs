@@ -11,12 +11,19 @@ use parking_lot::Mutex;
 use super::util::delayed_count::DelayedPartitionCount;
 use super::util::partition_wakers::PartitionWakers;
 use super::{
-    BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize, PollPush,
+    BaseOperator,
+    ExecuteOperator,
+    ExecutionProperties,
+    PollExecute,
+    PollFinalize,
+    PollPush,
     PushOperator,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::concurrent::{
-    ColumnCollectionAppendState, ConcurrentColumnCollection, ParallelColumnCollectionScanState,
+    ColumnCollectionAppendState,
+    ConcurrentColumnCollection,
+    ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};

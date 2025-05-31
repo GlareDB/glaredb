@@ -7,7 +7,9 @@ use tracing::error;
 
 use super::ResolveContext;
 use super::resolved_table::{
-    ResolvedTableOrCteReference, ResolvedTableReference, ResolvedViewReference,
+    ResolvedTableOrCteReference,
+    ResolvedTableReference,
+    ResolvedViewReference,
     UnresolvedTableReference,
 };
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};

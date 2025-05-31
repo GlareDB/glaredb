@@ -1,6 +1,8 @@
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut, MutableScalarStorage, PhysicalBinary,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
 };
 use glaredb_core::buffer::buffer_manager::DefaultBufferManager;
 use glaredb_core::buffer::db_vec::DbVec;

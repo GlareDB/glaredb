@@ -4,8 +4,17 @@ use super::null::NullToAnything;
 use super::to_primitive::PrimToPrim;
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128, PhysicalU8, PhysicalU16,
-    PhysicalU32, PhysicalU64, PhysicalU128, PhysicalUtf8,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUtf8,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;
@@ -13,7 +22,12 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{Date32Parser, Parser};
 use crate::functions::cast::{
-    CastFlatten, CastFunction, CastFunctionSet, CastRule, RawCastFunction, TO_DATE32_CAST_RULE,
+    CastFlatten,
+    CastFunction,
+    CastFunctionSet,
+    CastRule,
+    RawCastFunction,
+    TO_DATE32_CAST_RULE,
 };
 use crate::util::iter::IntoExactSizeIterator;
 

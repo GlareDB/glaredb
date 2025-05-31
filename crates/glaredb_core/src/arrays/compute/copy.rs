@@ -4,10 +4,28 @@ use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::AnyArrayBuffer;
 use crate::arrays::array::execution_format::ExecutionFormat;
 use crate::arrays::array::physical_type::{
-    Addressable, AddressableMut, MutableScalarStorage, PhysicalBinary, PhysicalBool, PhysicalF16,
-    PhysicalF32, PhysicalF64, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128,
-    PhysicalInterval, PhysicalType, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64,
-    PhysicalU128, PhysicalUntypedNull, PhysicalUtf8,
+    Addressable,
+    AddressableMut,
+    MutableScalarStorage,
+    PhysicalBinary,
+    PhysicalBool,
+    PhysicalF16,
+    PhysicalF32,
+    PhysicalF64,
+    PhysicalI8,
+    PhysicalI16,
+    PhysicalI32,
+    PhysicalI64,
+    PhysicalI128,
+    PhysicalInterval,
+    PhysicalType,
+    PhysicalU8,
+    PhysicalU16,
+    PhysicalU32,
+    PhysicalU64,
+    PhysicalU128,
+    PhysicalUntypedNull,
+    PhysicalUtf8,
 };
 use crate::arrays::array::validity::Validity;
 use crate::arrays::datatype::DataType;

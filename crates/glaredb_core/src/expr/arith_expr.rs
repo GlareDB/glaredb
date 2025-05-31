@@ -5,7 +5,11 @@ use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
 use crate::functions::function_set::ScalarFunctionSet;
 use crate::functions::scalar::builtin::arith::{
-    FUNCTION_SET_ADD, FUNCTION_SET_DIV, FUNCTION_SET_MUL, FUNCTION_SET_REM, FUNCTION_SET_SUB,
+    FUNCTION_SET_ADD,
+    FUNCTION_SET_DIV,
+    FUNCTION_SET_MUL,
+    FUNCTION_SET_REM,
+    FUNCTION_SET_SUB,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

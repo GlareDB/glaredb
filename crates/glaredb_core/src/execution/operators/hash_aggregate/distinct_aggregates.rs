@@ -3,7 +3,9 @@ use std::collections::BTreeSet;
 use glaredb_error::Result;
 
 use super::hash_table::partitioned::{
-    PartitionedHashTable, PartitionedHashTableOperatorState, PartitionedHashTablePartitionState,
+    PartitionedHashTable,
+    PartitionedHashTableOperatorState,
+    PartitionedHashTablePartitionState,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;

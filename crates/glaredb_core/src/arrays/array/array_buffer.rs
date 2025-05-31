@@ -5,7 +5,10 @@ use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 
 use super::execution_format::{
-    ExecutionFormat, ExecutionFormatMut, SelectionFormat, SelectionFormatMut,
+    ExecutionFormat,
+    ExecutionFormatMut,
+    SelectionFormat,
+    SelectionFormatMut,
 };
 use super::selection::Selection;
 use super::validity::Validity;

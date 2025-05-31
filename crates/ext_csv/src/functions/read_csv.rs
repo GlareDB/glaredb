@@ -10,11 +10,16 @@ use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::scan::{ScanContext, TableScanFunction};
 use glaredb_core::functions::table::{
-    RawTableFunction, TableFunctionBindState, TableFunctionInput,
+    RawTableFunction,
+    TableFunctionBindState,
+    TableFunctionInput,
 };
 use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use glaredb_core::runtime::filesystem::{
-    AnyFile, FileSystemFuture, FileSystemWithState, OpenFlags,
+    AnyFile,
+    FileSystemFuture,
+    FileSystemWithState,
+    OpenFlags,
 };
 use glaredb_core::statistics::value::StatisticsValue;
 use glaredb_core::storage::projections::Projections;

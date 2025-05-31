@@ -15,7 +15,9 @@ use glaredb_core::shell::lineedit::{KeyEvent, TermSize, UserInput};
 use glaredb_core::shell::{InteractiveShell, RawModeTerm, Shell, ShellSignal};
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{
-    NativeSystemRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io,
+    NativeSystemRuntime,
+    ThreadedNativeExecutor,
+    new_tokio_runtime_for_io,
 };
 
 #[derive(Parser)]

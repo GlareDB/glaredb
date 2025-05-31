@@ -12,7 +12,11 @@ use crate::catalog::memory::MemorySchema;
 use crate::config::session::DEFAULT_BATCH_SIZE;
 use crate::execution::operators::util::partition_wakers::PartitionWakers;
 use crate::execution::operators::{
-    BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize,
+    BaseOperator,
+    ExecuteOperator,
+    ExecutionProperties,
+    PollExecute,
+    PollFinalize,
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::storage::datatable::{DataTable, DataTableAppendState};

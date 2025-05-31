@@ -12,7 +12,11 @@ use num::{FromPrimitive, Zero};
 
 use super::Definitions;
 use crate::column::bitutil::{
-    BitPackEncodeable, BitUnpackState, bit_unpack, read_unsigned_vlq, zigzag_decode,
+    BitPackEncodeable,
+    BitUnpackState,
+    bit_unpack,
+    read_unsigned_vlq,
+    zigzag_decode,
 };
 use crate::column::encoding::plain::PlainDecoder;
 use crate::column::read_buffer::ReadCursor;
