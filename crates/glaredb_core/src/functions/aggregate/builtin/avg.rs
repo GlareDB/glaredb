@@ -6,10 +6,7 @@ use glaredb_error::Result;
 use num_traits::AsPrimitive;
 
 use crate::arrays::array::physical_type::{
-    AddressableMut,
-    PhysicalF64,
-    PhysicalI64,
-    ScalarStorage,
+    AddressableMut, PhysicalF64, PhysicalI64, ScalarStorage,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::PutBuffer;

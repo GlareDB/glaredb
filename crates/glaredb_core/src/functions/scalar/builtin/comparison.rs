@@ -5,27 +5,10 @@ use glaredb_error::Result;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    Addressable,
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
-    PhysicalInterval,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
-    PhysicalUtf8,
-    ScalarStorage,
+    Addressable, AddressableMut, MutableScalarStorage, PhysicalBinary, PhysicalBool, PhysicalF16,
+    PhysicalF32, PhysicalF64, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128,
+    PhysicalInterval, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU128,
+    PhysicalUtf8, ScalarStorage,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId, DecimalTypeMeta};

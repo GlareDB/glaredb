@@ -4,16 +4,8 @@ use glaredb_error::Result;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
+    MutableScalarStorage, PhysicalBool, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8,
+    PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::{DataType, DataTypeId};

@@ -2,15 +2,8 @@ use glaredb_error::{DbError, Result};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AstParseable,
-    Expr,
-    FunctionArg,
-    Ident,
-    LimitModifier,
-    ObjectReference,
-    QueryNode,
-    QueryNodeBody,
-    Values,
+    AstParseable, Expr, FunctionArg, Ident, LimitModifier, ObjectReference, QueryNode,
+    QueryNodeBody, Values,
 };
 use crate::keywords::{Keyword, RESERVED_FOR_TABLE_ALIAS};
 use crate::meta::{AstMeta, Raw};

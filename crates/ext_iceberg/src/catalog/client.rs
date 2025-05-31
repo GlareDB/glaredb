@@ -10,21 +10,10 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::spec::{
-    CreateNamespaceRequest,
-    CreateNamespaceResponse,
-    CreateTableRequest,
-    CreateTableResponse,
-    ErrorModel,
-    GetNamespaceResponse,
-    ListNamespacesResponse,
-    ListTablesResponse,
-    LoadTableResponse,
-    RenameTableRequest,
-    RenameTableResponse,
-    TableIdentifier,
-    UpdateNamespacePropertiesRequest,
-    UpdateNamespacePropertiesResponse,
-    UpdateTableRequest,
+    CreateNamespaceRequest, CreateNamespaceResponse, CreateTableRequest, CreateTableResponse,
+    ErrorModel, GetNamespaceResponse, ListNamespacesResponse, ListTablesResponse,
+    LoadTableResponse, RenameTableRequest, RenameTableResponse, TableIdentifier,
+    UpdateNamespacePropertiesRequest, UpdateNamespacePropertiesResponse, UpdateTableRequest,
     UpdateTableResponse,
 };
 

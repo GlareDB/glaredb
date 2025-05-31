@@ -6,12 +6,7 @@ use std::task::{Context, Poll};
 use glaredb_core::runtime::filesystem::directory::{DirEntry, ReadDirHandle};
 use glaredb_core::runtime::filesystem::glob::{GlobSegments, is_glob};
 use glaredb_core::runtime::filesystem::{
-    FileHandle,
-    FileOpenContext,
-    FileStat,
-    FileSystem,
-    FileType,
-    OpenFlags,
+    FileHandle, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags,
 };
 use glaredb_error::{DbError, Result, ResultExt};
 

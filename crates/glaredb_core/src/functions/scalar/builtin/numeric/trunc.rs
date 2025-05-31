@@ -4,10 +4,7 @@ use num_traits::{Float, Zero};
 use super::{UnaryInputNumericOperation, UnaryInputNumericScalar};
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    MutableScalarStorage,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
+    MutableScalarStorage, PhysicalF16, PhysicalF32, PhysicalF64,
 };
 use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::arrays::executor::OutBuffer;

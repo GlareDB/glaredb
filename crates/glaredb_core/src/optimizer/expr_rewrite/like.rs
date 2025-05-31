@@ -7,10 +7,7 @@ use crate::expr::scalar_function_expr::ScalarFunctionExpr;
 use crate::expr::{self, Expression};
 use crate::functions::scalar::PlannedScalarFunction;
 use crate::functions::scalar::builtin::string::{
-    FUNCTION_SET_CONTAINS,
-    FUNCTION_SET_ENDS_WITH,
-    FUNCTION_SET_LIKE,
-    FUNCTION_SET_STARTS_WITH,
+    FUNCTION_SET_CONTAINS, FUNCTION_SET_ENDS_WITH, FUNCTION_SET_LIKE, FUNCTION_SET_STARTS_WITH,
 };
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 

@@ -2,12 +2,8 @@ use std::sync::Arc;
 
 use futures::{Stream, stream};
 use glaredb_core::catalog::create::{
-    CreateAggregateFunctionInfo,
-    CreateScalarFunctionInfo,
-    CreateSchemaInfo,
-    CreateTableFunctionInfo,
-    CreateTableInfo,
-    CreateViewInfo,
+    CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
+    CreateTableFunctionInfo, CreateTableInfo, CreateViewInfo,
 };
 use glaredb_core::catalog::drop::DropInfo;
 use glaredb_core::catalog::entry::{CatalogEntry, CatalogEntryType};

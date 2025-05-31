@@ -6,24 +6,9 @@ use std::fmt::Debug;
 use crate::arrays::array::Array;
 use crate::arrays::array::array_buffer::{ArrayBufferDowncast, ScalarBuffer};
 use crate::arrays::array::physical_type::{
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
-    PhysicalList,
-    PhysicalType,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
-    PhysicalUtf8,
-    ScalarStorage,
+    PhysicalBool, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8, PhysicalI16, PhysicalI32,
+    PhysicalI64, PhysicalI128, PhysicalList, PhysicalType, PhysicalU8, PhysicalU16, PhysicalU32,
+    PhysicalU64, PhysicalU128, PhysicalUtf8, ScalarStorage,
 };
 use crate::arrays::batch::Batch;
 use crate::arrays::compute::copy::copy_rows_array;

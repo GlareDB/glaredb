@@ -1,8 +1,5 @@
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalI32,
-    PhysicalUtf8,
+    AddressableMut, MutableScalarStorage, PhysicalI32, PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::{DataType, DataTypeId};

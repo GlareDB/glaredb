@@ -14,16 +14,11 @@ use crate::functions::aggregate::builtin::first::FUNCTION_SET_FIRST;
 use crate::logical::binder::bind_context::{BindContext, CorrelatedColumn, MaterializationRef};
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_join::{
-    JoinCondition,
-    JoinType,
-    LogicalComparisonJoin,
-    LogicalCrossJoin,
-    LogicalMagicJoin,
+    JoinCondition, JoinType, LogicalComparisonJoin, LogicalCrossJoin, LogicalMagicJoin,
 };
 use crate::logical::logical_limit::LogicalLimit;
 use crate::logical::logical_materialization::{
-    LogicalMagicMaterializationScan,
-    LogicalMaterializationScan,
+    LogicalMagicMaterializationScan, LogicalMaterializationScan,
 };
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};

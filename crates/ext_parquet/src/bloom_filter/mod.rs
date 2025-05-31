@@ -84,13 +84,8 @@ use twox_hash::XxHash64;
 
 use crate::data_type::AsBytes;
 use crate::format::{
-    BloomFilterAlgorithm,
-    BloomFilterCompression,
-    BloomFilterHash,
-    BloomFilterHeader,
-    SplitBlockAlgorithm,
-    Uncompressed,
-    XxHash,
+    BloomFilterAlgorithm, BloomFilterCompression, BloomFilterHash, BloomFilterHeader,
+    SplitBlockAlgorithm, Uncompressed, XxHash,
 };
 use crate::thrift::{TCompactSliceInputProtocol, TSerializable};
 

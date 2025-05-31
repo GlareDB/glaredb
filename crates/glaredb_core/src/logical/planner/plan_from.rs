@@ -12,20 +12,12 @@ use crate::logical::binder::bind_query::bind_from::{BoundFrom, BoundFromItem, Bo
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_inout::LogicalTableExecute;
 use crate::logical::logical_join::{
-    JoinCondition,
-    JoinType,
-    LogicalArbitraryJoin,
-    LogicalComparisonJoin,
-    LogicalCrossJoin,
+    JoinCondition, JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin,
 };
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::logical_scan::{
-    LogicalScan,
-    ScanSource,
-    TableFunctionScanSource,
-    TableScan,
-    TableScanSource,
+    LogicalScan, ScanSource, TableFunctionScanSource, TableScan, TableScanSource,
 };
 use crate::logical::logical_single_row::LogicalSingleRow;
 use crate::logical::operator::{LocationRequirement, LogicalNode, LogicalOperator, Node};

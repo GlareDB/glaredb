@@ -5,12 +5,7 @@ use std::task::{Context, Poll};
 
 use futures::FutureExt;
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalUtf8,
+    AddressableMut, MutableScalarStorage, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::datatype::{DataType, DataTypeId};
@@ -21,16 +16,11 @@ use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::scan::{ScanContext, TableScanFunction};
 use glaredb_core::functions::table::{
-    RawTableFunction,
-    TableFunctionBindState,
-    TableFunctionInput,
+    RawTableFunction, TableFunctionBindState, TableFunctionInput,
 };
 use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use glaredb_core::runtime::filesystem::{
-    AnyFile,
-    FileSystemFuture,
-    FileSystemWithState,
-    OpenFlags,
+    AnyFile, FileSystemFuture, FileSystemWithState, OpenFlags,
 };
 use glaredb_core::statistics::value::StatisticsValue;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};

@@ -5,9 +5,7 @@ use glaredb_error::Result;
 use super::projections::Projections;
 use crate::arrays::batch::Batch;
 use crate::arrays::collection::concurrent::{
-    ColumnCollectionAppendState,
-    ColumnCollectionScanState,
-    ConcurrentColumnCollection,
+    ColumnCollectionAppendState, ColumnCollectionScanState, ConcurrentColumnCollection,
     ParallelColumnCollectionScanState,
 };
 use crate::arrays::datatype::DataType;

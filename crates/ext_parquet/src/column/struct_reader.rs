@@ -1,14 +1,7 @@
 use glaredb_core::arrays::datatype::{DataType, DataTypeId, TimeUnit};
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::scalar::unwrap::{
-    UnwrapI8,
-    UnwrapI16,
-    UnwrapI32,
-    UnwrapI64,
-    UnwrapU8,
-    UnwrapU16,
-    UnwrapU32,
-    UnwrapU64,
+    UnwrapI8, UnwrapI16, UnwrapI32, UnwrapI64, UnwrapU8, UnwrapU16, UnwrapU32, UnwrapU64,
 };
 use glaredb_core::buffer::buffer_manager::AsRawBufferManager;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
@@ -20,20 +13,11 @@ use super::row_group_pruner::{NopRowGroupPruner, PrimitiveRowGroupPruner};
 use super::value_reader::bool::BoolValueReader;
 use super::value_reader::int96::Int96TsReader;
 use super::value_reader::primitive::{
-    CastingInt32ToInt8Reader,
-    CastingInt32ToInt16Reader,
-    CastingInt32ToInt64Reader,
-    CastingInt32ToUInt8Reader,
-    CastingInt32ToUInt16Reader,
-    CastingInt32ToUInt32Reader,
-    CastingInt64ToUInt64Reader,
-    PlainFloat16ValueReader,
-    PlainFloat32ValueReader,
-    PlainFloat64ValueReader,
-    PlainInt32ValueReader,
-    PlainInt64ValueReader,
-    PlainTsMicrosValueReader,
-    PlainTsNsValueReader,
+    CastingInt32ToInt8Reader, CastingInt32ToInt16Reader, CastingInt32ToInt64Reader,
+    CastingInt32ToUInt8Reader, CastingInt32ToUInt16Reader, CastingInt32ToUInt32Reader,
+    CastingInt64ToUInt64Reader, PlainFloat16ValueReader, PlainFloat32ValueReader,
+    PlainFloat64ValueReader, PlainInt32ValueReader, PlainInt64ValueReader,
+    PlainTsMicrosValueReader, PlainTsNsValueReader,
 };
 use super::value_reader::varlen::{BinaryValueReader, Utf8ValueReader};
 use crate::basic;

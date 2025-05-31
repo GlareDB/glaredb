@@ -7,42 +7,17 @@ pub mod validity;
 use std::fmt::Debug;
 
 use array_buffer::{
-    AnyArrayBuffer,
-    ArrayBufferDowncast,
-    ArrayBufferType,
-    ConstantBuffer,
-    DictionaryBuffer,
-    EmptyBuffer,
-    ListBuffer,
-    ListChildBuffer,
-    ListItemMetadata,
+    AnyArrayBuffer, ArrayBufferDowncast, ArrayBufferType, ConstantBuffer, DictionaryBuffer,
+    EmptyBuffer, ListBuffer, ListChildBuffer, ListItemMetadata,
 };
 use execution_format::{ExecutionFormat, ExecutionFormatMut};
 use glaredb_error::{DbError, Result, not_implemented};
 use half::f16;
 use physical_type::{
-    Addressable,
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
-    PhysicalInterval,
-    PhysicalType,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
-    PhysicalUtf8,
-    ScalarStorage,
+    Addressable, AddressableMut, MutableScalarStorage, PhysicalBinary, PhysicalBool, PhysicalF16,
+    PhysicalF32, PhysicalF64, PhysicalI8, PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128,
+    PhysicalInterval, PhysicalType, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64,
+    PhysicalU128, PhysicalUtf8, ScalarStorage,
 };
 use validity::Validity;
 

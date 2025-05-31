@@ -6,24 +6,13 @@ use scc::HashIndex;
 use scc::ebr::Guard;
 
 use super::create::{
-    CreateAggregateFunctionInfo,
-    CreateScalarFunctionInfo,
-    CreateSchemaInfo,
-    CreateTableFunctionInfo,
-    CreateTableInfo,
-    CreateViewInfo,
-    OnConflict,
+    CreateAggregateFunctionInfo, CreateScalarFunctionInfo, CreateSchemaInfo,
+    CreateTableFunctionInfo, CreateTableInfo, CreateViewInfo, OnConflict,
 };
 use super::drop::{DropInfo, DropObject};
 use super::entry::{
-    AggregateFunctionEntry,
-    CatalogEntry,
-    CatalogEntryInner,
-    CatalogEntryType,
-    ScalarFunctionEntry,
-    TableEntry,
-    TableFunctionEntry,
-    ViewEntry,
+    AggregateFunctionEntry, CatalogEntry, CatalogEntryInner, CatalogEntryType, ScalarFunctionEntry,
+    TableEntry, TableFunctionEntry, ViewEntry,
 };
 use super::{Catalog, Schema};
 use crate::catalog::entry::SchemaEntry;

@@ -7,12 +7,7 @@ use glaredb_error::{Result, ResultExt};
 use uuid::Uuid;
 
 use crate::arrays::array::physical_type::{
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalF64,
-    PhysicalI32,
-    PhysicalU32,
-    PhysicalU64,
+    AddressableMut, MutableScalarStorage, PhysicalF64, PhysicalI32, PhysicalU32, PhysicalU64,
     PhysicalUtf8,
 };
 use crate::arrays::batch::Batch;

@@ -119,10 +119,7 @@ impl Projections {
 mod tests {
     use super::*;
     use crate::arrays::array::physical_type::{
-        AddressableMut,
-        MutableScalarStorage,
-        PhysicalI32,
-        PhysicalUtf8,
+        AddressableMut, MutableScalarStorage, PhysicalI32, PhysicalUtf8,
     };
     use crate::arrays::datatype::DataType;
     use crate::generate_batch;

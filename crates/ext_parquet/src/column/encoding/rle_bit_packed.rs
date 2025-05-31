@@ -4,9 +4,7 @@
 
 use glaredb_core::arrays::array::Array;
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalBool,
+    AddressableMut, MutableScalarStorage, PhysicalBool,
 };
 use glaredb_error::{DbError, Result};
 

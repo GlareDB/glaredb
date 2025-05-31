@@ -15,11 +15,7 @@ use glaredb_error::{DbError, Result};
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 use harness::Arguments;
 use harness::sqlfile::slt_parser::{
-    ColumnType,
-    ExpectedError,
-    SltRecord,
-    SortMode,
-    StatementExpect,
+    ColumnType, ExpectedError, SltRecord, SortMode, StatementExpect,
 };
 use harness::sqlfile::vars::ReplacementVars;
 use harness::trial::Trial;

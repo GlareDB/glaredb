@@ -10,11 +10,7 @@ use crate::arrays::sort::partial_sort::{PartialSortedRowCollection, SortedRowApp
 use crate::arrays::sort::sort_layout::{SortColumn, SortLayout};
 use crate::arrays::sort::sorted_segment::{SortedSegment, SortedSegmentScanState};
 use crate::execution::operators::{
-    BaseOperator,
-    ExecuteOperator,
-    ExecutionProperties,
-    PollExecute,
-    PollFinalize,
+    BaseOperator, ExecuteOperator, ExecutionProperties, PollExecute, PollFinalize,
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalSortExpression;

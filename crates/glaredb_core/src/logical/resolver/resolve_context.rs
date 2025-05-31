@@ -9,8 +9,7 @@ use super::resolved_cte::ResolvedCte;
 use super::resolved_function::ResolvedFunction;
 use super::resolved_table::{ResolvedTableOrCteReference, UnresolvedTableReference};
 use super::resolved_table_function::{
-    ResolvedTableFunctionReference,
-    UnresolvedTableFunctionReference,
+    ResolvedTableFunctionReference, UnresolvedTableFunctionReference,
 };
 use crate::logical::operator::LocationRequirement;
 

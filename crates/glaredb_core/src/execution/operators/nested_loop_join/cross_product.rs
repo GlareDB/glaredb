@@ -3,8 +3,7 @@ use glaredb_error::Result;
 use crate::arrays::batch::Batch;
 use crate::arrays::cache::NopCache;
 use crate::arrays::collection::concurrent::{
-    ColumnCollectionScanState,
-    ConcurrentColumnCollection,
+    ColumnCollectionScanState, ConcurrentColumnCollection,
 };
 use crate::arrays::datatype::DataType;
 use crate::storage::projections::Projections;

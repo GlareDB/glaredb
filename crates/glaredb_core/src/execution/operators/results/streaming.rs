@@ -9,11 +9,7 @@ use parking_lot::Mutex;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::execution::operators::{
-    BaseOperator,
-    ExecutionProperties,
-    PollFinalize,
-    PollPush,
-    PushOperator,
+    BaseOperator, ExecutionProperties, PollFinalize, PollPush, PushOperator,
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::pipeline::ErrorSink;

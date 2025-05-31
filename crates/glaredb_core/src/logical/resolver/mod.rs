@@ -30,10 +30,7 @@ use crate::arrays::scalar::ScalarValue;
 use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType};
 use crate::catalog::context::DatabaseContext;
 use crate::catalog::system::{
-    BuiltinView,
-    SHOW_DATABASES_VIEW,
-    SHOW_SCHEMAS_VIEW,
-    SHOW_TABLES_VIEW,
+    BuiltinView, SHOW_DATABASES_VIEW, SHOW_SCHEMAS_VIEW, SHOW_TABLES_VIEW,
 };
 use crate::expr;
 use crate::functions::table::TableFunctionInput;

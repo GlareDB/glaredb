@@ -2,22 +2,8 @@ use glaredb_error::{DbError, Result, not_implemented};
 use tracing::trace;
 
 use crate::ast::{
-    AstParseable,
-    Attach,
-    CopyTo,
-    CreateSchema,
-    CreateTable,
-    CreateView,
-    Describe,
-    Detach,
-    DropStatement,
-    ExplainNode,
-    Ident,
-    Insert,
-    QueryNode,
-    ResetVariable,
-    SetVariable,
-    Show,
+    AstParseable, Attach, CopyTo, CreateSchema, CreateTable, CreateView, Describe, Detach,
+    DropStatement, ExplainNode, Ident, Insert, QueryNode, ResetVariable, SetVariable, Show,
 };
 use crate::keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS};
 use crate::meta::Raw;

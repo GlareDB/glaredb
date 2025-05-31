@@ -1,20 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{
-    Attach,
-    CopyTo,
-    CreateSchema,
-    CreateTable,
-    CreateView,
-    Describe,
-    Detach,
-    DropStatement,
-    ExplainNode,
-    Insert,
-    QueryNode,
-    ResetVariable,
-    SetVariable,
-    Show,
+    Attach, CopyTo, CreateSchema, CreateTable, CreateView, Describe, Detach, DropStatement,
+    ExplainNode, Insert, QueryNode, ResetVariable, SetVariable, Show,
 };
 use crate::meta::{AstMeta, Raw};
 

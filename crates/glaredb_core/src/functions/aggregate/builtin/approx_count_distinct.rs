@@ -2,10 +2,7 @@ use glaredb_error::{DbError, Result};
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalI64,
-    PhysicalU64,
+    AddressableMut, MutableScalarStorage, PhysicalI64, PhysicalU64,
 };
 use crate::arrays::compute::hash::hash_array;
 use crate::arrays::datatype::{DataType, DataTypeId};

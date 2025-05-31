@@ -12,9 +12,7 @@ use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_core::util::future::block_on;
 use glaredb_error::Result;
 use glaredb_rt_native::runtime::{
-    NativeSystemRuntime,
-    ThreadedNativeExecutor,
-    new_tokio_runtime_for_io,
+    NativeSystemRuntime, ThreadedNativeExecutor, new_tokio_runtime_for_io,
 };
 use harness::Arguments;
 use harness::sqlfile::find::find_files;

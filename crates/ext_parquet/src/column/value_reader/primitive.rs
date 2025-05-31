@@ -1,19 +1,8 @@
 use std::fmt::Debug;
 
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
+    AddressableMut, MutableScalarStorage, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8,
+    PhysicalI16, PhysicalI32, PhysicalI64, PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64,
 };
 use glaredb_core::util::marker::PhantomCovariant;
 use num::cast::AsPrimitive;
@@ -21,12 +10,7 @@ use num::cast::AsPrimitive;
 use super::{ReaderErrorState, ValueReader};
 use crate::column::read_buffer::ReadCursor;
 use crate::column::row_group_pruner::{
-    PlainType,
-    PlainTypeF32,
-    PlainTypeF64,
-    PlainTypeFixedLenByteArray,
-    PlainTypeI32,
-    PlainTypeI64,
+    PlainType, PlainTypeF32, PlainTypeF64, PlainTypeFixedLenByteArray, PlainTypeI32, PlainTypeI64,
 };
 
 pub type PlainInt32ValueReader = PrimitiveValueReader<PhysicalI32, PlainTypeI32>;

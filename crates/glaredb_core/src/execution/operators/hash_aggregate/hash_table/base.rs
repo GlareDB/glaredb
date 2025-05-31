@@ -13,8 +13,7 @@ use crate::arrays::row::aggregate_layout::{AggregateLayout, CompleteInputSelecto
 use crate::arrays::row::row_matcher::PredicateRowMatcher;
 use crate::arrays::row::row_scan::RowScanState;
 use crate::execution::operators::hash_aggregate::hash_table::directory::{
-    compute_offset_from_hash,
-    inc_and_wrap_offset,
+    compute_offset_from_hash, inc_and_wrap_offset,
 };
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::util::iter::IntoExactSizeIterator;

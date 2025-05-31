@@ -19,11 +19,7 @@ use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::logical_join::{
-    JoinType,
-    LogicalArbitraryJoin,
-    LogicalComparisonJoin,
-    LogicalCrossJoin,
-    LogicalMagicJoin,
+    JoinType, LogicalArbitraryJoin, LogicalComparisonJoin, LogicalCrossJoin, LogicalMagicJoin,
 };
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::logical_no_rows::LogicalNoRows;

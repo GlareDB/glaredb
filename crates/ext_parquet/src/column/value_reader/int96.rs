@@ -1,7 +1,5 @@
 use glaredb_core::arrays::array::physical_type::{
-    AddressableMut,
-    MutableScalarStorage,
-    PhysicalI64,
+    AddressableMut, MutableScalarStorage, PhysicalI64,
 };
 
 use super::{ReaderErrorState, ValueReader};

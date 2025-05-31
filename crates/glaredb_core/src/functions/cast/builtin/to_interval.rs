@@ -9,11 +9,7 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::cast::behavior::CastErrorState;
 use crate::functions::cast::parse::{IntervalParser, Parser};
 use crate::functions::cast::{
-    CastFlatten,
-    CastFunction,
-    CastFunctionSet,
-    RawCastFunction,
-    TO_INTERVAL_CAST_RULE,
+    CastFlatten, CastFunction, CastFunctionSet, RawCastFunction, TO_INTERVAL_CAST_RULE,
 };
 use crate::util::iter::IntoExactSizeIterator;
 

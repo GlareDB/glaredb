@@ -44,19 +44,12 @@ use crate::explain::context_display::{ContextDisplay, ContextDisplayMode};
 use crate::functions::aggregate::PlannedAggregateFunction;
 use crate::functions::candidate::{CastType, InputDataType, RefinedLiteral};
 use crate::functions::function_set::{
-    AggregateFunctionSet,
-    FunctionInfo,
-    FunctionSet,
-    ScalarFunctionSet,
-    TableFunctionSet,
+    AggregateFunctionSet, FunctionInfo, FunctionSet, ScalarFunctionSet, TableFunctionSet,
 };
 use crate::functions::scalar::{FunctionVolatility, PlannedScalarFunction};
 use crate::functions::table::scan::ScanContext;
 use crate::functions::table::{
-    PlannedTableFunction,
-    RawTableFunction,
-    TableFunctionInput,
-    TableFunctionType,
+    PlannedTableFunction, RawTableFunction, TableFunctionInput, TableFunctionType,
 };
 use crate::logical::binder::table_list::TableRef;
 

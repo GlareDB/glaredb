@@ -5,27 +5,10 @@ use half::f16;
 
 use crate::arrays::array::Array;
 use crate::arrays::array::physical_type::{
-    Addressable,
-    PhysicalBinary,
-    PhysicalBool,
-    PhysicalF16,
-    PhysicalF32,
-    PhysicalF64,
-    PhysicalI8,
-    PhysicalI16,
-    PhysicalI32,
-    PhysicalI64,
-    PhysicalI128,
-    PhysicalInterval,
-    PhysicalType,
-    PhysicalU8,
-    PhysicalU16,
-    PhysicalU32,
-    PhysicalU64,
-    PhysicalU128,
-    PhysicalUntypedNull,
-    ScalarStorage,
-    UntypedNull,
+    Addressable, PhysicalBinary, PhysicalBool, PhysicalF16, PhysicalF32, PhysicalF64, PhysicalI8,
+    PhysicalI16, PhysicalI32, PhysicalI64, PhysicalI128, PhysicalInterval, PhysicalType,
+    PhysicalU8, PhysicalU16, PhysicalU32, PhysicalU64, PhysicalU128, PhysicalUntypedNull,
+    ScalarStorage, UntypedNull,
 };
 use crate::arrays::datatype::DataType;
 use crate::arrays::row::row_blocks::BlockAppendState;

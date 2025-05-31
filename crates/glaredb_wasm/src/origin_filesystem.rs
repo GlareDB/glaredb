@@ -3,24 +3,15 @@ use std::task::{Context, Poll};
 
 use glaredb_core::runtime::filesystem::directory::DirHandleNotImplemented;
 use glaredb_core::runtime::filesystem::{
-    FileHandle,
-    FileOpenContext,
-    FileStat,
-    FileSystem,
-    FileType,
-    OpenFlags,
+    FileHandle, FileOpenContext, FileStat, FileSystem, FileType, OpenFlags,
 };
 use glaredb_error::{DbError, OptionExt, Result, ResultExt};
 use url::Url;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    DomException,
-    FileSystemDirectoryHandle,
-    FileSystemFileHandle,
-    FileSystemGetFileOptions,
-    FileSystemSyncAccessHandle,
-    window,
+    DomException, FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetFileOptions,
+    FileSystemSyncAccessHandle, window,
 };
 
 use crate::errors::json_stringify;
