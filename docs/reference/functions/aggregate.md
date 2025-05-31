@@ -12,6 +12,14 @@ title: Aggregate Functions
 
 Return an estimated number of distinct, non-NULL values in the input.
 
+### `approx_quantile`
+
+Compute the approximate quantile using a T-Digest sketch.
+
+### `approx_unique`
+
+Return an estimated number of distinct, non-NULL values in the input.
+
 ### `avg`
 
 Return the average value from the input column.
