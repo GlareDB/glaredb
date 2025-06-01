@@ -52,6 +52,7 @@ use crate::functions::scalar::builtin::string::{
     FUNCTION_SET_CONCAT,
     FUNCTION_SET_LIKE,
     FUNCTION_SET_STARTS_WITH,
+    FUNCTION_SET_STRPOS,
     FUNCTION_SET_SUBSTRING,
 };
 use crate::logical::binder::bind_query::QueryBinder;
@@ -842,6 +843,18 @@ impl<'a> BaseExpressionBinder<'a> {
                     }
                     None => expr::bind_scalar_function(function_set, vec![expr, from])?,
                 };
+
+                Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
+            }
+            ast::Expr::Position { substring, string } => {
+                let substring =
+                    self.bind_expression(bind_context, substring, column_binder, recur.not_root())?;
+                let string =
+                    self.bind_expression(bind_context, string, column_binder, recur.not_root())?;
+
+                // Note that the arguments get flipped here.
+                let function =
+                    expr::bind_scalar_function(&FUNCTION_SET_STRPOS, vec![string, substring])?;
 
                 Ok(Expression::ScalarFunction(ScalarFunctionExpr { function }))
             }

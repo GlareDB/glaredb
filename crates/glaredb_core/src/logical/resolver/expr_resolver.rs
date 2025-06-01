@@ -371,6 +371,15 @@ where
                 self.resolve_substring(expr, from, count, resolve_context)
                     .await
             }
+            ast::Expr::Position { substring, string } => {
+                let substring =
+                    Box::pin(self.resolve_expression(*substring, resolve_context)).await?;
+                let string = Box::pin(self.resolve_expression(*string, resolve_context)).await?;
+                Ok(ast::Expr::Position {
+                    substring: Box::new(substring),
+                    string: Box::new(string),
+                })
+            }
             ast::Expr::Extract { date_part, expr } => {
                 let expr = Box::pin(self.resolve_expression(*expr, resolve_context)).await?;
                 Ok(ast::Expr::Extract {
