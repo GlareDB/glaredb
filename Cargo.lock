@@ -1045,6 +1045,7 @@ dependencies = [
  "half",
  "hashbrown 0.14.5",
  "indexmap",
+ "md5",
  "num-traits",
  "num_cpus",
  "parking_lot",
@@ -1701,6 +1702,12 @@ checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
 dependencies = [
  "regex-automata 0.1.10",
 ]
+
+[[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
