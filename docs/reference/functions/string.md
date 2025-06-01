@@ -86,6 +86,14 @@ Convert first letter of each word to uppercase.
 
 **Output**: `Hello World`
 
+## `instr`
+
+Returns the position of a substring within a string. Returns 0 if the substring is not found.
+
+**Example**: `strpos('hello', 'll')`
+
+**Output**: `3`
+
 ## `left`
 
 Get the leftmost N characters of a string.
@@ -134,6 +142,14 @@ Trim matching characters from the left side of the string.
 
 **Output**: `hello<`
 
+## `md5`
+
+Compute the MD5 hash of a string, returning the result as a hexadecimal string.
+
+**Example**: `md5('hello')`
+
+**Output**: `5d41402abc4b2a76b9719d911017c592`
+
 ## `octet_length`
 
 Get the number of bytes in a string or blob.
@@ -157,6 +173,14 @@ Repeat a string some number of times.
 **Example**: `repeat('abc', 3)`
 
 **Output**: `abcabcabc`
+
+## `replace`
+
+Replace all occurrences in string of substring from with substring to.
+
+**Example**: `replace('abcdefabcdef', 'cd', 'XX')`
+
+**Output**: `abXXefabXXef`
 
 ## `reverse`
 
@@ -237,6 +261,14 @@ Check if a string ends with a suffix.
 **Example**: `ends_with('house', 'se')`
 
 **Output**: `true`
+
+## `translate`
+
+Replace each character in string that matches a character in the from set with the corresponding character in the to set. If from is longer than to, occurrences of the extra characters in from are deleted.
+
+**Example**: `translate('12345', '143', 'ax')`
+
+**Output**: `a2x5`
 
 ## `trim`
 
