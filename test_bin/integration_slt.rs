@@ -44,28 +44,28 @@ pub fn main() -> Result<()> {
     // Read files over http
     run_with_all_thread_configurations::<HttpSetup>(&args, "../slt/http", "slt_http")?;
 
-    // Public S3 with CSV, parquet
+    // Public S3 with CSV, parquet, iceberg
     run_with_all_thread_configurations::<S3PublicSetup>(
         &args,
         "../slt/s3/public",
         "slt_s3_public",
     )?;
 
-    // Private S3 with CSV, parquet
+    // Private S3 with CSV, parquet, iceberg
     run_with_all_thread_configurations::<S3PrivateSetup>(
         &args,
         "../slt/s3/private",
         "slt_s3_private",
     )?;
 
-    // Public GCS with CSV, parquet
+    // Public GCS with CSV, parquet, iceberg
     run_with_all_thread_configurations::<GcsPublicSetup>(
         &args,
         "../slt/gcs/public",
         "slt_gcs_public",
     )?;
 
-    // Private GCS with CSV, parquet
+    // Private GCS with CSV, parquet, iceberg
     run_with_all_thread_configurations::<GcsPrivateSetup>(
         &args,
         "../slt/gcs/private",
@@ -244,6 +244,7 @@ where
     fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
+        engine.register_extension(IcebergExtension)?;
         Ok(RunConfig {
             engine,
             tokio_rt,
@@ -265,6 +266,7 @@ where
     fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
+        engine.register_extension(IcebergExtension)?;
 
         let mut vars = ReplacementVars::default();
 
@@ -292,6 +294,7 @@ where
     fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
+        engine.register_extension(IcebergExtension)?;
         Ok(RunConfig {
             engine,
             tokio_rt,
@@ -313,6 +316,7 @@ where
     fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(CsvExtension)?;
         engine.register_extension(ParquetExtension)?;
+        engine.register_extension(IcebergExtension)?;
 
         let mut vars = ReplacementVars::default();
 

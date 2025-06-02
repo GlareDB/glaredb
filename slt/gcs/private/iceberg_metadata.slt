@@ -1,0 +1,16 @@
+# iceberg_metadata function on gcs
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT * FROM iceberg_metadata('gs://glaredb-private/testdata/iceberg/wh/default.db/cities', service_account = '__GCP_SERVICE_ACCOUNT__');
+----
+format_version  Int32
+table_uuid      Utf8
+location        Utf8
+
+query ITT
+SELECT * FROM iceberg_metadata('gs://glaredb-private/testdata/iceberg/wh/default.db/cities', service_account = '__GCP_SERVICE_ACCOUNT__')
+----
+2  3e7c486c-5e5a-426e-aed7-a022fe2b52b6  file://wh/default.db/cities
