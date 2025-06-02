@@ -26,18 +26,12 @@ pub const FUNCTION_SET_FACTORIAL: ScalarFunctionSet = ScalarFunctionSet {
     }],
     functions: &[RawScalarFunction::new(
         &Signature::new(&[DataTypeId::Int64], DataTypeId::Int128),
-        &Factorial::new(),
+        &Factorial,
     )],
 };
 
 #[derive(Debug, Clone, Copy)]
 pub struct Factorial;
-
-impl Factorial {
-    pub const fn new() -> Self {
-        Factorial
-    }
-}
 
 impl ScalarFunction for Factorial {
     type State = ();

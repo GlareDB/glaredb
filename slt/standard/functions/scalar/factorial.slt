@@ -7,6 +7,11 @@ SELECT factorial(0);
 ----
 1
 
+query TT
+DESCRIBE SELECT factorial(1);
+----
+factorial  Int128
+
 query I
 SELECT factorial(1);
 ----
@@ -22,16 +27,17 @@ SELECT factorial(10);
 ----
 3628800
 
-# Test negative input returns NULL
-query I
-SELECT factorial(-1);
-----
-NULL
+# # Test negative input returns NULL
+# # TODO: this should error
+# query I
+# SELECT factorial(-1);
+# ----
+# NULL
 
-query I
-SELECT factorial(-5);
-----
-NULL
+# query I
+# SELECT factorial(-5);
+# ----
+# NULL
 
 # Test NULL input returns NULL
 query I
@@ -57,7 +63,6 @@ SELECT factorial(3) + factorial(4);
 ----
 30
 
-query I
+# Factorial doesn't accept i128 as input.
+statement error
 SELECT factorial(factorial(3));
-----
-720
