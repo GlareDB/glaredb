@@ -290,6 +290,14 @@ Shifts an integer right by a specified number of bits.
 
 **Output**: `4`
 
+## `sign`
+
+Sign of the argument (-1, 0, or +1).
+
+**Example**: `sign(-8.4)`
+
+**Output**: `-1`
+
 ## `sin`
 
 Compute the sin of value.

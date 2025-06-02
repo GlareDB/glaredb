@@ -1,0 +1,52 @@
+# Test sign function with various numeric inputs
+
+query R
+SELECT sign(-8.4);
+----
+-1
+
+query R
+SELECT sign(0.0);
+----
+0
+
+query R
+SELECT sign(5.7);
+----
+1
+
+query R
+SELECT sign(-0.0);
+----
+0
+
+query R
+SELECT sign('NaN'::FLOAT);
+----
+0
+
+query R
+SELECT sign('Infinity'::FLOAT);
+----
+1
+
+query R
+SELECT sign('-Infinity'::FLOAT);
+----
+-1
+
+# Test with different numeric types
+query R
+SELECT sign(-42.0);
+----
+-1
+
+query R
+SELECT sign(0);
+----
+0
+
+query R
+SELECT sign(3.14159);
+----
+1
