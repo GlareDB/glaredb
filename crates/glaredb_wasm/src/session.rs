@@ -1,10 +1,5 @@
 use std::rc::Rc;
 
-use ext_csv::extension::CsvExtension;
-use ext_iceberg::extension::IcebergExtension;
-use ext_parquet::extension::ParquetExtension;
-use ext_spark::SparkExtension;
-use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::engine::single_user::SingleUserEngine;
@@ -29,11 +24,7 @@ impl WasmSession {
     pub fn try_new() -> Result<WasmSession> {
         let runtime = WasmSystemRuntime::try_new()?;
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone())?;
-        engine.register_extension(SparkExtension)?;
-        engine.register_extension(TpchGenExtension)?;
-        engine.register_extension(CsvExtension)?;
-        engine.register_extension(ParquetExtension)?;
-        engine.register_extension(IcebergExtension)?;
+        ext_default::register_all(&engine.engine)?;
 
         Ok(WasmSession { runtime, engine })
     }

@@ -3,11 +3,6 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyModifiers};
-use ext_csv::extension::CsvExtension;
-use ext_iceberg::extension::IcebergExtension;
-use ext_parquet::extension::ParquetExtension;
-use ext_spark::SparkExtension;
-use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
@@ -107,11 +102,7 @@ async fn inner(
     runtime: impl SystemRuntime,
 ) -> Result<()> {
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
-    engine.register_extension(SparkExtension)?;
-    engine.register_extension(TpchGenExtension)?;
-    engine.register_extension(CsvExtension)?;
-    engine.register_extension(ParquetExtension)?;
-    engine.register_extension(IcebergExtension)?;
+    ext_default::register_all(&engine.engine)?;
 
     let mut stdout = BufWriter::new(std::io::stdout());
 

@@ -1,10 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use ext_csv::extension::CsvExtension;
-use ext_iceberg::extension::IcebergExtension;
-use ext_parquet::extension::ParquetExtension;
-use ext_spark::SparkExtension;
-use ext_tpch_gen::TpchGenExtension;
 use glaredb_bench::{BenchArguments, RunConfig};
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
@@ -59,21 +54,6 @@ where
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>>;
 }
 
-// TODO: Move this to an 'ext_default' crate then shared with benches, cli,
-// wasm, python.
-fn register_default_extensions<E, R>(engine: &SingleUserEngine<E, R>) -> Result<()>
-where
-    E: PipelineRuntime,
-    R: SystemRuntime,
-{
-    engine.register_extension(SparkExtension)?;
-    engine.register_extension(TpchGenExtension)?;
-    engine.register_extension(CsvExtension)?;
-    engine.register_extension(ParquetExtension)?;
-    engine.register_extension(IcebergExtension)?;
-    Ok(())
-}
-
 fn run_setup_query<E, R>(engine: &SingleUserEngine<E, R>, query: &str) -> Result<()>
 where
     E: PipelineRuntime,
@@ -97,7 +77,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        register_default_extensions(&engine)?;
+        ext_default::register_all(&engine.engine)?;
         Ok(engine)
     }
 }
@@ -111,7 +91,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        register_default_extensions(&engine)?;
+        ext_default::register_all(&engine.engine)?;
 
         let tables = [
             "customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier",
@@ -139,7 +119,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        register_default_extensions(&engine)?;
+        ext_default::register_all(&engine.engine)?;
 
         run_setup_query(
             &engine,
@@ -163,7 +143,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        register_default_extensions(&engine)?;
+        ext_default::register_all(&engine.engine)?;
 
         run_setup_query(
             &engine,

@@ -11,6 +11,7 @@ glaredb_core = { path = '../crates/glaredb_core' }
 glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_bench = { path = '../crates/glaredb_bench' }
 
+ext_default = { path = '../crates/ext_default' }
 ext_spark = { path = '../crates/ext_spark' }
 ext_csv = { path = '../crates/ext_csv' }
 ext_parquet = { path = '../crates/ext_parquet' }
