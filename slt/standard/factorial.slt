@@ -1,0 +1,57 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# Test basic factorial functionality
+query I
+SELECT factorial(0);
+----
+1
+
+query I
+SELECT factorial(1);
+----
+1
+
+query I
+SELECT factorial(5);
+----
+120
+
+query I
+SELECT factorial(10);
+----
+3628800
+
+# Test negative input returns NULL
+query I
+SELECT factorial(-1);
+----
+NULL
+
+query I
+SELECT factorial(-5);
+----
+NULL
+
+# Test NULL input returns NULL
+query I
+SELECT factorial(NULL);
+----
+NULL
+
+# Test large factorial that should still work
+query I
+SELECT factorial(20);
+----
+2432902008176640000
+
+# Test factorial in expressions
+query I
+SELECT factorial(3) + factorial(4);
+----
+30
+
+query I
+SELECT factorial(factorial(3));
+----
+720

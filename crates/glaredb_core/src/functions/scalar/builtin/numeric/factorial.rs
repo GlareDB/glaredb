@@ -27,12 +27,10 @@ pub const FUNCTION_SET_FACTORIAL: ScalarFunctionSet = ScalarFunctionSet {
             output: "120",
         }),
     }],
-    functions: &[
-        RawScalarFunction::new(
-            &Signature::new(&[DataTypeId::Int64], DataTypeId::Decimal128),
-            &Factorial::new(),
-        ),
-    ],
+    functions: &[RawScalarFunction::new(
+        &Signature::new(&[DataTypeId::Int64], DataTypeId::Decimal128),
+        &Factorial::new(),
+    )],
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -54,7 +52,7 @@ impl ScalarFunction for Factorial {
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         let decimal_meta = DecimalTypeMeta::new(38, 0);
         let return_type = Decimal128Type::datatype_from_decimal_meta(decimal_meta);
-        
+
         Ok(BindState {
             state: return_type.clone(),
             return_type,
@@ -75,7 +73,7 @@ impl ScalarFunction for Factorial {
                     buf.put_null();
                     return;
                 }
-                
+
                 if n == 0 || n == 1 {
                     buf.put(&1i128);
                     return;
