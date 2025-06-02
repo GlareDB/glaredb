@@ -20,7 +20,7 @@ use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_CEIL: ScalarFunctionSet = ScalarFunctionSet {
     name: "ceil",
-    aliases: &[],
+    aliases: &["ceiling"],
     doc: &[&Documentation {
         category: Category::Numeric,
         description: "Round number up.",
