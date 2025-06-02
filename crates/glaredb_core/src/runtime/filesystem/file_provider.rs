@@ -232,6 +232,7 @@ impl MultiFileProvider {
         }
     }
 
+    #[must_use]
     pub fn expand_n<'a>(&'a mut self, data: &'a mut MultiFileData, n: usize) -> ExpandN<'a> {
         ExpandN {
             provider: self,
@@ -240,6 +241,7 @@ impl MultiFileProvider {
         }
     }
 
+    #[must_use]
     pub fn expand_all<'a>(&'a mut self, data: &'a mut MultiFileData) -> ExpandAll<'a> {
         ExpandAll {
             provider: self,

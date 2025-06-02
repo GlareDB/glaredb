@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use glaredb_core::expr;
 use glaredb_core::functions::table::TableFunctionInput;
 use glaredb_core::functions::table::scan::ScanContext;
@@ -11,7 +13,7 @@ use crate::table::spec;
 
 #[derive(Debug)]
 pub struct TableState {
-    pub metadata: spec::Metadata,
+    pub metadata: Arc<spec::Metadata>,
 }
 
 impl TableState {
@@ -48,15 +50,15 @@ impl TableState {
             MultiFileProvider::try_new_from_inputs(scan_context, &input).await?;
         let mut mf_data = MultiFileData::empty();
         // Read all metadata files according to the glob.
-        mf_prov.expand_all(&mut mf_data);
+        mf_prov.expand_all(&mut mf_data).await?;
 
         // Get the "max" metadata path.
         let metadata_path = match mf_data.expanded().iter().max() {
             Some(max) => max,
             None => {
-                return Err(DbError::new(format!(
-                    "Could not find any metadata files in the table root"
-                )));
+                return Err(DbError::new(
+                    "Could not find any metadata files in the table root",
+                ));
             }
         };
 
@@ -68,7 +70,9 @@ impl TableState {
         let metadata: spec::Metadata = serde_json::from_slice(&read_buf)
             .context_fn(|| format!("Failed to read metadata from {metadata_path}"))?;
 
-        Ok(TableState { metadata })
+        Ok(TableState {
+            metadata: Arc::new(metadata),
+        })
     }
 }
 

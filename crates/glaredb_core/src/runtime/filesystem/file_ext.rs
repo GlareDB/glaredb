@@ -18,6 +18,7 @@ pub trait FileExt: FileHandle {
 
     /// Read from the file until we've either filled up the given buffer, or we
     /// reach the end of the file.
+    #[must_use]
     fn read_fill<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadFill<'a, Self> {
         ReadFill {
             file: self,
@@ -29,6 +30,7 @@ pub trait FileExt: FileHandle {
     /// Completely fill the buffering before resolving.
     ///
     /// Errors if we reach the end of the file before filling the buffer.
+    #[must_use]
     fn read_exact<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadExact<'a, Self> {
         ReadExact {
             fill: ReadFill {
@@ -40,6 +42,7 @@ pub trait FileExt: FileHandle {
     }
 
     /// Set the seek position for the file.
+    #[must_use]
     fn seek(&mut self, seek: io::SeekFrom) -> Seek<'_, Self> {
         Seek { seek, file: self }
     }
