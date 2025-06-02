@@ -38,6 +38,7 @@ impl StatementPlanner {
             BoundStatement::Describe(plan) => Ok(LogicalOperator::Describe(plan)),
             BoundStatement::Explain(explain) => ExplainPlanner.plan(bind_context, explain),
             BoundStatement::CopyTo(copy_to) => CopyPlanner.plan(bind_context, copy_to),
+            BoundStatement::Discard(discard) => Ok(LogicalOperator::Discard(discard)),
         }
     }
 }

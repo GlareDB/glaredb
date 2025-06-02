@@ -206,6 +206,7 @@ where
                 Statement::Attach(self.resolve_attach(attach, &mut resolve_context).await?)
             }
             Statement::Detach(detach) => Statement::Detach(self.resolve_detach(detach).await?),
+            Statement::Discard(discard) => Statement::Discard(discard),
         };
 
         Ok((bound, resolve_context))
