@@ -2,6 +2,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use ext_csv::extension::CsvExtension;
+use ext_iceberg::extension::IcebergExtension;
 use ext_parquet::extension::ParquetExtension;
 use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::engine::single_user::SingleUserEngine;
@@ -36,6 +37,9 @@ pub fn main() -> Result<()> {
 
     // Parquet extension.
     run_with_all_thread_configurations::<ParquetSetup>(&args, "../slt/parquet", "slt_parquet")?;
+
+    // Iceberg extension.
+    run_with_all_thread_configurations::<IcebergSetup>(&args, "../slt/iceberg", "slt_iceberg")?;
 
     // Read files over http
     run_with_all_thread_configurations::<HttpSetup>(&args, "../slt/http", "slt_http")?;
@@ -178,6 +182,26 @@ where
 {
     fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
         engine.register_extension(ParquetExtension)?;
+        Ok(RunConfig {
+            tokio_rt,
+            engine,
+            vars: ReplacementVars::default(),
+            create_slt_tmp: false,
+            query_timeout: Duration::from_secs(5),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct IcebergSetup;
+
+impl<E, R> EngineSetup<E, R> for IcebergSetup
+where
+    E: PipelineRuntime,
+    R: SystemRuntime,
+{
+    fn setup(tokio_rt: TokioRuntime, engine: SingleUserEngine<E, R>) -> Result<RunConfig<E, R>> {
+        engine.register_extension(IcebergExtension)?;
         Ok(RunConfig {
             tokio_rt,
             engine,

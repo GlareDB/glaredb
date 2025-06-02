@@ -1,3 +1,4 @@
 pub mod catalog;
 pub mod extension;
-pub mod spec;
+pub mod functions;
+pub mod table;

@@ -74,6 +74,10 @@ jobs:
         if: success() || failure()
         run: cargo test slt/parquet
 
+      - name: Extension - iceberg (SLT)
+        if: success() || failure()
+        run: cargo test slt/iceberg
+
       - name: File System - HTTP (SLT)
         if: success() || failure()
         run: cargo test slt/http

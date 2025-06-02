@@ -2733,6 +2733,7 @@ name = "test_bin"
 version = "25.5.13"
 dependencies = [
  "ext_csv",
+ "ext_iceberg",
  "ext_parquet",
  "ext_tpch_gen",
  "glaredb_core",

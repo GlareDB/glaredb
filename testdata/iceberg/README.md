@@ -1,43 +1,39 @@
 # Iceberg testdata
 
-Generating iceberg data is done with the `generate_iceberg.py` script. This
-script requires `pyspark` as well as a [Spark runtime
-jar](https://iceberg.apache.org/releases/). The jar should be placed in this
-directory (jars are in gitignore, so don't worry about accidentally checking it
-in).
+Python script(s) for generating iceberg data.
 
-Then just call the script with python:
+## Setup
 
-```
-$ python generate_iceberg.py
-```
+In a new shell within this directory...
 
-This will generate various iceberg tables in `./iceberg/tables-v2` using source
-data from parquet files in `./iceberg/source_data`.
-
-The script accepts an argument `--format-version` which defaults to `2`. You can
-generate data for format version `1` using:
-
-```
-$ python generate_iceberg.py --format-version 1
+```bash
+python -m venv ./.venv
+export VIRTUAL_ENV="$PWD/.venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
+pip install "pyiceberg[pyarrow,sql-sqlite]"
 ```
 
-Test data has also been uploaded to GCS and S3 with the following commands:
+## Running
 
-```
-$ gsutil cp -r iceberg/ gs://glaredb-test/iceberg
-$ aws s3 cp --recursive iceberg/ s3://glaredb-test/iceberg
-```
+Run the generate script:
 
-## Source data
-
-Source data was generated with sql queries like the following:
-
-```sql
-copy (select *
-      from parquet_scan('./benchmarks/artifacts/tpch_1/lineitem/part-0.parquet')
-      order by random()
-      limit 1000)
-  to 'testdata/iceberg/source_data/lineitem.parquet';
+```bash
+python generate.py
 ```
 
+This should write to the `wh` directory.
+
+Note that data generation isn't expected to be idempotent as UUIDs and time
+sensitive fields are used.
+
+Data generation for each "test case" should be defined within an isolated
+function prefixed with `gen_` and be called from main.
+
+## `tables-v1` and `tables-v2`
+
+These iceberg tables were written by `tables.py` using an iceberg jar. I can't
+say I understand why the metadata generated for these tables are different than
+the ones using pyiceberg.
+
+Prefer using the pyiceberg-based script (unless it turns out to not actually
+generate metadata that's commonly used).
