@@ -132,6 +132,14 @@ Compute `e ^ val`.
 
 **Output**: `2.718281828459045`
 
+## `factorial`
+
+Compute the factorial of an integer.
+
+**Example**: `factorial(5)`
+
+**Output**: `120`
+
 ## `floor`
 
 Round number down.
