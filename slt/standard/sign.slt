@@ -23,7 +23,7 @@ SELECT sign(-0.0);
 query R
 SELECT sign('NaN'::FLOAT);
 ----
-NaN
+0
 
 query R
 SELECT sign('Infinity'::FLOAT);

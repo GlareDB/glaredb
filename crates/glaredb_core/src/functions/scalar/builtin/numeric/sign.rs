@@ -65,7 +65,7 @@ impl UnaryInputNumericOperation for SignOp {
             OutBuffer::from_array(output)?,
             |&v, buf| {
                 let result = if v.is_nan() {
-                    v
+                    S::StorageType::zero()
                 } else if v.is_zero() {
                     S::StorageType::zero()
                 } else if v > S::StorageType::zero() {
