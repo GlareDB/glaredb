@@ -86,6 +86,14 @@ Round number up.
 
 **Output**: `5`
 
+## `ceiling`
+
+Round number up.
+
+**Example**: `ceil(4.1)`
+
+**Output**: `5`
+
 ## `cos`
 
 Compute the cosine of a value.
@@ -179,6 +187,14 @@ Compute natural log of value.
 **Output**: `1`
 
 ## `log`
+
+Compute base-10 log of value.
+
+**Example**: `log(100)`
+
+**Output**: `2`
+
+## `log10`
 
 Compute base-10 log of value.
 

@@ -20,7 +20,7 @@ use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_LOG: ScalarFunctionSet = ScalarFunctionSet {
     name: "log",
-    aliases: &[],
+    aliases: &["log10"],
     doc: &[&Documentation {
         category: Category::Numeric,
         description: "Compute base-10 log of value.",
