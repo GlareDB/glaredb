@@ -7,7 +7,7 @@ use glaredb_error::{DbError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 
 use super::{PartitionField, Schema};
-use crate::spec::PartitionSpec;
+use crate::table::spec::PartitionSpec;
 
 /// Manifest lists include summary medata for the table alongside the path the
 /// actual manifest.

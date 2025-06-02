@@ -13,7 +13,7 @@ use super::Schema;
 /// JSON serialization only.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct TableMetadata {
+pub struct Metadata {
     pub format_version: i32,
     pub table_uuid: String,
     pub location: String,
