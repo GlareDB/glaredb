@@ -67,6 +67,8 @@ Divides the left value by the right value.
 
 ### `add`
 
+Alias of `+`.
+
 Adds two numeric values together.
 
 **Example**: `5 + 3`
@@ -74,6 +76,8 @@ Adds two numeric values together.
 **Output**: `8`
 
 ### `div`
+
+Alias of `/`.
 
 Divides the left value by the right value.
 
@@ -83,6 +87,8 @@ Divides the left value by the right value.
 
 ### `mul`
 
+Alias of `*`.
+
 Multiplies two numeric values.
 
 **Example**: `5 * 3`
@@ -91,6 +97,8 @@ Multiplies two numeric values.
 
 ### `rem`
 
+Alias of `%`.
+
 Returns the remainder after dividing the left value by the right value.
 
 **Example**: `10 % 3`
@@ -98,6 +106,8 @@ Returns the remainder after dividing the left value by the right value.
 **Output**: `1`
 
 ### `sub`
+
+Alias of `-`.
 
 Subtracts the right value from the left value.
 
@@ -137,6 +147,8 @@ Check if the left value is less than or equal to the right. Returns NULL if eith
 **Output**: `false`
 
 ### `<>`
+
+Alias of `!=`.
 
 Check if two values are not equal. Returns NULL if either argument is NULL.
 

@@ -27,13 +27,14 @@ impl<const HEADER_LEVEL: usize> SectionWriter for FunctionSectionWriter<HEADER_L
             r#"
             SELECT DISTINCT
               function_name,
+              alias_of,
               description,
               example,
               example_output
             FROM
               list_functions()
             WHERE category = '{}'
-            ORDER BY 1,2,3,4;
+            ORDER BY 1,2,3,4,5;
             "#,
             self.category.as_str(),
         );
@@ -45,13 +46,18 @@ impl<const HEADER_LEVEL: usize> SectionWriter for FunctionSectionWriter<HEADER_L
         for batch in result.batches {
             for row in 0..batch.num_rows() {
                 let function_name = FORMATTER.format_array_value(&batch.arrays()[0], row)?;
-                let description = FORMATTER.format_array_value(&batch.arrays()[1], row)?;
+                let alias_of = batch.arrays()[1].get_value(row)?;
+                let description = FORMATTER.format_array_value(&batch.arrays()[2], row)?;
 
                 writeln!(output, "{header_prefix} `{}`\n", function_name)?;
+                if !alias_of.is_null() {
+                    writeln!(output, "Alias of `{alias_of}`.\n")?;
+                }
+
                 writeln!(output, "{}\n", description)?;
 
-                let example = batch.arrays()[2].get_value(row)?;
-                let example_output = batch.arrays()[3].get_value(row)?;
+                let example = batch.arrays()[3].get_value(row)?;
+                let example_output = batch.arrays()[4].get_value(row)?;
                 if !example.is_null() {
                     writeln!(output, "**Example**: `{}`\n", example)?;
                     writeln!(output, "**Output**: `{}`\n", example_output)?;

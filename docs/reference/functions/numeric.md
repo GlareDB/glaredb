@@ -88,6 +88,8 @@ Round number up.
 
 ## `ceiling`
 
+Alias of `ceil`.
+
 Round number up.
 
 **Example**: `ceil(4.1)`
@@ -196,6 +198,8 @@ Compute base-10 log of value.
 
 ## `log10`
 
+Alias of `log`.
+
 Compute base-10 log of value.
 
 **Example**: `log(100)`
@@ -227,6 +231,8 @@ Return the value of pi.
 **Output**: `3.141592653589793`
 
 ## `pow`
+
+Alias of `power`.
 
 Compute base raised to the power of exponent.
 
