@@ -198,6 +198,7 @@ name = "bench_bin"
 version = "25.5.13"
 dependencies = [
  "ext_csv",
+ "ext_default",
  "ext_iceberg",
  "ext_parquet",
  "ext_spark",
@@ -747,6 +748,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext_default"
+version = "25.5.13"
+dependencies = [
+ "ext_csv",
+ "ext_iceberg",
+ "ext_parquet",
+ "ext_spark",
+ "ext_tpch_gen",
+ "glaredb_core",
+ "glaredb_error",
+]
+
+[[package]]
 name = "ext_delta"
 version = "25.5.13"
 dependencies = [
@@ -1002,11 +1016,7 @@ version = "25.5.13"
 dependencies = [
  "clap",
  "crossterm",
- "ext_csv",
- "ext_iceberg",
- "ext_parquet",
- "ext_spark",
- "ext_tpch_gen",
+ "ext_default",
  "futures",
  "glaredb_core",
  "glaredb_error",
@@ -1172,12 +1182,7 @@ version = "25.5.13"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
- "ext_csv",
- "ext_delta",
- "ext_iceberg",
- "ext_parquet",
- "ext_spark",
- "ext_tpch_gen",
+ "ext_default",
  "futures",
  "getrandom 0.3.3",
  "glaredb_core",

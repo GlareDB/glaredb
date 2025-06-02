@@ -35,12 +35,7 @@ glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 glaredb_http = { path = '../glaredb_http' }
 
-ext_csv = { path = '../ext_csv' }
-ext_parquet = { path = '../ext_parquet' }
-ext_delta = { path = '../ext_delta' }
-ext_iceberg = { path = '../ext_iceberg' }
-ext_spark = { path = '../ext_spark' }
-ext_tpch_gen = { path = '../ext_tpch_gen' }
+ext_default = { path = '../ext_default' }
 
 futures = { workspace = true }
 parking_lot = { workspace = true }

@@ -13,11 +13,7 @@ glaredb_error = { path = '../glaredb_error' }
 glaredb_core = { path = '../glaredb_core' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 
-ext_spark = { path = '../ext_spark' }
-ext_csv = { path = '../ext_csv' }
-ext_parquet = { path = '../ext_parquet' }
-ext_tpch_gen = { path = '../ext_tpch_gen' }
-ext_iceberg = { path = '../ext_iceberg' }
+ext_default = { path = '../ext_default' }
 
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
