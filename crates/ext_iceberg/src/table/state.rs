@@ -5,9 +5,9 @@ use glaredb_core::functions::table::TableFunctionInput;
 use glaredb_core::functions::table::scan::ScanContext;
 use glaredb_core::optimizer::expr_rewrite::ExpressionRewriteRule;
 use glaredb_core::optimizer::expr_rewrite::const_fold::ConstFold;
+use glaredb_core::runtime::filesystem::OpenFlags;
 use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
-use glaredb_core::runtime::filesystem::{FileSystemWithState, OpenFlags};
-use glaredb_error::{DbError, Result, ResultExt, not_implemented};
+use glaredb_error::{DbError, Result, ResultExt};
 
 use crate::table::spec;
 
@@ -63,7 +63,7 @@ impl TableState {
         };
 
         // Now read it.
-        let mut file = fs.open(OpenFlags::READ, &metadata_path).await?;
+        let mut file = fs.open(OpenFlags::READ, metadata_path).await?;
         let mut read_buf = vec![0; file.call_size() as usize];
         file.call_read_exact(&mut read_buf).await?;
 
@@ -85,12 +85,53 @@ fn format_glob_for_metadata(root: &str, version: Option<&str>) -> String {
     // Note that there's nothing in the spec about if <version> should be just
     // an int, or be prefixed with 'v'. pyiceberg seems to generate metadata
     // files without the 'v', so let's just say that's part of the "version".
+    //
+    // Also we somehow have tables that don't have uuids in the metadata name,
+    // so the entire metadata file name is something like 'v2.metadata.json'. I
+    // don't know if that's valid or not.
     match version {
-        Some(version) => format!("{root}/metadata/{version}-*.metadata.json"),
+        Some(version) => format!("{root}/metadata/{version}*.metadata.json"),
         None => {
             // No version, we'll be globbing everything in metadata, and find
             // the lexicographically greatest file as the latest.
             format!("{root}/metadata/*.metadata.json")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_glob_cases() {
+        struct TestCase {
+            root: &'static str,
+            version: Option<&'static str>,
+            expected: &'static str,
+        }
+
+        let cases = [
+            TestCase {
+                root: "wh/default.db",
+                version: None,
+                expected: "wh/default.db/metadata/*.metadata.json",
+            },
+            TestCase {
+                root: "wh/default.db",
+                version: Some("00001"),
+                expected: "wh/default.db/metadata/00001*.metadata.json",
+            },
+            TestCase {
+                root: "wh/default.db/", // Trailing slash
+                version: Some("00001"),
+                expected: "wh/default.db/metadata/00001*.metadata.json",
+            },
+        ];
+
+        for case in cases {
+            let got = format_glob_for_metadata(case.root, case.version);
+            assert_eq!(case.expected, got);
         }
     }
 }

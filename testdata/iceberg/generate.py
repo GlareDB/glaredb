@@ -22,7 +22,7 @@ def gen_simple_cities(catalog):
     tbl.overwrite(df)
 
 
-if __name__ == "__main__":
+def main():
     catalog = load_catalog(
         "default",
         **{
@@ -32,5 +32,8 @@ if __name__ == "__main__":
         },
     )
     catalog.create_namespace("default")
+    # gen_simple_cities(catalog)
 
-    gen_simple_cities(catalog)
+
+if __name__ == "__main__":
+    main()

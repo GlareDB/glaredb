@@ -84,6 +84,7 @@ impl TableScanFunction for IcebergMetadata {
             data_schema: ColumnSchema::new([
                 Field::new("format_version", DataType::int32(), false),
                 Field::new("table_uuid", DataType::utf8(), false),
+                Field::new("location", DataType::utf8(), false),
             ]),
             meta_schema: None,
             cardinality: StatisticsValue::Unknown,
@@ -137,6 +138,12 @@ impl TableScanFunction for IcebergMetadata {
                                 // table_uuid
                                 let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
                                 data.put(0, &op_state.metadata.table_uuid);
+                                Ok(())
+                            }
+                            ProjectedColumn::Data(2) => {
+                                // location
+                                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                                data.put(0, &op_state.metadata.location);
                                 Ok(())
                             }
                             other => panic!("invalid projection: {other:?}"),
