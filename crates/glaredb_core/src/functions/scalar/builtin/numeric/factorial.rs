@@ -40,12 +40,12 @@ impl Factorial {
 }
 
 impl ScalarFunction for Factorial {
-    type State = DataType;
+    type State = ();
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::State>> {
         Ok(BindState {
-            state: DataType::INT128.clone(),
-            return_type: DataType::INT128.clone(),
+            state: (),
+            return_type: DataType::int128(),
             inputs,
         })
     }
