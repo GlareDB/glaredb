@@ -7,3 +7,13 @@ query TT
 SELECT function_name, function_type FROM list_functions() WHERE function_name = 'regr_count';
 ----
 regr_count  aggregate
+
+query TT
+SELECT DISTINCT function_name, alias_of FROM list_functions() WHERE function_name = 'ceil';
+----
+ceil  NULL
+
+query TT
+SELECT DISTINCT function_name, alias_of FROM list_functions() WHERE function_name = 'ceiling';
+----
+ceiling  ceil
