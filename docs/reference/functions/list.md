@@ -8,6 +8,8 @@ title: List Functions
 
 ## `array_distance`
 
+Alias of `l2_distance`.
+
 Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.
 
 **Example**: `l2_distance([1.0, 1.0], [2.0, 4.0])`

@@ -40,6 +40,8 @@ Get the number of bytes in a string or blob.
 
 ## `char_length`
 
+Alias of `length`.
+
 Get the number of characters in a string.
 
 **Example**: `length('tschüß')`
@@ -47,6 +49,8 @@ Get the number of characters in a string.
 **Output**: `6`
 
 ## `character_length`
+
+Alias of `length`.
 
 Get the number of characters in a string.
 
@@ -87,6 +91,8 @@ Convert first letter of each word to uppercase.
 **Output**: `Hello World`
 
 ## `instr`
+
+Alias of `strpos`.
 
 Returns the position of a substring within a string. Returns 0 if the substring is not found.
 
@@ -152,6 +158,8 @@ Compute the MD5 hash of a string, returning the result as a hexadecimal string.
 
 ## `octet_length`
 
+Alias of `byte_length`.
+
 Get the number of bytes in a string or blob.
 
 **Example**: `byte_length('tschüß')`
@@ -159,6 +167,8 @@ Get the number of bytes in a string or blob.
 **Output**: `6`
 
 ## `prefix`
+
+Alias of `starts_with`.
 
 Check if a string starts with a prefix.
 
@@ -240,6 +250,8 @@ Returns the position of a substring within a string. Returns 0 if the substring 
 
 ## `substr`
 
+Alias of `substring`.
+
 Get a substring of a string starting at an index until the end of the string. The index is 1-based.
 
 **Example**: `substring('alphabet', 3)`
@@ -256,6 +268,8 @@ Get a substring of a string starting at an index until the end of the string. Th
 
 ## `suffix`
 
+Alias of `ends_with`.
+
 Check if a string ends with a suffix.
 
 **Example**: `ends_with('house', 'se')`
@@ -271,6 +285,8 @@ Replace each character in string that matches a character in the from set with t
 **Output**: `a2x5`
 
 ## `trim`
+
+Alias of `btrim`.
 
 Trim matching characters from both sides of the string.
 

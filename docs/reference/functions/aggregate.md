@@ -18,6 +18,8 @@ Compute the approximate quantile using a T-Digest sketch.
 
 ### `approx_unique`
 
+Alias of `approx_count_distinct`.
+
 Return an estimated number of distinct, non-NULL values in the input.
 
 ### `avg`
@@ -45,6 +47,8 @@ Returns true if any non-NULL input is true, otherwise false.
 Return the count of non-NULL inputs.
 
 ### `every`
+
+Alias of `bool_and`.
 
 Returns true if all non-NULL inputs are true, otherwise false.
 
@@ -110,6 +114,8 @@ Compute the square of the correlation coefficient.
 Compute the slope of the least-squares-fit linear equation.
 
 ### `stddev`
+
+Alias of `stddev_samp`.
 
 Compute the sample standard deviation.
 

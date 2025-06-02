@@ -17,7 +17,7 @@ use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::TableFunctionSet;
+use crate::functions::function_set::{FunctionSet, TableFunctionSet};
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::statistics::value::StatisticsValue;
@@ -389,9 +389,14 @@ pub struct ListFunctionsPartitionState {
 
 #[derive(Debug, Clone)]
 struct NamespacedFunction {
+    /// Qualified entry.
     entry: NamespacedEntry,
+    /// Signature of the function.
     signature: &'static Signature,
+    /// Optional documentation for the function.
     doc: Option<&'static Documentation>,
+    /// If this function is an alias for another function.
+    alias_of: Option<&'static str>,
 }
 
 /// Get the documentation object that matches the provided arity.
@@ -457,6 +462,7 @@ impl TableScanFunction for ListFunctions {
                 Field::new("database_name", DataType::utf8(), false),
                 Field::new("schema_name", DataType::utf8(), false),
                 Field::new("function_name", DataType::utf8(), false),
+                Field::new("alias_of", DataType::utf8(), true),
                 Field::new("function_type", DataType::utf8(), false),
                 Field::new("category", DataType::utf8(), false),
                 Field::new("arguments", DataType::list(DataType::utf8()), false),
@@ -493,6 +499,16 @@ impl TableScanFunction for ListFunctions {
         for (idx, chunk) in op_state.entries.chunks(props.batch_size).enumerate() {
             let part_idx = idx % states.len();
 
+            fn alias_of<F>(ent: &CatalogEntry, fn_set: &FunctionSet<F>) -> Option<&'static str> {
+                // Assume that if the entry name doens't match the function
+                // name, then it's an alias.
+                if ent.name == fn_set.name {
+                    None
+                } else {
+                    Some(fn_set.name)
+                }
+            }
+
             // TODO: Do I care about perf here?
             for entry in chunk {
                 // entry entry entry
@@ -503,6 +519,7 @@ impl TableScanFunction for ListFunctions {
                                 entry: entry.clone(),
                                 signature: sig,
                                 doc: get_doc_for_arity(f.function.doc, sig.positional_args.len()),
+                                alias_of: alias_of(&entry.ent, f.function),
                             });
                         }
                     }
@@ -512,6 +529,7 @@ impl TableScanFunction for ListFunctions {
                                 entry: entry.clone(),
                                 signature: sig,
                                 doc: get_doc_for_arity(f.function.doc, sig.positional_args.len()),
+                                alias_of: alias_of(&entry.ent, f.function),
                             });
                         }
                     }
@@ -521,6 +539,7 @@ impl TableScanFunction for ListFunctions {
                                 entry: entry.clone(),
                                 signature: sig,
                                 doc: get_doc_for_arity(f.function.doc, sig.positional_args.len()),
+                                alias_of: alias_of(&entry.ent, f.function),
                             });
                         }
                     }
@@ -569,6 +588,18 @@ impl TableScanFunction for ListFunctions {
                     Ok(())
                 }
                 ProjectedColumn::Data(3) => {
+                    // alias_of
+                    let (data, validity) = output.data_and_validity_mut();
+                    let mut data = PhysicalUtf8::get_addressable_mut(data)?;
+                    for idx in 0..count {
+                        match state.entries[idx + state.offset].alias_of {
+                            Some(alias_of) => data.put(idx, alias_of),
+                            None => validity.set_invalid(idx),
+                        }
+                    }
+                    Ok(())
+                }
+                ProjectedColumn::Data(4) => {
                     // Function type
                     let mut function_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     for idx in 0..count {
@@ -579,7 +610,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                ProjectedColumn::Data(4) => {
+                ProjectedColumn::Data(5) => {
                     // Category
                     let (data, validity) = output.data_and_validity_mut();
                     let mut categories = PhysicalUtf8::get_addressable_mut(data)?;
@@ -591,7 +622,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                ProjectedColumn::Data(5) => {
+                ProjectedColumn::Data(6) => {
                     // Arguments
                     for idx in 0..count {
                         let ent = &state.entries[idx + state.offset];
@@ -618,7 +649,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                ProjectedColumn::Data(6) => {
+                ProjectedColumn::Data(7) => {
                     // Argument types
                     for idx in 0..count {
                         let mut types = Vec::new(); // TODO: No need to allocate every time.
@@ -637,7 +668,7 @@ impl TableScanFunction for ListFunctions {
 
                     Ok(())
                 }
-                ProjectedColumn::Data(7) => {
+                ProjectedColumn::Data(8) => {
                     // Return type
                     let mut ret_types = PhysicalUtf8::get_addressable_mut(&mut output.data)?;
                     let mut s_buf = String::new();
@@ -652,7 +683,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                ProjectedColumn::Data(8) => {
+                ProjectedColumn::Data(9) => {
                     // Description
                     let (data, validity) = output.data_and_validity_mut();
                     let mut descriptions = PhysicalUtf8::get_addressable_mut(data)?;
@@ -664,7 +695,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                ProjectedColumn::Data(9) => {
+                ProjectedColumn::Data(10) => {
                     // Example
                     let (data, validity) = output.data_and_validity_mut();
                     let mut examples = PhysicalUtf8::get_addressable_mut(data)?;
@@ -679,7 +710,7 @@ impl TableScanFunction for ListFunctions {
                     }
                     Ok(())
                 }
-                ProjectedColumn::Data(10) => {
+                ProjectedColumn::Data(11) => {
                     // Example output
                     let (data, validity) = output.data_and_validity_mut();
                     let mut example_outputs = PhysicalUtf8::get_addressable_mut(data)?;

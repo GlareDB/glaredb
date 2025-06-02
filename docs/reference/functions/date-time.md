@@ -40,6 +40,8 @@ Converts a Unix timestamp in milliseconds to a timestamp.
 
 ## `epoch_s`
 
+Alias of `epoch`.
+
 Converts a Unix timestamp in seconds to a timestamp.
 
 **Example**: `epoch(1675209600)`
