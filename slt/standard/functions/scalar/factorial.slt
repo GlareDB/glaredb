@@ -45,6 +45,12 @@ SELECT factorial(20);
 ----
 2432902008176640000
 
+# Test factorial(25) - result larger than i64
+query I
+SELECT factorial(25);
+----
+15511210043330985984000000
+
 # Test factorial in expressions
 query I
 SELECT factorial(3) + factorial(4);
