@@ -1,6 +1,10 @@
 use glaredb_core::extension::{Extension, ExtensionTableFunction};
 
-use crate::functions::metadata::{FUNCTION_SET_ICEBERG_METADATA, FUNCTION_SET_ICEBERG_SNAPSHOTS};
+use crate::functions::metadata::{
+    FUNCTION_SET_ICEBERG_MANIFEST_LIST,
+    FUNCTION_SET_ICEBERG_METADATA,
+    FUNCTION_SET_ICEBERG_SNAPSHOTS,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct IcebergExtension;
@@ -15,6 +19,7 @@ impl Extension for IcebergExtension {
             // Metadata functions
             ExtensionTableFunction::new(&FUNCTION_SET_ICEBERG_METADATA),
             ExtensionTableFunction::new(&FUNCTION_SET_ICEBERG_SNAPSHOTS),
+            ExtensionTableFunction::new(&FUNCTION_SET_ICEBERG_MANIFEST_LIST),
         ];
 
         FUNCTIONS

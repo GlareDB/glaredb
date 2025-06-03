@@ -34,8 +34,8 @@ pub struct ManifestFile {
     /// v1: n/a
     /// v2: required
     /// v3: required
-    #[serde(default)]
-    pub content: i32,
+    #[serde(default)] // v1 is always "data" (no deletes)
+    pub content: i32, // Convert to ManifestContent
     /// v1: n/a
     /// v2: required
     /// v3: required
@@ -56,39 +56,45 @@ pub struct ManifestFile {
     /// v1: optional
     /// v2: required
     /// v3: required
-    pub added_files_count: Option<i32>,
+    #[serde(default)] // Avro is terrible format.
+    pub added_files_count: i32,
     /// > Number of entries in the manifest that have status EXISTING (0), when
     /// > null this is assumed to be non-zero
     ///
     /// v1: optional
     /// v2: required
     /// v3: required
-    pub existing_files_count: Option<i32>,
+    #[serde(default)] // Avro is terrible format.
+    pub existing_files_count: i32,
     /// > Number of entries in the manifest that have status DELETED (2), when
     /// > null this is assumed to be non-zero
     ///
     /// v1: optional
     /// v2: required
     /// v3: required
-    pub deleted_files_count: Option<i32>,
+    #[serde(default)] // Avro is terrible format.
+    pub deleted_files_count: i32,
     /// > Number of rows in all of files in the manifest that have status ADDED,
     /// > when null this is assumed to be non-zero
     ///
     /// v1: optional
     /// v2: required
     /// v3: required
-    pub added_rows_count: Option<i64>,
+    #[serde(default)] // Avro is terrible format.
+    pub added_rows_count: i64,
     /// > Number of rows in all of files in the manifest that have status
     /// > EXISTING, when null this is assumed to be non-zero
     ///
     /// v1: optional
     /// v2: required
     /// v3: required
-    pub existing_rows_count: Option<i64>,
+    #[serde(default)] // Avro is terrible format.
+    pub existing_rows_count: i64,
     /// v1: optional
     /// v2: required
     /// v3: required
-    pub deleted_rows_count: Option<i64>,
+    #[serde(default)] // Avro is terrible format.
+    pub deleted_rows_count: i64,
     /// v1: optional
     /// v2: optional
     /// v3: optional
@@ -103,7 +109,8 @@ pub struct ManifestFile {
     /// v1: n/a
     /// v2: n/a
     /// v3: optional
-    pub first_row_id: Option<i64>,
+    #[serde(default)] // Avro is terrible format.
+    pub first_row_id: i64,
 }
 
 /// A list of manifest files.
@@ -166,10 +173,33 @@ pub struct ManifestMetadata {
     pub content: ManifestContent,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ManifestContent {
     Data,
     Delete,
+}
+
+impl From<ManifestContent> for i32 {
+    fn from(value: ManifestContent) -> Self {
+        match value {
+            ManifestContent::Data => 0,
+            ManifestContent::Delete => 1,
+        }
+    }
+}
+
+impl TryFrom<i32> for ManifestContent {
+    type Error = DbError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::Data,
+            1 => Self::Delete,
+            i => {
+                return Err(DbError::new(format!("unknown manifest content: {i}")));
+            }
+        })
+    }
 }
 
 impl FromStr for ManifestContent {

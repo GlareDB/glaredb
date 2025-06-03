@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use glaredb_core::expr;
 use glaredb_core::functions::table::TableFunctionInput;
 use glaredb_core::functions::table::scan::ScanContext;
@@ -13,10 +11,11 @@ use crate::table::spec;
 
 #[derive(Debug)]
 pub struct TableState {
+    pub root: String,
     pub fs: FileSystemWithState,
-    pub metadata: Arc<spec::Metadata>,
-    pub manifest_list: Option<Arc<spec::ManifestList>>,
-    pub manifests: Option<Arc<Vec<spec::Manifest>>>,
+    pub metadata: spec::Metadata,
+    pub manifest_list: Option<spec::ManifestList>,
+    pub manifests: Option<Vec<spec::Manifest>>,
 }
 
 impl TableState {
@@ -43,6 +42,8 @@ impl TableState {
             ),
             None => None,
         };
+
+        // TODO: Pull out optional "snapshot" arg.
 
         let glob = format_glob_for_metadata(&root, version.as_deref());
         // Replace first arg with the glob.
@@ -74,8 +75,9 @@ impl TableState {
             .context_fn(|| format!("Failed to read metadata from {metadata_path}"))?;
 
         Ok(TableState {
+            root,
             fs,
-            metadata: Arc::new(metadata),
+            metadata,
             manifest_list: None,
             manifests: None,
         })
@@ -90,14 +92,18 @@ impl TableState {
         // TODO: Make this an option if someone _really_ wants the absolute
         // path.
         let manifest_list_rel = relative_path(&self.metadata.location, manifest_list_path);
-        let path = format!("{}/{}", self.metadata.location, manifest_list_rel);
+        let path = format!("{}/{}", self.root, manifest_list_rel);
 
-        let mut file = self.fs.open(OpenFlags::READ, &path).await?;
+        let mut file = self
+            .fs
+            .open(OpenFlags::READ, &path)
+            .await
+            .context_fn(|| format!("Failed to open manifest list at '{path}'"))?;
         let mut read_buf = vec![0; file.call_size() as usize];
         file.call_read_exact(&mut read_buf).await?;
 
         let list = spec::ManifestList::from_raw_avro(&read_buf)?;
-        self.manifest_list = Some(Arc::new(list));
+        self.manifest_list = Some(list);
 
         Ok(self.manifest_list.as_ref().unwrap())
     }
@@ -119,7 +125,7 @@ impl TableState {
 
         for ent in &list.entries {
             let manifest_rel = relative_path(&self.metadata.location, &ent.manifest_path);
-            let path = format!("{}/{}", self.metadata.location, manifest_rel);
+            let path = format!("{}/{}", self.root, manifest_rel);
 
             let mut file = self.fs.open(OpenFlags::READ, &path).await?;
             read_buf.resize(file.call_size() as usize, 0);
@@ -129,7 +135,7 @@ impl TableState {
             manifests.push(manifest);
         }
 
-        self.manifests = Some(Arc::new(manifests));
+        self.manifests = Some(manifests);
 
         Ok(self.manifests.as_ref().unwrap())
     }
