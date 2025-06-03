@@ -8,6 +8,7 @@ use crate::ast::{
     CreateView,
     Describe,
     Detach,
+    DiscardStatement,
     DropStatement,
     ExplainNode,
     Insert,
@@ -62,4 +63,7 @@ pub enum Statement<T: AstMeta> {
 
     /// RESET <variable>
     ResetVariable(ResetVariable<T>),
+
+    /// DISCARD ...
+    Discard(DiscardStatement),
 }

@@ -181,6 +181,7 @@ impl ExplainNode {
             LogicalOperator::Unnest(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::Window(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::TableExecute(n) => (n.explain_entry(config), &n.children),
+            LogicalOperator::Discard(n) => (n.explain_entry(config), &n.children),
             LogicalOperator::MaterializationScan(n) => {
                 // Materialization displayed separately.
                 return ExplainNode {

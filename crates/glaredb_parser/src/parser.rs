@@ -10,6 +10,7 @@ use crate::ast::{
     CreateView,
     Describe,
     Detach,
+    DiscardStatement,
     DropStatement,
     ExplainNode,
     Ident,
@@ -118,6 +119,7 @@ impl<'a> Parser<'a> {
                     }
                     Keyword::INSERT => Ok(RawStatement::Insert(Insert::parse(self)?)),
                     Keyword::EXPLAIN => Ok(RawStatement::Explain(ExplainNode::parse(self)?)),
+                    Keyword::DISCARD => Ok(RawStatement::Discard(DiscardStatement::parse(self)?)),
                     other => Err(DbError::new(format!("Unexpected keyword: {other:?}",))),
                 }
             }

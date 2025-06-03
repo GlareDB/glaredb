@@ -1,4 +1,7 @@
+// TODO: The auto formatting for this isn't good.
 pub mod copy;
+pub mod discard;
+pub use discard::*;
 pub mod show;
 pub use copy::*;
 pub use show::*;

@@ -1,0 +1,7 @@
+# Placeholder for DISCARD tests
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement error
+DISCARD METADATA;
