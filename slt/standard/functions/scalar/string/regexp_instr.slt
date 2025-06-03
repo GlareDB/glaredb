@@ -1,0 +1,79 @@
+# regexp_instr function
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query I
+SELECT regexp_instr('number of your street, town zip, FR', '[^,]+');
+----
+1
+
+query I
+SELECT regexp_instr('number of your street, town zip, FR', 'town');
+----
+24
+
+query I
+SELECT regexp_instr('abcdef', 'cd');
+----
+3
+
+query I
+SELECT regexp_instr('abcdef', 'xyz');
+----
+0
+
+query I
+SELECT regexp_instr('', 'a');
+----
+0
+
+query I
+SELECT regexp_instr('hello world', '\w+');
+----
+1
+
+query I
+SELECT regexp_instr('hello world', 'world');
+----
+7
+
+query I
+SELECT regexp_instr('alphabet', '[ae]');
+----
+1
+
+query I
+SELECT regexp_instr('alphabet', '[xy]');
+----
+0
+
+query I
+SELECT regexp_instr('', '.*');
+----
+1
+
+query I
+SELECT regexp_instr('', '.+');
+----
+0
+
+statement ok
+CREATE TEMP TABLE t1 (id INT, val TEXT, regex TEXT)
+
+statement ok
+INSERT INTO t1 VALUES
+  (1, 'dog cat dog', 'cat'),
+  (2, 'dog cat dog', 'bird'),
+  (3, 'alphabet', '[ae]'),
+  (4, NULL, 'dog'),
+  (5, 'dog', NULL)
+
+query II
+SELECT id, regexp_instr(val, regex) FROM t1 ORDER BY id;
+----
+1  5
+2  0
+3  1
+4  NULL
+5  NULL
