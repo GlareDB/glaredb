@@ -23,8 +23,8 @@ pub const FUNCTION_SET_REGEXP_INSTR: ScalarFunctionSet = ScalarFunctionSet {
         description: "Returns the starting position of the first match of a regular expression pattern in a string.",
         arguments: &["string", "pattern"],
         example: Some(Example {
-            example: "regexp_instr('number of your street, town zip, FR', 'town')",
-            output: "23",
+            example: "regexp_instr('abcdef', 'cd')",
+            output: "3",
         }),
     }],
     functions: &[RawScalarFunction::new(
