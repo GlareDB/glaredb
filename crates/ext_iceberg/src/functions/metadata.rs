@@ -28,6 +28,7 @@ use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
 use glaredb_error::{OptionExt, Result};
 
+use crate::table::spec;
 use crate::table::state::TableState;
 
 pub const FUNCTION_SET_ICEBERG_METADATA: TableFunctionSet = TableFunctionSet {
@@ -72,6 +73,21 @@ pub const FUNCTION_SET_ICEBERG_MANIFEST_LIST: TableFunctionSet = TableFunctionSe
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
         &MetadataFunction::<IcebergManifestList>::new(),
+    )],
+};
+
+pub const FUNCTION_SET_ICEBERG_DATA_FILES: TableFunctionSet = TableFunctionSet {
+    name: "iceberg_data_files",
+    aliases: &[],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "List the data files associated with the table metadata.",
+        arguments: &["table_root"],
+        example: None,
+    }],
+    functions: &[RawTableFunction::new_scan(
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+        &MetadataFunction::<IcebergDataFiles>::new(),
     )],
 };
 
@@ -354,6 +370,114 @@ impl MetadataScan for IcebergManifestList {
         })?;
 
         state.ent_idx += count;
+        output.set_num_rows(count)?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IcebergDataFiles;
+
+#[derive(Debug, Default)]
+pub struct IcebergDataFilesState {
+    flattened_idx: usize,
+}
+
+impl MetadataScan for IcebergDataFiles {
+    const COLUMNS: &[ScanColumn] = &[
+        ScanColumn::new("status", DataType::utf8(), false),
+        ScanColumn::new("content", DataType::utf8(), false),
+        ScanColumn::new("file_path", DataType::utf8(), false),
+        ScanColumn::new("file_format", DataType::utf8(), false),
+        ScanColumn::new("record_count", DataType::int64(), false),
+    ];
+    const LOAD_REQUIREMENT: LoadRequirement = LoadRequirement::Manifests;
+
+    type State = IcebergDataFilesState;
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        table_state: &TableState,
+        output: &mut Batch,
+    ) -> Result<()> {
+        let manifests = table_state.manifests.as_ref().required("manifests")?;
+        let total_count: usize = manifests.iter().map(|man| man.entries.len()).sum();
+        if state.flattened_idx >= total_count {
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        let cap = output.write_capacity()?;
+        let rem = total_count - state.flattened_idx;
+        let count = usize::min(cap, rem);
+
+        struct FlattenedManifest<'a> {
+            #[allow(unused)]
+            metadata: &'a spec::ManifestMetadata,
+            entry: &'a spec::ManifestEntry,
+        }
+
+        let flattened_iter = || {
+            // Associate the manifest metadata with every entry.
+            manifests
+                .iter()
+                .flat_map(|man| {
+                    man.entries.iter().map(|entry| FlattenedManifest {
+                        metadata: &man.metadata,
+                        entry,
+                    })
+                })
+                .skip(state.flattened_idx)
+                .take(count)
+        };
+
+        projections.for_each_column(output, &mut |col, arr| match col {
+            ProjectedColumn::Data(0) => {
+                // status
+                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in flattened_iter().enumerate() {
+                    data.put(idx, ent.entry.status.as_str());
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(1) => {
+                // content
+                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in flattened_iter().enumerate() {
+                    data.put(idx, ent.entry.data_file.content.as_str());
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(2) => {
+                // file_path
+                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in flattened_iter().enumerate() {
+                    data.put(idx, &ent.entry.data_file.file_path);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(3) => {
+                // file_format
+                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in flattened_iter().enumerate() {
+                    data.put(idx, &ent.entry.data_file.file_format);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(4) => {
+                // record_count
+                let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in flattened_iter().enumerate() {
+                    data.put(idx, &ent.entry.data_file.record_count);
+                }
+                Ok(())
+            }
+            other => panic!("invalid projection: {other:?}"),
+        })?;
+
+        state.flattened_idx += count;
         output.set_num_rows(count)?;
 
         Ok(())
