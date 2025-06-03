@@ -11,39 +11,143 @@ use super::Schema;
 /// On disk table metadata.
 ///
 /// JSON serialization only.
+// TODO: Very big (and will get bigger), add some Cow.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Metadata {
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub format_version: i32,
-    pub table_uuid: String,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub table_uuid: Option<String>,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub location: String,
+    /// v1: n/a
+    /// v2: required
+    /// v3: required
+    pub last_sequence_number: Option<i64>,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub last_updated_ms: i64,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub last_column_id: i32,
+    /// v1: required
+    /// v2: n/a
+    /// v3: n/a
+    pub schema: Option<Schema>,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
     pub schemas: Vec<Schema>,
-    pub current_schema_id: i32,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub current_schema_id: Option<i32>,
+    /// v1: required
+    /// v2: n/a
+    /// v3: n/a
+    pub partition_spec: Option<PartitionSpec>,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
     pub partition_specs: Vec<PartitionSpec>,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
     pub default_spec_id: i32,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
     pub last_partition_id: i32,
-    pub properties: Option<HashMap<String, String>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
+    #[serde(default)] // Empty map if not provided.
+    pub properties: HashMap<String, String>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub current_snapshot_id: Option<i64>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub snapshots: Vec<Snapshot>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub snapshot_log: Vec<SnapshotLog>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub metadata_log: Vec<MetadataLog>,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    #[serde(default)] // Empty vec if not provided.
     pub sort_orders: Vec<SortOrder>,
-    pub default_sort_order_id: i32,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub default_sort_order_id: Option<i32>,
+    /// v1: n/a
+    /// v2: n/a
+    /// v3: required
+    pub next_row_id: Option<i64>,
     // TODO: Figure out what this field is for.
     // refs: Option<HashMap<String, SnapshotReference>>,
+    // TODO: The rest
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Snapshot {
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub snapshot_id: i64,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
+    pub parent_snapshot_id: i64,
+    /// v1: n/a
+    /// v2: required
+    /// v3: required
+    pub sequence_number: Option<i64>,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub timestamp_ms: i64,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub manifest_list: Option<String>,
+    /// v1: optional
+    /// v2: n/a
+    /// v3: n/a
+    #[serde(default)]
+    pub manifests: Vec<String>,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
     #[serde(default)]
     pub summary: HashMap<String, String>,
-    pub manifest_list: String,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub schema_id: i32,
+    /// v1: n/a
+    /// v2: n/a
+    /// v3: required
+    pub first_row_id: Option<i64>,
+    // TODO: key-id (for encryption)
 }
 
 #[derive(Debug, Clone, Deserialize)]
