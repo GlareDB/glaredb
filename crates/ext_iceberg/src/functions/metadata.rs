@@ -26,9 +26,8 @@ use glaredb_core::functions::table::{
 use glaredb_core::statistics::value::StatisticsValue;
 use glaredb_core::storage::projections::{ProjectedColumn, Projections};
 use glaredb_core::storage::scan_filter::PhysicalScanFilter;
-use glaredb_error::Result;
+use glaredb_error::{OptionExt, Result};
 
-use crate::table::spec;
 use crate::table::state::TableState;
 
 pub const FUNCTION_SET_ICEBERG_METADATA: TableFunctionSet = TableFunctionSet {
@@ -61,6 +60,21 @@ pub const FUNCTION_SET_ICEBERG_SNAPSHOTS: TableFunctionSet = TableFunctionSet {
     )],
 };
 
+pub const FUNCTION_SET_ICEBERG_MANIFEST_LIST: TableFunctionSet = TableFunctionSet {
+    name: "iceberg_manifest_list",
+    aliases: &[],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "List the manifest files from the manifest list associated with the table metadata.",
+        arguments: &["table_root"],
+        example: None,
+    }],
+    functions: &[RawTableFunction::new_scan(
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+        &MetadataFunction::<IcebergManifestList>::new(),
+    )],
+};
+
 #[derive(Debug)]
 struct ScanColumn {
     name: &'static str,
@@ -78,8 +92,22 @@ impl ScanColumn {
     }
 }
 
+/// How much of the "table metadata" do we need to load for a metadata function.
+///
+/// Some functions are fine with just the metadata json, other need manifests,
+/// etc loaded. This enum controls how much we load.
+#[derive(Debug, Clone, Copy)]
+enum LoadRequirement {
+    Metadata,
+    ManifestList,
+    #[allow(unused)]
+    Manifests,
+}
+
 trait MetadataScan: Debug + Clone + Copy + Sync + Send + 'static {
     const COLUMNS: &[ScanColumn];
+    const LOAD_REQUIREMENT: LoadRequirement;
+
     type State: Default + Sync + Send;
 
     fn column_schema() -> ColumnSchema {
@@ -96,7 +124,7 @@ trait MetadataScan: Debug + Clone + Copy + Sync + Send + 'static {
     fn scan(
         state: &mut Self::State,
         projections: &Projections,
-        metadata: &spec::Metadata,
+        table_state: &TableState,
         output: &mut Batch,
     ) -> Result<()>;
 }
@@ -115,13 +143,14 @@ impl MetadataScan for IcebergMetadata {
         ScanColumn::new("table_uuid", DataType::utf8(), true), // May be NULL for v1 tables.
         ScanColumn::new("location", DataType::utf8(), false),
     ];
+    const LOAD_REQUIREMENT: LoadRequirement = LoadRequirement::Metadata;
 
     type State = IcebergMetadataState;
 
     fn scan(
         state: &mut Self::State,
         projections: &Projections,
-        metadata: &spec::Metadata,
+        table_state: &TableState,
         output: &mut Batch,
     ) -> Result<()> {
         if state.finished {
@@ -134,14 +163,14 @@ impl MetadataScan for IcebergMetadata {
                 ProjectedColumn::Data(0) => {
                     // format_version
                     let mut data = PhysicalI32::get_addressable_mut(arr.data_mut())?;
-                    data.put(0, &metadata.format_version);
+                    data.put(0, &table_state.metadata.format_version);
                     Ok(())
                 }
                 ProjectedColumn::Data(1) => {
                     // table_uuid
                     let (data, validity) = arr.data_and_validity_mut();
                     let mut data = PhysicalUtf8::get_addressable_mut(data)?;
-                    match metadata.table_uuid.as_ref() {
+                    match table_state.metadata.table_uuid.as_ref() {
                         Some(uuid) => data.put(0, uuid),
                         None => validity.set_invalid(0),
                     }
@@ -150,7 +179,7 @@ impl MetadataScan for IcebergMetadata {
                 ProjectedColumn::Data(2) => {
                     // location
                     let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
-                    data.put(0, &metadata.location);
+                    data.put(0, &table_state.metadata.location);
                     Ok(())
                 }
                 other => panic!("invalid projection: {other:?}"),
@@ -177,26 +206,28 @@ impl MetadataScan for IcebergSnapshots {
         ScanColumn::new("sequence_number", DataType::int64(), true), // NULL for v1
         ScanColumn::new("manifest_list", DataType::utf8(), true),    // May be NULL for v1
     ];
+    const LOAD_REQUIREMENT: LoadRequirement = LoadRequirement::Metadata;
 
     type State = IcebergSnapshotState;
 
     fn scan(
         state: &mut Self::State,
         projections: &Projections,
-        metadata: &spec::Metadata,
+        table_state: &TableState,
         output: &mut Batch,
     ) -> Result<()> {
-        if state.snapshot_idx >= metadata.snapshots.len() {
+        if state.snapshot_idx >= table_state.metadata.snapshots.len() {
             output.set_num_rows(0)?;
             return Ok(());
         }
 
         let cap = output.write_capacity()?;
-        let rem = metadata.snapshots.len() - state.snapshot_idx;
+        let rem = table_state.metadata.snapshots.len() - state.snapshot_idx;
         let count = usize::min(cap, rem);
 
         let snapshots_iter = || {
-            metadata
+            table_state
+                .metadata
                 .snapshots
                 .iter()
                 .skip(state.snapshot_idx)
@@ -247,6 +278,89 @@ impl MetadataScan for IcebergSnapshots {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct IcebergManifestList;
+
+#[derive(Debug, Default)]
+struct IcebergManifestListState {
+    ent_idx: usize,
+}
+
+impl MetadataScan for IcebergManifestList {
+    const COLUMNS: &[ScanColumn] = &[
+        ScanColumn::new("manifest_path", DataType::utf8(), false),
+        ScanColumn::new("manifest_length", DataType::int64(), false),
+        ScanColumn::new("content", DataType::utf8(), false),
+        ScanColumn::new("sequence_number", DataType::int64(), false),
+    ];
+    const LOAD_REQUIREMENT: LoadRequirement = LoadRequirement::ManifestList;
+
+    type State = IcebergManifestListState;
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        table_state: &TableState,
+        output: &mut Batch,
+    ) -> Result<()> {
+        let manifest_list = table_state
+            .manifest_list
+            .as_ref()
+            .required("manifest list")?;
+        if state.ent_idx >= manifest_list.entries.len() {
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        let cap = output.write_capacity()?;
+        let rem = manifest_list.entries.len() - state.ent_idx;
+        let count = usize::min(cap, rem);
+
+        let ent_iter = || manifest_list.entries.iter().skip(state.ent_idx).take(count);
+
+        projections.for_each_column(output, &mut |col, arr| match col {
+            ProjectedColumn::Data(0) => {
+                // manifest_path
+                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in ent_iter().enumerate() {
+                    data.put(idx, &ent.manifest_path);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(1) => {
+                // manifest_length
+                let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in ent_iter().enumerate() {
+                    data.put(idx, &ent.manifest_length);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(2) => {
+                // content
+                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in ent_iter().enumerate() {
+                    data.put(idx, ent.content.as_str());
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(3) => {
+                // sequence_number
+                let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in ent_iter().enumerate() {
+                    data.put(idx, &ent.sequence_number);
+                }
+                Ok(())
+            }
+            other => panic!("invalid projection: {other:?}"),
+        })?;
+
+        state.ent_idx += count;
+        output.set_num_rows(count)?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 struct MetadataFunction<F: MetadataScan> {
     _f: PhantomData<F>,
 }
@@ -262,13 +376,13 @@ where
 
 #[derive(Debug)]
 struct MetadataFunctionBindState {
-    metadata: Arc<spec::Metadata>,
+    table_state: Arc<TableState>,
 }
 
 #[derive(Debug)]
 struct MetadataFunctionOperatorState {
     projections: Projections,
-    metadata: Arc<spec::Metadata>, // TODO
+    table_state: Arc<TableState>, // TODO
 }
 
 #[derive(Debug)]
@@ -291,11 +405,24 @@ where
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         // TODO: Remove clone...
-        let table = TableState::open_root_with_inputs(scan_context, input.clone()).await?;
+        let mut table = TableState::open_root_with_inputs(scan_context, input.clone()).await?;
+
+        match F::LOAD_REQUIREMENT {
+            LoadRequirement::Metadata => {
+                // We already have it.
+            }
+            LoadRequirement::ManifestList => {
+                table.load_manifest_list().await?;
+            }
+            LoadRequirement::Manifests => {
+                table.load_manifest_list().await?;
+                table.load_manifests().await?;
+            }
+        }
 
         Ok(TableFunctionBindState {
             state: MetadataFunctionBindState {
-                metadata: table.metadata.clone(),
+                table_state: Arc::new(table),
             },
             input,
             data_schema: F::column_schema(),
@@ -312,7 +439,7 @@ where
     ) -> Result<Self::OperatorState> {
         Ok(MetadataFunctionOperatorState {
             projections,
-            metadata: bind_state.metadata.clone(),
+            table_state: bind_state.table_state.clone(),
         })
     }
 
@@ -342,7 +469,7 @@ where
                 F::scan(
                     scan_state,
                     &op_state.projections,
-                    &op_state.metadata,
+                    &op_state.table_state,
                     output,
                 )?;
                 if output.num_rows() == 0 {

@@ -1,0 +1,17 @@
+# iceberg_manifest_list function
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT * FROM iceberg_manifest_list('../testdata/iceberg/wh/default.db/cities');
+----
+manifest_path    Utf8
+manifest_length  Int64
+content          Utf8
+sequence_number  Int64
+
+query TITI
+SELECT * FROM iceberg_manifest_list('../testdata/iceberg/wh/default.db/cities');
+----
+file://wh/default.db/cities/metadata/6704a04a-3e2e-415f-b173-b21f4c5b78b7-m0.avro  4390  data  1
