@@ -1,0 +1,16 @@
+# iceberg_snapshots function
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE SELECT * FROM iceberg_snapshots('s3://glaredb-public/testdata/iceberg/wh/default.db/cities');
+----
+snapshot_id      Int64
+sequence_number  Int64
+manifest_list    Utf8
+
+query IIT
+SELECT * FROM iceberg_snapshots('s3://glaredb-public/testdata/iceberg/wh/default.db/cities');
+----
+8687260678833969554  1  file://wh/default.db/cities/metadata/snap-8687260678833969554-0-6704a04a-3e2e-415f-b173-b21f4c5b78b7.avro
