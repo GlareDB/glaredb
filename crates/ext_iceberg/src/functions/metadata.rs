@@ -7,6 +7,7 @@ use glaredb_core::arrays::array::physical_type::{
     AddressableMut,
     MutableScalarStorage,
     PhysicalI32,
+    PhysicalI64,
     PhysicalUtf8,
 };
 use glaredb_core::arrays::batch::Batch;
@@ -42,6 +43,21 @@ pub const FUNCTION_SET_ICEBERG_METADATA: TableFunctionSet = TableFunctionSet {
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
         &MetadataFunction::<IcebergMetadata>::new(),
+    )],
+};
+
+pub const FUNCTION_SET_ICEBERG_SNAPSHOTS: TableFunctionSet = TableFunctionSet {
+    name: "iceberg_snapshots",
+    aliases: &[],
+    doc: &[&Documentation {
+        category: Category::Table,
+        description: "Get the snapshots associated with the table metadata.",
+        arguments: &["table_root"],
+        example: None,
+    }],
+    functions: &[RawTableFunction::new_scan(
+        &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
+        &MetadataFunction::<IcebergSnapshots>::new(),
     )],
 };
 
@@ -143,6 +159,89 @@ impl MetadataScan for IcebergMetadata {
 
         state.finished = true;
         output.set_num_rows(1)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IcebergSnapshots;
+
+#[derive(Debug, Default)]
+struct IcebergSnapshotState {
+    snapshot_idx: usize,
+}
+
+impl MetadataScan for IcebergSnapshots {
+    const COLUMNS: &[ScanColumn] = &[
+        ScanColumn::new("snapshot_id", DataType::int64(), false),
+        ScanColumn::new("sequence_number", DataType::int64(), true), // NULL for v1
+        ScanColumn::new("manifest_list", DataType::utf8(), true),    // May be NULL for v1
+    ];
+
+    type State = IcebergSnapshotState;
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        metadata: &spec::Metadata,
+        output: &mut Batch,
+    ) -> Result<()> {
+        if state.snapshot_idx >= metadata.snapshots.len() {
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        let cap = output.write_capacity()?;
+        let rem = metadata.snapshots.len() - state.snapshot_idx;
+        let count = usize::min(cap, rem);
+
+        let snapshots_iter = || {
+            metadata
+                .snapshots
+                .iter()
+                .skip(state.snapshot_idx)
+                .take(count)
+        };
+
+        projections.for_each_column(output, &mut |col, arr| match col {
+            ProjectedColumn::Data(0) => {
+                // snapshot_id
+                let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, snapshot) in snapshots_iter().enumerate() {
+                    data.put(idx, &snapshot.snapshot_id);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(1) => {
+                // sequence_number
+                let (data, validity) = arr.data_and_validity_mut();
+                let mut data = PhysicalI64::get_addressable_mut(data)?;
+                for (idx, snapshot) in snapshots_iter().enumerate() {
+                    match &snapshot.sequence_number {
+                        Some(num) => data.put(idx, num),
+                        None => validity.set_invalid(idx),
+                    }
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(2) => {
+                // manifest_list
+                let (data, validity) = arr.data_and_validity_mut();
+                let mut data = PhysicalUtf8::get_addressable_mut(data)?;
+                for (idx, snapshot) in snapshots_iter().enumerate() {
+                    match &snapshot.manifest_list {
+                        Some(man) => data.put(idx, man),
+                        None => validity.set_invalid(idx),
+                    }
+                }
+                Ok(())
+            }
+            other => panic!("invalid projection: {other:?}"),
+        })?;
+
+        state.snapshot_idx += count;
+        output.set_num_rows(count)?;
+
         Ok(())
     }
 }
