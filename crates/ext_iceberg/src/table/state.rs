@@ -9,7 +9,6 @@ use glaredb_core::runtime::filesystem::file_provider::{MultiFileData, MultiFileP
 use glaredb_core::runtime::filesystem::{FileSystemWithState, OpenFlags};
 use glaredb_error::{DbError, Result, ResultExt};
 
-use super::spec::ManifestList;
 use crate::table::spec;
 
 #[derive(Debug)]
@@ -17,6 +16,7 @@ pub struct TableState {
     pub fs: FileSystemWithState,
     pub metadata: Arc<spec::Metadata>,
     pub manifest_list: Option<Arc<spec::ManifestList>>,
+    pub manifests: Option<Arc<Vec<spec::Manifest>>>,
 }
 
 impl TableState {
@@ -77,10 +77,11 @@ impl TableState {
             fs,
             metadata: Arc::new(metadata),
             manifest_list: None,
+            manifests: None,
         })
     }
 
-    pub async fn load_manifest_list(&mut self) -> Result<&ManifestList> {
+    pub async fn load_manifest_list(&mut self) -> Result<&spec::ManifestList> {
         let curr_snap = self.current_snapshot()?;
         let manifest_list_path = curr_snap
             .manifest_list
@@ -99,6 +100,38 @@ impl TableState {
         self.manifest_list = Some(Arc::new(list));
 
         Ok(self.manifest_list.as_ref().unwrap())
+    }
+
+    pub async fn load_manifests(&mut self) -> Result<&[spec::Manifest]> {
+        let list = match self.manifest_list.as_ref() {
+            Some(list) => list,
+            None => {
+                return Err(DbError::new(
+                    "Manifest list must be loaded before reading manifests",
+                ));
+            }
+        };
+
+        let mut manifests = Vec::with_capacity(list.entries.len());
+        let mut read_buf = Vec::new();
+
+        // TODO: Possibly concurrent reads.
+
+        for ent in &list.entries {
+            let manifest_rel = relative_path(&self.metadata.location, &ent.manifest_path);
+            let path = format!("{}/{}", self.metadata.location, manifest_rel);
+
+            let mut file = self.fs.open(OpenFlags::READ, &path).await?;
+            read_buf.resize(file.call_size() as usize, 0);
+            file.call_read_exact(&mut read_buf).await?;
+
+            let manifest = spec::Manifest::from_raw_avro(&read_buf)?;
+            manifests.push(manifest);
+        }
+
+        self.manifests = Some(Arc::new(manifests));
+
+        Ok(self.manifests.as_ref().unwrap())
     }
 
     fn current_snapshot(&self) -> Result<&spec::Snapshot> {

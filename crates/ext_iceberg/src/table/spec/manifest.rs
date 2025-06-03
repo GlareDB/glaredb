@@ -206,8 +206,8 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn from_raw_avro(reader: impl std::io::Read) -> Result<Manifest> {
-        let reader = Reader::new(reader)
+    pub fn from_raw_avro(bs: &[u8]) -> Result<Manifest> {
+        let reader = Reader::new(bs)
             .map_err(|e| DbError::new(format!("failed to create avro reader for manifest: {e}")))?;
 
         let m = reader.user_metadata();
@@ -293,7 +293,7 @@ impl ManifestEntryStatus {
 impl TryFrom<i32> for ManifestEntryStatus {
     type Error = DbError;
 
-    fn try_from(value: i32) -> std::prelude::v1::Result<Self, Self::Error> {
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
         Ok(match value {
             0 => Self::Existing,
             1 => Self::Added,
@@ -324,38 +324,106 @@ pub struct ManifestEntry {
     pub data_file: DataFile,
 }
 
+#[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
+pub enum DataFileContent {
+    #[default]
+    Data,
+    PositionDeletes,
+    EqualityDeletes,
+}
+
+impl TryFrom<i32> for DataFileContent {
+    type Error = DbError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Ok(match value {
+            0 => Self::Data,
+            1 => Self::PositionDeletes,
+            2 => Self::EqualityDeletes,
+            i => {
+                return Err(DbError::new(format!("unknown data file content: {i}")));
+            }
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataFile {
+    /// v1: n/a
+    /// v2: required
+    /// v3: required
     #[serde(default)]
-    pub content: i32,
+    pub content: DataFileContent,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub file_path: String,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub file_format: String,
+    // TODO: partition
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub record_count: i64,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub file_size_in_bytes: i64,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub column_sizes: Option<Vec<I64Entry>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub value_counts: Option<Vec<I64Entry>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub null_value_counts: Option<Vec<I64Entry>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub nan_value_counts: Option<Vec<I64Entry>>,
-    pub distinct_counts: Option<Vec<I64Entry>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub lower_bounds: Option<Vec<BinaryEntry>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub upper_bounds: Option<Vec<BinaryEntry>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     #[serde(with = "serde_bytes")]
-    #[serde(default)]
     pub key_metadata: Option<Vec<u8>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub split_offsets: Option<Vec<i64>>,
+    /// v1: n/a
+    /// v2: optional
+    /// v3: optional
     pub equality_ids: Option<Vec<i32>>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     pub sort_order_id: Option<i32>,
+    // TODO: The rest
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryEntry {
-    key: i32,
+    pub key: i32,
     #[serde(with = "serde_bytes")]
-    value: Vec<u8>,
+    pub value: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct I64Entry {
-    key: i32,
-    value: i64,
+    pub key: i32,
+    pub value: i64,
 }
