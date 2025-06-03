@@ -35,7 +35,7 @@ pub struct ManifestFile {
     /// v2: required
     /// v3: required
     #[serde(default)] // v1 is always "data" (no deletes)
-    pub content: i32, // Convert to ManifestContent
+    pub content: ManifestContent, // Convert to ManifestContent
     /// v1: n/a
     /// v2: required
     /// v3: required
@@ -173,10 +173,21 @@ pub struct ManifestMetadata {
     pub content: ManifestContent,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(try_from = "i32", into = "i32")]
 pub enum ManifestContent {
+    #[default]
     Data,
     Delete,
+}
+
+impl ManifestContent {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Data => "data",
+            Self::Delete => "delete",
+        }
+    }
 }
 
 impl From<ManifestContent> for i32 {

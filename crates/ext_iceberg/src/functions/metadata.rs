@@ -100,6 +100,7 @@ impl ScanColumn {
 enum LoadRequirement {
     Metadata,
     ManifestList,
+    #[allow(unused)]
     Manifests,
 }
 
@@ -285,7 +286,12 @@ struct IcebergManifestListState {
 }
 
 impl MetadataScan for IcebergManifestList {
-    const COLUMNS: &[ScanColumn] = &[ScanColumn::new("manifest_path", DataType::utf8(), false)];
+    const COLUMNS: &[ScanColumn] = &[
+        ScanColumn::new("manifest_path", DataType::utf8(), false),
+        ScanColumn::new("manifest_length", DataType::int64(), false),
+        ScanColumn::new("content", DataType::utf8(), false),
+        ScanColumn::new("sequence_number", DataType::int64(), false),
+    ];
     const LOAD_REQUIREMENT: LoadRequirement = LoadRequirement::ManifestList;
 
     type State = IcebergManifestListState;
@@ -317,6 +323,30 @@ impl MetadataScan for IcebergManifestList {
                 let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
                 for (idx, ent) in ent_iter().enumerate() {
                     data.put(idx, &ent.manifest_path);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(1) => {
+                // manifest_length
+                let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in ent_iter().enumerate() {
+                    data.put(idx, &ent.manifest_length);
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(2) => {
+                // content
+                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in ent_iter().enumerate() {
+                    data.put(idx, ent.content.as_str());
+                }
+                Ok(())
+            }
+            ProjectedColumn::Data(3) => {
+                // sequence_number
+                let mut data = PhysicalI64::get_addressable_mut(arr.data_mut())?;
+                for (idx, ent) in ent_iter().enumerate() {
+                    data.put(idx, &ent.sequence_number);
                 }
                 Ok(())
             }
