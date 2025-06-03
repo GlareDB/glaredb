@@ -318,6 +318,7 @@ impl Manifest {
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+#[serde(try_from = "i32", into = "i32")]
 pub enum ManifestEntryStatus {
     #[default]
     Existing,
@@ -326,8 +327,26 @@ pub enum ManifestEntryStatus {
 }
 
 impl ManifestEntryStatus {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Existing => "EXISTING",
+            Self::Added => "ADDED",
+            Self::Deleted => "DELETED",
+        }
+    }
+
     pub const fn is_deleted(&self) -> bool {
         matches!(self, Self::Deleted)
+    }
+}
+
+impl From<ManifestEntryStatus> for i32 {
+    fn from(value: ManifestEntryStatus) -> Self {
+        match value {
+            ManifestEntryStatus::Existing => 0,
+            ManifestEntryStatus::Added => 1,
+            ManifestEntryStatus::Deleted => 2,
+        }
     }
 }
 
@@ -366,11 +385,32 @@ pub struct ManifestEntry {
 }
 
 #[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
+#[serde(try_from = "i32", into = "i32")]
 pub enum DataFileContent {
     #[default]
     Data,
     PositionDeletes,
     EqualityDeletes,
+}
+
+impl DataFileContent {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Data => "DATA",
+            Self::PositionDeletes => "POSITION DELETES",
+            Self::EqualityDeletes => "EQUALITY DELETES",
+        }
+    }
+}
+
+impl From<DataFileContent> for i32 {
+    fn from(value: DataFileContent) -> Self {
+        match value {
+            DataFileContent::Data => 0,
+            DataFileContent::PositionDeletes => 1,
+            DataFileContent::EqualityDeletes => 2,
+        }
+    }
 }
 
 impl TryFrom<i32> for DataFileContent {
