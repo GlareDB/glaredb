@@ -116,7 +116,7 @@ pub struct Snapshot {
     /// v1: optional
     /// v2: optional
     /// v3: optional
-    pub parent_snapshot_id: i64,
+    pub parent_snapshot_id: Option<i64>,
     /// v1: n/a
     /// v2: required
     /// v3: required

@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::task::Context;
 
@@ -39,34 +41,150 @@ pub const FUNCTION_SET_ICEBERG_METADATA: TableFunctionSet = TableFunctionSet {
     }],
     functions: &[RawTableFunction::new_scan(
         &Signature::new(&[DataTypeId::Utf8], DataTypeId::Table),
-        &IcebergMetadata,
+        &MetadataFunction::<IcebergMetadata>::new(),
     )],
 };
+
+#[derive(Debug)]
+struct ScanColumn {
+    name: &'static str,
+    datatype: DataType,
+    nullable: bool,
+}
+
+impl ScanColumn {
+    pub const fn new(name: &'static str, datatype: DataType, nullable: bool) -> Self {
+        ScanColumn {
+            name,
+            datatype,
+            nullable,
+        }
+    }
+}
+
+trait MetadataScan: Debug + Clone + Copy + Sync + Send + 'static {
+    const COLUMNS: &[ScanColumn];
+    type State: Default + Sync + Send;
+
+    fn column_schema() -> ColumnSchema {
+        ColumnSchema::new(
+            Self::COLUMNS
+                .iter()
+                .map(|c| Field::new(c.name.to_string(), c.datatype.clone(), c.nullable)),
+        )
+    }
+
+    /// Scan the metadata, updating state as needed.
+    ///
+    /// An output batch of zero rows indicates exhaustion.
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        metadata: &spec::Metadata,
+        output: &mut Batch,
+    ) -> Result<()>;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct IcebergMetadata;
 
+#[derive(Debug, Default)]
+struct IcebergMetadataState {
+    finished: bool,
+}
+
+impl MetadataScan for IcebergMetadata {
+    const COLUMNS: &[ScanColumn] = &[
+        ScanColumn::new("format_version", DataType::int32(), false),
+        ScanColumn::new("table_uuid", DataType::utf8(), true), // May be NULL for v1 tables.
+        ScanColumn::new("location", DataType::utf8(), false),
+    ];
+
+    type State = IcebergMetadataState;
+
+    fn scan(
+        state: &mut Self::State,
+        projections: &Projections,
+        metadata: &spec::Metadata,
+        output: &mut Batch,
+    ) -> Result<()> {
+        if state.finished {
+            output.set_num_rows(0)?;
+            return Ok(());
+        }
+
+        projections.for_each_column(output, &mut |col, arr| {
+            match col {
+                ProjectedColumn::Data(0) => {
+                    // format_version
+                    let mut data = PhysicalI32::get_addressable_mut(arr.data_mut())?;
+                    data.put(0, &metadata.format_version);
+                    Ok(())
+                }
+                ProjectedColumn::Data(1) => {
+                    // table_uuid
+                    let (data, validity) = arr.data_and_validity_mut();
+                    let mut data = PhysicalUtf8::get_addressable_mut(data)?;
+                    match metadata.table_uuid.as_ref() {
+                        Some(uuid) => data.put(0, uuid),
+                        None => validity.set_invalid(0),
+                    }
+                    Ok(())
+                }
+                ProjectedColumn::Data(2) => {
+                    // location
+                    let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
+                    data.put(0, &metadata.location);
+                    Ok(())
+                }
+                other => panic!("invalid projection: {other:?}"),
+            }
+        })?;
+
+        state.finished = true;
+        output.set_num_rows(1)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MetadataFunction<F: MetadataScan> {
+    _f: PhantomData<F>,
+}
+
+impl<F> MetadataFunction<F>
+where
+    F: MetadataScan,
+{
+    pub const fn new() -> Self {
+        MetadataFunction { _f: PhantomData }
+    }
+}
+
 #[derive(Debug)]
-pub struct IcebergMetadataBindState {
+struct MetadataFunctionBindState {
     metadata: Arc<spec::Metadata>,
 }
 
 #[derive(Debug)]
-pub struct IcebergMetadataOperatorState {
+struct MetadataFunctionOperatorState {
     projections: Projections,
     metadata: Arc<spec::Metadata>, // TODO
 }
 
 #[derive(Debug)]
-pub enum IcebergMetadataPartitionState {
-    Scanning,
+enum MetadataFunctionPartitionState<F: MetadataScan> {
+    Scanning { scan_state: F::State },
     Exhausted,
 }
 
-impl TableScanFunction for IcebergMetadata {
-    type BindState = IcebergMetadataBindState;
-    type OperatorState = IcebergMetadataOperatorState;
-    type PartitionState = IcebergMetadataPartitionState;
+impl<F> TableScanFunction for MetadataFunction<F>
+where
+    F: MetadataScan,
+{
+    type BindState = MetadataFunctionBindState;
+    type OperatorState = MetadataFunctionOperatorState;
+    type PartitionState = MetadataFunctionPartitionState<F>;
 
     async fn bind(
         &'static self,
@@ -77,15 +195,11 @@ impl TableScanFunction for IcebergMetadata {
         let table = TableState::open_root_with_inputs(scan_context, input.clone()).await?;
 
         Ok(TableFunctionBindState {
-            state: IcebergMetadataBindState {
+            state: MetadataFunctionBindState {
                 metadata: table.metadata.clone(),
             },
             input,
-            data_schema: ColumnSchema::new([
-                Field::new("format_version", DataType::int32(), false),
-                Field::new("table_uuid", DataType::utf8(), true), // May be NULL for v1 tables.
-                Field::new("location", DataType::utf8(), false),
-            ]),
+            data_schema: F::column_schema(),
             meta_schema: None,
             cardinality: StatisticsValue::Unknown,
         })
@@ -97,7 +211,7 @@ impl TableScanFunction for IcebergMetadata {
         _filters: &[PhysicalScanFilter],
         _props: ExecutionProperties,
     ) -> Result<Self::OperatorState> {
-        Ok(IcebergMetadataOperatorState {
+        Ok(MetadataFunctionOperatorState {
             projections,
             metadata: bind_state.metadata.clone(),
         })
@@ -110,8 +224,10 @@ impl TableScanFunction for IcebergMetadata {
     ) -> Result<Vec<Self::PartitionState>> {
         debug_assert_ne!(0, partitions);
 
-        let mut states = vec![IcebergMetadataPartitionState::Scanning];
-        states.resize_with(partitions, || IcebergMetadataPartitionState::Exhausted);
+        let mut states = vec![MetadataFunctionPartitionState::Scanning {
+            scan_state: Default::default(),
+        }];
+        states.resize_with(partitions, || MetadataFunctionPartitionState::Exhausted);
 
         Ok(states)
     }
@@ -123,41 +239,20 @@ impl TableScanFunction for IcebergMetadata {
         output: &mut Batch,
     ) -> Result<PollPull> {
         match state {
-            IcebergMetadataPartitionState::Scanning => {
-                op_state
-                    .projections
-                    .for_each_column(output, &mut |col, arr| {
-                        match col {
-                            ProjectedColumn::Data(0) => {
-                                // format_version
-                                let mut data = PhysicalI32::get_addressable_mut(arr.data_mut())?;
-                                data.put(0, &op_state.metadata.format_version);
-                                Ok(())
-                            }
-                            ProjectedColumn::Data(1) => {
-                                // table_uuid
-                                let (data, validity) = arr.data_and_validity_mut();
-                                let mut data = PhysicalUtf8::get_addressable_mut(data)?;
-                                match op_state.metadata.table_uuid.as_ref() {
-                                    Some(uuid) => data.put(0, uuid),
-                                    None => validity.set_invalid(0),
-                                }
-                                Ok(())
-                            }
-                            ProjectedColumn::Data(2) => {
-                                // location
-                                let mut data = PhysicalUtf8::get_addressable_mut(arr.data_mut())?;
-                                data.put(0, &op_state.metadata.location);
-                                Ok(())
-                            }
-                            other => panic!("invalid projection: {other:?}"),
-                        }
-                    })?;
-
-                output.set_num_rows(1)?;
-                Ok(PollPull::Exhausted)
+            MetadataFunctionPartitionState::Scanning { scan_state } => {
+                F::scan(
+                    scan_state,
+                    &op_state.projections,
+                    &op_state.metadata,
+                    output,
+                )?;
+                if output.num_rows() == 0 {
+                    *state = MetadataFunctionPartitionState::Exhausted;
+                    return Ok(PollPull::Exhausted);
+                }
+                Ok(PollPull::HasMore)
             }
-            IcebergMetadataPartitionState::Exhausted => {
+            MetadataFunctionPartitionState::Exhausted => {
                 output.set_num_rows(0)?;
                 Ok(PollPull::Exhausted)
             }
