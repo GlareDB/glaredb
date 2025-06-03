@@ -14,6 +14,14 @@ Count the number of non-overlapping occurrences of a regular expression pattern 
 
 **Output**: `4`
 
+## `regexp_instr`
+
+Returns the starting position of the first match of a regular expression pattern in a string.
+
+**Example**: `regexp_instr('abcdef', 'cd')`
+
+**Output**: `3`
+
 ## `regexp_like`
 
 Returns true if the string matches the regular expression pattern.
