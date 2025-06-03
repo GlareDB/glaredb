@@ -9,79 +9,119 @@ use serde::{Deserialize, Serialize};
 use super::{PartitionField, Schema};
 use crate::table::spec::PartitionSpec;
 
-/// Manifest lists include summary medata for the table alongside the path the
-/// actual manifest.
+/// An entry in the manifest list.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
-pub struct ManifestListEntry {
+pub struct ManifestFile {
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub manifest_path: String,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub manifest_length: i64,
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub partition_spec_id: i32,
     /// > The type of files tracked by the manifest, either data or delete
     /// > files; 0 for all v1 manifests
     ///
     /// `0`: data
     /// `1`: deletes
+    ///
+    /// v1: n/a
+    /// v2: required
+    /// v3: required
     #[serde(default)]
     pub content: i32,
+    /// v1: n/a
+    /// v2: required
+    /// v3: required
     #[serde(default)]
     pub sequence_number: i64,
+    /// v1: n/a
+    /// v2: required
+    /// v3: required
     #[serde(default)]
     pub min_sequence_number: i64,
-    #[serde(default)]
+    /// v1: required
+    /// v2: required
+    /// v3: required
     pub added_snapshot_id: i64,
     /// > Number of entries in the manifest that have status ADDED (1), when
     /// > null this is assumed to be non-zero
-    // TODO: Remove default and deserialize into something more meaningful.
-    #[serde(default)]
-    pub added_files_count: i32,
+    ///
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub added_files_count: Option<i32>,
     /// > Number of entries in the manifest that have status EXISTING (0), when
     /// > null this is assumed to be non-zero
-    #[serde(default)]
-    pub existing_files_count: i32,
+    ///
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub existing_files_count: Option<i32>,
     /// > Number of entries in the manifest that have status DELETED (2), when
     /// > null this is assumed to be non-zero
-    #[serde(default)]
-    pub deleted_files_count: i32,
+    ///
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub deleted_files_count: Option<i32>,
     /// > Number of rows in all of files in the manifest that have status ADDED,
     /// > when null this is assumed to be non-zero
-    #[serde(default)]
-    pub added_rows_count: i32,
+    ///
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub added_rows_count: Option<i64>,
     /// > Number of rows in all of files in the manifest that have status
     /// > EXISTING, when null this is assumed to be non-zero
+    ///
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub existing_rows_count: Option<i64>,
+    /// v1: optional
+    /// v2: required
+    /// v3: required
+    pub deleted_rows_count: Option<i64>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     #[serde(default)]
-    pub existing_rows_count: i32,
-    pub deleted_rows_count: i64,
     pub partitions: Vec<FieldSummary>,
+    /// v1: optional
+    /// v2: optional
+    /// v3: optional
     #[serde(with = "serde_bytes")]
     #[serde(default)]
     pub key_metadata: Option<Vec<u8>>,
+    /// v1: n/a
+    /// v2: n/a
+    /// v3: optional
+    pub first_row_id: Option<i64>,
 }
 
+/// A list of manifest files.
 #[derive(Debug, Clone)]
 pub struct ManifestList {
-    pub entries: Vec<ManifestListEntry>,
+    pub entries: Vec<ManifestFile>,
 }
 
 impl ManifestList {
-    /// Read a manifest list from a reader over an Avro file.
-    pub fn from_raw_avro(reader: impl std::io::Read) -> Result<ManifestList> {
-        let reader = Reader::new(reader).map_err(|e| {
-            DbError::new(format!(
-                "failed to create avro reader for manifest list: {e}"
-            ))
-        })?;
+    /// Read a manifest list from serialized bytes.
+    pub fn from_raw_avro(bs: &[u8]) -> Result<ManifestList> {
+        let reader = Reader::new(bs).context("Failed to create avro reader for manifest list")?;
 
         let mut entries = Vec::new();
         for value in reader {
-            let value = value.map_err(|e| {
-                DbError::new(format!("failed to get value for manifest list entry: {e}"))
-            })?;
-            let entry: ManifestListEntry = from_value(&value).map_err(|e| {
-                DbError::new(format!(
-                    "failed to deserialize value for manifest list entry: {e}"
-                ))
-            })?;
+            let value = value.context("Failed to get value for manifest list entry")?;
+            let entry: ManifestFile = from_value(&value)
+                .context("Failed to deserialize value for manifest list entry")?;
 
             entries.push(entry);
         }
@@ -103,13 +143,26 @@ pub struct FieldSummary {
     pub upper_bound: Option<Vec<u8>>,
 }
 
+// this is some insane shit
 #[derive(Debug, Clone)]
 pub struct ManifestMetadata {
+    /// v1: required
+    /// v2: required
     pub schema: Schema,
+    /// v1: optional
+    /// v2: required
     pub schema_id: i32,
+    /// v1: required
+    /// v2: required
     pub partition_spec: Vec<PartitionField>,
+    /// v1: optional
+    /// v2: required
     pub partition_spec_id: i32,
+    /// v1: optional
+    /// v2: required
     pub format_version: i32,
+    /// v1: n/a
+    /// v2: required
     pub content: ManifestContent,
 }
 
@@ -143,9 +196,12 @@ impl fmt::Display for ManifestContent {
     }
 }
 
+/// A manifest!
 #[derive(Debug, Clone)]
 pub struct Manifest {
+    /// Parsed metadata from the manifest kv metadata.
     pub metadata: ManifestMetadata,
+    /// Entries in the manifest file.
     pub entries: Vec<ManifestEntry>,
 }
 
@@ -169,7 +225,7 @@ impl Manifest {
             let bs = get_metadata_field(m, field)?;
             String::from_utf8_lossy(bs)
                 .parse::<i32>()
-                .map_err(|e| DbError::new(format!("Failed to parse 'schema-id' as an i32: {e}")))
+                .context_fn(|| format!("Failed to parse '{field}' as an i32"))
         }
 
         let schema = serde_json::from_slice::<Schema>(get_metadata_field(m, "schema")?)
@@ -210,14 +266,9 @@ impl Manifest {
 
         let mut entries = Vec::new();
         for value in reader {
-            let value = value.map_err(|e| {
-                DbError::new(format!("failed to get value for manifest entry: {e}"))
-            })?;
-            let entry: ManifestEntry = from_value(&value).map_err(|e| {
-                DbError::new(format!(
-                    "failed to deserialize value for manifest entry: {e}"
-                ))
-            })?;
+            let value = value.context("failed to get value for manifest entry")?;
+            let entry: ManifestEntry =
+                from_value(&value).context("failed to deserialize value for manifest entry")?;
             entries.push(entry);
         }
 
@@ -234,7 +285,7 @@ pub enum ManifestEntryStatus {
 }
 
 impl ManifestEntryStatus {
-    pub fn is_deleted(&self) -> bool {
+    pub const fn is_deleted(&self) -> bool {
         matches!(self, Self::Deleted)
     }
 }
@@ -256,13 +307,20 @@ impl TryFrom<i32> for ManifestEntryStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestEntry {
-    pub status: i32,
-    /// Required in v2
+    /// v1: required
+    /// v2: required
+    pub status: ManifestEntryStatus,
+    /// v1: required
+    /// v2: optional
     pub snapshot_id: Option<i64>,
-    /// Required in v2
+    /// v1: n/a
+    /// v2: optional
     pub sequence_number: Option<i64>,
-    /// Required in v2
+    /// v1: n/a
+    /// v2: optional
     pub file_sequence_number: Option<i64>,
+    /// v1: required
+    /// v2: required
     pub data_file: DataFile,
 }
 
