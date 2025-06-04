@@ -2,7 +2,7 @@
 title: ORDER BY
 ---
 
-# Order by
+# ORDER BY
 
 The `ORDER BY` clause specifies the order of rows in a query result set. Without
 an `ORDER BY` clause, the order of rows in a result set is not guaranteed.

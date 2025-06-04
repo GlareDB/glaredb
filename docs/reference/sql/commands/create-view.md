@@ -2,7 +2,7 @@
 title: CREATE VIEW
 ---
 
-# Create view
+# CREATE VIEW
 
 The `CREATE VIEW` statement creates a named view that represents a stored query. Views can be referenced in queries just like tables, but they don't store data themselves - they execute their underlying query when accessed.
 

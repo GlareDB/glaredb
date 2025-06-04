@@ -2,7 +2,7 @@
 title: CREATE TABLE
 ---
 
-# Create table
+# CREATE TABLE
 
 The `CREATE TABLE` statement creates a new table in the database.
 

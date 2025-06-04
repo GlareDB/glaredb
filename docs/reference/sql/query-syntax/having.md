@@ -2,7 +2,7 @@
 title: HAVING
 ---
 
-# Having
+# HAVING
 
 The `HAVING` clause filters the results of a `GROUP BY` operation based on a
 condition. While the `WHERE` clause filters rows before they are grouped, the

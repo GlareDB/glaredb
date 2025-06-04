@@ -2,7 +2,7 @@
 title: VALUES
 ---
 
-# Values
+# VALUES
 
 The `VALUES` clause allows you to provide literal row values directly in your
 SQL queries. It can be used to create inline tables without requiring a

@@ -2,7 +2,7 @@
 title: LIMIT
 ---
 
-# Limit
+# LIMIT
 
 The `LIMIT` clause restricts the number of rows returned by a query. Without an
 `ORDER BY` clause, which rows are returned when using `LIMIT` is non-deterministic.

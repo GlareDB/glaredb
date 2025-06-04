@@ -2,7 +2,7 @@
 title: WHERE
 ---
 
-# Where
+# WHERE
 
 The `WHERE` clause provides filters to apply to the output of executing the
 `FROM` portion of a query.

@@ -2,7 +2,7 @@
 title: EXPLAIN
 ---
 
-# Explain
+# EXPLAIN
 
 `EXPLAIN` statements provide information about how a query will be executed,
 showing the unoptimized, optimized, and physical plans for the query.

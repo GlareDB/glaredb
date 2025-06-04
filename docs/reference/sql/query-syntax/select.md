@@ -3,7 +3,7 @@ title: SELECT
 order: 0
 ---
 
-# Select
+# SELECT
 
 `SELECT` statements perform data retrieval from the database, and contain
 expressions to select and transform the results.

@@ -2,7 +2,7 @@
 title: DESCRIBE
 ---
 
-# Describe
+# DESCRIBE
 
 `DESCRIBE` statements provide information about the schema of queries, tables,
 table functions, or files.

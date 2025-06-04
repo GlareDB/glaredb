@@ -3,7 +3,7 @@ title: FROM
 order: 1
 ---
 
-# From
+# FROM
 
 The `FROM` clause specifies the sources for data for a query. A source can be a
 table, table function, subquery, `VALUES`, or a combination of any of those

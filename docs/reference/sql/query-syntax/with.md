@@ -2,7 +2,7 @@
 title: WITH
 ---
 
-# With
+# WITH
 
 The `WITH` clause allows you to define temporary result sets (Common Table
 Expressions or CTEs) that exist only for the duration of a query. CTEs can

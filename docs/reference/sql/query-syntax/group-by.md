@@ -2,7 +2,7 @@
 title: GROUP BY
 ---
 
-# Group by
+# GROUP BY
 
 A `GROUP BY` can be used to specify which columns to use for grouping values
 during aggregate.

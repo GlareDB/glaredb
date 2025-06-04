@@ -2,7 +2,7 @@
 title: CREATE SCHEMA
 ---
 
-# Create schema
+# CREATE SCHEMA
 
 The `CREATE SCHEMA` statement creates a new schema in a database catalog.
 

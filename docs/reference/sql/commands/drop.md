@@ -2,7 +2,7 @@
 title: DROP
 ---
 
-# Drop
+# DROP
 
 The `DROP` statement removes database objects such as tables and schemas from the database.
 
