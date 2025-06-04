@@ -17,14 +17,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-REVISION=46cc3a0647d301bb9579ca8dd2cc356caf2a72d2
+set -euo pipefail
 
+# Tag: apache-parquet-format-2.11.0
+REVISION=848302e179d7bb52a64caea6a058b3c08212787c
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-
 COMMENT='//! See [`crate::file`] for easier to use APIs.'
 
-# Note: add argument --platform=linux/amd64 to run on mac
-docker run  -v $SOURCE_DIR:/thrift -it archlinux /bin/bash -c "\
+# Platform specified to allow running on mac.
+docker run --platform=linux/amd64 \
+       -v $SOURCE_DIR:/thrift \
+       -it \
+       archlinux /bin/bash -c "\
   pacman -Sy --noconfirm wget thrift && \
   wget https://raw.githubusercontent.com/apache/parquet-format/$REVISION/src/main/thrift/parquet.thrift -O /tmp/parquet.thrift && \
   thrift --gen rs /tmp/parquet.thrift && \
