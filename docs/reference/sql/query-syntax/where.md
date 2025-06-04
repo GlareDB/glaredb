@@ -9,7 +9,7 @@ The `WHERE` clause provides filters to apply to the output of executing the
 
 Any expression that returns a boolean value can be used in the `WHERE` clause.
 
-## Basic Usage
+## Basic usage
 
 Simple filtering using a literal:
 

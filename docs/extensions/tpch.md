@@ -2,7 +2,7 @@
 title: TPC-H
 ---
 
-# TPC-H Data Generation
+# TPC-H data generation
 
 The `tpch_gen` extension allows for generating TPC-H data directly in GlareDB.
 This extension is built using [tpchgen-rs](https://github.com/clflushopt/tpchgen-rs).

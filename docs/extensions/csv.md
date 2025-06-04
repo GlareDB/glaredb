@@ -2,7 +2,7 @@
 title: CSV
 ---
 
-# CSV Extension
+# CSV extension
 
 The `csv` extension enables direct querying of CSV files. It is included by
 default in the CLI, Python, and WebAssembly (Wasm) bindings.

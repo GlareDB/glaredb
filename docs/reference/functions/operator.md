@@ -2,7 +2,7 @@
 title: Operator Functions
 ---
 
-# Operator Function Reference
+# Operator function reference
 
 Functions used to implement SQL operators. These functions can be called
 directly, but it's typically more ergonomic to use the operator syntax. 
@@ -21,7 +21,7 @@ binary function:
 SELECT ">"(8, 2); -- Returns true
 ```
 
-## Numeric Operator Functions
+## Numeric operator functions
 
 <!-- DOCSGEN_START numeric_operator_functions -->
 
@@ -118,7 +118,7 @@ Subtracts the right value from the left value.
 
 <!-- DOCSGEN_END -->
 
-## Comparison Operator Functions
+## Comparison operator functions
 
 <!-- DOCSGEN_START comparison_operator_functions -->
 
@@ -247,7 +247,7 @@ Check if a value is true.
 
 <!-- DOCSGEN_END -->
 
-## Logical Operator Functions
+## Logical operator functions
 
 <!-- DOCSGEN_START logical_operator_functions -->
 

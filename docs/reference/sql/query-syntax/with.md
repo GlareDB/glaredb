@@ -8,7 +8,7 @@ The `WITH` clause allows you to define temporary result sets (Common Table
 Expressions or CTEs) that exist only for the duration of a query. CTEs can
 simplify complex queries by breaking them down into more manageable parts.
 
-## Basic Usage
+## Basic usage
 
 Create a CTE named `numbers` that contains a sequence of integers:
 

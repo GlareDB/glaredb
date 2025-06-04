@@ -3,7 +3,7 @@ title: Overview
 order: 0
 ---
 
-# File System Overview
+# File system overview
 
 File systems are a core abstraction in GlareDB that determine how the system
 locates and reads data files. Whether you’re working with files stored locally,
@@ -13,7 +13,7 @@ unified interface for accessing them.
 This abstraction makes it easy to query files from different sources using the
 same SQL functions.
 
-## File System Selection
+## File system selection
 
 Which file system GlareDB chooses to use is based on the path provided to
 file-reading functions.

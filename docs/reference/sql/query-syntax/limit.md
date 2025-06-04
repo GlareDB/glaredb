@@ -7,7 +7,7 @@ title: LIMIT
 The `LIMIT` clause restricts the number of rows returned by a query. Without an
 `ORDER BY` clause, which rows are returned when using `LIMIT` is non-deterministic.
 
-## Basic Usage
+## Basic usage
 
 A basic `LIMIT` clause specifies the maximum number of rows to return:
 
@@ -17,7 +17,7 @@ FROM cities
 LIMIT 10;
 ```
 
-## OFFSET Clause
+## OFFSET clause
 
 The `OFFSET` clause can be used with `LIMIT` to skip a specified number of rows
 before starting to return rows:

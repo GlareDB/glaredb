@@ -2,7 +2,7 @@
 title: Local
 ---
 
-# Local File System
+# Local file system
 
 The local file system is the simplest and most straightforward way for GlareDB
 to access data—it reads files directly from the machine’s file system, without
@@ -39,7 +39,7 @@ SELECT * FROM './cities.csv';
 SELECT * FROM '/home/user/data/cities.parquet';
 ```
 
-## Supported Formats
+## Supported formats
 
 All supported file formats, such as CSV and Parquet, can be read from the local
 file system using their respective functions (e.g. `read_csv`).

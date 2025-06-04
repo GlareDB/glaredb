@@ -8,7 +8,7 @@ The `VALUES` clause allows you to provide literal row values directly in your
 SQL queries. It can be used to create inline tables without requiring a
 permanent table to be defined.
 
-## Basic Usage
+## Basic usage
 
 The basic syntax for `VALUES` is:
 
@@ -33,7 +33,7 @@ This produces:
 | cat     | 4       |
 | dog     | 5       |
 
-## Column Aliases
+## Column aliases
 
 You can provide aliases for the columns produced by `VALUES` by appending an
 alias for the entire `VALUES` expression followed by a list of column names in
@@ -62,7 +62,7 @@ This produces:
 |---|-----|---------|
 | 1 | 2.0 | 3       |
 
-## Lateral References
+## Lateral references
 
 `VALUES` can be used with lateral joins, allowing references to columns from
 previous tables in the `FROM` clause:
@@ -88,7 +88,7 @@ FROM (VALUES (2), (3)) v1(a),
      LATERAL (VALUES (a + 1, a * 2)) v2(b, c);
 ```
 
-## NULL Handling and Implicit Casting
+## NULL handling and implicit casting
 
 `VALUES` can handle NULL values and perform implicit casting to ensure all rows have consistent types:
 

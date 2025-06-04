@@ -2,7 +2,7 @@
 title: Logical
 ---
 
-# Logical Operators
+# Logical operators
 
 Logical operators combine boolean expressions and return a boolean result. They
 are commonly used in WHERE clauses to combine multiple conditions.

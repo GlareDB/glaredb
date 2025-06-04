@@ -2,7 +2,7 @@
 title: Date/Time Functions
 ---
 
-# Date and Time Function Reference
+# Date and time function reference
 
 <!-- DOCSGEN_START date_time_functions -->
 

@@ -2,9 +2,9 @@
 title: Building
 ---
 
-# Building From Source
+# Building from source
 
-## Build Prerequisites
+## Build prerequisites
 
 GlareDB is developed primarily in Rust, and building from source requires that a
 Rust toolchain be setup, and accessible in your path. The easiest way to get
@@ -78,7 +78,7 @@ The wasm blobs and related javascript will be located at `./crates/glaredb_wasm/
 The `--dev` flag may be use for a faster build. This should only be done during
 development.
 
-## Release vs Debug Builds
+## Release vs debug builds
 
 Compiling binaries with the `--release` flag (or for WebAssembly, omitting the
 `--dev` flag) will result in the fastest binary and typically smallest binary.

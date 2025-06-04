@@ -80,7 +80,7 @@ CREATE TEMP VIEW v3(a, b) AS SELECT 3 as a1, 4 as b1, 5 as c1;
 The view will have columns named `a`, `b`, and `c1`. The first two columns are
 renamed from `a1` and `b1`, while the third column keeps its original name.
 
-## View Aliasing in Queries
+## View aliasing in queries
 
 Views can be aliased in queries, which allows renaming the view's columns:
 

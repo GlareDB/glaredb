@@ -8,7 +8,7 @@ order: 0
 `SELECT` statements perform data retrieval from the database, and contain
 expressions to select and transform the results.
 
-## Select List
+## Select list
 
 The select list is a list of expressions representing the output of a query.
 Expressions can include constant values, column references, function calls, and
@@ -81,7 +81,7 @@ This query will output the following:
 This rule applies to anything in the `FROM` clause, including tables, table
 functions, and subqueries.
 
-## Star Expressions
+## Star expressions
 
 `*` will be expanded to select all columns from the base tables in the query.
 
@@ -208,7 +208,7 @@ SELECT sum(DISTINCT salary) FROM employees;
 
 The `DISTINCT` modifier can be used with any aggregate function.
 
-## DISTINCT Clause
+## DISTINCT clause
 
 The `DISTINCT` clause removes duplicate rows from the result set.
 

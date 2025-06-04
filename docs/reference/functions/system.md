@@ -2,7 +2,7 @@
 title: System Functions
 ---
 
-# System Function Reference
+# System function reference
 
 <!-- DOCSGEN_START system_functions -->
 

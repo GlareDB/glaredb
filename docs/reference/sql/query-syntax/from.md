@@ -28,7 +28,7 @@ Select from a table named `cities` in a schema named `census`:
 SELECT * FROM census.cities;
 ```
 
-## Table Functions
+## Table functions
 
 Table functions are functions that produce tabular data, and can be used in the
 `FROM` clause.
