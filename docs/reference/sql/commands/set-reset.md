@@ -2,7 +2,7 @@
 title: SET and RESET
 ---
 
-# SET and RESET
+# Set and reset
 
 Set and reset configuration options on the session.
 

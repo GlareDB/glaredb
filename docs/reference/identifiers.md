@@ -7,7 +7,7 @@ order: 1
 
 Identifiers are used when referencing database objects.
 
-## Case-Sensitivity
+## Case-sensitivity
 
 Identifiers in a SQL query are case-insensitive.
 
@@ -55,7 +55,7 @@ parquet example, the below query will error:
 SELECT "employeename", "department" FROM './employees.parquet';
 ```
 
-## Generated Column Names
+## Generated column names
 
 When no explicit alias is provided for an expression in the `SELECT` list, an
 column name will be generated using the following rules:

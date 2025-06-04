@@ -2,7 +2,7 @@
 title: Numeric Functions
 ---
 
-# Numeric Function Reference
+# Numeric function reference
 
 <!-- DOCSGEN_START numeric_functions -->
 

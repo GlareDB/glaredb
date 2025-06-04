@@ -2,7 +2,7 @@
 title: Regexp Functions
 ---
 
-# Regexp Function Reference
+# Regexp function reference
 
 <!-- DOCSGEN_START regexp_functions -->
 

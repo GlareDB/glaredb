@@ -4,7 +4,7 @@ title: Comparisons
 
 # Comparisons
 
-## Comparison Operators
+## Comparison operators
 
 Comparison operators compare two values and return a boolean result (true or
 false). They are commonly used in `WHERE` clauses and join conditions.
@@ -84,7 +84,7 @@ SELECT 1 IS NOT DISTINCT FROM NULL;   -- Result: false
 SELECT NULL IS NOT DISTINCT FROM NULL;   -- Result: true
 ```
 
-## IS Predicates
+## IS predicates
 
 `IS` predicates check if an expression _is_ or _is not_ a given value, returning true or false.
 
@@ -113,7 +113,7 @@ SELECT NULL IS NULL; -- Returns true
 SELECT 4 IS NULL; -- Returns false
 ```
 
-## BETWEEN Predicates
+## BETWEEN predicates
 
 `BETWEEN` predicates check if an expression is _between_ or _not between_ a
 lower and upper bound.

@@ -3,9 +3,9 @@ title: Data Types
 order: 0
 ---
 
-# Data Types
+# Data types
 
-## Scalar Data Types
+## Scalar data types
 
 | SQL Alias                      | Internal Type        | Description                                     |
 |--------------------------------|----------------------|-------------------------------------------------|

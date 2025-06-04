@@ -2,7 +2,7 @@
 title: List Functions
 ---
 
-# List Function Reference
+# List function reference
 
 <!-- DOCSGEN_START list_functions -->
 

@@ -2,7 +2,7 @@
 title: Parquet
 ---
 
-# Parquet Extension
+# Parquet extension
 
 The `parquet` extension enables direct querying of Parquet files. It is included
 by default in the CLI, Python, and WebAssembly (Wasm) bindings.

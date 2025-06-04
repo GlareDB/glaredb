@@ -2,9 +2,9 @@
 title: Aggregate Functions
 ---
 
-# Aggregate Function Reference
+# Aggregate function reference
 
-## General Purpose Aggregates
+## General purpose aggregates
 
 <!-- DOCSGEN_START general_purpose_aggregate_functions -->
 
@@ -75,7 +75,7 @@ Compute the sum of all non-NULL inputs.
 
 <!-- DOCSGEN_END -->
 
-## Statistical Aggregates
+## Statistical aggregates
 
 Aggregate functions typically used for statistics. `NULL` inputs are ignored.
 
@@ -138,7 +138,7 @@ Compute the sample variance.
 
 <!-- DOCSGEN_END -->
 
-## GROUPING
+## Grouping
 
 The `GROUPING` function is a special function for determining which input
 expressions are taking part in a group's aggregation.

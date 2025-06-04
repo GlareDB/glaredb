@@ -33,7 +33,7 @@ Install the latest version of the GlareDB Python package:
 $ pip install glaredb
 ```
 
-## Supported Platforms
+## Supported platforms
 
 GlareDB distributes binaries for the following platforms.
 

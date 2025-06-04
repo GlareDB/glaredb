@@ -2,7 +2,7 @@
 title: Table Functions
 ---
 
-# Table Function Reference
+# Table function reference
 
 <!-- DOCSGEN_START table_functions -->
 

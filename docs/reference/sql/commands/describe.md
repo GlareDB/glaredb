@@ -2,7 +2,7 @@
 title: DESCRIBE
 ---
 
-# DESCRIBE
+# Describe
 
 `DESCRIBE` statements provide information about the schema of queries, tables,
 table functions, or files.
@@ -17,7 +17,7 @@ DESCRIBE query_or_table
 
 - `query_or_table`: A query or table-like object.
 
-## Describing a Query
+## Describing a query
 
 `DESCRIBE` followed by a query can be used to show the names and data types that
 would be returned by that query:
@@ -33,7 +33,7 @@ Shows the following query info:
 | a           | Int32    |
 | b           | Utf8     |
 
-## Describing Tables and Table Functions
+## Describing tables and table functions
 
 `DESCRIBE` followed by a table, table function, or file shows the column names
 and data types of that object.
@@ -64,7 +64,7 @@ Outputs:
 |-------------|----------|
 | unnest      | Int32    |
 
-## Describing Files
+## Describing files
 
 `DESCRIBE` can only be used to describe local and remote files.
 

@@ -2,7 +2,7 @@
 title: Iceberg
 ---
 
-# Iceberg Extension
+# Iceberg extension
 
 The `iceberg` extension enables interacting with [Apache
 Iceberg](https://iceberg.apache.org/) tables and catalogs.

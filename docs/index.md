@@ -4,7 +4,7 @@ title: GlareDB Docs
 
 # GlareDB Docs
 
-## Getting Started
+## Getting started
 
 - [Install the CLI or Python client](./get-started/install.md)
 

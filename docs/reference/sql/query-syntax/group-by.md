@@ -2,7 +2,7 @@
 title: GROUP BY
 ---
 
-# GROUP BY
+# Group by
 
 A `GROUP BY` can be used to specify which columns to use for grouping values
 during aggregate.
@@ -11,7 +11,7 @@ When an aggregate is executed with no `GROUP BY` clause, all rows are used to
 produce the final aggregate value. When a `GROUP BY` is provided, aggregate
 values are produced for each group.
 
-## Basic Usage
+## Basic usage
 
 Get the count, minimum, maximum, and average city population for each state:
 
@@ -160,7 +160,7 @@ Result:
 | TX         | 1523050.5          | 0         |
 | OH         | 528976             | 0         |
 
-## Column References
+## Column references
 
 When using `GROUP BY`, any non-aggregated column present in the `SELECT` list
 must also be included in the `GROUP BY` clause.

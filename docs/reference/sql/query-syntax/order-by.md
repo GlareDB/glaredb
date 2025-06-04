@@ -2,12 +2,12 @@
 title: ORDER BY
 ---
 
-# ORDER BY
+# Order by
 
 The `ORDER BY` clause specifies the order of rows in a query result set. Without
 an `ORDER BY` clause, the order of rows in a result set is not guaranteed.
 
-## Basic Usage
+## Basic usage
 
 A basic `ORDER BY` clause orders results by one or more expressions:
 
@@ -17,7 +17,7 @@ FROM cities
 ORDER BY population;
 ```
 
-## Sorting Direction
+## Sorting direction
 
 By default, results are sorted in ascending order. You can explicitly specify
 the sort direction with `ASC` (ascending) or `DESC` (descending):
@@ -34,7 +34,7 @@ FROM cities
 ORDER BY population DESC;
 ```
 
-## Multiple Columns
+## Multiple columns
 
 You can order by multiple columns, with each subsequent column used as a
 tiebreaker when the previous columns have equal values:
@@ -45,7 +45,7 @@ FROM cities
 ORDER BY state_abbr, population DESC;
 ```
 
-## Handling NULL Values
+## Handling NULL values
 
 By default, NULL values are considered larger than any non-NULL value during
 sorting:
@@ -67,7 +67,7 @@ FROM cities
 ORDER BY population DESC NULLS LAST;
 ```
 
-## Ordering by Position
+## Ordering by position
 
 You can also order by column position (1-based indexing) in the select list:
 
@@ -77,7 +77,7 @@ FROM cities
 ORDER BY 2; -- Orders by the population column
 ```
 
-## Ordering by Expression
+## Ordering by expression
 
 Any expression can be used in the `ORDER BY` clause:
 
@@ -87,7 +87,7 @@ FROM cities
 ORDER BY population / 1000;
 ```
 
-## Ordering by Alias
+## Ordering by alias
 
 You can order by a column alias defined in the `SELECT` clause:
 

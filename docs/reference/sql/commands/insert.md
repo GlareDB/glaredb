@@ -2,7 +2,7 @@
 title: INSERT
 ---
 
-# INSERT
+# Insert
 
 The `INSERT` statement adds new rows to a table.
 

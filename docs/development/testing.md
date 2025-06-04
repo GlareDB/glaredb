@@ -9,7 +9,7 @@ Review [Building From Source](./building.md) for build prerequisites.
 We utilize both unit tests and a form of integration tests called [SQL Logic
 Tests](https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki).
 
-## Unit Tests
+## Unit tests
 
 Unit tests should be written to test code paths that cannot easily be tested
 through SQL.
@@ -22,7 +22,7 @@ $ cargo test -- --skip slt/
 
 This will run all tests across all crates, while skipping the SQL Logic Tests.
 
-## SQL Logic Tests
+## SQL logic tests
 
 SQL Logic Tests allow for running and checking the output of a suite of SQL
 queries. SQL Logic Tests (SLTs) should be written for every new feature and

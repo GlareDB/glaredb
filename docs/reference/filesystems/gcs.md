@@ -2,7 +2,7 @@
 title: GCS
 ---
 
-# Google Cloud Storage (GCS) File System
+# Google Cloud Storage (GCS) file system
 
 The Google Cloud Storage (GCS) file system allows GlareDB to read data directly from Google Cloud Storage buckets.
 This makes it easy to query data stored in cloud-based data lakes without
@@ -28,7 +28,7 @@ You can also query GCS files directly by specifying the GCS URI in the FROM clau
 SELECT * FROM 'gs://my-bucket/data.parquet';
 ```
 
-## Optional Parameters
+## Optional parameters
 
 When accessing private GCS buckets, you can provide a service account key directly as
 an option:
@@ -46,12 +46,12 @@ SELECT * FROM read_parquet(
 |-------------------|-----------------------------------------------------------------------------|
 | `service_account` | GCP Service Account key in JSON format                                      |
 
-## Supported Formats
+## Supported formats
 
 All supported file formats, such as CSV and Parquet, can be read using the GCS
 file system using their respective functions (e.g. `read_parquet`).
 
-## CORS Configuration for WebAssembly
+## CORS configuration for WebAssembly
 
 When accessing GCS buckets from GlareDB running in a browser using WebAssembly,
 you need to configure Cross-Origin Resource Sharing (CORS) for your GCS bucket to
