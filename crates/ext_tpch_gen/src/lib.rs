@@ -10,17 +10,19 @@ use functions::{
     FUNCTION_SET_REGION,
     FUNCTION_SET_SUPPLIER,
 };
-use glaredb_core::extension::{Extension, ExtensionTableFunction};
+use glaredb_core::extension::{Extension, ExtensionFunctions, ExtensionTableFunction};
 
 #[derive(Debug, Clone, Copy)]
 pub struct TpchGenExtension;
 
 impl Extension for TpchGenExtension {
     const NAME: &str = "tpch_gen";
-    const FUNCTION_NAMESPACE: Option<&str> = Some("tpch_gen");
 
-    fn table_functions(&self) -> &[ExtensionTableFunction] {
-        const FUNCTIONS: &[ExtensionTableFunction] = &[
+    const FUNCTIONS: Option<&'static ExtensionFunctions> = Some(&ExtensionFunctions {
+        namespace: "tpch_gen",
+        scalar: &[],
+        aggregate: &[],
+        table: &[
             ExtensionTableFunction::new(&FUNCTION_SET_REGION),
             ExtensionTableFunction::new(&FUNCTION_SET_PART),
             ExtensionTableFunction::new(&FUNCTION_SET_SUPPLIER),
@@ -29,8 +31,6 @@ impl Extension for TpchGenExtension {
             ExtensionTableFunction::new(&FUNCTION_SET_ORDERS),
             ExtensionTableFunction::new(&FUNCTION_SET_LINEITEM),
             ExtensionTableFunction::new(&FUNCTION_SET_NATION),
-        ];
-
-        FUNCTIONS
-    }
+        ],
+    });
 }
