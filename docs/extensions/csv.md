@@ -26,7 +26,7 @@ SELECT * FROM read_csv('path/to/file.tsv');
 ```
 
 When reading a CSV or TSV file, the "dialect" used will be inferred. This
-includes inferring the delimeter (comma for CSV, tab for TSV) as well as if the
+includes inferring the delimiter (comma for CSV, tab for TSV) as well as if the
 file contains a header. Once the dialect has been determined, the types for each
 record will then be inferred.
 
@@ -99,8 +99,8 @@ By default, `read_csv` will:
 - Automatically infer column data types
 - Detect and skip the header row (if present)
 
-Additional paramters can be provided for other file systems. For example, we can
-provide AWS credentials for accessing a CSV file in a private S3 bucket:
+Additional parameters can be provided for other file systems. For example, we
+can provide AWS credentials for accessing a CSV file in a private S3 bucket:
 
 ```sql
 SELECT * FROM csv.read('s3://bucket-name/path/to/file.csv',

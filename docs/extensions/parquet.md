@@ -77,8 +77,8 @@ containing the data.
 SELECT * FROM parquet.read('cities.parquet');
 ```
 
-Additional paramters can be provided for other file systems. For example, we can
-provide AWS credentials for accessing a Parquet file in a private S3 bucket:
+Additional parameters can be provided for other file systems. For example, we
+can provide AWS credentials for accessing a Parquet file in a private S3 bucket:
 
 ```sql
 SELECT * FROM parquet.read('s3://bucket-name/path/to/file.parquet',
