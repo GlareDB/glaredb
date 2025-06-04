@@ -12,10 +12,10 @@ use crate::functions::Signature;
 use crate::functions::aggregate::{AggregateFunction, RawAggregateFunction};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_COUNT: AggregateFunctionSet = AggregateFunctionSet {
-    name: "count",
+    name: FnName::default("count"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,

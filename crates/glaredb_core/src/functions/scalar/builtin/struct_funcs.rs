@@ -2,11 +2,11 @@ use super::not_implemented::ScalarNotImplemented;
 use crate::arrays::datatype::DataTypeId;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::RawScalarFunction;
 
 pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
-    name: "struct_pack",
+    name: FnName::default("struct_pack"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STRUCT_OPERATOR,
@@ -25,7 +25,7 @@ pub const FUNCTION_SET_STRUCT_PACK: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_STRUCT_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
-    name: "struct_extract",
+    name: FnName::default("struct_extract"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STRUCT_OPERATOR,

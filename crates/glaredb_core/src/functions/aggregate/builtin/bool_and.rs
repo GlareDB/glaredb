@@ -12,11 +12,11 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_BOOL_AND: AggregateFunctionSet = AggregateFunctionSet {
-    name: "bool_and",
-    aliases: &["every"],
+    name: FnName::default("bool_and"),
+    aliases: &[FnName::default("every")],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Returns true if all non-NULL inputs are true, otherwise false.",

@@ -20,7 +20,7 @@ use tpchgen::generators::{Supplier, SupplierGenerator, SupplierGeneratorIterator
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_SUPPLIER: TableFunctionSet = TableFunctionSet {
-    name: "supplier",
+    name: FnName::default("supplier"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

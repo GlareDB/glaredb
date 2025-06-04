@@ -35,14 +35,14 @@ use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType}
 use crate::expr::{self, Expression};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::util::iter::IntoExactSizeIterator;
 
 // TODO: Nested comparisons.
 
 pub const FUNCTION_SET_EQ: ScalarFunctionSet = ScalarFunctionSet {
-    name: "=",
+    name: FnName::default("="),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -57,8 +57,8 @@ pub const FUNCTION_SET_EQ: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_NEQ: ScalarFunctionSet = ScalarFunctionSet {
-    name: "!=",
-    aliases: &["<>"],
+    name: FnName::default("!="),
+    aliases: &[FnName::default("<>")],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
         description: "Check if two values are not equal. Returns NULL if either argument is NULL.",
@@ -72,7 +72,7 @@ pub const FUNCTION_SET_NEQ: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_LT: ScalarFunctionSet = ScalarFunctionSet {
-    name: "<",
+    name: FnName::default("<"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -87,7 +87,7 @@ pub const FUNCTION_SET_LT: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_LT_EQ: ScalarFunctionSet = ScalarFunctionSet {
-    name: "<=",
+    name: FnName::default("<="),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -102,7 +102,7 @@ pub const FUNCTION_SET_LT_EQ: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_GT: ScalarFunctionSet = ScalarFunctionSet {
-    name: ">",
+    name: FnName::default(">"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -117,7 +117,7 @@ pub const FUNCTION_SET_GT: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_GT_EQ: ScalarFunctionSet = ScalarFunctionSet {
-    name: ">=",
+    name: FnName::default(">="),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -132,7 +132,7 @@ pub const FUNCTION_SET_GT_EQ: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_IS_DISTINCT_FROM: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_distinct_from",
+    name: FnName::default("is_distinct_from"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -147,7 +147,7 @@ pub const FUNCTION_SET_IS_DISTINCT_FROM: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_IS_NOT_DISTINCT_FROM: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_not_distinct_from",
+    name: FnName::default("is_not_distinct_from"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,

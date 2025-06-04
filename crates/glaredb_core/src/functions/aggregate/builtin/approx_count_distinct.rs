@@ -17,12 +17,12 @@ use crate::functions::Signature;
 use crate::functions::aggregate::{AggregateFunction, RawAggregateFunction};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 use crate::statistics::hll::HyperLogLog;
 
 pub const FUNCTION_SET_APPROX_COUNT_DISTINCT: AggregateFunctionSet = AggregateFunctionSet {
-    name: "approx_count_distinct",
-    aliases: &["approx_unique"],
+    name: FnName::default("approx_count_distinct"),
+    aliases: &[FnName::default("approx_unique")],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,
         description: "Return an estimated number of distinct, non-NULL values in the input.",

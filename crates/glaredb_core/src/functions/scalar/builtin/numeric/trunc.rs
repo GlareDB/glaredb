@@ -14,13 +14,13 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::RawScalarFunction;
 use crate::util::iter::IntoExactSizeIterator;
 
 // TODO: Implement `trunc` for decimals
 pub const FUNCTION_SET_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
-    name: "trunc",
+    name: FnName::default("trunc"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,

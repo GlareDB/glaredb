@@ -10,6 +10,7 @@ use glaredb_error::Result;
 
 use super::Signature;
 use super::bind_state::{BindState, RawBindState};
+use super::function_set::FnName;
 use crate::arrays::array::Array;
 use crate::expr::Expression;
 
@@ -23,7 +24,7 @@ pub struct AggregateStateInfo {
 
 #[derive(Debug, Clone)]
 pub struct PlannedAggregateFunction {
-    pub(crate) name: &'static str,
+    pub(crate) name: FnName,
     pub(crate) raw: &'static RawAggregateFunction,
     pub(crate) state: RawBindState,
 }

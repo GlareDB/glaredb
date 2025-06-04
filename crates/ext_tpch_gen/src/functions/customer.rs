@@ -20,7 +20,7 @@ use tpchgen::generators::{Customer, CustomerGenerator, CustomerGeneratorIterator
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_CUSTOMER: TableFunctionSet = TableFunctionSet {
-    name: "customer",
+    name: FnName::default("customer"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

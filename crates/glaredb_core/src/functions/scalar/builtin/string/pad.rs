@@ -9,11 +9,11 @@ use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_LEFT_PAD: ScalarFunctionSet = ScalarFunctionSet {
-    name: "lpad",
+    name: FnName::default("lpad"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,
@@ -93,7 +93,7 @@ impl ScalarFunction for LeftPad {
 }
 
 pub const FUNCTION_SET_RIGHT_PAD: ScalarFunctionSet = ScalarFunctionSet {
-    name: "rpad",
+    name: FnName::default("rpad"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,

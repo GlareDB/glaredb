@@ -23,13 +23,13 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 // Note this should not be part of default function list to avoid potential
 // conflict with the aggregate function.
 pub const FUNCTION_SET_BITNOT: ScalarFunctionSet = ScalarFunctionSet {
-    name: "bitnot",
+    name: FnName::default("bitnot"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,

@@ -33,12 +33,12 @@ use crate::arrays::scalar::interval::Interval;
 use crate::expr::{self, Expression};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_MUL: ScalarFunctionSet = ScalarFunctionSet {
-    name: "*",
-    aliases: &["mul"],
+    name: FnName::default("*"),
+    aliases: &[FnName::default("mul")],
     doc: &[&Documentation {
         category: Category::NUMERIC_OPERATOR,
         description: "Multiplies two numeric values.",

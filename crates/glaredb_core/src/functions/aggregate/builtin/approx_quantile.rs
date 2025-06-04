@@ -10,13 +10,13 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::statistics::tdigest::TDigest;
 
 pub const FUNCTION_SET_APPROX_QUANTILE: AggregateFunctionSet = AggregateFunctionSet {
-    name: "approx_quantile",
+    name: FnName::default("approx_quantile"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,

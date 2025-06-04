@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use glaredb_parser::ast;
 
 use crate::arrays::scalar::ScalarValue;
-use crate::functions::function_set::TableFunctionSet;
+use crate::functions::function_set::{FnName, TableFunctionSet};
 use crate::functions::table::{PlannedTableFunction, TableFunctionInput};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

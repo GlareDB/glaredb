@@ -22,7 +22,7 @@ use crate::catalog::profile::QueryProfile;
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::TableFunctionSet;
+use crate::functions::function_set::{FnName, TableFunctionSet};
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
@@ -39,7 +39,7 @@ use crate::storage::scan_filter::PhysicalScanFilter;
 // ```
 
 pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
-    name: "planning_profile",
+    name: FnName::default("planning_profile"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -70,7 +70,7 @@ pub const FUNCTION_SET_PLANNING_PROFILE: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_OPTIMIZER_PROFILE: TableFunctionSet = TableFunctionSet {
-    name: "optimizer_profile",
+    name: FnName::default("optimizer_profile"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -101,7 +101,7 @@ pub const FUNCTION_SET_OPTIMIZER_PROFILE: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
-    name: "execution_profile",
+    name: FnName::default("execution_profile"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -132,7 +132,7 @@ pub const FUNCTION_SET_EXECUTION_PROFILE: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_QUERY_INFO: TableFunctionSet = TableFunctionSet {
-    name: "query_info",
+    name: FnName::default("query_info"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,

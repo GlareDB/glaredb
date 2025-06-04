@@ -12,7 +12,7 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub trait StringTrimOp: Sync + Send + Debug + Clone + Copy + PartialEq + Eq + 'static {
@@ -20,8 +20,8 @@ pub trait StringTrimOp: Sync + Send + Debug + Clone + Copy + PartialEq + Eq + 's
 }
 
 pub const FUNCTION_SET_BTRIM: ScalarFunctionSet = ScalarFunctionSet {
-    name: "btrim",
-    aliases: &["trim"],
+    name: FnName::default("btrim"),
+    aliases: &[FnName::default("trim")],
     doc: &[&Documentation {
         category: Category::String,
         description: "Trim matching characters from both sides of the string.",
@@ -69,7 +69,7 @@ impl ScalarFunction for BothTrimOp {
 }
 
 pub const FUNCTION_SET_LTRIM: ScalarFunctionSet = ScalarFunctionSet {
-    name: "ltrim",
+    name: FnName::default("ltrim"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,
@@ -118,7 +118,7 @@ impl ScalarFunction for LeftTrimOp {
 }
 
 pub const FUNCTION_SET_RTRIM: ScalarFunctionSet = ScalarFunctionSet {
-    name: "rtrim",
+    name: FnName::default("rtrim"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,

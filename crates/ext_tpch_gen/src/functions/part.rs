@@ -20,7 +20,7 @@ use tpchgen::generators::{Part, PartGenerator, PartGeneratorIterator};
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_PART: TableFunctionSet = TableFunctionSet {
-    name: "part",
+    name: FnName::default("part"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

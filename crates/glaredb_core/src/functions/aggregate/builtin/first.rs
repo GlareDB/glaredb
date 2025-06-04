@@ -32,10 +32,10 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_FIRST: AggregateFunctionSet = AggregateFunctionSet {
-    name: "first",
+    name: FnName::default("first"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,

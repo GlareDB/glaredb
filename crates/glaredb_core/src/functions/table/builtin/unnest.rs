@@ -8,7 +8,7 @@ use crate::arrays::field::{ColumnSchema, Field};
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::TableFunctionSet;
+use crate::functions::function_set::{FnName, TableFunctionSet};
 use crate::functions::table::execute::TableExecuteFunction;
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::statistics::value::StatisticsValue;
@@ -16,7 +16,7 @@ use crate::statistics::value::StatisticsValue;
 // TODO: Unit test when create list arrays is more fun.
 
 pub const FUNCTION_SET_UNNEST: TableFunctionSet = TableFunctionSet {
-    name: "unnest",
+    name: FnName::default("unnest"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::List,

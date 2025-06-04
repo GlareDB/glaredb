@@ -16,6 +16,7 @@ use glaredb_error::{DbError, Result};
 use scan::{ScanContext, TableScanFunction};
 
 use super::Signature;
+use super::function_set::FnName;
 use crate::arrays::batch::Batch;
 use crate::arrays::field::ColumnSchema;
 use crate::execution::operators::{ExecutionProperties, PollExecute, PollFinalize, PollPull};
@@ -74,7 +75,7 @@ pub struct TableFunctionBindState<S> {
 
 #[derive(Debug, Clone)]
 pub struct PlannedTableFunction {
-    pub(crate) name: &'static str,
+    pub(crate) name: FnName,
     pub(crate) raw: &'static RawTableFunction,
     pub(crate) bind_state: RawTableFunctionBindState,
 }

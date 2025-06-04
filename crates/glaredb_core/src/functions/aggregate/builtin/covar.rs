@@ -13,10 +13,10 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_COVAR_POP: AggregateFunctionSet = AggregateFunctionSet {
-    name: "covar_pop",
+    name: FnName::default("covar_pop"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,
@@ -58,7 +58,7 @@ impl BinaryAggregate for CovarPop {
 }
 
 pub const FUNCTION_SET_COVAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
-    name: "covar_samp",
+    name: FnName::default("covar_samp"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,

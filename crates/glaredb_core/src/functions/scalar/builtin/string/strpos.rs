@@ -9,12 +9,12 @@ use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_STRPOS: ScalarFunctionSet = ScalarFunctionSet {
-    name: "strpos",
-    aliases: &["instr"],
+    name: FnName::default("strpos"),
+    aliases: &[FnName::default("instr")],
     doc: &[&Documentation {
         category: Category::String,
         description: "Returns the position of a substring within a string. Returns 0 if the substring is not found.",

@@ -10,13 +10,13 @@ use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 pub const FUNCTION_SET_REGEXP_INSTR: ScalarFunctionSet = ScalarFunctionSet {
-    name: "regexp_instr",
+    name: FnName::default("regexp_instr"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Regexp,

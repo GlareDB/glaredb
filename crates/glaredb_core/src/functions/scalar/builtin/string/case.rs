@@ -9,12 +9,12 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_LOWER: ScalarFunctionSet = ScalarFunctionSet {
-    name: "lower",
+    name: FnName::default("lower"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,
@@ -53,7 +53,7 @@ impl ScalarFunction for Lower {
 }
 
 pub const FUNCTION_SET_UPPER: ScalarFunctionSet = ScalarFunctionSet {
-    name: "upper",
+    name: FnName::default("upper"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,

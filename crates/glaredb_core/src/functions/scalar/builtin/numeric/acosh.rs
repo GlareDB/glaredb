@@ -9,12 +9,12 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::RawScalarFunction;
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_ACOSH: ScalarFunctionSet = ScalarFunctionSet {
-    name: "acosh",
+    name: FnName::default("acosh"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,

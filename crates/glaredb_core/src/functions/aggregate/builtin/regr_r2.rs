@@ -13,10 +13,10 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_REGR_R2: AggregateFunctionSet = AggregateFunctionSet {
-    name: "regr_r2",
+    name: FnName::default("regr_r2"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,

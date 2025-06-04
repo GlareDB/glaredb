@@ -16,9 +16,9 @@ pub type TableFunctionSet = FunctionSet<RawTableFunction>;
 #[derive(Debug, Clone, Copy)]
 pub struct FunctionSet<T: 'static> {
     /// Name of the function.
-    pub name: &'static str,
+    pub name: FnName,
     /// Set of aliases for this function.
-    pub aliases: &'static [&'static str],
+    pub aliases: &'static [FnName],
     /// Documentation for the function.
     ///
     /// If a function accepts different arities, then there should (ideally) be
@@ -85,6 +85,36 @@ impl TableFunctionSet {
         self.functions
             .iter()
             .any(|func| func.function_type() == TableFunctionType::Scan)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FnName {
+    Default {
+        name: &'static str,
+    },
+    Namespaced {
+        schema: &'static str,
+        name: &'static str,
+    },
+}
+
+impl FnName {
+    pub const fn default(name: &'static str) -> Self {
+        FnName::Default { name }
+    }
+
+    pub const fn namespaced(schema: &'static str, name: &'static str) -> Self {
+        FnName::Namespaced { schema, name }
+    }
+}
+
+impl fmt::Display for FnName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Default { name } => write!(f, "{}", name),
+            Self::Namespaced { schema, name } => write!(f, "{}.{}", schema, name),
+        }
     }
 }
 

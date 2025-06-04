@@ -29,13 +29,13 @@ use crate::arrays::scalar::decimal::{Decimal64Type, Decimal128Type, DecimalType}
 use crate::expr::{self, Expression};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::builtin::arith::decimal_arith::common_add_sub_decimal_type_info;
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_SUB: ScalarFunctionSet = ScalarFunctionSet {
-    name: "-",
-    aliases: &["sub"],
+    name: FnName::default("-"),
+    aliases: &[FnName::default("sub")],
     doc: &[&Documentation {
         category: Category::NUMERIC_OPERATOR,
         description: "Subtracts the right value from the left value.",

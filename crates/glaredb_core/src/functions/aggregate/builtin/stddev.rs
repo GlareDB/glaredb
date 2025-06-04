@@ -13,10 +13,10 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_STDDEV_POP: AggregateFunctionSet = AggregateFunctionSet {
-    name: "stddev_pop",
+    name: FnName::default("stddev_pop"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,
@@ -31,8 +31,8 @@ pub const FUNCTION_SET_STDDEV_POP: AggregateFunctionSet = AggregateFunctionSet {
 };
 
 pub const FUNCTION_SET_STDDEV_SAMP: AggregateFunctionSet = AggregateFunctionSet {
-    name: "stddev_samp",
-    aliases: &["stddev"],
+    name: FnName::default("stddev_samp"),
+    aliases: &[FnName::default("stddev")],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,
         description: "Compute the sample standard deviation.",
@@ -46,7 +46,7 @@ pub const FUNCTION_SET_STDDEV_SAMP: AggregateFunctionSet = AggregateFunctionSet 
 };
 
 pub const FUNCTION_SET_VAR_POP: AggregateFunctionSet = AggregateFunctionSet {
-    name: "var_pop",
+    name: FnName::default("var_pop"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,
@@ -61,7 +61,7 @@ pub const FUNCTION_SET_VAR_POP: AggregateFunctionSet = AggregateFunctionSet {
 };
 
 pub const FUNCTION_SET_VAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
-    name: "var_samp",
+    name: FnName::default("var_samp"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,

@@ -10,7 +10,7 @@ use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::TableFunctionSet;
+use crate::functions::function_set::{FnName, TableFunctionSet};
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::statistics::value::StatisticsValue;
@@ -19,7 +19,7 @@ use crate::storage::projections::Projections;
 use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_MEMORY_SCAN: TableFunctionSet = TableFunctionSet {
-    name: "memory_scan",
+    name: FnName::default("memory_scan"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

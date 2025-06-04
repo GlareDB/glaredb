@@ -21,7 +21,7 @@ use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_ORDERS: TableFunctionSet = TableFunctionSet {
-    name: "orders",
+    name: FnName::default("orders"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

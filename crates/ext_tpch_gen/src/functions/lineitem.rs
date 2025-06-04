@@ -19,7 +19,7 @@ use super::convert;
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_LINEITEM: TableFunctionSet = TableFunctionSet {
-    name: "lineitem",
+    name: FnName::default("lineitem"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

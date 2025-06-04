@@ -32,7 +32,7 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 // Min/max is used in some aggregate layout tests, assuming the size and
 // alignment of min/max primitive states.
@@ -41,7 +41,7 @@ use crate::functions::function_set::AggregateFunctionSet;
 // updating.
 
 pub const FUNCTION_SET_MIN: AggregateFunctionSet = AggregateFunctionSet {
-    name: "min",
+    name: FnName::default("min"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,
@@ -205,7 +205,7 @@ impl UnaryAggregate for MinBinary {
 }
 
 pub const FUNCTION_SET_MAX: AggregateFunctionSet = AggregateFunctionSet {
-    name: "max",
+    name: FnName::default("max"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,

@@ -1,0 +1,10 @@
+# Benchmark LIKE on a table of small strings with a small search string.
+#
+# Written to ensure optimizer continues to replace `LIKE '%a%'` with `contains`
+# after adding the FnName stuff.
+
+setup
+CREATE TEMP TABLE strings AS SELECT repeat('a', n % 10) AS str FROM generate_series(1, 100000) g(n);
+
+run
+SELECT count(*) FROM strings WHERE str LIKE '%a%';

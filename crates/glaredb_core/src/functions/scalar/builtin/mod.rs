@@ -126,7 +126,7 @@ use string::{
 };
 use struct_funcs::{FUNCTION_SET_STRUCT_EXTRACT, FUNCTION_SET_STRUCT_PACK};
 
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 
 pub const BUILTIN_SCALAR_FUNCTION_SETS: &[ScalarFunctionSet] = &[
     // Arith

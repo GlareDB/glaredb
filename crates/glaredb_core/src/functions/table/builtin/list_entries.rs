@@ -17,7 +17,7 @@ use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::{FunctionSet, TableFunctionSet};
+use crate::functions::function_set::{FnName, FunctionSet, TableFunctionSet};
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::statistics::value::StatisticsValue;
@@ -25,7 +25,7 @@ use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
-    name: "list_tables",
+    name: FnName::default("list_tables"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -40,7 +40,7 @@ pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
-    name: "list_views",
+    name: FnName::default("list_views"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -55,7 +55,7 @@ pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_LIST_FUNCTIONS: TableFunctionSet = TableFunctionSet {
-    name: "list_functions",
+    name: FnName::default("list_functions"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -499,7 +499,10 @@ impl TableScanFunction for ListFunctions {
         for (idx, chunk) in op_state.entries.chunks(props.batch_size).enumerate() {
             let part_idx = idx % states.len();
 
-            fn alias_of<F>(ent: &CatalogEntry, fn_set: &FunctionSet<F>) -> Option<&'static str> {
+            fn alias_of<F>(
+                ent: &CatalogEntry,
+                fn_set: &FunctionSet<F>,
+            ) -> Option<Cow<'static, str>> {
                 // Assume that if the entry name doens't match the function
                 // name, then it's an alias.
                 if ent.name == fn_set.name {
