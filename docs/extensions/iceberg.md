@@ -49,8 +49,6 @@ SELECT *
 FROM iceberg.metadata('wh/default.db/cities')
 ```
 
-Returned columns:
-
 | Column           | Description                              |
 |------------------|------------------------------------------|
 | `format_version` | The Iceberg format version of the table. |
@@ -66,8 +64,6 @@ about valid snapshots for this version of the table.
 SELECT *
 FROM iceberg.snapshots('wh/default.db/cities')
 ```
-
-Returned columns:
 
 | Column            | Description                                           |
 |-------------------|-------------------------------------------------------|
@@ -85,8 +81,6 @@ SELECT *
 FROM iceberg.manifest_list('wh/default.db/cities')
 ```
 
-Returned columns:
-
 | Column            | Description                                             |
 |-------------------|---------------------------------------------------------|
 | `manifest_path`   | Location of a manifest file.                            |
@@ -103,8 +97,6 @@ about the data files for the current snapshot.
 SELECT *
 FROM iceberg.data_files('wh/default.db/cities')
 ```
-
-Returned columns:
 
 | Column         | Description                                                                         |
 |----------------|-------------------------------------------------------------------------------------|
