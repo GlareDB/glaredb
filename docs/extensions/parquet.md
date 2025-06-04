@@ -4,7 +4,7 @@ title: Parquet
 
 # Parquet extension
 
-The `parquet` extension enables direct querying of [Apache
+The `parquet` extension enables reading of [Apache
 Parquet](https://parquet.apache.org/) files. Parquet is a columnar file format
 for efficient analytical querying.
 
@@ -43,7 +43,7 @@ To read a specific set of files:
 SELECT * FROM read_parquet(['file1.parquet', 'file2.parquet']);
 ```
 
-To read all parquet files in `data/`:
+To read all Parquet files in `data/`:
 
 ```sql
 SELECT * FROM read_parquet('data/*.parquet');
@@ -78,7 +78,7 @@ SELECT * FROM parquet.read('cities.parquet');
 ```
 
 Additional paramters can be provided for other file systems. For example, we can
-provide AWS credentials for accessing a parquet file in a private S3 bucket:
+provide AWS credentials for accessing a Parquet file in a private S3 bucket:
 
 ```sql
 SELECT * FROM parquet.read('s3://bucket-name/path/to/file.parquet',
