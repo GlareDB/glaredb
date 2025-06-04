@@ -31,8 +31,8 @@ use crate::reader::{Reader, ScanRowGroup, ScanUnit};
 use crate::schema::convert::ColumnSchemaTypeVisitor;
 
 pub const FUNCTION_SET_READ_PARQUET: TableFunctionSet = TableFunctionSet {
-    name: "read_parquet",
-    aliases: &["parquet_scan"],
+    name: "read",
+    aliases: &["scan"],
     doc: &[&Documentation {
         category: Category::Table,
         description: "Read a parquet file.",

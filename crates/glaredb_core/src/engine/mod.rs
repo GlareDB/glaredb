@@ -4,7 +4,7 @@ pub mod single_user;
 
 use std::sync::Arc;
 
-use glaredb_error::{OptionExt, Result};
+use glaredb_error::Result;
 use session::Session;
 
 use crate::catalog::context::{DatabaseContext, SYSTEM_CATALOG};
@@ -70,86 +70,91 @@ where
     }
 
     /// Register a new extension for this engine.
-    pub fn register_extension<E>(&self, ext: E) -> Result<()>
+    pub fn register_extension<E>(&self, _ext: E) -> Result<()>
     where
         E: Extension + 'static,
     {
-        let schema = match E::FUNCTION_NAMESPACE {
-            Some(namespace) => {
-                // Create a new schema for these functions.
-                self.system_catalog
-                    .catalog
-                    .create_schema(&CreateSchemaInfo {
-                        name: namespace.to_string(),
-                        on_conflict: OnConflict::Error,
-                    })?
-            }
-            None => {
-                // Use the default schema.
-                self.system_catalog
-                    .catalog
-                    .get_schema(DEFAULT_SCHEMA)?
-                    .required("default schema")?
-            }
-        };
+        if let Some(functions) = E::FUNCTIONS {
+            // Create a new schema for these functions.
+            let schema = self
+                .system_catalog
+                .catalog
+                .create_schema(&CreateSchemaInfo {
+                    name: functions.namespace.to_string(),
+                    on_conflict: OnConflict::Error,
+                })?;
 
-        // Register scalar functions.
-        for scalar in ext.scalar_functions() {
-            schema.create_scalar_function(&CreateScalarFunctionInfo {
-                name: scalar.name.to_string(),
-                implementation: scalar,
-                on_conflict: OnConflict::Error,
-            })?;
-
-            for alias in scalar.aliases {
+            // Register scalar functions.
+            for scalar in functions.scalar {
                 schema.create_scalar_function(&CreateScalarFunctionInfo {
-                    name: alias.to_string(),
+                    name: scalar.name.to_string(),
                     implementation: scalar,
                     on_conflict: OnConflict::Error,
                 })?;
+
+                for alias in scalar.aliases {
+                    schema.create_scalar_function(&CreateScalarFunctionInfo {
+                        name: alias.to_string(),
+                        implementation: scalar,
+                        on_conflict: OnConflict::Error,
+                    })?;
+                }
             }
-        }
 
-        // Register aggregate functions.
-        for agg in ext.aggregate_functions() {
-            schema.create_aggregate_function(&CreateAggregateFunctionInfo {
-                name: agg.name.to_string(),
-                implementation: agg,
-                on_conflict: OnConflict::Error,
-            })?;
-
-            for alias in agg.aliases {
+            // Register aggregate functions.
+            for agg in functions.aggregate {
                 schema.create_aggregate_function(&CreateAggregateFunctionInfo {
-                    name: alias.to_string(),
+                    name: agg.name.to_string(),
                     implementation: agg,
                     on_conflict: OnConflict::Error,
                 })?;
+
+                for alias in agg.aliases {
+                    schema.create_aggregate_function(&CreateAggregateFunctionInfo {
+                        name: alias.to_string(),
+                        implementation: agg,
+                        on_conflict: OnConflict::Error,
+                    })?;
+                }
             }
-        }
 
-        // Register table functions.
-        for table_func in ext.table_functions() {
-            schema.create_table_function(&CreateTableFunctionInfo {
-                name: table_func.function.name.to_string(),
-                implementation: table_func.function,
-                infer_scan: table_func.infer_scan,
-                on_conflict: OnConflict::Error,
-            })?;
+            let default_schema = self
+                .system_catalog
+                .catalog
+                .get_schema(DEFAULT_SCHEMA)?
+                .expect("default schema to exist");
 
-            for alias in table_func.function.aliases {
-                // Infer scan is always set to None for aliases, since it'd
-                // point to the same function implementation anyways as the
-                // unaliased version.
+            // Register table functions.
+            for table_func in functions.table {
                 schema.create_table_function(&CreateTableFunctionInfo {
-                    name: alias.to_string(),
+                    name: table_func.function.name.to_string(),
                     implementation: table_func.function,
                     infer_scan: None,
                     on_conflict: OnConflict::Error,
                 })?;
+
+                for alias in table_func.function.aliases {
+                    schema.create_table_function(&CreateTableFunctionInfo {
+                        name: alias.to_string(),
+                        implementation: table_func.function,
+                        infer_scan: None,
+                        on_conflict: OnConflict::Error,
+                    })?;
+                }
+
+                // Special case aliases in default.
+                if let Some(alias_in_default) = table_func.aliases_in_default {
+                    for alias in alias_in_default.aliases {
+                        default_schema.create_table_function(&CreateTableFunctionInfo {
+                            name: alias.to_string(),
+                            implementation: table_func.function,
+                            infer_scan: alias_in_default.infer_scan,
+                            on_conflict: OnConflict::Error,
+                        })?;
+                    }
+                }
             }
         }
-
-        // TODO: File handlers
 
         Ok(())
     }

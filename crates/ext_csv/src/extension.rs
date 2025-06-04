@@ -1,5 +1,10 @@
 use glaredb_core::catalog::create::FileInferScan;
-use glaredb_core::extension::{Extension, ExtensionTableFunction};
+use glaredb_core::extension::{
+    Extension,
+    ExtensionFunctions,
+    ExtensionTableFunction,
+    TableFunctionAliasesInDefault,
+};
 
 use crate::functions::read_csv::FUNCTION_SET_READ_CSV;
 
@@ -8,19 +13,22 @@ pub struct CsvExtension;
 
 impl Extension for CsvExtension {
     const NAME: &str = "csv";
-    const FUNCTION_NAMESPACE: Option<&str> = None; // Place functions in default schema.
 
-    fn table_functions(&self) -> &[ExtensionTableFunction] {
-        const FUNCTIONS: &[ExtensionTableFunction] = &[
+    const FUNCTIONS: Option<&'static ExtensionFunctions> = Some(&ExtensionFunctions {
+        namespace: "csv",
+        scalar: &[],
+        aggregate: &[],
+        table: &[
             // Scan functions
             ExtensionTableFunction {
-                infer_scan: Some(FileInferScan {
-                    can_handle: |path| path.ends_with(".csv") || path.ends_with(".tsv"), // TODO: See parquet...
+                aliases_in_default: Some(TableFunctionAliasesInDefault {
+                    aliases: &["read_csv", "csv_scan"],
+                    infer_scan: Some(FileInferScan {
+                        can_handle: |path| path.ends_with(".csv") || path.ends_with(".tsv"), // TODO: See parquet...
+                    }),
                 }),
                 function: &FUNCTION_SET_READ_CSV,
             },
-        ];
-
-        FUNCTIONS
-    }
+        ],
+    });
 }

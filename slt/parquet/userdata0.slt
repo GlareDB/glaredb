@@ -25,6 +25,17 @@ SELECT count(*) FROM read_parquet('../testdata/parquet/userdata0.parquet');
 ----
 1000
 
+# Ensure we can read with the namespaced function.
+query I
+SELECT count(*) FROM parquet.scan('../testdata/parquet/userdata0.parquet');
+----
+1000
+
+query I
+SELECT count(*) FROM parquet.read('../testdata/parquet/userdata0.parquet');
+----
+1000
+
 query I
 SELECT count(DISTINCT title) FROM read_parquet('../testdata/parquet/userdata0.parquet');
 ----
