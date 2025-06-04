@@ -207,6 +207,9 @@ pub enum LogicalType {
     Bson,
     Uuid,
     Float16,
+    Variant,
+    Geometry,
+    Geography,
 }
 
 // ----------------------------------------------------------------------
@@ -527,6 +530,9 @@ impl ColumnOrder {
                 LogicalType::Unknown => SortOrder::UNDEFINED,
                 LogicalType::Uuid => SortOrder::UNSIGNED,
                 LogicalType::Float16 => SortOrder::SIGNED,
+                LogicalType::Variant | LogicalType::Geometry | LogicalType::Geography => {
+                    SortOrder::UNDEFINED
+                }
             },
             // Fall back to converted type
             None => Self::get_converted_sort_order(converted_type, physical_type),
@@ -794,6 +800,9 @@ impl From<parquet::LogicalType> for LogicalType {
             parquet::LogicalType::BSON(_) => LogicalType::Bson,
             parquet::LogicalType::UUID(_) => LogicalType::Uuid,
             parquet::LogicalType::FLOAT16(_) => LogicalType::Float16,
+            parquet::LogicalType::VARIANT(_) => LogicalType::Variant,
+            parquet::LogicalType::GEOMETRY(_) => LogicalType::Geometry,
+            parquet::LogicalType::GEOGRAPHY(_) => LogicalType::Geography,
         }
     }
 }
@@ -835,6 +844,9 @@ impl From<LogicalType> for parquet::LogicalType {
             LogicalType::Bson => parquet::LogicalType::BSON(Default::default()),
             LogicalType::Uuid => parquet::LogicalType::UUID(Default::default()),
             LogicalType::Float16 => parquet::LogicalType::FLOAT16(Default::default()),
+            LogicalType::Variant => parquet::LogicalType::VARIANT(Default::default()),
+            LogicalType::Geometry => parquet::LogicalType::GEOMETRY(Default::default()),
+            LogicalType::Geography => parquet::LogicalType::GEOGRAPHY(Default::default()),
         }
     }
 }
@@ -884,9 +896,12 @@ impl From<Option<LogicalType>> for ConvertedType {
                 },
                 LogicalType::Json => ConvertedType::JSON,
                 LogicalType::Bson => ConvertedType::BSON,
-                LogicalType::Uuid | LogicalType::Float16 | LogicalType::Unknown => {
-                    ConvertedType::NONE
-                }
+                LogicalType::Uuid
+                | LogicalType::Float16
+                | LogicalType::Variant
+                | LogicalType::Geometry
+                | LogicalType::Geography
+                | LogicalType::Unknown => ConvertedType::NONE,
             },
             None => ConvertedType::NONE,
         }
