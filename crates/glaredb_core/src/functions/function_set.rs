@@ -88,6 +88,27 @@ impl TableFunctionSet {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FnName {
+    Default {
+        name: &'static str,
+    },
+    Namespaced {
+        schema: &'static str,
+        name: &'static str,
+    },
+}
+
+impl FnName {
+    pub const fn default(name: &'static str) -> Self {
+        FnName::Default { name }
+    }
+
+    pub const fn namespaced(schema: &'static str, name: &'static str) -> Self {
+        FnName::Namespaced { schema, name }
+    }
+}
+
 pub trait FunctionInfo: Sized + Copy {
     fn signature(&self) -> &Signature;
 }
