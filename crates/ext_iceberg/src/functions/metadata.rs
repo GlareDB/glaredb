@@ -31,6 +31,8 @@ use glaredb_error::{OptionExt, Result};
 use crate::table::spec;
 use crate::table::state::TableState;
 
+// TODO: Some of these would benefit from 'snapshot' parameter.
+
 pub const FUNCTION_SET_ICEBERG_METADATA: TableFunctionSet = TableFunctionSet {
     name: "metadata",
     aliases: &[],
