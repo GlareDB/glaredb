@@ -70,7 +70,7 @@ where
     }
 
     /// Register a new extension for this engine.
-    pub fn register_extension<E>(&self, ext: E) -> Result<()>
+    pub fn register_extension<E>(&self, _ext: E) -> Result<()>
     where
         E: Extension + 'static,
     {

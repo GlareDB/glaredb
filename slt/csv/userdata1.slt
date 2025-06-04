@@ -23,6 +23,17 @@ SELECT count(*) FROM read_csv('../testdata/csv/userdata1.csv');
 ----
 1000
 
+# Ensure we can read with the namespaced function.
+query I
+SELECT count(*) FROM csv.read('../testdata/csv/userdata1.csv');
+----
+1000
+
+query I
+SELECT count(*) FROM csv.scan('../testdata/csv/userdata1.csv');
+----
+1000
+
 # One less than the equivalent parquet test since the csv reader reads an empty
 # value as null. In the parquet file, they're just empty strings.
 query I
