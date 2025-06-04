@@ -30,7 +30,7 @@ includes inferring the delimiter (comma for CSV, tab for TSV) as well as if the
 file contains a header. Once the dialect has been determined, the types for each
 record will then be inferred.
 
-[DESCRIBE](../sql/commands/describe.md) can be used to determine the
+[DESCRIBE](../../sql/commands/describe.md) can be used to determine the
 types that were inferred for each column:
 
 ```sql
