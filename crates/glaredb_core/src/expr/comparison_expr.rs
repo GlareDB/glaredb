@@ -2,7 +2,7 @@ use std::fmt;
 
 use super::{AsScalarFunctionSet, Expression};
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::builtin::comparison::{
     FUNCTION_SET_EQ,
     FUNCTION_SET_GT,

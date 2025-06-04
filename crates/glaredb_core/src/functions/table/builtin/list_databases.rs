@@ -11,7 +11,7 @@ use crate::catalog::database::Database;
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::TableFunctionSet;
+use crate::functions::function_set::{FnName, TableFunctionSet};
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::statistics::value::StatisticsValue;
@@ -19,7 +19,7 @@ use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_LIST_DATABASES: TableFunctionSet = TableFunctionSet {
-    name: "list_databases",
+    name: FnName::default("list_databases"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,

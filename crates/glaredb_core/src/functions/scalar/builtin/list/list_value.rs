@@ -7,11 +7,11 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_LIST_VALUE: ScalarFunctionSet = ScalarFunctionSet {
-    name: "list_value",
+    name: FnName::default("list_value"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::List,

@@ -9,12 +9,12 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
-    name: "length",
-    aliases: &["char_length", "character_length"],
+    name: FnName::default("length"),
+    aliases: &[FnName::default("char_length"), FnName::default("character_length")],
     doc: &[&Documentation {
         category: Category::String,
         description: "Get the number of characters in a string.",
@@ -61,8 +61,8 @@ impl ScalarFunction for StringLength {
 }
 
 pub const FUNCTION_SET_BYTE_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
-    name: "byte_length",
-    aliases: &["octet_length"],
+    name: FnName::default("byte_length"),
+    aliases: &[FnName::default("octet_length")],
     doc: &[&Documentation {
         category: Category::String,
         description: "Get the number of bytes in a string or blob.",
@@ -113,7 +113,7 @@ impl ScalarFunction for ByteLength {
 }
 
 pub const FUNCTION_SET_BIT_LENGTH: ScalarFunctionSet = ScalarFunctionSet {
-    name: "bit_length",
+    name: FnName::default("bit_length"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,

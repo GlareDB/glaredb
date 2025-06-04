@@ -3,7 +3,7 @@ use std::fmt;
 use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::builtin::arith::{
     FUNCTION_SET_ADD,
     FUNCTION_SET_DIV,

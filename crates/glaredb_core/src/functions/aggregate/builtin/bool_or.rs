@@ -12,10 +12,10 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_BOOL_OR: AggregateFunctionSet = AggregateFunctionSet {
-    name: "bool_or",
+    name: FnName::default("bool_or"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,

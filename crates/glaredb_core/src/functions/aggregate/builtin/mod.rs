@@ -43,7 +43,7 @@ use stddev::{
 use string_agg::FUNCTION_SET_STRING_AGG;
 use sum::FUNCTION_SET_SUM;
 
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const BUILTIN_AGGREGATE_FUNCTION_SETS: &[AggregateFunctionSet] = &[
     FUNCTION_SET_SUM,

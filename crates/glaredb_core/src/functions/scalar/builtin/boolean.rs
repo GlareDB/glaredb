@@ -12,11 +12,11 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExec
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
-    name: "and",
+    name: FnName::default("and"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::LOGICAL_OPERATOR,
@@ -38,7 +38,7 @@ pub const FUNCTION_SET_AND: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_OR: ScalarFunctionSet = ScalarFunctionSet {
-    name: "or",
+    name: FnName::default("or"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::LOGICAL_OPERATOR,

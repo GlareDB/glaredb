@@ -25,10 +25,10 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_BIT_AND: AggregateFunctionSet = AggregateFunctionSet {
-    name: "bit_and",
+    name: FnName::default("bit_and"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,

@@ -13,10 +13,10 @@ use crate::functions::aggregate::RawAggregateFunction;
 use crate::functions::aggregate::simple::{BinaryAggregate, SimpleBinaryAggregate};
 use crate::functions::bind_state::BindState;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::AggregateFunctionSet;
+use crate::functions::function_set::{AggregateFunctionSet, FnName};
 
 pub const FUNCTION_SET_REGR_AVG_Y: AggregateFunctionSet = AggregateFunctionSet {
-    name: "regr_avgy",
+    name: FnName::default("regr_avgy"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,
@@ -34,7 +34,7 @@ pub const FUNCTION_SET_REGR_AVG_Y: AggregateFunctionSet = AggregateFunctionSet {
 };
 
 pub const FUNCTION_SET_REGR_AVG_X: AggregateFunctionSet = AggregateFunctionSet {
-    name: "regr_avgx",
+    name: FnName::default("regr_avgx"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::STATISTICS_AGGREGATE,

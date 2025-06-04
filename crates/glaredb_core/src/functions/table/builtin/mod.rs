@@ -27,7 +27,7 @@ use read_text::FUNCTION_SET_READ_TEXT;
 use series::FUNCTION_SET_GENERATE_SERIES;
 use unnest::FUNCTION_SET_UNNEST;
 
-use crate::functions::function_set::TableFunctionSet;
+use crate::functions::function_set::{FnName, TableFunctionSet};
 
 pub const BUILTIN_TABLE_FUNCTION_SETS: &[TableFunctionSet] = &[
     FUNCTION_SET_GENERATE_SERIES,

@@ -9,14 +9,14 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 pub const FUNCTION_SET_STARTS_WITH: ScalarFunctionSet = ScalarFunctionSet {
-    name: "starts_with",
-    aliases: &["prefix"],
+    name: FnName::default("starts_with"),
+    aliases: &[FnName::default("prefix")],
     doc: &[&Documentation {
         category: Category::String,
         description: "Check if a string starts with a prefix.",

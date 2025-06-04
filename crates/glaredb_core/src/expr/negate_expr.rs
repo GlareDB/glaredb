@@ -5,7 +5,7 @@ use glaredb_error::Result;
 use super::{AsScalarFunctionSet, Expression};
 use crate::arrays::datatype::DataType;
 use crate::explain::context_display::{ContextDisplay, ContextDisplayMode, ContextDisplayWrapper};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::builtin::negate::{FUNCTION_SET_NEGATE, FUNCTION_SET_NOT};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

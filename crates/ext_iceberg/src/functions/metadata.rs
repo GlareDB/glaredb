@@ -32,7 +32,7 @@ use crate::table::spec;
 use crate::table::state::TableState;
 
 pub const FUNCTION_SET_ICEBERG_METADATA: TableFunctionSet = TableFunctionSet {
-    name: "iceberg_metadata",
+    name: FnName::default("iceberg_metadata"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,
@@ -47,7 +47,7 @@ pub const FUNCTION_SET_ICEBERG_METADATA: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_ICEBERG_SNAPSHOTS: TableFunctionSet = TableFunctionSet {
-    name: "iceberg_snapshots",
+    name: FnName::default("iceberg_snapshots"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,
@@ -62,7 +62,7 @@ pub const FUNCTION_SET_ICEBERG_SNAPSHOTS: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_ICEBERG_MANIFEST_LIST: TableFunctionSet = TableFunctionSet {
-    name: "iceberg_manifest_list",
+    name: FnName::default("iceberg_manifest_list"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,
@@ -77,7 +77,7 @@ pub const FUNCTION_SET_ICEBERG_MANIFEST_LIST: TableFunctionSet = TableFunctionSe
 };
 
 pub const FUNCTION_SET_ICEBERG_DATA_FILES: TableFunctionSet = TableFunctionSet {
-    name: "iceberg_data_files",
+    name: FnName::default("iceberg_data_files"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

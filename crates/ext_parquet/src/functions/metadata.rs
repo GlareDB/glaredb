@@ -41,7 +41,7 @@ use crate::metadata::ParquetMetaData;
 use crate::metadata::loader::MetaDataLoader;
 
 pub const FUNCTION_SET_PARQUET_FILE_METADATA: TableFunctionSet = TableFunctionSet {
-    name: "parquet_file_metadata",
+    name: FnName::default("parquet_file_metadata"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,
@@ -62,7 +62,7 @@ pub const FUNCTION_SET_PARQUET_FILE_METADATA: TableFunctionSet = TableFunctionSe
 };
 
 pub const FUNCTION_SET_PARQUET_ROWGROUP_METADATA: TableFunctionSet = TableFunctionSet {
-    name: "parquet_rowgroup_metadata",
+    name: FnName::default("parquet_rowgroup_metadata"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,
@@ -83,7 +83,7 @@ pub const FUNCTION_SET_PARQUET_ROWGROUP_METADATA: TableFunctionSet = TableFuncti
 };
 
 pub const FUNCTION_SET_PARQUET_COLUMN_METADATA: TableFunctionSet = TableFunctionSet {
-    name: "parquet_column_metadata",
+    name: FnName::default("parquet_column_metadata"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

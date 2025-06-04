@@ -9,13 +9,13 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
-    name: "epoch",
-    aliases: &["epoch_s"],
+    name: FnName::default("epoch"),
+    aliases: &[FnName::default("epoch_s")],
     doc: &[&Documentation {
         category: Category::DateTime,
         description: "Converts a Unix timestamp in seconds to a timestamp.",
@@ -32,7 +32,7 @@ pub const FUNCTION_SET_EPOCH: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_EPOCH_MS: ScalarFunctionSet = ScalarFunctionSet {
-    name: "epoch_ms",
+    name: FnName::default("epoch_ms"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::DateTime,

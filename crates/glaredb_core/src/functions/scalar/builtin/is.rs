@@ -12,11 +12,11 @@ use crate::arrays::datatype::{DataType, DataTypeId};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_null",
+    name: FnName::default("is_null"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -34,7 +34,7 @@ pub const FUNCTION_SET_IS_NULL: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_IS_NOT_NULL: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_not_null",
+    name: FnName::default("is_not_null"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -94,7 +94,7 @@ impl<const RETURN: bool> ScalarFunction for CheckNull<RETURN> {
 }
 
 pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_true",
+    name: FnName::default("is_true"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -112,7 +112,7 @@ pub const FUNCTION_SET_IS_TRUE: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_not_true",
+    name: FnName::default("is_not_true"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -130,7 +130,7 @@ pub const FUNCTION_SET_IS_NOT_TRUE: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_false",
+    name: FnName::default("is_false"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,
@@ -148,7 +148,7 @@ pub const FUNCTION_SET_IS_FALSE: ScalarFunctionSet = ScalarFunctionSet {
 };
 
 pub const FUNCTION_SET_IS_NOT_FALSE: ScalarFunctionSet = ScalarFunctionSet {
-    name: "is_not_false",
+    name: FnName::default("is_not_false"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::COMPARISON_OPERATOR,

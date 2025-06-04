@@ -11,13 +11,13 @@ use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 
 pub const FUNCTION_SET_DATE_TRUNC: ScalarFunctionSet = ScalarFunctionSet {
-    name: "date_trunc",
+    name: FnName::default("date_trunc"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::DateTime,

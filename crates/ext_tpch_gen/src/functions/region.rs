@@ -17,7 +17,7 @@ use tpchgen::generators::{Region, RegionGenerator, RegionGeneratorIterator};
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_REGION: TableFunctionSet = TableFunctionSet {
-    name: "region",
+    name: FnName::default("region"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

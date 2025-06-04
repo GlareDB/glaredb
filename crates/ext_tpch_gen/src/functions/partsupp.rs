@@ -18,7 +18,7 @@ use tpchgen::generators::{PartSupp, PartSuppGenerator, PartSuppGeneratorIterator
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_PARTSUPP: TableFunctionSet = TableFunctionSet {
-    name: "partsupp",
+    name: FnName::default("partsupp"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,

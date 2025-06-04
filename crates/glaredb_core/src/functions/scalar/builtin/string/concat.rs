@@ -9,14 +9,14 @@ use crate::arrays::executor::scalar::{BinaryExecutor, UnaryExecutor, UniformExec
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 // TODO: Currently '||' aliases to this, however there should be two separate
 // concat functions. One that should return null on any null arguments (||), and
 // one that should omit null arguments when concatenating (the normal concat).
 pub const FUNCTION_SET_CONCAT: ScalarFunctionSet = ScalarFunctionSet {
-    name: "concat",
+    name: FnName::default("concat"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::String,

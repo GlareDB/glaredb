@@ -19,11 +19,11 @@ use crate::arrays::executor::scalar::BinaryExecutor;
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_GCD: ScalarFunctionSet = ScalarFunctionSet {
-    name: "gcd",
+    name: FnName::default("gcd"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,

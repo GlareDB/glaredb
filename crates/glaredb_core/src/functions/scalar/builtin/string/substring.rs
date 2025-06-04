@@ -9,12 +9,12 @@ use crate::arrays::executor::scalar::{BinaryExecutor, TernaryExecutor};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_SUBSTRING: ScalarFunctionSet = ScalarFunctionSet {
-    name: "substring",
-    aliases: &["substr"],
+    name: FnName::default("substring"),
+    aliases: &[FnName::default("substr")],
     doc: &[&Documentation {
         category: Category::String,
         description: "Get a substring of a string starting at an index until the end of the string. The index is 1-based.",

@@ -16,9 +16,9 @@ pub type TableFunctionSet = FunctionSet<RawTableFunction>;
 #[derive(Debug, Clone, Copy)]
 pub struct FunctionSet<T: 'static> {
     /// Name of the function.
-    pub name: &'static str,
+    pub name: FnName,
     /// Set of aliases for this function.
-    pub aliases: &'static [&'static str],
+    pub aliases: &'static [FnName],
     /// Documentation for the function.
     ///
     /// If a function accepts different arities, then there should (ideally) be

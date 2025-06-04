@@ -13,7 +13,7 @@ use glaredb_core::functions::scalar::{RawScalarFunction, ScalarFunction};
 use glaredb_error::Result;
 
 pub const FUNCTION_SET_CSC: ScalarFunctionSet = ScalarFunctionSet {
-    name: "csc",
+    name: FnName::default("csc"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,

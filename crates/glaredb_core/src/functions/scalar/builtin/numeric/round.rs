@@ -21,14 +21,14 @@ use crate::functions::cast::CastFunction;
 use crate::functions::cast::behavior::CastFailBehavior;
 use crate::functions::cast::builtin::to_decimal::{DecimalToDecimal, DecimalToDecimalState};
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{RawScalarFunction, ScalarFunction};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_ROUND: ScalarFunctionSet = ScalarFunctionSet {
-    name: "round",
+    name: FnName::default("round"),
     aliases: &[],
     doc: &[
         &Documentation {

@@ -19,12 +19,12 @@ use crate::arrays::executor::scalar::{BinaryListReducer, BinaryReducer};
 use crate::expr::Expression;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::{BindState, RawScalarFunction, ScalarFunction};
 
 pub const FUNCTION_SET_L2_DISTANCE: ScalarFunctionSet = ScalarFunctionSet {
-    name: "l2_distance",
-    aliases: &["array_distance"],
+    name: FnName::default("l2_distance"),
+    aliases: &[FnName::default("array_distance")],
     doc: &[&Documentation {
         category: Category::List,
         description: "Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.",

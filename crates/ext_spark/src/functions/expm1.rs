@@ -13,7 +13,7 @@ use glaredb_core::functions::scalar::{RawScalarFunction, ScalarFunction};
 use glaredb_error::Result;
 
 pub const FUNCTION_SET_EXPM1: ScalarFunctionSet = ScalarFunctionSet {
-    name: "expm1",
+    name: FnName::default("expm1"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,

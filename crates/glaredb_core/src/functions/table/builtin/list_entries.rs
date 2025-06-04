@@ -25,7 +25,7 @@ use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
 
 pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
-    name: "list_tables",
+    name: FnName::default("list_tables"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -40,7 +40,7 @@ pub const FUNCTION_SET_LIST_TABLES: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
-    name: "list_views",
+    name: FnName::default("list_views"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,
@@ -55,7 +55,7 @@ pub const FUNCTION_SET_LIST_VIEWS: TableFunctionSet = TableFunctionSet {
 };
 
 pub const FUNCTION_SET_LIST_FUNCTIONS: TableFunctionSet = TableFunctionSet {
-    name: "list_functions",
+    name: FnName::default("list_functions"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::System,

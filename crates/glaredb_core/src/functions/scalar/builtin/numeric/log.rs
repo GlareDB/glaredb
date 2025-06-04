@@ -14,13 +14,13 @@ use crate::arrays::executor::OutBuffer;
 use crate::arrays::executor::scalar::UnaryExecutor;
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation, Example};
-use crate::functions::function_set::ScalarFunctionSet;
+use crate::functions::function_set::{FnName, ScalarFunctionSet};
 use crate::functions::scalar::RawScalarFunction;
 use crate::util::iter::IntoExactSizeIterator;
 
 pub const FUNCTION_SET_LOG: ScalarFunctionSet = ScalarFunctionSet {
-    name: "log",
-    aliases: &["log10"],
+    name: FnName::default("log"),
+    aliases: &[FnName::default("log10")],
     doc: &[&Documentation {
         category: Category::Numeric,
         description: "Compute base-10 log of value.",
@@ -69,7 +69,7 @@ impl UnaryInputNumericOperation for LogOp {
 }
 
 pub const FUNCTION_SET_LOG_2: ScalarFunctionSet = ScalarFunctionSet {
-    name: "log2",
+    name: FnName::default("log2"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Numeric,

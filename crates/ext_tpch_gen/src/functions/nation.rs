@@ -17,7 +17,7 @@ use tpchgen::generators::{Nation, NationGenerator, NationGeneratorIterator};
 use super::table_gen::{TableGen, TpchColumn, TpchTable};
 
 pub const FUNCTION_SET_NATION: TableFunctionSet = TableFunctionSet {
-    name: "nation",
+    name: FnName::default("nation"),
     aliases: &[],
     doc: &[&Documentation {
         category: Category::Table,
