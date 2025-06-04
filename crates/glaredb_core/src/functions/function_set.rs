@@ -88,7 +88,7 @@ impl TableFunctionSet {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FnName {
     Default {
         name: &'static str,
@@ -106,6 +106,15 @@ impl FnName {
 
     pub const fn namespaced(schema: &'static str, name: &'static str) -> Self {
         FnName::Namespaced { schema, name }
+    }
+}
+
+impl fmt::Display for FnName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Default { name } => write!(f, "{}", name),
+            Self::Namespaced { schema, name } => write!(f, "{}.{}", schema, name),
+        }
     }
 }
 

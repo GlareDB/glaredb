@@ -9,6 +9,7 @@ use glaredb_error::Result;
 
 use super::Signature;
 use super::bind_state::{BindState, RawBindState};
+use super::function_set::FnName;
 use crate::arrays::array::Array;
 use crate::arrays::batch::Batch;
 use crate::expr::Expression;
@@ -31,7 +32,7 @@ pub enum FunctionVolatility {
 #[derive(Debug, Clone)]
 pub struct PlannedScalarFunction {
     /// Name of this function.
-    pub(crate) name: &'static str,
+    pub(crate) name: FnName,
     /// The raw function containing the vtable to call into.
     pub(crate) raw: &'static RawScalarFunction,
     /// State for the function (inputs, return type).

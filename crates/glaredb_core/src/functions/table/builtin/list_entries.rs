@@ -17,7 +17,7 @@ use crate::catalog::{Catalog, Schema};
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::functions::Signature;
 use crate::functions::documentation::{Category, Documentation};
-use crate::functions::function_set::{FunctionSet, TableFunctionSet};
+use crate::functions::function_set::{FnName, FunctionSet, TableFunctionSet};
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::statistics::value::StatisticsValue;
@@ -499,7 +499,10 @@ impl TableScanFunction for ListFunctions {
         for (idx, chunk) in op_state.entries.chunks(props.batch_size).enumerate() {
             let part_idx = idx % states.len();
 
-            fn alias_of<F>(ent: &CatalogEntry, fn_set: &FunctionSet<F>) -> Option<&'static str> {
+            fn alias_of<F>(
+                ent: &CatalogEntry,
+                fn_set: &FunctionSet<F>,
+            ) -> Option<Cow<'static, str>> {
                 // Assume that if the entry name doens't match the function
                 // name, then it's an alias.
                 if ent.name == fn_set.name {
