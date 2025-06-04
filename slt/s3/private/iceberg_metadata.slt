@@ -1,16 +1,16 @@
-# iceberg_metadata function on s3
+# iceberg.metadata function on s3
 
 statement ok
 SET verify_optimized_plan TO true;
 
 query TT
-DESCRIBE SELECT * FROM iceberg_metadata('s3://glaredb-private/testdata/iceberg/wh/default.db/cities', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
+DESCRIBE SELECT * FROM iceberg.metadata('s3://glaredb-private/testdata/iceberg/wh/default.db/cities', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__');
 ----
 format_version  Int32
 table_uuid      Utf8
 location        Utf8
 
 query ITT
-SELECT * FROM iceberg_metadata('s3://glaredb-private/testdata/iceberg/wh/default.db/cities', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__')
+SELECT * FROM iceberg.metadata('s3://glaredb-private/testdata/iceberg/wh/default.db/cities', access_key_id='__AWS_KEY__', secret_access_key='__AWS_SECRET__')
 ----
 2  3e7c486c-5e5a-426e-aed7-a022fe2b52b6  file://wh/default.db/cities

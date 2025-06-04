@@ -1,10 +1,10 @@
-# iceberg_data_files function
+# iceberg.data_files function
 
 statement ok
 SET verify_optimized_plan TO true;
 
 query TT
-DESCRIBE SELECT * FROM iceberg_data_files('../testdata/iceberg/wh/default.db/cities');
+DESCRIBE SELECT * FROM iceberg.data_files('../testdata/iceberg/wh/default.db/cities');
 ----
 status        Utf8
 content       Utf8
@@ -13,6 +13,6 @@ file_format   Utf8
 record_count  Int64
 
 query TTTTI
-SELECT * FROM iceberg_data_files('../testdata/iceberg/wh/default.db/cities');
+SELECT * FROM iceberg.data_files('../testdata/iceberg/wh/default.db/cities');
 ----
 ADDED  DATA  file://wh/default.db/cities/data/00000-0-6704a04a-3e2e-415f-b173-b21f4c5b78b7.parquet  PARQUET  4

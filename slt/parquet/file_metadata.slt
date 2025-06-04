@@ -1,10 +1,10 @@
-# parquet_file_metadata
+# parquet.file_metadata
 
 statement ok
 SET verify_optimized_plan TO true;
 
 query TT
-DESCRIBE parquet_file_metadata('../testdata/parquet/userdata0.parquet');
+DESCRIBE parquet.file_metadata('../testdata/parquet/userdata0.parquet');
 ----
 filename        Utf8
 version         Int32
@@ -13,13 +13,13 @@ created_by      Utf8
 num_row_groups  Int64
 
 query ?????
-SELECT * FROM parquet_file_metadata('../testdata/parquet/userdata0.parquet');
+SELECT * FROM parquet.file_metadata('../testdata/parquet/userdata0.parquet');
 ----
 ../testdata/parquet/userdata0.parquet  1  1000  parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)  1
 
 # With globbing.
 query ?????
-SELECT * FROM parquet_file_metadata('../testdata/parquet/glob_numbers/*.parquet') ORDER BY 1;
+SELECT * FROM parquet.file_metadata('../testdata/parquet/glob_numbers/*.parquet') ORDER BY 1;
 ----
 ../testdata/parquet/glob_numbers/100.parquet  1  100  GlareDB  1
 ../testdata/parquet/glob_numbers/200.parquet  1  100  GlareDB  1

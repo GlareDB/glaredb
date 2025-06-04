@@ -32,8 +32,8 @@ use crate::reader::{CsvReader, CsvShape};
 use crate::schema::CsvSchema;
 
 pub const FUNCTION_SET_READ_CSV: TableFunctionSet = TableFunctionSet {
-    name: "read_csv",
-    aliases: &["scan_csv"],
+    name: "read",
+    aliases: &["scan"],
     doc: &[&Documentation {
         category: Category::Table,
         description: "Read a csv file.",
