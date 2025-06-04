@@ -1,4 +1,4 @@
 ---
-title: Get Started
+title: Get started
 order: 10
 ---

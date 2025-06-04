@@ -1,4 +1,4 @@
 ---
-title: Query Syntax
+title: Query syntax
 order: 5
 ---
