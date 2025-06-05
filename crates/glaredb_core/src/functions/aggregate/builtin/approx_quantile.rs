@@ -19,8 +19,13 @@ pub const FUNCTION_SET_APPROX_QUANTILE: AggregateFunctionSet = AggregateFunction
     name: "approx_quantile",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::GENERAL_PURPOSE_AGGREGATE,
-        description: "Compute the approximate quantile using a T-Digest sketch.",
+        category: Category::APPROXIMATE_AGGREGATE,
+        description: r#"
+Computes a value for the given quantile such that approximately `count(input) *
+quantile` numbers are smaller than the returned value.
+
+Internally uses a T-Digest data sketch.
+"#,
         arguments: &["input", "quantile"],
         example: None,
     }],

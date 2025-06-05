@@ -1,5 +1,5 @@
 ---
-title: Table Functions
+title: Table functions
 ---
 
 # Table function reference

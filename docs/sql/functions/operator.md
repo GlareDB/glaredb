@@ -1,5 +1,5 @@
 ---
-title: Operator Functions
+title: Operator functions
 ---
 
 # Operator function reference
@@ -67,7 +67,7 @@ Divides the left value by the right value.
 
 ### `add`
 
-Alias of `+`.
+**Alias of `+`**
 
 Adds two numeric values together.
 
@@ -77,7 +77,7 @@ Adds two numeric values together.
 
 ### `div`
 
-Alias of `/`.
+**Alias of `/`**
 
 Divides the left value by the right value.
 
@@ -87,7 +87,7 @@ Divides the left value by the right value.
 
 ### `mul`
 
-Alias of `*`.
+**Alias of `*`**
 
 Multiplies two numeric values.
 
@@ -97,7 +97,7 @@ Multiplies two numeric values.
 
 ### `rem`
 
-Alias of `%`.
+**Alias of `%`**
 
 Returns the remainder after dividing the left value by the right value.
 
@@ -107,7 +107,7 @@ Returns the remainder after dividing the left value by the right value.
 
 ### `sub`
 
-Alias of `-`.
+**Alias of `-`**
 
 Subtracts the right value from the left value.
 
@@ -148,7 +148,7 @@ Check if the left value is less than or equal to the right. Returns NULL if eith
 
 ### `<>`
 
-Alias of `!=`.
+**Alias of `!=`**
 
 Check if two values are not equal. Returns NULL if either argument is NULL.
 

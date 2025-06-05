@@ -1,5 +1,5 @@
 ---
-title: String Functions
+title: String functions
 ---
 
 # String function reference
@@ -40,7 +40,7 @@ Get the number of bytes in a string or blob.
 
 ## `char_length`
 
-Alias of `length`.
+**Alias of `length`**
 
 Get the number of characters in a string.
 
@@ -50,7 +50,7 @@ Get the number of characters in a string.
 
 ## `character_length`
 
-Alias of `length`.
+**Alias of `length`**
 
 Get the number of characters in a string.
 
@@ -92,7 +92,7 @@ Convert first letter of each word to uppercase.
 
 ## `instr`
 
-Alias of `strpos`.
+**Alias of `strpos`**
 
 Returns the position of a substring within a string. Returns 0 if the substring is not found.
 
@@ -158,7 +158,7 @@ Compute the MD5 hash of a string, returning the result as a hexadecimal string.
 
 ## `octet_length`
 
-Alias of `byte_length`.
+**Alias of `byte_length`**
 
 Get the number of bytes in a string or blob.
 
@@ -168,7 +168,7 @@ Get the number of bytes in a string or blob.
 
 ## `prefix`
 
-Alias of `starts_with`.
+**Alias of `starts_with`**
 
 Check if a string starts with a prefix.
 
@@ -250,7 +250,7 @@ Returns the position of a substring within a string. Returns 0 if the substring 
 
 ## `substr`
 
-Alias of `substring`.
+**Alias of `substring`**
 
 Get a substring of a string starting at an index until the end of the string. The index is 1-based.
 
@@ -268,7 +268,7 @@ Get a substring of a string starting at an index until the end of the string. Th
 
 ## `suffix`
 
-Alias of `ends_with`.
+**Alias of `ends_with`**
 
 Check if a string ends with a suffix.
 
@@ -286,7 +286,7 @@ Replace each character in string that matches a character in the from set with t
 
 ## `trim`
 
-Alias of `btrim`.
+**Alias of `btrim`**
 
 Trim matching characters from both sides of the string.
 

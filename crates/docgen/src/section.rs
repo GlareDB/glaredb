@@ -51,7 +51,7 @@ impl<const HEADER_LEVEL: usize> SectionWriter for FunctionSectionWriter<HEADER_L
 
                 writeln!(output, "{header_prefix} `{}`\n", function_name)?;
                 if !alias_of.is_null() {
-                    writeln!(output, "Alias of `{alias_of}`.\n")?;
+                    writeln!(output, "**Alias of `{alias_of}`**\n")?;
                 }
 
                 writeln!(output, "{}\n", description)?;

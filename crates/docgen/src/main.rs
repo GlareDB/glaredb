@@ -20,24 +20,34 @@ use tracing::info;
 
 const FILES: &[DocFile] = &[
     DocFile {
-        path: "docs/functions/aggregate.md",
-        sections: &[
-            (
-                "general_purpose_aggregate_functions",
-                &FunctionSectionWriter::<3> {
-                    category: Category::GENERAL_PURPOSE_AGGREGATE,
-                },
-            ),
-            (
-                "statistics_aggregate_functions",
-                &FunctionSectionWriter::<3> {
-                    category: Category::STATISTICS_AGGREGATE,
-                },
-            ),
-        ],
+        path: "docs/sql/functions/aggregate.md",
+        sections: &[(
+            "general_purpose_aggregate_functions",
+            &FunctionSectionWriter::<2> {
+                category: Category::GENERAL_PURPOSE_AGGREGATE,
+            },
+        )],
     },
     DocFile {
-        path: "docs/functions/numeric.md",
+        path: "docs/sql/functions/statistical-aggregate.md",
+        sections: &[(
+            "statistical_aggregate_functions",
+            &FunctionSectionWriter::<2> {
+                category: Category::STATISTICAL_AGGREGATE,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/sql/functions/approximate-aggregate.md",
+        sections: &[(
+            "approximate_aggregate_functions",
+            &FunctionSectionWriter::<2> {
+                category: Category::APPROXIMATE_AGGREGATE,
+            },
+        )],
+    },
+    DocFile {
+        path: "docs/sql/functions/numeric.md",
         sections: &[(
             "numeric_functions",
             &FunctionSectionWriter::<2> {
@@ -46,7 +56,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/functions/string.md",
+        path: "docs/sql/functions/string.md",
         sections: &[(
             "string_functions",
             &FunctionSectionWriter::<2> {
@@ -55,7 +65,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/functions/regexp.md",
+        path: "docs/sql/functions/regexp.md",
         sections: &[(
             "regexp_functions",
             &FunctionSectionWriter::<2> {
@@ -64,7 +74,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/functions/date-time.md",
+        path: "docs/sql/functions/date-time.md",
         sections: &[(
             "date_time_functions",
             &FunctionSectionWriter::<2> {
@@ -73,7 +83,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/functions/operator.md",
+        path: "docs/sql/functions/operator.md",
         sections: &[
             (
                 "numeric_operator_functions",
@@ -96,7 +106,7 @@ const FILES: &[DocFile] = &[
         ],
     },
     DocFile {
-        path: "docs/functions/list.md",
+        path: "docs/sql/functions/list.md",
         sections: &[(
             "list_functions",
             &FunctionSectionWriter::<2> {
@@ -105,7 +115,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/functions/system.md",
+        path: "docs/sql/functions/system.md",
         sections: &[(
             "system_functions",
             &FunctionSectionWriter::<2> {
@@ -114,7 +124,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/functions/table.md",
+        path: "docs/sql/functions/table.md",
         sections: &[(
             "table_functions",
             &FunctionSectionWriter::<2> {

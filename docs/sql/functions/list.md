@@ -1,5 +1,5 @@
 ---
-title: List Functions
+title: List functions
 ---
 
 # List function reference
@@ -8,7 +8,7 @@ title: List Functions
 
 ## `array_distance`
 
-Alias of `l2_distance`.
+**Alias of `l2_distance`**
 
 Compute the Euclidean distance between two lists. Both lists must be the same length and cannot contain NULLs.
 

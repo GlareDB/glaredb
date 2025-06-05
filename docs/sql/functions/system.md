@@ -1,5 +1,5 @@
 ---
-title: System Functions
+title: System functions
 ---
 
 # System function reference

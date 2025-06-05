@@ -24,8 +24,14 @@ pub const FUNCTION_SET_APPROX_COUNT_DISTINCT: AggregateFunctionSet = AggregateFu
     name: "approx_count_distinct",
     aliases: &["approx_unique"],
     doc: &[&Documentation {
-        category: Category::GENERAL_PURPOSE_AGGREGATE,
-        description: "Return an estimated number of distinct, non-NULL values in the input.",
+        category: Category::APPROXIMATE_AGGREGATE,
+        description: r#"
+Return an estimated number of distinct, non-NULL values in the input. This is an
+approximate version of `COUNT(DISTINCT ...)`.
+
+Internally, this uses a HyperLogLog sketch and yields roughly a 1.6% relative
+error.
+"#,
         arguments: &["input"],
         example: None,
     }],

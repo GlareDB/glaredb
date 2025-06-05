@@ -1,5 +1,5 @@
 ---
-title: Numeric Functions
+title: Numeric functions
 ---
 
 # Numeric function reference
@@ -88,7 +88,7 @@ Round number up.
 
 ## `ceiling`
 
-Alias of `ceil`.
+**Alias of `ceil`**
 
 Round number up.
 
@@ -158,7 +158,7 @@ Compute the greatest common divisor of two integers.
 
 ## `is_nan`
 
-Alias of `isnan`.
+**Alias of `isnan`**
 
 Return if the given float is a NaN.
 
@@ -216,7 +216,7 @@ Compute base-10 log of value.
 
 ## `log10`
 
-Alias of `log`.
+**Alias of `log`**
 
 Compute base-10 log of value.
 
@@ -250,7 +250,7 @@ Return the value of pi.
 
 ## `pow`
 
-Alias of `power`.
+**Alias of `power`**
 
 Compute base raised to the power of exponent.
 

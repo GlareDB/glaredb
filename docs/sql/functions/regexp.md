@@ -1,5 +1,5 @@
 ---
-title: Regexp Functions
+title: Regexp functions
 ---
 
 # Regexp function reference
