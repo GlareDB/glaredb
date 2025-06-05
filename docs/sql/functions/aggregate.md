@@ -3,7 +3,7 @@ title: Aggregate functions
 order: 0
 ---
 
-# General purpose aggregates
+# General aggregate function reference
 
 <!-- DOCSGEN_START general_purpose_aggregate_functions -->
 
