@@ -10,7 +10,7 @@ order: 1
 Install the latest version of the CLI:
 
 ```shell
-$ curl -fsSL https://glaredb.com/install.sh | sh
+curl -fsSL https://glaredb.com/install.sh | sh
 ```
 
 The binary will be installed to `~/.glaredb/bin/glaredb`.
@@ -30,7 +30,7 @@ install the binary, and which version of the binary to install.
 Install the latest version of the GlareDB Python package:
 
 ```shell
-$ pip install glaredb
+pip install glaredb
 ```
 
 ## Supported platforms
