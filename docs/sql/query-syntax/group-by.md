@@ -5,7 +5,7 @@ title: GROUP BY
 # GROUP BY
 
 A `GROUP BY` can be used to specify which columns to use for grouping values
-during aggregate.
+during aggregation.
 
 When an aggregate is executed with no `GROUP BY` clause, all rows are used to
 produce the final aggregate value. When a `GROUP BY` is provided, aggregate

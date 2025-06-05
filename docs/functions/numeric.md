@@ -160,7 +160,7 @@ Compute the greatest common divisor of two integers.
 
 Return if the given float is a NaN.
 
-**Example**: `isnan('NaN'::FLOAT)`
+**Example**: `is_nan('NaN'::FLOAT)`
 
 **Output**: `true`
 
