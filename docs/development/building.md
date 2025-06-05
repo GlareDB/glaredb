@@ -1,5 +1,6 @@
 ---
 title: Building
+order: 1
 ---
 
 # Building from source

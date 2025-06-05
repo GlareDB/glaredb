@@ -1,0 +1,15 @@
+# Queries used in the benchmarking doc.
+#
+# We just need to make sure they run.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+SELECT *
+FROM glob('gs://glaredb-bench/results/main/**')
+ORDER BY filename DESC;
+
+statement ok
+SELECT *
+FROM read_csv('gs://glaredb-bench/results/main/1749063840/c4-standard-32/results-tpch-parquet-sf-100.tsv');
