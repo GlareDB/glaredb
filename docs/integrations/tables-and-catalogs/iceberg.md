@@ -57,7 +57,7 @@ FROM iceberg.metadata('wh/default.db/cities')
 
 ### `iceberg.snapshots`
 
-The `iceberg.manifest_list` function takes a table path and returns information
+The `iceberg.snapshots` function takes a table path and returns information
 about valid snapshots for this version of the table.
 
 ```sql

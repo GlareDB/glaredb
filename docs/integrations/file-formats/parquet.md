@@ -49,7 +49,7 @@ To read all Parquet files in `data/`:
 SELECT * FROM read_parquet('data/*.parquet');
 ```
 
-If the glob ends with `.parquet`, the function call be omitted:
+If the glob ends with `.parquet`, the function call can be omitted:
 
 ```sql
 SELECT * FROM 'data/*.parquet';

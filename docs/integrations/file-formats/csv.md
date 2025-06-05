@@ -66,7 +66,7 @@ To read all CSV files in `data/`:
 SELECT * FROM read_csv('data/*.csv');
 ```
 
-If the glob ends with `.csv` or `.tsv`, the function call be omitted:
+If the glob ends with `.csv` or `.tsv`, the function call can be omitted:
 
 ```sql
 SELECT * FROM 'data/*.csv';
