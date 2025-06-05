@@ -57,7 +57,7 @@ SELECT "employeename", "department" FROM './employees.parquet';
 
 ## Generated column names
 
-When no explicit alias is provided for an expression in the `SELECT` list, an
+When no explicit alias is provided for an expression in the `SELECT` list, a
 column name will be generated using the following rules:
 
 - If an expression is a column reference, the column name is used.
