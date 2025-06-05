@@ -20,7 +20,7 @@ pub const FUNCTION_SET_REGR_SLOPE: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_slope",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::STATISTICS_AGGREGATE,
+        category: Category::STATISTICAL_AGGREGATE,
         description: "Compute the slope of the least-squares-fit linear equation.",
         arguments: &["y", "x"],
         example: None,

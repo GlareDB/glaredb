@@ -689,7 +689,7 @@ impl TableScanFunction for ListFunctions {
                     let mut descriptions = PhysicalUtf8::get_addressable_mut(data)?;
                     for idx in 0..count {
                         match state.entries[idx + state.offset].doc {
-                            Some(doc) => descriptions.put(idx, doc.description),
+                            Some(doc) => descriptions.put(idx, doc.description.trim()),
                             None => validity.set_invalid(idx),
                         }
                     }

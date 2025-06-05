@@ -24,7 +24,7 @@ pub const FUNCTION_SET_REGR_COUNT: AggregateFunctionSet = AggregateFunctionSet {
     name: "regr_count",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::STATISTICS_AGGREGATE,
+        category: Category::STATISTICAL_AGGREGATE,
         description: "Compute the count where both inputs are not NULL.",
         arguments: &["y", "x"],
         example: None,

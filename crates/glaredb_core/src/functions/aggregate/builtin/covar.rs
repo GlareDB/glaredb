@@ -19,7 +19,7 @@ pub const FUNCTION_SET_COVAR_POP: AggregateFunctionSet = AggregateFunctionSet {
     name: "covar_pop",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::STATISTICS_AGGREGATE,
+        category: Category::STATISTICAL_AGGREGATE,
         description: "Compute population covariance.",
         arguments: &["y", "x"],
         example: None,
@@ -61,7 +61,7 @@ pub const FUNCTION_SET_COVAR_SAMP: AggregateFunctionSet = AggregateFunctionSet {
     name: "covar_samp",
     aliases: &[],
     doc: &[&Documentation {
-        category: Category::STATISTICS_AGGREGATE,
+        category: Category::STATISTICAL_AGGREGATE,
         description: "Compute sample covariance.",
         arguments: &["y", "x"],
         example: None,

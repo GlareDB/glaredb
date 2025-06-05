@@ -1,5 +1,5 @@
 ---
-title: Date/Time Functions
+title: Date/Time functions
 ---
 
 # Date and time function reference
@@ -40,7 +40,7 @@ Converts a Unix timestamp in milliseconds to a timestamp.
 
 ## `epoch_s`
 
-Alias of `epoch`.
+**Alias of `epoch`**
 
 Converts a Unix timestamp in seconds to a timestamp.
 

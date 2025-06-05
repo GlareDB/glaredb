@@ -26,12 +26,14 @@ pub enum OperatorCategory {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AggregateCategory {
     General,
-    Statistics, // I don't know where you're getting your statistics
+    Statistical,
+    Approximate,
 }
 
 impl Category {
     pub const GENERAL_PURPOSE_AGGREGATE: Self = Category::Aggregate(AggregateCategory::General);
-    pub const STATISTICS_AGGREGATE: Self = Category::Aggregate(AggregateCategory::Statistics);
+    pub const STATISTICAL_AGGREGATE: Self = Category::Aggregate(AggregateCategory::Statistical);
+    pub const APPROXIMATE_AGGREGATE: Self = Category::Aggregate(AggregateCategory::Approximate);
 
     pub const NUMERIC_OPERATOR: Self = Category::Operator(OperatorCategory::Numeric);
     pub const COMPARISON_OPERATOR: Self = Category::Operator(OperatorCategory::Comparison);
@@ -45,7 +47,8 @@ impl Category {
             Self::Operator(OperatorCategory::Logical) => "logical_operator",
             Self::Operator(OperatorCategory::Struct) => "struct_operator",
             Self::Aggregate(AggregateCategory::General) => "general_purpose_aggregate",
-            Self::Aggregate(AggregateCategory::Statistics) => "statistics_aggregate",
+            Self::Aggregate(AggregateCategory::Statistical) => "statistical_aggregate",
+            Self::Aggregate(AggregateCategory::Approximate) => "approximate_aggregate",
             Self::Numeric => "numeric",
             Self::DateTime => "datetime",
             Self::List => "list",
@@ -64,7 +67,12 @@ impl Category {
 pub struct Documentation {
     /// Category this function belongs in.
     pub category: Category,
-    /// Short description of the function.
+    /// Description of the function, and should be sufficiently detailed.
+    ///
+    /// This should use markdown for any markup required.
+    ///
+    /// Whitespace will be trimmed. This allows for using raw strings and
+    /// aligning everything to the left.
     pub description: &'static str,
     /// Argument names for this variant.
     ///
