@@ -14,7 +14,7 @@ The select list is a list of expressions representing the output of a query.
 Expressions can include constant values, column references, function calls, and
 more.
 
-For example, we can select the `name` from a `cities`, and our output will
+For example, we can select the `name` from a `cities` table, and our output will
 contain only a single column:
 
 ```sql

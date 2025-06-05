@@ -35,7 +35,7 @@ SELECT * FROM 'path/to/file.parquet';
 ```
 
 Multiple files can be provided using either a list of files, or a glob. All
-files currently expected to have the same schema.
+files are currently expected to have the same schema.
 
 To read a specific set of files:
 

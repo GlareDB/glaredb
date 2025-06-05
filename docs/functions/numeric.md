@@ -158,6 +158,8 @@ Compute the greatest common divisor of two integers.
 
 ## `is_nan`
 
+Alias of `isnan`.
+
 Return if the given float is a NaN.
 
 **Example**: `isnan('NaN'::FLOAT)`
@@ -177,6 +179,14 @@ Return if the given float is finite.
 Return if the given float is infinite (positive or negative infinity).
 
 **Example**: `isinf('Infinity'::FLOAT)`
+
+**Output**: `true`
+
+## `isnan`
+
+Return if the given float is a NaN.
+
+**Example**: `isnan('NaN'::FLOAT)`
 
 **Output**: `true`
 

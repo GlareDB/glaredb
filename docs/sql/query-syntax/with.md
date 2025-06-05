@@ -102,7 +102,7 @@ This can be useful for CTEs which are expensive to compute, or CTEs which may
 not be deterministic.
 
 For example, if we have a CTE that calls `random`, we can ensure that CTE is
-materialize meaning we'll get the same results no matter how many times the CTE
+materialized meaning we'll get the same results no matter how many times the CTE
 is referenced:
 
 ```sql

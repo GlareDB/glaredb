@@ -17,7 +17,7 @@ pub const FUNCTION_SET_LIST_EXTRACT: ScalarFunctionSet = ScalarFunctionSet {
     aliases: &[],
     doc: &[&Documentation {
         category: Category::List,
-        description: "Extract an item from the list. Used 1-based indexing.",
+        description: "Extract an item from the list. Uses 1-based indexing.",
         arguments: &["list", "index"],
         example: Some(Example {
             example: "list_extract([4,5,6], 2)",

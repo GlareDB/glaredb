@@ -20,7 +20,7 @@ use tracing::info;
 
 const FILES: &[DocFile] = &[
     DocFile {
-        path: "docs/reference/functions/aggregate.md",
+        path: "docs/functions/aggregate.md",
         sections: &[
             (
                 "general_purpose_aggregate_functions",
@@ -37,7 +37,7 @@ const FILES: &[DocFile] = &[
         ],
     },
     DocFile {
-        path: "docs/reference/functions/numeric.md",
+        path: "docs/functions/numeric.md",
         sections: &[(
             "numeric_functions",
             &FunctionSectionWriter::<2> {
@@ -46,7 +46,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/string.md",
+        path: "docs/functions/string.md",
         sections: &[(
             "string_functions",
             &FunctionSectionWriter::<2> {
@@ -55,7 +55,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/regexp.md",
+        path: "docs/functions/regexp.md",
         sections: &[(
             "regexp_functions",
             &FunctionSectionWriter::<2> {
@@ -64,7 +64,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/date-time.md",
+        path: "docs/functions/date-time.md",
         sections: &[(
             "date_time_functions",
             &FunctionSectionWriter::<2> {
@@ -73,7 +73,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/operator.md",
+        path: "docs/functions/operator.md",
         sections: &[
             (
                 "numeric_operator_functions",
@@ -96,7 +96,7 @@ const FILES: &[DocFile] = &[
         ],
     },
     DocFile {
-        path: "docs/reference/functions/list.md",
+        path: "docs/functions/list.md",
         sections: &[(
             "list_functions",
             &FunctionSectionWriter::<2> {
@@ -105,7 +105,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/system.md",
+        path: "docs/functions/system.md",
         sections: &[(
             "system_functions",
             &FunctionSectionWriter::<2> {
@@ -114,7 +114,7 @@ const FILES: &[DocFile] = &[
         )],
     },
     DocFile {
-        path: "docs/reference/functions/table.md",
+        path: "docs/functions/table.md",
         sections: &[(
             "table_functions",
             &FunctionSectionWriter::<2> {
