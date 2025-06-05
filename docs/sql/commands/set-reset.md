@@ -36,7 +36,7 @@ SET partitions TO 8;
 `=` may be used in place of the `TO` keyword:
 
 ```sql
-SET partitions TO 8;
+SET partitions = 8;
 ```
 
 Reset the value of `partitions` back to its default value.
