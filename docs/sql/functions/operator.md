@@ -9,9 +9,9 @@ directly, but it's typically more ergonomic to use the operator syntax.
 
 Expression operators documentation:
 
-- [Arithmetic](../sql/expressions/arithmetic.md)
-- [Comparison](../sql/expressions/comparison.md)
-- [Logical](../sql/expressions/logical.md)
+- [Arithmetic](../expressions/arithmetic.md)
+- [Comparison](../expressions/comparison.md)
+- [Logical](../expressions/logical.md)
 
 Functions that use reserved symbols, like `>` for "greater than", can be called
 directly by double-quoting the function name. For example, to call the `>`

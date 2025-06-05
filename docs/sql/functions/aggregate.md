@@ -65,4 +65,4 @@ Compute the sum of all non-NULL inputs.
 The `GROUPING` function is a special function for determining which input
 expressions are taking part in a group's aggregation.
 
-See [GROUP BY](../sql/query-syntax/group-by.md) for more details.
+See [GROUP BY](../query-syntax/group-by.md) for more details.
