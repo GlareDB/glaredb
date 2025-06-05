@@ -53,7 +53,7 @@ allows you write and edit multiline statements.
 #### Dot commands
 
 "Dot commands" are input commands that start with a dot ('.') and are used to
-modify the behavior the shell.
+modify the behavior of the shell.
 
 For example, if we wanted to adjust the number of rows displayed after executing
 the query, we can use the `.maxrows` dot command:
@@ -69,7 +69,7 @@ To see a full list of dot commands, run `.help` in the shell.
 
 Note that dot commands do not need to end with a semicolon. Some dot commands
 require arguments while others don't. The output `.help` will show if a dot
-command requires and argument.
+command requires an argument.
 
 #### Exiting
 
@@ -88,7 +88,7 @@ statement errors, then GlareDB will exit with an error code and not execute any
 remaining statements.
 
 The `--commands` (or `-c`) flag can be used to provide either SQL commands or
-dot commands to execute. Commands are are executed in the order in which they're
+dot commands to execute. Commands are executed in the order in which they're
 provided. If any command errors, GlareDB will exit and not execute any of the
 remaining commands.
 
