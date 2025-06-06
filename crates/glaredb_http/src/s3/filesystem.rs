@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
@@ -96,6 +95,63 @@ pub struct S3FileSystemState {
     creds: Option<AwsCredentials>,
 }
 
+impl<C> S3FileSystem<C>
+where
+    C: HttpClient,
+{
+    /// Make a HEAD request for the given location.
+    ///
+    /// This may modify `location` with an updated region if we detect that the
+    /// region provided is incorrect.
+    async fn make_head_request(
+        &self,
+        state: &S3FileSystemState,
+        location: &mut S3Location,
+    ) -> Result<<C as HttpClient>::Response> {
+        loop {
+            // We may loop if the bucket is actually in a different region than
+            // the one that's on state.
+            //
+            // We _could_ use the global endpoint, but that's "deprecated".
+
+            let mut request = Request::new(Method::HEAD, location.url()?);
+            // If we don't have creds, we can skip signing.
+            if let Some(creds) = &state.creds {
+                request = authorize_request(creds, &location.region, request)?;
+            }
+
+            let resp = self.client.do_request(request).await?;
+            if !resp.status().is_success() {
+                if resp.status().is_redirection() {
+                    // Redirect, check to see if we're in the wrong region.
+                    if let Some(region) = resp.headers().get("x-amz-bucket-region") {
+                        let region = std::str::from_utf8(region.as_bytes())
+                            .context("Expected value for 'x-amz-bucket-region' to be valid utf8")?;
+
+                        if region != location.region {
+                            // Different region, update location and try again.
+                            location.region = region.to_string();
+                            continue;
+                        }
+                    }
+                }
+
+                let status = resp.status();
+                let text = read_response_as_text(resp.into_bytes_stream()).await?;
+                let mut err =
+                    DbError::new("Failed to make HEAD request").with_field("status", status);
+                if !text.trim().is_empty() {
+                    err = err.with_field("response", text);
+                }
+                return Err(err);
+            }
+
+            // Success!
+            return Ok(resp);
+        }
+    }
+}
+
 impl<C> FileSystem for S3FileSystem<C>
 where
     C: HttpClient,
@@ -140,61 +196,7 @@ where
             not_implemented!("create support for s3 filesystem")
         }
         let mut location = S3Location::from_path(path, state, self.default_region)?;
-
-        let mut make_request = async || {
-            loop {
-                // We may loop if the bucket is actually in a different region than
-                // the one that's on state.
-                //
-                // We _could_ use the global endpoint, but that's "deprecated".
-
-                let mut request = Request::new(Method::HEAD, location.url()?);
-                // If we don't have creds, we can skip signing.
-                if let Some(creds) = &state.creds {
-                    request = authorize_request(creds, &location.region, request)?;
-                }
-
-                let resp = self.client.do_request(request).await?;
-                if !resp.status().is_success() {
-                    if resp.status().is_redirection() {
-                        // Redirect, check to see if we're in the wrong region.
-                        if let Some(region) = resp.headers().get("x-amz-bucket-region") {
-                            let region = std::str::from_utf8(region.as_bytes()).context(
-                                "Expected value for 'x-amz-bucket-region' to be valid utf8",
-                            )?;
-
-                            if state.region.is_some() {
-                                // User provided an incorrect region, return an
-                                // error telling them to use the correct one.
-                                return Err(DbError::new(format!(
-                                    "Bucket's region is '{region}', either update the region provided or omit it"
-                                )));
-                            }
-
-                            if region != location.region {
-                                // Different region, update location and try again.
-                                location.region = region.to_string();
-                                continue;
-                            }
-                        }
-                    }
-
-                    let status = resp.status();
-                    let text = read_response_as_text(resp.into_bytes_stream()).await?;
-                    let mut err =
-                        DbError::new("Failed to make HEAD request").with_field("status", status);
-                    if !text.trim().is_empty() {
-                        err = err.with_field("response", text);
-                    }
-                    return Err(err);
-                }
-
-                // Success!
-                return Ok(resp);
-            }
-        };
-
-        let resp = make_request().await?;
+        let resp = self.make_head_request(state, &mut location).await?;
 
         let len = match resp.headers().get(CONTENT_LENGTH) {
             Some(v) => v
@@ -216,13 +218,8 @@ where
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
-        let location = S3Location::from_path(path, state, self.default_region)?;
-
-        let mut request = Request::new(Method::HEAD, location.url()?);
-        if let Some(creds) = &state.creds {
-            request = authorize_request(creds, &location.region, request)?;
-        }
-        let resp = self.client.do_request(request).await?;
+        let mut location = S3Location::from_path(path, state, self.default_region)?;
+        let resp = self.make_head_request(state, &mut location).await?;
 
         let status = resp.status();
         if status == StatusCode::NOT_FOUND {
@@ -238,8 +235,16 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
-        let location = S3Location::from_path(dir, state, self.default_region)?;
+    async fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
+        // We're going to make a HEAD request against the root of the bucket to
+        // figure out where it is. Temporarily remove the object.
+        let mut location = S3Location::from_path(dir, state, self.default_region)?;
+        let object = std::mem::take(&mut location.object);
+        let _ = self.make_head_request(state, &mut location).await?;
+
+        // And put it back.
+        location.object = object;
+
         let signer = S3RequestSigner {
             region: location.region.clone(),
             creds: state.creds.clone(),

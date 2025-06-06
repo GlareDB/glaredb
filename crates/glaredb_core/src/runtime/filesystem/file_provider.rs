@@ -119,7 +119,7 @@ impl MultiFileProvider {
                 let fs = fs.load_state(context).await?;
 
                 let provider = if is_glob(&s) {
-                    fs.read_glob(&s)?
+                    fs.read_glob(&s).await?
                 } else {
                     Box::new(StaticFileProvider::new([s]))
                 };

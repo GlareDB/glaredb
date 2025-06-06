@@ -49,7 +49,7 @@ impl<D> GlobHandle<D>
 where
     D: ReadDirHandle,
 {
-    pub fn try_new<F>(fs: &F, state: &F::State, glob: &str) -> Result<Self>
+    pub async fn open<F>(fs: &F, state: &F::State, glob: &str) -> Result<Self>
     where
         F: FileSystem<ReadDirHandle = D> + ?Sized,
     {
@@ -70,7 +70,7 @@ where
             }
         }
 
-        let root_dir = fs.read_dir(&glob_segments.root_dir, state)?;
+        let root_dir = fs.read_dir(&glob_segments.root_dir, state).await?;
         let stack = vec![(root_dir, 0)];
 
         Ok(GlobHandle {

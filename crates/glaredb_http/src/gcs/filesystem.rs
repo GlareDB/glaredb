@@ -189,7 +189,7 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
+    async fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
         let location = GcsLocation::from_path(dir, state)?;
         let signer = GcsRequestSigner {
             token: state.token.clone(),
