@@ -2741,6 +2741,7 @@ dependencies = [
  "glaredb_rt_native",
  "glaredb_slt",
  "harness",
+ "logutil",
  "tokio",
 ]
 

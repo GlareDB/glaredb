@@ -300,6 +300,7 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     ///
     /// This should return Ok(None) if the request was successful, but the file
     /// doesn't exist.
+    // TODO: Unused, maybe remove?
     fn stat(
         &self,
         path: &str,
@@ -309,11 +310,17 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Returns a directory handle for reading entries within a directory.
     ///
     /// Does not recurse.
-    fn read_dir(&self, _dir: &str, _state: &Self::State) -> Result<Self::ReadDirHandle> {
-        Err(DbError::new(format!(
-            "{} filesystem does not support reading directories!",
-            Self::NAME
-        )))
+    fn read_dir(
+        &self,
+        _dir: &str,
+        _state: &Self::State,
+    ) -> impl Future<Output = Result<Self::ReadDirHandle>> + Sync + Send {
+        async {
+            Err(DbError::new(format!(
+                "{} filesystem does not support reading directories!",
+                Self::NAME
+            )))
+        }
     }
 
     /// Returns a glob handle that emits paths that match the given glob.
@@ -321,8 +328,8 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         &self,
         glob: &str,
         state: &Self::State,
-    ) -> Result<GlobHandle<Self::ReadDirHandle>> {
-        GlobHandle::try_new(self, state, glob)
+    ) -> impl Future<Output = Result<GlobHandle<Self::ReadDirHandle>>> + Sync + Send {
+        GlobHandle::open(self, state, glob)
     }
 
     /// Process the glob to determine the root directory to use, and the glob
@@ -380,7 +387,10 @@ impl FileSystemWithState {
         (self.fs.vtable.stat_fn)(self.fs.filesystem.as_ref(), path, self.state.0.as_ref())
     }
 
-    pub fn read_glob(&self, glob: &str) -> Result<Box<dyn FileProvider>> {
+    pub fn read_glob<'a>(
+        &'a self,
+        glob: &'a str,
+    ) -> FileSystemFuture<'a, Result<Box<dyn FileProvider>>> {
         (self.fs.vtable.read_glob_fn)(self.fs.filesystem.as_ref(), glob, self.state.0.as_ref())
     }
 }
@@ -460,7 +470,7 @@ pub(crate) struct RawFileSystemVTable {
         fs: &'a dyn Any,
         glob: &'a str,
         state: &'a dyn Any,
-    ) -> Result<Box<dyn FileProvider>>,
+    ) -> FileSystemFuture<'a, Result<Box<dyn FileProvider>>>,
 
     can_handle_path_fn: fn(fs: &dyn Any, path: &str) -> bool,
 }
@@ -509,8 +519,10 @@ where
         read_glob_fn: |fs, glob, state| {
             let fs = fs.downcast_ref::<Self>().unwrap();
             let state = state.downcast_ref::<S::State>().unwrap();
-            let glob = fs.read_glob(glob, state)?;
-            Ok(Box::new(glob))
+            Box::pin(async {
+                let handle = fs.read_glob(glob, state).await?;
+                Ok(Box::new(handle) as _)
+            })
         },
 
         can_handle_path_fn: |fs, path| {

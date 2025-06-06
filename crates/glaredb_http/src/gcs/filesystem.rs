@@ -18,7 +18,7 @@ use url::Url;
 
 use super::credentials::{AccessToken, ServiceAccount};
 use super::directory::GcsDirHandle;
-use crate::client::{HttpClient, HttpResponse};
+use crate::client::{HttpClient, HttpResponse, read_response_as_text};
 use crate::handle::{HttpFileHandle, RequestSigner};
 
 pub const STORAGE_API_ENDPOINT: &str = "storage.googleapis.com";
@@ -138,6 +138,16 @@ where
         }
 
         let resp = self.client.do_request(request).await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = read_response_as_text(resp.into_bytes_stream()).await?;
+            let mut err = DbError::new("Failed to make HEAD request").with_field("status", status);
+            if !text.trim().is_empty() {
+                err = err.with_field("response", text);
+            }
+            return Err(err);
+        }
+
         let len = match resp.headers().get(CONTENT_LENGTH) {
             Some(v) => v
                 .to_str()
@@ -179,7 +189,7 @@ where
         Err(DbError::new(format!("Unexpected status code: {status}")))
     }
 
-    fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
+    async fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
         let location = GcsLocation::from_path(dir, state)?;
         let signer = GcsRequestSigner {
             token: state.token.clone(),

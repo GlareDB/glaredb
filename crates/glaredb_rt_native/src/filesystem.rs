@@ -101,7 +101,7 @@ impl FileSystem for LocalFileSystem {
         Ok(Some(FileStat { file_type }))
     }
 
-    fn read_dir(&self, dir: &str, _state: &Self::State) -> Result<Self::ReadDirHandle> {
+    async fn read_dir(&self, dir: &str, _state: &Self::State) -> Result<Self::ReadDirHandle> {
         Ok(LocalDirHandle {
             path: dir.into(),
             exhausted: false,
