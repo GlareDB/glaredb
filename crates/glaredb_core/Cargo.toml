@@ -16,7 +16,7 @@ chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true, features = ["raw"] }
 num-traits = "0.2.19"
-num_cpus = "1.16.0"
+num_cpus = "1.17.0"
 parking_lot = { workspace = true }
 rayon = { workspace = true }
 tracing = { workspace = true }
