@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::SeekFrom;
 use std::task::{Context, Poll};
 
@@ -18,7 +19,7 @@ use url::Url;
 
 use super::credentials::{AwsCredentials, AwsRequestAuthorizer};
 use super::directory::S3DirHandle;
-use crate::client::{HttpClient, HttpResponse};
+use crate::client::{HttpClient, HttpResponse, read_response_as_text};
 use crate::handle::{HttpFileHandle, RequestSigner};
 
 pub const AWS_ENDPOINT: &str = "amazonaws.com";
@@ -50,7 +51,11 @@ pub struct S3Location {
 }
 
 impl S3Location {
-    pub(crate) fn from_path(path: &str, state: &S3FileSystemState) -> Result<Self> {
+    pub(crate) fn from_path(
+        path: &str,
+        state: &S3FileSystemState,
+        default_region: &str,
+    ) -> Result<Self> {
         let url = Url::parse(path).context_fn(|| format!("Failed to parse '{path}' as a URL"))?;
 
         // Assumes s3 format: 's3://bucket/file.csv'
@@ -59,12 +64,12 @@ impl S3Location {
             other => return Err(DbError::new(format!("Expected domain, got {other:?}"))),
         };
         let object = &url.path()[1..]; // Path includes a leading slash, slice it off.
-        let region = &state.region;
         let endpoint = AWS_ENDPOINT;
+        let region = state.region.clone().unwrap_or(default_region.to_string());
 
         Ok(S3Location {
             bucket: bucket.to_string(),
-            region: region.to_string(),
+            region,
             object: object.to_string(),
             endpoint: endpoint.to_string(),
         })
@@ -87,7 +92,7 @@ impl S3Location {
 
 #[derive(Debug, Clone)]
 pub struct S3FileSystemState {
-    region: String,
+    region: Option<String>,
     creds: Option<AwsCredentials>,
 }
 
@@ -104,10 +109,10 @@ where
     async fn load_state(&self, context: FileOpenContext<'_>) -> Result<Self::State> {
         let key_id = context.get_value("access_key_id")?;
         let secret = context.get_value("secret_access_key")?;
-        let region = context
-            .get_value("region")?
-            .unwrap_or(self.default_region.into())
-            .try_into_string()?;
+        let region = match context.get_value("region")? {
+            Some(region) => Some(region.try_into_string()?),
+            None => None,
+        };
 
         let creds = match (key_id, secret) {
             (Some(key_id), Some(secret)) => Some(AwsCredentials {
@@ -134,14 +139,63 @@ where
         if flags.is_create() {
             not_implemented!("create support for s3 filesystem")
         }
-        let location = S3Location::from_path(path, state)?.url()?;
+        let mut location = S3Location::from_path(path, state, self.default_region)?;
 
-        let mut request = Request::new(Method::HEAD, location.clone());
-        // If we don't have creds, we can skip signing.
-        if let Some(creds) = &state.creds {
-            request = authorize_request(creds, &state.region, request)?;
-        }
-        let resp = self.client.do_request(request).await?;
+        let mut make_request = async || {
+            loop {
+                // We may loop if the bucket is actually in a different region than
+                // the one that's on state.
+                //
+                // We _could_ use the global endpoint, but that's "deprecated".
+
+                let mut request = Request::new(Method::HEAD, location.url()?);
+                // If we don't have creds, we can skip signing.
+                if let Some(creds) = &state.creds {
+                    request = authorize_request(creds, &location.region, request)?;
+                }
+
+                let resp = self.client.do_request(request).await?;
+                if !resp.status().is_success() {
+                    if resp.status().is_redirection() {
+                        // Redirect, check to see if we're in the wrong region.
+                        if let Some(region) = resp.headers().get("x-amz-bucket-region") {
+                            let region = std::str::from_utf8(region.as_bytes()).context(
+                                "Expected value for 'x-amz-bucket-region' to be valid utf8",
+                            )?;
+
+                            if state.region.is_some() {
+                                // User provided an incorrect region, return an
+                                // error telling them to use the correct one.
+                                return Err(DbError::new(format!(
+                                    "Bucket's region is '{region}', either update the region provided or omit it"
+                                )));
+                            }
+
+                            if region != location.region {
+                                // Different region, update location and try again.
+                                location.region = region.to_string();
+                                continue;
+                            }
+                        }
+                    }
+
+                    let status = resp.status();
+                    let text = read_response_as_text(resp.into_bytes_stream()).await?;
+                    let mut err =
+                        DbError::new("Failed to make HEAD request").with_field("status", status);
+                    if !text.trim().is_empty() {
+                        err = err.with_field("response", text);
+                    }
+                    return Err(err);
+                }
+
+                // Success!
+                return Ok(resp);
+            }
+        };
+
+        let resp = make_request().await?;
+
         let len = match resp.headers().get(CONTENT_LENGTH) {
             Some(v) => v
                 .to_str()
@@ -151,21 +205,22 @@ where
             None => return Err(DbError::new("Missing Content-Length header for file")),
         };
 
+        let url = location.url()?;
         let signer = S3RequestSigner {
-            region: state.region.clone(),
+            region: location.region,
             creds: state.creds.clone(),
         };
-        let handle = HttpFileHandle::new(location, len, self.client.clone(), signer);
+        let handle = HttpFileHandle::new(url, len, self.client.clone(), signer);
 
         Ok(S3FileHandle { handle })
     }
 
     async fn stat(&self, path: &str, state: &Self::State) -> Result<Option<FileStat>> {
-        let location = S3Location::from_path(path, state)?.url()?;
+        let location = S3Location::from_path(path, state, self.default_region)?;
 
-        let mut request = Request::new(Method::HEAD, location.clone());
+        let mut request = Request::new(Method::HEAD, location.url()?);
         if let Some(creds) = &state.creds {
-            request = authorize_request(creds, &state.region, request)?;
+            request = authorize_request(creds, &location.region, request)?;
         }
         let resp = self.client.do_request(request).await?;
 
@@ -184,9 +239,9 @@ where
     }
 
     fn read_dir(&self, dir: &str, state: &Self::State) -> Result<Self::ReadDirHandle> {
-        let location = S3Location::from_path(dir, state)?;
+        let location = S3Location::from_path(dir, state, self.default_region)?;
         let signer = S3RequestSigner {
-            region: state.region.clone(),
+            region: location.region.clone(),
             creds: state.creds.clone(),
         };
 

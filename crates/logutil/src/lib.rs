@@ -1,3 +1,4 @@
+pub use tracing;
 use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::fmt::MakeWriter;
@@ -16,10 +17,7 @@ where
 {
     let env_filter = EnvFilter::builder()
         .with_default_directive(default_level.into())
-        .from_env_lossy()
-        .add_directive("h2=info".parse().unwrap())
-        .add_directive("hyper=info".parse().unwrap())
-        .add_directive("sqllogictest=info".parse().unwrap());
+        .from_env_lossy();
 
     match format {
         LogFormat::HumanReadable => {

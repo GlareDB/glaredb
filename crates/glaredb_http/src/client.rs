@@ -74,3 +74,17 @@ where
     }
     serde_json::from_slice(&bytes).context("Failed to deserialize response body as json")
 }
+
+pub async fn read_response_as_text<S>(mut stream: S) -> Result<String>
+where
+    S: Stream<Item = Result<Bytes>> + Sync + Send + Unpin,
+{
+    let mut bytes = Vec::new();
+    while let Some(resp) = stream.try_next().await? {
+        bytes.extend_from_slice(resp.as_ref());
+    }
+
+    let text = String::from_utf8_lossy(&bytes);
+
+    Ok(text.into_owned())
+}

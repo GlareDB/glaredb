@@ -17,6 +17,7 @@ ext_parquet = { path = '../crates/ext_parquet' }
 ext_iceberg = { path = '../crates/ext_iceberg' }
 
 harness = { path = '../crates/harness' }
+logutil = { path = '../crates/logutil' }
 
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 

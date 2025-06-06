@@ -1,0 +1,46 @@
+# Ensure we can properly read from a different region than the default
+# ('us-east-1').
+
+# statement ok
+# SET verify_optimized_plan TO true;
+
+# query TT
+# DESCRIBE read_parquet('s3://glaredb-public-eu/userdata0.parquet', region='eu-west-1');
+# ----
+# registration_dttm  Timestamp(ns)
+# id                 Int32
+# first_name         Utf8
+# last_name          Utf8
+# email              Utf8
+# gender             Utf8
+# ip_address         Utf8
+# cc                 Utf8
+# country            Utf8
+# birthdate          Utf8
+# salary             Float64
+# title              Utf8
+# comments           Utf8
+
+# query I
+# SELECT count(*) FROM read_parquet('s3://glaredb-public-eu/userdata0.parquet', region='eu-west-1');
+# ----
+# 1000
+
+# Allow omitting the region parameter, and make a new request with the correct
+# region.
+query TT
+DESCRIBE read_parquet('s3://glaredb-public-eu/userdata0.parquet');
+----
+registration_dttm  Timestamp(ns)
+id                 Int32
+first_name         Utf8
+last_name          Utf8
+email              Utf8
+gender             Utf8
+ip_address         Utf8
+cc                 Utf8
+country            Utf8
+birthdate          Utf8
+salary             Float64
+title              Utf8
+comments           Utf8

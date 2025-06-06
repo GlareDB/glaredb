@@ -1,3 +1,4 @@
+use std::io;
 use std::path::Path;
 use std::time::Duration;
 
@@ -25,6 +26,11 @@ use tokio::runtime::Runtime as TokioRuntime;
 
 pub fn main() -> Result<()> {
     let args = Arguments::<SltArguments>::from_args();
+    logutil::configure_global_logger(
+        logutil::tracing::Level::WARN,
+        logutil::LogFormat::HumanReadable,
+        io::stderr,
+    );
 
     // Standard tests.
     run_with_all_thread_configurations::<StandardSetup>(&args, "../slt/standard", "slt_standard")?;

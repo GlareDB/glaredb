@@ -3,6 +3,9 @@
 # TODO: Not sure if we care to keep these tests in sync. Right now I just want
 # to make sure the s3 stuff works pretty much just like local fs stuff.
 
+statement ok
+SET verify_optimized_plan TO true;
+
 query TT
 DESCRIBE read_parquet('s3://glaredb-public/userdata0.parquet');
 ----
