@@ -9,7 +9,7 @@ glaredb_error = { path = '../glaredb_error' }
 clap = { workspace = true }
 escape8259 = "0.5.3"
 anstream = "0.6.19"
-anstyle = "1.0.7"
+anstyle = "1.0.11"
 rand = { workspace = true }
 
 [lints]
