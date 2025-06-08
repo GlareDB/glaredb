@@ -2929,9 +2929,9 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tpchgen"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e154b269e76b998cff90bd65696da46c7505b1a09144fe8fc7246cda481456c5"
+checksum = "a4fdf684719132c392148d85c8a0766dba6a9d70a5948a6ccd7a20b227773ab6"
 
 [[package]]
 name = "tracing"
