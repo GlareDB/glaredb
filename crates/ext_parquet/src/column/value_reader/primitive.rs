@@ -42,6 +42,8 @@ pub type PlainFloat16ValueReader = PrimitiveValueReader<PhysicalF16, PlainTypeFi
 pub type PlainTsNsValueReader = PrimitiveValueReader<PhysicalI64, PlainTypeI64>;
 // No conversion needed to read INT64 as micros.
 pub type PlainTsMicrosValueReader = PrimitiveValueReader<PhysicalI64, PlainTypeI64>;
+// No conversion needed to read INT64 as millis.
+pub type PlainTsMillisValueReader = PrimitiveValueReader<PhysicalI64, PlainTypeI64>;
 
 /// Value reader that can read primitive values and place them into the output
 /// array with no conversion.
