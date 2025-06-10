@@ -1,0 +1,14 @@
+# Ensure we can read timestamp millis when encoded as i64.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE '../testdata/parquet/ts_millis_i64.parquet';
+----
+ts  Timestamp(ms)
+
+query ?
+SELECT * FROM '../testdata/parquet/ts_millis_i64.parquet';
+----
+2016-05-06 01:02:26.450 UTC
