@@ -1120,7 +1120,7 @@ name = "glaredb_proto"
 version = "25.6.2"
 dependencies = [
  "glaredb_error",
- "prost 0.13.5",
+ "prost",
  "prost-build",
  "uuid",
 ]
@@ -2010,22 +2010,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2796faa41db3ec313a31f7624d9286acf277b52de526150b7e69f3debf891ee5"
-dependencies = [
- "bytes",
- "prost-derive 0.13.5",
-]
-
-[[package]]
-name = "prost"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbe28332295ca4451b7d779aff2749b144cabe5e6e05fe86f31337831d7df232"
 dependencies = [
  "bytes",
- "prost-derive 0.14.0",
+ "prost-derive",
 ]
 
 [[package]]
@@ -2041,24 +2031,11 @@ dependencies = [
  "once_cell",
  "petgraph",
  "prettyplease",
- "prost 0.14.0",
+ "prost",
  "prost-types",
  "regex",
  "syn",
  "tempfile",
-]
-
-[[package]]
-name = "prost-derive"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
-dependencies = [
- "anyhow",
- "itertools 0.13.0",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -2080,7 +2057,7 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2bfff0dbd11dbadf180fea466aa146cdf20aed230e1c42b8bae192df8f0469a"
 dependencies = [
- "prost 0.14.0",
+ "prost",
 ]
 
 [[package]]
