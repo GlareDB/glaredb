@@ -3,10 +3,12 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use glaredb_error::{DbError, Result};
+use half::f16;
 use num_traits::{Float, NumCast, ToPrimitive};
 
 use super::null::NullToAnything;
 use crate::arrays::array::Array;
+use crate::arrays::array::float::FloatScalarStorage;
 use crate::arrays::array::physical_type::{
     MutableScalarStorage,
     PhysicalF16,
@@ -501,20 +503,21 @@ impl<D, S> DecimalToFloat<D, S> {
 impl<D, S> CastFunction for DecimalToFloat<D, S>
 where
     D: DecimalType,
-    S: MutableScalarStorage,
+    S: MutableScalarStorage + FloatScalarStorage,
     S::StorageType: Float + Copy,
 {
     type State = DecimalToFloatState<S::StorageType>;
 
     fn bind(&self, src: &DataType, _target: &DataType) -> Result<Self::State> {
         let decimal_meta = src.try_get_decimal_type_meta()?;
-        let scale = <S::StorageType as NumCast>::from((10.0).powi(decimal_meta.scale as i32))
-            .ok_or_else(|| {
-                DbError::new(format!(
-                    "Failed to cast scale {} to float",
-                    decimal_meta.scale
-                ))
-            })?;
+        if decimal_meta.scale < 0 {
+            // Yet
+            return Err(DbError::new(
+                "Cannot convert a float to decimal using a negative scale",
+            ));
+        }
+
+        let scale = S::POWERS_OF_10[decimal_meta.scale as usize];
 
         Ok(DecimalToFloatState { scale })
     }

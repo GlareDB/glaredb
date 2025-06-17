@@ -1,5 +1,6 @@
 pub mod array_buffer;
 pub mod execution_format;
+pub mod float;
 pub mod physical_type;
 pub mod selection;
 pub mod validity;
