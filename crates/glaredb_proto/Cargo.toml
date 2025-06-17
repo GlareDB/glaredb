@@ -8,8 +8,8 @@ workspace = true
 
 [dependencies]
 glaredb_error = { path = "../glaredb_error" }
-prost = "0.13"
+prost = "0.14"
 uuid = { workspace = true }
 
 [build-dependencies]
-prost-build = "0.13"
+prost-build = "0.14"
