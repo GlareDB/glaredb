@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use glaredb_error::{DbError, Result};
-use half::f16;
 use num_traits::{Float, NumCast, ToPrimitive};
 
 use super::null::NullToAnything;
