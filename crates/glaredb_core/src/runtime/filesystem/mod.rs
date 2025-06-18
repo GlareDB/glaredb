@@ -225,6 +225,8 @@ impl OpenFlags {
 }
 
 /// Context used for creating state needed by the file system to open files.
+// TODO: This is be useful outside the context of the file system, for example
+// getting credentials for apis. Rename and move.
 #[derive(Debug)]
 pub struct FileOpenContext<'a> {
     #[allow(unused)] // TODO: db context will be used to lookup up stored config values

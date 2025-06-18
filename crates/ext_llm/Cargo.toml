@@ -1,0 +1,15 @@
+[package]
+name = "ext_llm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+glaredb_proto = { path = '../glaredb_proto' }
+glaredb_core = { path = '../glaredb_core' }
+glaredb_error = { path = '../glaredb_error' }
+glaredb_http = { path = '../glaredb_http' }
+
+serde = { workspace = true }
+
+[lints]
+workspace = true
