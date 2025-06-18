@@ -10,6 +10,9 @@ glaredb_error = { path = '../glaredb_error' }
 glaredb_http = { path = '../glaredb_http' }
 
 serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+futures = { workspace = true }
 
 [lints]
 workspace = true

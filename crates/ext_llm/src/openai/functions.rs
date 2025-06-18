@@ -39,7 +39,7 @@ pub const FUNCTION_SET_OPENAI_CREATE_RESPONSE: TableFunctionSet = TableFunctionS
         description: r#"
 Create an OpenAI model response.
 
-Uses the [Create Response](https://platform.openai.com/docs/api-reference/responses/create) API.
+Uses the [Create Model Response](https://platform.openai.com/docs/api-reference/responses/create) API.
 "#,
         arguments: &["input"],
         example: None,

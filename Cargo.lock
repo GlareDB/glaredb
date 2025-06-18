@@ -801,11 +801,14 @@ dependencies = [
 name = "ext_llm"
 version = "25.6.2"
 dependencies = [
+ "futures",
  "glaredb_core",
  "glaredb_error",
  "glaredb_http",
  "glaredb_proto",
  "serde",
+ "serde_json",
+ "url",
 ]
 
 [[package]]
