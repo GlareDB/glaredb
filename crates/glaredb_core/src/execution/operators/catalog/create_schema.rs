@@ -10,6 +10,7 @@ use crate::catalog::create::CreateSchemaInfo;
 use crate::catalog::memory::MemoryCatalog;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CreateSchemaPartitionState {
@@ -18,12 +19,12 @@ pub enum CreateSchemaPartitionState {
 }
 
 #[derive(Debug)]
-pub struct PhysicalCreateSchema {
-    pub(crate) catalog: Arc<MemoryCatalog>,
+pub struct PhysicalCreateSchema<R: SystemRuntime> {
+    pub(crate) catalog: Arc<MemoryCatalog<R>>,
     pub(crate) info: CreateSchemaInfo,
 }
 
-impl BaseOperator for PhysicalCreateSchema {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalCreateSchema<R> {
     const OPERATOR_NAME: &str = "CreateSchema";
 
     type OperatorState = ();
@@ -37,7 +38,7 @@ impl BaseOperator for PhysicalCreateSchema {
     }
 }
 
-impl PullOperator for PhysicalCreateSchema {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalCreateSchema<R> {
     type PartitionPullState = CreateSchemaPartitionState;
 
     fn create_partition_pull_states(
@@ -68,8 +69,11 @@ impl PullOperator for PhysicalCreateSchema {
     }
 }
 
-impl Explainable for PhysicalCreateSchema {
+impl<R> Explainable for PhysicalCreateSchema<R>
+where
+    R: SystemRuntime,
+{
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("CreateSchema", conf).build()
     }
 }

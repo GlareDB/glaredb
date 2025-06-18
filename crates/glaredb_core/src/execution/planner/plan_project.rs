@@ -5,8 +5,12 @@ use crate::execution::operators::project::PhysicalProject;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_project::LogicalProject;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_project(
         &mut self,
         mut project: Node<LogicalProject>,
@@ -23,7 +27,7 @@ impl OperatorPlanState<'_> {
             .context("Failed to plan expressions for projection")?;
 
         let operator = PhysicalProject::new(projections);
-        let planned = PlannedOperator::new_execute(self.id_gen.next_id(), operator);
+        let planned = PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator);
 
         Ok(PlannedOperatorWithChildren {
             operator: planned,

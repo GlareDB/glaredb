@@ -7,8 +7,12 @@ use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::logical::logical_set::LogicalShowVar;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_show_var(
         &mut self,
         show: Node<LogicalShowVar>,
@@ -19,9 +23,12 @@ impl OperatorPlanState<'_> {
         let operator = PhysicalValues::new(vec![vec![PhysicalLiteralExpr::new(show.value).into()]]);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator),
             children: vec![PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_pull(self.id_gen.next_id(), PhysicalSingleRow),
+                operator: PlannedOperator::new_pull::<_, R>(
+                    self.id_gen.next_id(),
+                    PhysicalSingleRow,
+                ),
                 children: Vec::new(),
             }],
         })

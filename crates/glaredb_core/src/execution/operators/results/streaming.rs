@@ -17,6 +17,7 @@ use crate::execution::operators::{
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::runtime::pipeline::ErrorSink;
+use crate::runtime::system::SystemRuntime;
 
 /// Streams result batches for a query.
 ///
@@ -158,7 +159,7 @@ impl PhysicalStreamingResults {
     }
 }
 
-impl BaseOperator for PhysicalStreamingResults {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalStreamingResults {
     const OPERATOR_NAME: &str = "StreamingResults";
 
     type OperatorState = StreamingResultsOperatorState;
@@ -175,7 +176,7 @@ impl BaseOperator for PhysicalStreamingResults {
     }
 }
 
-impl PushOperator for PhysicalStreamingResults {
+impl<R: SystemRuntime> PushOperator<R> for PhysicalStreamingResults {
     type PartitionPushState = StreamingResultsPartitionState;
 
     fn create_partition_push_states(
@@ -259,7 +260,7 @@ impl PushOperator for PhysicalStreamingResults {
 
 impl Explainable for PhysicalStreamingResults {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("StreamingResults", conf).build()
     }
 }
 

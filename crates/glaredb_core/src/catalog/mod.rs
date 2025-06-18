@@ -25,6 +25,7 @@ use glaredb_error::{DbError, Result};
 
 use crate::execution::operators::PlannedOperator;
 use crate::execution::planner::OperatorIdGen;
+use crate::runtime::system::SystemRuntime;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
 // TODO: This will probably undergo the same "manual dynamic dispatch" as many
@@ -33,7 +34,7 @@ use crate::storage::storage_manager::{StorageManager, StorageTableId};
 // We'll need to make a distinction between what can actually be implemented by
 // external catalogs (e.g. fetching tables) vs what can't and require
 // "in-memory" implementations (e.g. storing functions).
-pub trait Catalog: Debug + Sync + Send {
+pub trait Catalog<R: SystemRuntime>: Debug + Sync + Send {
     type Schema: Schema;
 
     /// Create a schema in the catalog.

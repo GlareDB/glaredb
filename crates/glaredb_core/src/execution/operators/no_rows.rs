@@ -6,6 +6,7 @@ use super::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 
 /// Operator that emits no rows, but knows its output types.
 #[derive(Debug)]
@@ -13,7 +14,7 @@ pub struct PhysicalNoRows {
     pub(crate) datatypes: Vec<DataType>,
 }
 
-impl BaseOperator for PhysicalNoRows {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalNoRows {
     const OPERATOR_NAME: &str = "NoRows";
 
     type OperatorState = ();
@@ -27,7 +28,7 @@ impl BaseOperator for PhysicalNoRows {
     }
 }
 
-impl PullOperator for PhysicalNoRows {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalNoRows {
     type PartitionPullState = ();
 
     fn create_partition_pull_states(
@@ -53,6 +54,6 @@ impl PullOperator for PhysicalNoRows {
 
 impl Explainable for PhysicalNoRows {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("NoRows", conf).build()
     }
 }

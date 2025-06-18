@@ -9,6 +9,7 @@ use super::memory::MemoryCatalog;
 use super::profile::ProfileCollector;
 use crate::catalog::Catalog;
 use crate::catalog::create::{CreateSchemaInfo, OnConflict};
+use crate::runtime::system::SystemRuntime;
 use crate::storage::storage_manager::StorageManager;
 
 pub const SYSTEM_CATALOG: &str = "system";
@@ -16,13 +17,16 @@ pub const TEMP_CATALOG: &str = "temp";
 
 /// Accessible catalogs for a session.
 #[derive(Debug)]
-pub struct DatabaseContext {
-    databases: HashMap<String, Arc<Database>>,
+pub struct DatabaseContext<R: SystemRuntime> {
+    databases: HashMap<String, Arc<Database<R>>>,
     profiles: Arc<ProfileCollector>,
 }
 
-impl DatabaseContext {
-    pub fn new(system_catalog: Arc<Database>) -> Result<Self> {
+impl<R> DatabaseContext<R>
+where
+    R: SystemRuntime,
+{
+    pub fn new(system_catalog: Arc<Database<R>>) -> Result<Self> {
         let mut databases = HashMap::new();
         databases.insert(system_catalog.name.clone(), system_catalog);
 
@@ -51,17 +55,17 @@ impl DatabaseContext {
         &self.profiles
     }
 
-    pub fn get_database(&self, name: &str) -> Option<&Arc<Database>> {
+    pub fn get_database(&self, name: &str) -> Option<&Arc<Database<R>>> {
         self.databases.get(name)
     }
 
-    pub fn require_get_database(&self, name: &str) -> Result<&Arc<Database>> {
+    pub fn require_get_database(&self, name: &str) -> Result<&Arc<Database<R>>> {
         self.databases
             .get(name)
             .ok_or_else(|| DbError::new(format!("Missing catalog '{name}'")))
     }
 
-    pub fn iter_databases(&self) -> impl Iterator<Item = &Arc<Database>> + '_ {
+    pub fn iter_databases(&self) -> impl Iterator<Item = &Arc<Database<R>>> + '_ {
         self.databases.values()
     }
 }

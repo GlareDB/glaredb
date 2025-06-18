@@ -9,6 +9,7 @@ use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct PhysicalFilter {
@@ -21,7 +22,7 @@ pub struct FilterPartitionState {
     evaluator: SelectionEvaluator,
 }
 
-impl BaseOperator for PhysicalFilter {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalFilter {
     const OPERATOR_NAME: &str = "Filter";
 
     type OperatorState = ();
@@ -35,7 +36,7 @@ impl BaseOperator for PhysicalFilter {
     }
 }
 
-impl ExecuteOperator for PhysicalFilter {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalFilter {
     type PartitionExecuteState = FilterPartitionState;
 
     fn create_partition_execute_states(
@@ -88,7 +89,7 @@ impl ExecuteOperator for PhysicalFilter {
 
 impl Explainable for PhysicalFilter {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("Filter", conf)
             .with_value("predicate", &self.predicate)
             .build()
     }

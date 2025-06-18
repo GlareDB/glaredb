@@ -8,6 +8,7 @@ use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct ValuesPartitionState {
@@ -42,7 +43,7 @@ impl PhysicalValues {
     }
 }
 
-impl BaseOperator for PhysicalValues {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalValues {
     const OPERATOR_NAME: &str = "Values";
 
     type OperatorState = ();
@@ -56,7 +57,7 @@ impl BaseOperator for PhysicalValues {
     }
 }
 
-impl ExecuteOperator for PhysicalValues {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalValues {
     type PartitionExecuteState = ValuesPartitionState;
 
     fn create_partition_execute_states(
@@ -134,7 +135,7 @@ impl ExecuteOperator for PhysicalValues {
 
 impl Explainable for PhysicalValues {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("Values", conf)
             .with_value("num_rows", self.expressions.len())
             .with_values("datatypes", &self.output_types)
             .build()

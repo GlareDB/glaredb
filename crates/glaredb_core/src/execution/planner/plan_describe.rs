@@ -7,8 +7,12 @@ use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::physical::literal_expr::PhysicalLiteralExpr;
 use crate::logical::logical_describe::LogicalDescribe;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_describe(
         &mut self,
         describe: Node<LogicalDescribe>,

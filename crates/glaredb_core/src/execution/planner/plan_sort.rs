@@ -5,8 +5,12 @@ use crate::execution::operators::sort::global_sort::PhysicalGlobalSort;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_order::LogicalOrder;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_sort(
         &mut self,
         mut order: Node<LogicalOrder>,
@@ -28,7 +32,7 @@ impl OperatorPlanState<'_> {
         );
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), sort),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), sort),
             children: vec![child],
         })
     }

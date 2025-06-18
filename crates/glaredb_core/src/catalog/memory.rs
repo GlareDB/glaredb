@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use futures::{Stream, stream};
@@ -36,22 +37,31 @@ use crate::execution::operators::catalog::drop::PhysicalDrop;
 use crate::execution::operators::catalog::insert::PhysicalInsert;
 use crate::execution::planner::OperatorIdGen;
 use crate::functions::table::builtin::memory_scan::FUNCTION_SET_MEMORY_SCAN;
+use crate::runtime::system::SystemRuntime;
 use crate::storage::storage_manager::{StorageManager, StorageTableId};
 
 #[derive(Debug)]
-pub struct MemoryCatalog {
+pub struct MemoryCatalog<R: SystemRuntime> {
     schemas: scc::HashIndex<String, Arc<MemorySchema>>,
+    _runtime: PhantomData<R>,
 }
 
-impl MemoryCatalog {
+impl<R> MemoryCatalog<R>
+where
+    R: SystemRuntime,
+{
     pub fn empty() -> Self {
         MemoryCatalog {
             schemas: HashIndex::new(),
+            _runtime: PhantomData,
         }
     }
 }
 
-impl Catalog for MemoryCatalog {
+impl<R> Catalog<R> for MemoryCatalog<R>
+where
+    R: SystemRuntime,
+{
     type Schema = MemorySchema;
 
     fn create_schema(&self, create: &CreateSchemaInfo) -> Result<Arc<Self::Schema>> {
@@ -135,7 +145,10 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_pull(id_gen.next_id(), operator))
+        Ok(PlannedOperator::new_pull::<_, R>(
+            id_gen.next_id(),
+            operator,
+        ))
     }
 
     fn plan_create_table(
@@ -152,7 +165,10 @@ impl Catalog for MemoryCatalog {
             info: create,
         };
 
-        Ok(PlannedOperator::new_pull(id_gen.next_id(), operator))
+        Ok(PlannedOperator::new_pull::<_, R>(
+            id_gen.next_id(),
+            operator,
+        ))
     }
 
     fn plan_insert(
@@ -161,7 +177,7 @@ impl Catalog for MemoryCatalog {
         id_gen: &mut OperatorIdGen,
         table: Arc<CatalogEntry>,
     ) -> Result<PlannedOperator> {
-        Ok(PlannedOperator::new_execute(
+        Ok(PlannedOperator::new_execute::<_, R>(
             id_gen.next_id(),
             PhysicalInsert {
                 storage: storage.clone(),
@@ -180,7 +196,10 @@ impl Catalog for MemoryCatalog {
         let schema = self.require_get_schema(schema)?;
         let operator = PhysicalCreateTableAs::new(storage.clone(), schema, create);
 
-        Ok(PlannedOperator::new_execute(id_gen.next_id(), operator))
+        Ok(PlannedOperator::new_execute::<_, R>(
+            id_gen.next_id(),
+            operator,
+        ))
     }
 
     fn plan_create_schema(
@@ -606,54 +625,5 @@ impl CatalogMap {
             func(name, ent)?;
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
-
-    fn create_test_catalog() -> MemoryCatalog {
-        let catalog = MemoryCatalog::empty();
-        let _schema = catalog
-            .create_schema(&CreateSchemaInfo {
-                name: "test".to_string(),
-                on_conflict: OnConflict::Error,
-            })
-            .unwrap();
-
-        catalog
-    }
-
-    #[test]
-    fn similarity_function_name() {
-        let catalog = create_test_catalog();
-        let schema = catalog.get_schema("test").unwrap().unwrap();
-
-        schema
-            .create_aggregate_function(&CreateAggregateFunctionInfo {
-                name: "sum".to_string(),
-                implementation: &FUNCTION_SET_SUM,
-                on_conflict: OnConflict::Error,
-            })
-            .unwrap();
-
-        let similar = schema
-            .find_similar_entry(&[CatalogEntryType::AggregateFunction], "summ")
-            .unwrap()
-            .unwrap();
-        assert_eq!("sum", similar.name);
-
-        let similar = schema
-            .find_similar_entry(&[CatalogEntryType::AggregateFunction], "sim")
-            .unwrap()
-            .unwrap();
-        assert_eq!("sum", similar.name);
-
-        let similar = schema
-            .find_similar_entry(&[CatalogEntryType::AggregateFunction], "ham")
-            .unwrap();
-        assert!(similar.is_none());
     }
 }

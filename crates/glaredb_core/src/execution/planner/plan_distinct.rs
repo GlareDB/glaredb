@@ -8,8 +8,12 @@ use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_distinct::LogicalDistinct;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_distinct(
         &mut self,
         mut distinct: Node<LogicalDistinct>,
@@ -44,7 +48,7 @@ impl OperatorPlanState<'_> {
         let operator = PhysicalHashAggregate::new(aggregates, vec![grouping_set]);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator),
             children: vec![child],
         })
     }

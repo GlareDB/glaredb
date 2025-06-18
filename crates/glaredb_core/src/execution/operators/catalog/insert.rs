@@ -14,6 +14,7 @@ use crate::execution::operators::{
     PollFinalize,
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 use crate::storage::datatable::{DataTable, DataTableAppendState};
 use crate::storage::storage_manager::StorageManager;
 
@@ -35,7 +36,7 @@ pub struct PhysicalInsert {
     pub(crate) entry: Arc<CatalogEntry>,
 }
 
-impl BaseOperator for PhysicalInsert {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalInsert {
     const OPERATOR_NAME: &str = "Insert";
 
     type OperatorState = InsertOperatorState;
@@ -53,7 +54,7 @@ impl BaseOperator for PhysicalInsert {
     }
 }
 
-impl ExecuteOperator for PhysicalInsert {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalInsert {
     type PartitionExecuteState = InsertPartitionState;
 
     fn create_partition_execute_states(
@@ -110,6 +111,6 @@ impl ExecuteOperator for PhysicalInsert {
 
 impl Explainable for PhysicalInsert {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("Insert", conf).build()
     }
 }

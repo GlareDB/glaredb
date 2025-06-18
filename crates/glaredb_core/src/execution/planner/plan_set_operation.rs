@@ -7,8 +7,12 @@ use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_setop::{LogicalSetop, SetOpKind};
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_set_operation(
         &mut self,
         mut setop: Node<LogicalSetop>,
@@ -23,7 +27,10 @@ impl OperatorPlanState<'_> {
             SetOpKind::Union => {
                 let operator = PhysicalUnion::new(left_types);
                 PlannedOperatorWithChildren {
-                    operator: PlannedOperator::new_push_execute(self.id_gen.next_id(), operator),
+                    operator: PlannedOperator::new_push_execute::<_, R>(
+                        self.id_gen.next_id(),
+                        operator,
+                    ),
                     children: vec![left, right],
                 }
             }
@@ -51,7 +58,7 @@ impl OperatorPlanState<'_> {
             };
 
             operator = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_execute(
+                operator: PlannedOperator::new_execute::<_, R>(
                     self.id_gen.next_id(),
                     PhysicalHashAggregate::new(aggregates, grouping_set),
                 ),

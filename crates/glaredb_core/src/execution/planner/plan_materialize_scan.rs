@@ -4,8 +4,12 @@ use super::OperatorPlanState;
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_materialization::LogicalMaterializationScan;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_materialize_scan(
         &mut self,
         scan: Node<LogicalMaterializationScan>,

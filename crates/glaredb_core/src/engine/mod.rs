@@ -25,7 +25,7 @@ use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug)]
 pub struct Engine<P: PipelineRuntime, R: SystemRuntime> {
-    system_catalog: Arc<Database>,
+    system_catalog: Arc<Database<R>>,
     executor: P,
     runtime: R,
 }
@@ -55,7 +55,7 @@ where
     /// a temporary catalog.
     ///
     /// This should be the base of all session catalogs.
-    pub fn new_base_database_context(&self) -> Result<DatabaseContext> {
+    pub fn new_base_database_context(&self) -> Result<DatabaseContext<R>> {
         DatabaseContext::new(self.system_catalog.clone())
     }
 

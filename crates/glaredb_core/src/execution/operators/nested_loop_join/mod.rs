@@ -30,6 +30,7 @@ use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Exp
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::selection_evaluator::SelectionEvaluator;
 use crate::logical::logical_join::JoinType;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct NestedLoopJoinOperatorState {
@@ -147,7 +148,7 @@ impl PhysicalNestedLoopJoin {
     }
 }
 
-impl BaseOperator for PhysicalNestedLoopJoin {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalNestedLoopJoin {
     const OPERATOR_NAME: &str = "NestedLoopJoin";
 
     type OperatorState = NestedLoopJoinOperatorState;
@@ -175,7 +176,7 @@ impl BaseOperator for PhysicalNestedLoopJoin {
 }
 
 /// Implementation of the "build" side of the join.
-impl PushOperator for PhysicalNestedLoopJoin {
+impl<R: SystemRuntime> PushOperator<R> for PhysicalNestedLoopJoin {
     type PartitionPushState = NestedLoopJoinBuildState;
 
     fn create_partition_push_states(
@@ -247,7 +248,7 @@ impl PushOperator for PhysicalNestedLoopJoin {
 }
 
 /// Implementation of the "probe" side of the join.
-impl ExecuteOperator for PhysicalNestedLoopJoin {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalNestedLoopJoin {
     type PartitionExecuteState = NestedLoopJoinProbeState;
 
     fn create_partition_execute_states(
@@ -532,7 +533,7 @@ impl ExecuteOperator for PhysicalNestedLoopJoin {
 
 impl Explainable for PhysicalNestedLoopJoin {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("NestedLoopJoin", conf)
             .with_value("join_type", self.join_type)
             .with_value_opt("filter", self.filter.as_ref())
             .build()

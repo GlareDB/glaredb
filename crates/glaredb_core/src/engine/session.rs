@@ -64,7 +64,7 @@ use crate::runtime::time::Timer;
 pub struct Session<P: PipelineRuntime, R: SystemRuntime> {
     /// Context containing everything in the "database" that's visible to this
     /// session.
-    context: DatabaseContext,
+    context: DatabaseContext<R>,
     /// Variables for this session.
     config: SessionConfig,
     /// Runtime for accessing external resources like the filesystem or http
@@ -151,7 +151,7 @@ where
     P: PipelineRuntime,
     R: SystemRuntime,
 {
-    pub fn new(context: DatabaseContext, executor: P, runtime: R) -> Self {
+    pub fn new(context: DatabaseContext<R>, executor: P, runtime: R) -> Self {
         let config = SessionConfig::new(&executor, &runtime);
 
         Session {
@@ -321,7 +321,7 @@ where
         sink: O,
     ) -> Result<IntermediatePortal>
     where
-        O: PushOperator,
+        O: PushOperator<R>,
     {
         match resolve_mode {
             ResolveMode::Hybrid if resolve_context.any_unresolved() => {

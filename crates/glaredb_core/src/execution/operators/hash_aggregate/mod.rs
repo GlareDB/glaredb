@@ -30,6 +30,7 @@ use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Exp
 use crate::expr::physical::PhysicalAggregateExpression;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_aggregate::GroupingFunction;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct Aggregates {
@@ -179,7 +180,7 @@ impl PhysicalHashAggregate {
     }
 }
 
-impl BaseOperator for PhysicalHashAggregate {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalHashAggregate {
     const OPERATOR_NAME: &str = "HashAggregate";
 
     type OperatorState = HashAggregateOperatorState;
@@ -250,7 +251,7 @@ impl BaseOperator for PhysicalHashAggregate {
     }
 }
 
-impl ExecuteOperator for PhysicalHashAggregate {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalHashAggregate {
     type PartitionExecuteState = HashAggregatePartitionState;
 
     fn create_partition_execute_states(
@@ -746,7 +747,7 @@ impl ExecuteOperator for PhysicalHashAggregate {
 impl Explainable for PhysicalHashAggregate {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
         // TODO: Grouping sets
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("HashAggregate", conf)
             .with_values(
                 "aggregates",
                 self.aggregates

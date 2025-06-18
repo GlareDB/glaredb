@@ -19,6 +19,7 @@ use crate::execution::operators::{
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalSortExpression;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub enum SortPartitionState {
@@ -104,7 +105,7 @@ impl PhysicalGlobalSort {
     }
 }
 
-impl BaseOperator for PhysicalGlobalSort {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalGlobalSort {
     const OPERATOR_NAME: &str = "GlobalSort";
 
     type OperatorState = SortOperatorState;
@@ -128,7 +129,7 @@ impl BaseOperator for PhysicalGlobalSort {
     }
 }
 
-impl ExecuteOperator for PhysicalGlobalSort {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalGlobalSort {
     type PartitionExecuteState = SortPartitionState;
 
     fn create_partition_execute_states(
@@ -309,7 +310,7 @@ impl ExecuteOperator for PhysicalGlobalSort {
 
 impl Explainable for PhysicalGlobalSort {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("GlobalSort", conf)
             .with_values(
                 "sort_expressions",
                 self.sort_exprs.iter().map(|expr| {

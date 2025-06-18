@@ -11,6 +11,7 @@ use crate::functions::table::{
     AnyTablePartitionState,
     PlannedTableFunction,
 };
+use crate::runtime::system::SystemRuntime;
 use crate::storage::projections::Projections;
 use crate::storage::scan_filter::PhysicalScanFilter;
 
@@ -80,7 +81,7 @@ impl PhysicalScan {
     }
 }
 
-impl BaseOperator for PhysicalScan {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalScan {
     const OPERATOR_NAME: &str = "Scan";
 
     type OperatorState = ScanOperatorState;
@@ -101,7 +102,7 @@ impl BaseOperator for PhysicalScan {
     }
 }
 
-impl PullOperator for PhysicalScan {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalScan {
     type PartitionPullState = ScanPartitionState;
 
     fn create_partition_pull_states(
@@ -158,7 +159,7 @@ impl PullOperator for PhysicalScan {
 
 impl Explainable for PhysicalScan {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("Scan", conf)
             .with_value("source", self.function.name)
             .build()
     }

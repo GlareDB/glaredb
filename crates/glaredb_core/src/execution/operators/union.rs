@@ -16,6 +16,7 @@ use super::{
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct UnionOperatorState {
@@ -86,7 +87,7 @@ impl PhysicalUnion {
     }
 }
 
-impl BaseOperator for PhysicalUnion {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalUnion {
     const OPERATOR_NAME: &str = "Union";
 
     type OperatorState = UnionOperatorState;
@@ -105,7 +106,7 @@ impl BaseOperator for PhysicalUnion {
     }
 }
 
-impl PushOperator for PhysicalUnion {
+impl<R: SystemRuntime> PushOperator<R> for PhysicalUnion {
     type PartitionPushState = UnionPushPartitionState;
 
     fn create_partition_push_states(
@@ -168,7 +169,7 @@ impl PushOperator for PhysicalUnion {
     }
 }
 
-impl ExecuteOperator for PhysicalUnion {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalUnion {
     type PartitionExecuteState = UnionExecutePartitionState;
 
     fn create_partition_execute_states(
@@ -247,7 +248,7 @@ impl ExecuteOperator for PhysicalUnion {
 
 impl Explainable for PhysicalUnion {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("Union", conf).build()
     }
 }
 

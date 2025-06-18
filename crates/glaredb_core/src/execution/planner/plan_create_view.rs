@@ -5,8 +5,12 @@ use crate::catalog::create::CreateViewInfo;
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_create::LogicalCreateView;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_create_view(
         &mut self,
         create: Node<LogicalCreateView>,

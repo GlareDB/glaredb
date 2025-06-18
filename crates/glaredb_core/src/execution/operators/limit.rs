@@ -8,6 +8,7 @@ use crate::arrays::array::selection::Selection;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct LimitOperatorState {
@@ -51,7 +52,7 @@ impl PhysicalLimit {
     }
 }
 
-impl BaseOperator for PhysicalLimit {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalLimit {
     const OPERATOR_NAME: &str = "Limit";
 
     type OperatorState = LimitOperatorState;
@@ -70,7 +71,7 @@ impl BaseOperator for PhysicalLimit {
     }
 }
 
-impl ExecuteOperator for PhysicalLimit {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalLimit {
     type PartitionExecuteState = ();
 
     fn create_partition_execute_states(
@@ -153,7 +154,7 @@ impl ExecuteOperator for PhysicalLimit {
 
 impl Explainable for PhysicalLimit {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("Limit", conf)
             .with_value("limit", self.limit)
             .with_value_opt("offset", self.offset)
             .build()

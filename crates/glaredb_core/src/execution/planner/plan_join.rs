@@ -16,8 +16,12 @@ use crate::logical::logical_join::{
     LogicalMagicJoin,
 };
 use crate::logical::operator::{self, LocationRequirement, LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_magic_join(
         &mut self,
         join: Node<LogicalMagicJoin>,
@@ -124,7 +128,7 @@ impl OperatorPlanState<'_> {
         let hash_join = PhysicalHashJoin::new(join.join_type, left_types, right_types, conditions)?;
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_push_execute(self.id_gen.next_id(), hash_join),
+            operator: PlannedOperator::new_push_execute::<_, R>(self.id_gen.next_id(), hash_join),
             children: vec![left, right],
         })
     }
@@ -176,7 +180,7 @@ impl OperatorPlanState<'_> {
         )?;
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_push_execute(self.id_gen.next_id(), join),
+            operator: PlannedOperator::new_push_execute::<_, R>(self.id_gen.next_id(), join),
             children: vec![left, right],
         })
     }

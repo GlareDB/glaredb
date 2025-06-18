@@ -12,6 +12,7 @@ use super::memory::MemoryCatalog;
 use crate::arrays::scalar::ScalarValue;
 use crate::execution::operators::PlannedOperator;
 use crate::execution::planner::OperatorIdGen;
+use crate::runtime::system::SystemRuntime;
 use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,17 +46,20 @@ pub struct AttachInfo {
 }
 
 #[derive(Debug)]
-pub struct Database {
+pub struct Database<R: SystemRuntime> {
     pub(crate) name: String,
     pub(crate) mode: AccessMode,
     // TODO: Allow other catalog types.
-    pub(crate) catalog: Arc<MemoryCatalog>,
+    pub(crate) catalog: Arc<MemoryCatalog<R>>,
     // TODO: Allow other storage managers.
     pub(crate) storage: Arc<StorageManager>,
     pub(crate) attach_info: Option<AttachInfo>,
 }
 
-impl Database {
+impl<R> Database<R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_create_view(
         &self,
         id_gen: &mut OperatorIdGen,

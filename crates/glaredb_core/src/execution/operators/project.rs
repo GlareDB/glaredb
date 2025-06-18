@@ -8,6 +8,7 @@ use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::expr::physical::evaluator::ExpressionEvaluator;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct PhysicalProject {
@@ -35,7 +36,7 @@ pub struct ProjectPartitionState {
     evaluator: ExpressionEvaluator,
 }
 
-impl BaseOperator for PhysicalProject {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalProject {
     const OPERATOR_NAME: &str = "Project";
 
     type OperatorState = ();
@@ -49,7 +50,7 @@ impl BaseOperator for PhysicalProject {
     }
 }
 
-impl ExecuteOperator for PhysicalProject {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalProject {
     type PartitionExecuteState = ProjectPartitionState;
 
     fn create_partition_execute_states(
@@ -96,7 +97,7 @@ impl ExecuteOperator for PhysicalProject {
 
 impl Explainable for PhysicalProject {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("Project", conf)
             .with_values("projections", &self.projections)
             .build()
     }

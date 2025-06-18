@@ -9,8 +9,12 @@ use crate::expr::physical::PhysicalAggregateExpression;
 use crate::functions::aggregate::builtin::sum::FUNCTION_SET_SUM;
 use crate::logical::logical_insert::LogicalInsert;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_insert(
         &mut self,
         mut insert: Node<LogicalInsert>,
@@ -39,7 +43,7 @@ impl OperatorPlanState<'_> {
             )])?;
 
             planned = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_execute(self.id_gen.next_id(), agg),
+                operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), agg),
                 children: vec![planned],
             }
         }

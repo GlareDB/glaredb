@@ -10,8 +10,12 @@ use crate::expr::physical::PhysicalAggregateExpression;
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_aggregate::LogicalAggregate;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_aggregate(
         &mut self,
         mut agg: Node<LogicalAggregate>,
@@ -80,7 +84,7 @@ impl OperatorPlanState<'_> {
         }
 
         let child = PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(
+            operator: PlannedOperator::new_execute::<_, R>(
                 self.id_gen.next_id(),
                 PhysicalProject::new(preproject_exprs),
             ),
@@ -98,7 +102,7 @@ impl OperatorPlanState<'_> {
                 let operator = PhysicalHashAggregate::new(aggregates, grouping_sets);
 
                 Ok(PlannedOperatorWithChildren {
-                    operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
+                    operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator),
                     children: vec![child],
                 })
             }
@@ -107,7 +111,7 @@ impl OperatorPlanState<'_> {
                 let operator = PhysicalUngroupedAggregate::try_new(phys_aggs)?;
 
                 Ok(PlannedOperatorWithChildren {
-                    operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
+                    operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator),
                     children: vec![child],
                 })
             }

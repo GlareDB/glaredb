@@ -26,6 +26,7 @@ use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Exp
 use crate::expr::comparison_expr::ComparisonOperator;
 use crate::expr::physical::PhysicalScalarExpression;
 use crate::logical::logical_join::JoinType;
+use crate::runtime::system::SystemRuntime;
 
 /// Join condition between left and right batches.
 #[derive(Debug, Clone)]
@@ -170,7 +171,7 @@ impl PhysicalHashJoin {
     }
 }
 
-impl BaseOperator for PhysicalHashJoin {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalHashJoin {
     const OPERATOR_NAME: &str = "HashJoin";
 
     type OperatorState = HashJoinOperatorState;
@@ -207,7 +208,7 @@ impl BaseOperator for PhysicalHashJoin {
     }
 }
 
-impl PushOperator for PhysicalHashJoin {
+impl<R: SystemRuntime> PushOperator<R> for PhysicalHashJoin {
     type PartitionPushState = HashJoinPartitionBuildState;
 
     fn create_partition_push_states(
@@ -344,7 +345,7 @@ impl PushOperator for PhysicalHashJoin {
     }
 }
 
-impl ExecuteOperator for PhysicalHashJoin {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalHashJoin {
     type PartitionExecuteState = HashJoinPartitionExecuteState;
 
     fn create_partition_execute_states(
@@ -508,7 +509,7 @@ impl ExecuteOperator for PhysicalHashJoin {
 
 impl Explainable for PhysicalHashJoin {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("HashJoin", conf)
             .with_value("join_type", self.join_type)
             .with_values("conditions", &self.conditions)
             .build()

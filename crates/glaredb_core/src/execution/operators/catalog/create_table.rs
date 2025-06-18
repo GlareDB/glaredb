@@ -11,6 +11,7 @@ use crate::catalog::memory::MemorySchema;
 use crate::config::session::DEFAULT_BATCH_SIZE;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 use crate::storage::datatable::DataTable;
 use crate::storage::storage_manager::StorageManager;
 
@@ -27,7 +28,7 @@ pub struct PhysicalCreateTable {
     pub(crate) info: CreateTableInfo,
 }
 
-impl BaseOperator for PhysicalCreateTable {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalCreateTable {
     const OPERATOR_NAME: &str = "CreateTable";
 
     type OperatorState = ();
@@ -41,7 +42,7 @@ impl BaseOperator for PhysicalCreateTable {
     }
 }
 
-impl PullOperator for PhysicalCreateTable {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalCreateTable {
     type PartitionPullState = CreateTablePartitionState;
 
     fn create_partition_pull_states(
@@ -81,6 +82,6 @@ impl PullOperator for PhysicalCreateTable {
 
 impl Explainable for PhysicalCreateTable {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("CreateTable", conf).build()
     }
 }
