@@ -2,6 +2,7 @@ pub mod client;
 pub mod filesystem;
 pub mod gcs;
 pub mod handle;
+pub mod response_buffer;
 pub mod s3;
 
 mod list;

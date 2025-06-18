@@ -63,6 +63,7 @@ where
 /// Helper to read a json response from a byte stream.
 ///
 /// This will collect the full response before trying to deserialize it.
+// TODO: Remove in favor of response buffer.
 pub async fn read_json_response<T, S>(mut stream: S) -> Result<T>
 where
     T: DeserializeOwned,
