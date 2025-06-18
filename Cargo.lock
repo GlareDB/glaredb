@@ -798,6 +798,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ext_llm"
+version = "25.6.2"
+dependencies = [
+ "futures",
+ "glaredb_core",
+ "glaredb_error",
+ "glaredb_http",
+ "glaredb_proto",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
 name = "ext_parquet"
 version = "25.6.2"
 dependencies = [

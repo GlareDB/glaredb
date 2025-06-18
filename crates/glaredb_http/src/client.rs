@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use glaredb_error::{Result, ResultExt};
-use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue};
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use reqwest::{Request, StatusCode};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -24,6 +24,14 @@ pub trait HttpResponse: Sync + Send {
 
     /// Convert the response body into a byte stream.
     fn into_bytes_stream(self) -> Self::BytesStream;
+}
+
+pub fn set_authorization_bearer(request: &mut Request, token: &str) -> Result<()> {
+    let val = HeaderValue::from_str(&format!("Bearer {token}"))
+        .context("Failed to create bearer token value")?;
+    request.headers_mut().append(AUTHORIZATION, val);
+
+    Ok(())
 }
 
 /// Helper to set a json body on this request.
@@ -63,6 +71,7 @@ where
 /// Helper to read a json response from a byte stream.
 ///
 /// This will collect the full response before trying to deserialize it.
+// TODO: Remove in favor of response buffer.
 pub async fn read_json_response<T, S>(mut stream: S) -> Result<T>
 where
     T: DeserializeOwned,
