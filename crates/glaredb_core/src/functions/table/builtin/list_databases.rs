@@ -14,6 +14,7 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
+use crate::runtime::system::SystemRuntime;
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
@@ -34,33 +35,36 @@ pub const FUNCTION_SET_LIST_DATABASES: TableFunctionSet = TableFunctionSet {
 };
 
 #[derive(Debug)]
-pub struct ListDatabasesBindState {
-    databases: Vec<Arc<Database>>,
+pub struct ListDatabasesBindState<R: SystemRuntime> {
+    databases: Vec<Arc<Database<R>>>,
 }
 
 #[derive(Debug)]
-pub struct ListDatabasesOperatorState {
+pub struct ListDatabasesOperatorState<R: SystemRuntime> {
     projections: Projections,
-    databases: Vec<Arc<Database>>,
+    databases: Vec<Arc<Database<R>>>,
 }
 
 #[derive(Debug)]
-pub struct ListDatabasePartitionState {
+pub struct ListDatabasePartitionState<R: SystemRuntime> {
     offset: usize,
-    databases: Vec<Arc<Database>>,
+    databases: Vec<Arc<Database<R>>>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ListDatabases;
 
-impl TableScanFunction for ListDatabases {
-    type BindState = ListDatabasesBindState;
-    type OperatorState = ListDatabasesOperatorState;
-    type PartitionState = ListDatabasePartitionState;
+impl<R> TableScanFunction<R> for ListDatabases
+where
+    R: SystemRuntime,
+{
+    type BindState = ListDatabasesBindState<R>;
+    type OperatorState = ListDatabasesOperatorState<R>;
+    type PartitionState = ListDatabasePartitionState<R>;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases = scan_context

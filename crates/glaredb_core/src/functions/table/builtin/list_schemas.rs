@@ -18,6 +18,7 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
+use crate::runtime::system::SystemRuntime;
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
@@ -37,21 +38,21 @@ pub const FUNCTION_SET_LIST_SCHEMAS: TableFunctionSet = TableFunctionSet {
     )],
 };
 
-pub struct ListSchemasBindState {
-    databases: Vec<Arc<Database>>,
+pub struct ListSchemasBindState<R: SystemRuntime> {
+    databases: Vec<Arc<Database<R>>>,
 }
 
-pub struct ListSchemasOperatorState {
+pub struct ListSchemasOperatorState<R: SystemRuntime> {
     projections: Projections,
-    databases: Vec<Arc<Database>>,
+    databases: Vec<Arc<Database<R>>>,
 }
 
 // TODO: Make simpler.
 type SchemaStream = Pin<Box<dyn Stream<Item = Result<Vec<Arc<MemorySchema>>>> + Sync + Send>>;
 
-pub struct ListSchemasPartitionState {
+pub struct ListSchemasPartitionState<R: SystemRuntime> {
     db_offset: usize,
-    databases: Vec<Arc<Database>>,
+    databases: Vec<Arc<Database<R>>>,
     curr_stream: Option<SchemaStream>,
     schemas_offset: usize,
     schemas: Vec<Arc<MemorySchema>>,
@@ -60,14 +61,17 @@ pub struct ListSchemasPartitionState {
 #[derive(Debug, Clone, Copy)]
 pub struct ListSchemas;
 
-impl TableScanFunction for ListSchemas {
-    type BindState = ListSchemasBindState;
-    type OperatorState = ListSchemasOperatorState;
-    type PartitionState = ListSchemasPartitionState;
+impl<R> TableScanFunction<R> for ListSchemas
+where
+    R: SystemRuntime,
+{
+    type BindState = ListSchemasBindState<R>;
+    type OperatorState = ListSchemasOperatorState<R>;
+    type PartitionState = ListSchemasPartitionState<R>;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases = scan_context

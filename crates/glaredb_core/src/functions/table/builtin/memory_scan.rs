@@ -13,6 +13,7 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
+use crate::runtime::system::SystemRuntime;
 use crate::statistics::value::StatisticsValue;
 use crate::storage::datatable::{DataTable, ParallelDataTableScanState};
 use crate::storage::projections::Projections;
@@ -55,14 +56,17 @@ pub struct MemoryScanPartitionState {
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryScan;
 
-impl TableScanFunction for MemoryScan {
+impl<R> TableScanFunction<R> for MemoryScan
+where
+    R: SystemRuntime,
+{
     type BindState = MemoryScanBindState;
     type OperatorState = MemoryScanOperatorState;
     type PartitionState = MemoryScanPartitionState;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         // TODO: Avoid the clones.

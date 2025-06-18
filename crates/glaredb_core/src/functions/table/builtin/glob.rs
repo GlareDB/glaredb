@@ -13,6 +13,7 @@ use crate::functions::function_set::TableFunctionSet;
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
+use crate::runtime::system::SystemRuntime;
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
@@ -58,14 +59,17 @@ pub struct GlobPartitionState {
     path_indices: Vec<usize>,
 }
 
-impl TableScanFunction for Glob {
+impl<R> TableScanFunction<R> for Glob
+where
+    R: SystemRuntime,
+{
     type BindState = GlobBindState;
     type OperatorState = GlobOperatorState;
     type PartitionState = GlobPartitionState;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let (mut provider, _) =
