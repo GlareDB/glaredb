@@ -5,21 +5,21 @@ use std::ptr::NonNull;
 use glaredb_error::{DbError, Result, ResultExt};
 
 pub trait BufferManager: Debug + Sync + Clone + Send + Sized {
-    /// Try to reserve some number of bytes to some alignment.
+    /// Try to allocate some number of bytes to some alignment.
     ///
     /// Returns a reservation containing the number of bytes allocated, and a
     /// ptr to the start of the allocation.
     ///
     /// This should never error when attempting to reserve zero bytes.
-    fn reserve(&self, size: usize, align: usize) -> Result<Reservation>;
+    fn allocate(&self, size: usize, align: usize) -> Result<Reservation>;
 
     /// Resizes a reservation.
     ///
     /// The pointer on the reservation will be updated.
     fn resize(&self, reservation: &mut Reservation, new_size: usize) -> Result<()>;
 
-    /// Drops a memory reservation.
-    fn free_reservation(&self, reservation: &mut Reservation);
+    /// Deallocate a memory reservation.
+    fn deallocate(&self, reservation: &mut Reservation);
 }
 
 trait BufferManagerVTable: BufferManager {
@@ -31,17 +31,17 @@ where
     B: BufferManager,
 {
     const VTABLE: &'static RawBufferManagerVTable = &RawBufferManagerVTable {
-        reserve_fn: |ptr: *const (), size: usize, align: usize| -> Result<Reservation> {
+        allocate_fn: |ptr: *const (), size: usize, align: usize| -> Result<Reservation> {
             let manager = unsafe { ptr.cast::<Self>().as_ref().unwrap() };
-            manager.reserve(size, align)
+            manager.allocate(size, align)
         },
         resize_fn: |ptr, reservation, new_size| -> Result<()> {
             let manager = unsafe { ptr.cast::<Self>().as_ref().unwrap() };
             manager.resize(reservation, new_size)
         },
-        free_reservation_fn: |ptr: *const (), reservation: &mut Reservation| {
+        deallocate_fn: |ptr: *const (), reservation: &mut Reservation| {
             let manager = unsafe { ptr.cast::<Self>().as_ref().unwrap() };
-            manager.free_reservation(reservation);
+            manager.deallocate(reservation);
         },
     };
 }
@@ -77,11 +77,11 @@ unsafe impl Send for RawBufferManager {}
 #[derive(Debug)]
 pub struct RawBufferManagerVTable {
     /// Function called when attempting to reserve some number of bytes.
-    reserve_fn: unsafe fn(*const (), usize, usize) -> Result<Reservation>,
+    allocate_fn: unsafe fn(*const (), usize, usize) -> Result<Reservation>,
     /// Function when resizing a reservation.
     resize_fn: unsafe fn(*const (), &mut Reservation, usize) -> Result<()>,
     /// Function called when a reservation should be freed.
-    free_reservation_fn: unsafe fn(*const (), reservation: &mut Reservation),
+    deallocate_fn: unsafe fn(*const (), reservation: &mut Reservation),
 }
 
 impl RawBufferManager {
@@ -97,8 +97,8 @@ impl RawBufferManager {
         }
     }
 
-    pub(crate) unsafe fn call_reserve(&self, size: usize, align: usize) -> Result<Reservation> {
-        unsafe { (self.vtable.reserve_fn)(self.manager, size, align) }
+    pub(crate) unsafe fn call_allocate(&self, size: usize, align: usize) -> Result<Reservation> {
+        unsafe { (self.vtable.allocate_fn)(self.manager, size, align) }
     }
 
     pub(crate) unsafe fn call_resize(
@@ -109,8 +109,8 @@ impl RawBufferManager {
         unsafe { (self.vtable.resize_fn)(self.manager, reservation, new_size) }
     }
 
-    pub(crate) unsafe fn call_free_reservation(&self, reservation: &mut Reservation) {
-        unsafe { (self.vtable.free_reservation_fn)(self.manager, reservation) }
+    pub(crate) unsafe fn call_deallocate(&self, reservation: &mut Reservation) {
+        unsafe { (self.vtable.deallocate_fn)(self.manager, reservation) }
     }
 }
 
@@ -145,7 +145,7 @@ impl Reservation {
 pub struct DefaultBufferManager;
 
 impl BufferManager for DefaultBufferManager {
-    fn reserve(&self, size: usize, align: usize) -> Result<Reservation> {
+    fn allocate(&self, size: usize, align: usize) -> Result<Reservation> {
         if align == 0 {
             return Err(DbError::new("Cannot have zero alignment"));
         }
@@ -192,7 +192,7 @@ impl BufferManager for DefaultBufferManager {
         if reservation.size() == 0 {
             // We have nothing to reallocate, and we have a dangling pointer.
             // Just create a new reservation.
-            *reservation = self.reserve(new_size, reservation.align())?;
+            *reservation = self.allocate(new_size, reservation.align())?;
             return Ok(());
         }
 
@@ -211,7 +211,7 @@ impl BufferManager for DefaultBufferManager {
         Ok(())
     }
 
-    fn free_reservation(&self, reservation: &mut Reservation) {
+    fn deallocate(&self, reservation: &mut Reservation) {
         if reservation.size() == 0 {
             // Nothing to deallocate, and our pointer is dangling.
             return;
@@ -229,58 +229,58 @@ mod tests {
 
     #[test]
     fn default_reserve_basic() {
-        let mut reservation = DefaultBufferManager.reserve(4, 2).unwrap();
+        let mut reservation = DefaultBufferManager.allocate(4, 2).unwrap();
         assert_eq!(4, reservation.size());
         assert_eq!(2, reservation.align());
-        DefaultBufferManager.free_reservation(&mut reservation);
+        DefaultBufferManager.deallocate(&mut reservation);
     }
 
     #[test]
     fn default_reserve_zero_size() {
-        let mut reservation = DefaultBufferManager.reserve(0, 2).unwrap();
+        let mut reservation = DefaultBufferManager.allocate(0, 2).unwrap();
         assert_eq!(0, reservation.size());
         assert_eq!(2, reservation.align());
-        DefaultBufferManager.free_reservation(&mut reservation);
+        DefaultBufferManager.deallocate(&mut reservation);
     }
 
     #[test]
     fn default_reserve_zero_align_error() {
-        DefaultBufferManager.reserve(4, 0).unwrap_err();
+        DefaultBufferManager.allocate(4, 0).unwrap_err();
     }
 
     #[test]
     fn default_resize_grow() {
-        let mut reservation = DefaultBufferManager.reserve(4, 2).unwrap();
+        let mut reservation = DefaultBufferManager.allocate(4, 2).unwrap();
         DefaultBufferManager.resize(&mut reservation, 8).unwrap();
         assert_eq!(8, reservation.size());
         assert_eq!(2, reservation.align());
-        DefaultBufferManager.free_reservation(&mut reservation);
+        DefaultBufferManager.deallocate(&mut reservation);
     }
 
     #[test]
     fn default_resize_shrink() {
-        let mut reservation = DefaultBufferManager.reserve(4, 2).unwrap();
+        let mut reservation = DefaultBufferManager.allocate(4, 2).unwrap();
         DefaultBufferManager.resize(&mut reservation, 2).unwrap();
         assert_eq!(2, reservation.size());
         assert_eq!(2, reservation.align());
-        DefaultBufferManager.free_reservation(&mut reservation);
+        DefaultBufferManager.deallocate(&mut reservation);
     }
 
     #[test]
     fn default_resize_grow_from_zero() {
-        let mut reservation = DefaultBufferManager.reserve(0, 2).unwrap();
+        let mut reservation = DefaultBufferManager.allocate(0, 2).unwrap();
         DefaultBufferManager.resize(&mut reservation, 8).unwrap();
         assert_eq!(8, reservation.size());
         assert_eq!(2, reservation.align());
-        DefaultBufferManager.free_reservation(&mut reservation);
+        DefaultBufferManager.deallocate(&mut reservation);
     }
 
     #[test]
     fn default_resize_same_size() {
-        let mut reservation = DefaultBufferManager.reserve(4, 2).unwrap();
+        let mut reservation = DefaultBufferManager.allocate(4, 2).unwrap();
         DefaultBufferManager.resize(&mut reservation, 4).unwrap();
         assert_eq!(4, reservation.size());
         assert_eq!(2, reservation.align());
-        DefaultBufferManager.free_reservation(&mut reservation);
+        DefaultBufferManager.deallocate(&mut reservation);
     }
 }

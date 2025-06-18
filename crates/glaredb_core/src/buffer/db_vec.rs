@@ -369,7 +369,7 @@ impl<T> RawDbVec<T> {
         let manager = manager.as_raw_buffer_manager();
 
         let size = std::mem::size_of::<T>() * cap;
-        let reservation = unsafe { manager.call_reserve(size, align) }?;
+        let reservation = unsafe { manager.call_allocate(size, align) }?;
 
         let capacity = if std::mem::size_of::<T>() == 0 {
             // Zero-sized type, we can fit up to usize::MAX elements.
@@ -409,7 +409,7 @@ impl<T> RawDbVec<T> {
 
 impl<T> Drop for RawDbVec<T> {
     fn drop(&mut self) {
-        unsafe { self.manager.call_free_reservation(&mut self.reservation) };
+        unsafe { self.manager.call_deallocate(&mut self.reservation) };
     }
 }
 
