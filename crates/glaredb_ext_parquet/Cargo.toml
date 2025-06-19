@@ -24,6 +24,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Apache Parquet extension for GlareDB. Originally forked from github.com/apache/arrow-rs"
+license = "MIT OR Apache-2.0"
 
 [lints]
 workspace = true
