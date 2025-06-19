@@ -2,6 +2,9 @@
 name = "glaredb_rt_native"
 version.workspace = true
 edition.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Native runtime and executors for GlareDB"
 
 [lints]
 workspace = true

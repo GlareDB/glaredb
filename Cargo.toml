@@ -6,6 +6,8 @@ resolver = "2"
 [workspace.package]
 version = "25.6.2"
 edition = "2024"
+keywords = ["database", "sql", "analytics"]
+categories = ["database-implementations"]
 
 [profile.release]
 lto = "fat"
@@ -38,11 +40,17 @@ getrandom = { version = "0.3" }
 ring = "0.17"
 clap = { version = "4.5.40", features = ["derive", "env"] }
 
-docgen = { path = "crates/docgen" }
+# Binaries
 glaredb = { path = "crates/glaredb" }
-glaredb_bench = { path = "crates/glaredb_bench" }
+docgen = { path = "crates/docgen" }
+
+# Core crates
 glaredb_core = { path = "crates/glaredb_core" }
 glaredb_error = { path = "crates/glaredb_error" }
+glaredb_http = { path = "crates/glaredb_http" }
+glaredb_parser = { path = "crates/glaredb_parser" }
+
+# Extensions
 glaredb_ext_csv = { path = "crates/glaredb_ext_csv" }
 glaredb_ext_default = { path = "crates/glaredb_ext_default" }
 glaredb_ext_delta = { path = "crates/glaredb_ext_delta" }
@@ -50,12 +58,19 @@ glaredb_ext_iceberg = { path = "crates/glaredb_ext_iceberg" }
 glaredb_ext_parquet = { path = "crates/glaredb_ext_parquet" }
 glaredb_ext_spark = { path = "crates/glaredb_ext_spark" }
 glaredb_ext_tpch_gen = { path = "crates/glaredb_ext_tpch_gen" }
-glaredb_http = { path = "crates/glaredb_http" }
-glaredb_parser = { path = "crates/glaredb_parser" }
-glaredb_proto = { path = "crates/glaredb_proto" }
+
+# Bindings
 glaredb_python = { path = "crates/glaredb_python" }
-glaredb_rt_native = { path = "crates/glaredb_rt_native" }
-glaredb_slt = { path = "crates/glaredb_slt" }
-glaredb_wasm = { path = "crates/glaredb_wasm" }
+glaredb_wasm = { path = "crates/glaredb_wasm" } # Technically also runtime
+
+# Test/bench helpers
 harness = { path = "crates/harness" }
+glaredb_bench = { path = "crates/glaredb_bench" }
+glaredb_slt = { path = "crates/glaredb_slt" }
+
+# Runtimes
+glaredb_rt_native = { path = "crates/glaredb_rt_native" }
+
+# Misc
+glaredb_proto = { path = "crates/glaredb_proto" }
 logutil = { path = "crates/logutil" }

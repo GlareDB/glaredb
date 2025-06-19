@@ -7,6 +7,13 @@ use glaredb_ext_iceberg::extension::IcebergExtension;
 use glaredb_ext_parquet::extension::ParquetExtension;
 use glaredb_ext_spark::SparkExtension;
 use glaredb_ext_tpch_gen::TpchGenExtension;
+pub use {
+    glaredb_ext_csv,
+    glaredb_ext_iceberg,
+    glaredb_ext_parquet,
+    glaredb_ext_spark,
+    glaredb_ext_tpch_gen,
+};
 
 /// Registers all default extensions with the given engine.
 pub fn register_all<E, R>(engine: &Engine<E, R>) -> Result<()>

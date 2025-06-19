@@ -2,6 +2,9 @@
 name = "glaredb_ext_iceberg"
 version.workspace = true
 edition.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Iceberg extension for GlareDB"
 
 [lints]
 workspace = true

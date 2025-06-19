@@ -18,10 +18,10 @@
 [package]
 name = "glaredb_ext_parquet"
 version = { workspace = true }
-description = "Apache Parquet extension for GlareDB. Originally forked from github.com/apache/arrow-rs"
-keywords = ["arrow", "parquet", "hadoop"]
-readme = "README.md"
 edition = { workspace = true }
+keywords.workspace = true
+categories.workspace = true
+description = "Apache Parquet extension for GlareDB. Originally forked from github.com/apache/arrow-rs"
 
 [lints]
 workspace = true

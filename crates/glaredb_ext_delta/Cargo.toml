@@ -2,6 +2,9 @@
 name = "glaredb_ext_delta"
 version.workspace = true
 edition.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "DeltaLake extension for GlareDB"
 
 [lints]
 workspace = true

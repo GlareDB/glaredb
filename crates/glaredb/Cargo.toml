@@ -2,6 +2,8 @@
 name = "glaredb"
 version.workspace = true
 edition.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "GlareDB CLI"
 
 [lints]

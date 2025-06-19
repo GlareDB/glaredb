@@ -2,6 +2,9 @@
 name = "glaredb_http"
 version.workspace = true
 edition.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "HTTP and Object Storage functionality for GlareDB"
 
 [lints]
 workspace = true
