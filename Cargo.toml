@@ -37,3 +37,25 @@ half = { version = "2.6.0", features = ["num-traits", "serde"] }
 getrandom = { version = "0.3" }
 ring = "0.17"
 clap = { version = "4.5.40", features = ["derive", "env"] }
+
+docgen = { path = "crates/docgen" }
+glaredb = { path = "crates/glaredb" }
+glaredb_bench = { path = "crates/glaredb_bench" }
+glaredb_core = { path = "crates/glaredb_core" }
+glaredb_error = { path = "crates/glaredb_error" }
+glaredb_ext_csv = { path = "crates/glaredb_ext_csv" }
+glaredb_ext_default = { path = "crates/glaredb_ext_default" }
+glaredb_ext_delta = { path = "crates/glaredb_ext_delta" }
+glaredb_ext_iceberg = { path = "crates/glaredb_ext_iceberg" }
+glaredb_ext_parquet = { path = "crates/glaredb_ext_parquet" }
+glaredb_ext_spark = { path = "crates/glaredb_ext_spark" }
+glaredb_ext_tpch_gen = { path = "crates/glaredb_ext_tpch_gen" }
+glaredb_http = { path = "crates/glaredb_http" }
+glaredb_parser = { path = "crates/glaredb_parser" }
+glaredb_proto = { path = "crates/glaredb_proto" }
+glaredb_python = { path = "crates/glaredb_python" }
+glaredb_rt_native = { path = "crates/glaredb_rt_native" }
+glaredb_slt = { path = "crates/glaredb_slt" }
+glaredb_wasm = { path = "crates/glaredb_wasm" }
+harness = { path = "crates/harness" }
+logutil = { path = "crates/logutil" }

@@ -7,8 +7,8 @@ edition = { workspace = true }
 workspace = true
 
 [dependencies]
-glaredb_error = { path = '../glaredb_error' }
-glaredb_proto = { path = '../glaredb_proto' }
+glaredb_error = { workspace = true }
+glaredb_proto = { workspace = true }
 unicase = "2.8.1"
 tracing = { workspace = true }
 serde = { workspace = true }

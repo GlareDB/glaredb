@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-glaredb_error = { path = '../glaredb_error' }
+glaredb_error = { workspace = true }
 
 clap = { workspace = true }
 escape8259 = "0.5.3"

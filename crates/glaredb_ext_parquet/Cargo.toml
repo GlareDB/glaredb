@@ -27,8 +27,8 @@ edition = { workspace = true }
 workspace = true
 
 [dependencies]
-glaredb_error = { path = "../glaredb_error" }
-glaredb_core = { path = "../glaredb_core" }
+glaredb_error = { workspace = true }
+glaredb_core = { workspace = true }
 
 ahash = { workspace = true }
 bytes = { version = "1.10", default-features = false, features = ["std"] } # TODO: Remove
