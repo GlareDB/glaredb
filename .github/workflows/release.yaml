@@ -268,18 +268,20 @@ jobs:
       - python-manylinux-arm64
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    permissions: write-all
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Allow pushing back via GITHUB_TOKEN.
-          persist-credentials: true
+          fetch-depth: '0'
 
       - name: Check tag with Cargo.toml
         run: ./scripts/assert_cargo_version.sh ${{ github.event.inputs.tag }}
 
       - name: Create and push tag
         run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
           git tag ${{ github.event.inputs.tag }}
           git push origin ${{ github.event.inputs.tag }}
 
