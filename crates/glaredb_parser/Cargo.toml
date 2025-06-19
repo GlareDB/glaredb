@@ -2,6 +2,9 @@
 name = "glaredb_parser"
 version = { workspace = true }
 edition = { workspace = true }
+keywords.workspace = true
+categories.workspace = true
+description = "SQL parser for GlareDB"
 
 [lints]
 workspace = true

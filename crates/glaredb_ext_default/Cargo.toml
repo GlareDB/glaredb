@@ -2,6 +2,9 @@
 name = "glaredb_ext_default"
 version.workspace = true
 edition.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Default set of extensions for GlareDB"
 
 [dependencies]
 glaredb_error = { workspace = true }

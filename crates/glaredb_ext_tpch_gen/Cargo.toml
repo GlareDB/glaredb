@@ -2,6 +2,9 @@
 name = "glaredb_ext_tpch_gen"
 version.workspace = true
 edition.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "TPC-H data generation extension for GlareDB"
 
 [lints]
 workspace = true
