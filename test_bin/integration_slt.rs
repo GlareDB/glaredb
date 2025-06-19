@@ -2,15 +2,15 @@ use std::io;
 use std::path::Path;
 use std::time::Duration;
 
-use ext_csv::extension::CsvExtension;
-use ext_iceberg::extension::IcebergExtension;
-use ext_parquet::extension::ParquetExtension;
-use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_core::util::future::block_on;
 use glaredb_error::Result;
+use glaredb_ext_csv::extension::CsvExtension;
+use glaredb_ext_iceberg::extension::IcebergExtension;
+use glaredb_ext_parquet::extension::ParquetExtension;
+use glaredb_ext_tpch_gen::TpchGenExtension;
 use glaredb_rt_native::runtime::{
     NativeExecutor,
     NativeSystemRuntime,

@@ -11,9 +11,9 @@ logutil = { path = '../logutil' }
 glaredb_error = { path = '../glaredb_error' }
 glaredb_core = { path = '../glaredb_core' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
-ext_csv = { path = '../ext_csv' }
-ext_delta = { path = '../ext_delta' }
-ext_iceberg = { path = '../ext_iceberg' }
+glaredb_ext_csv = { path = '../glaredb_ext_csv' }
+glaredb_ext_delta = { path = '../glaredb_ext_delta' }
+glaredb_ext_iceberg = { path = '../glaredb_ext_iceberg' }
 regex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

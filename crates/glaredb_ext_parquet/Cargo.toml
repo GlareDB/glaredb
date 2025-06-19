@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-name = "ext_parquet"
+name = "glaredb_ext_parquet"
 version = { workspace = true }
 description = "Apache Parquet extension for GlareDB. Originally forked from github.com/apache/arrow-rs"
 keywords = ["arrow", "parquet", "hadoop"]

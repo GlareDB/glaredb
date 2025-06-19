@@ -1,5 +1,5 @@
 [package]
-name = "ext_iceberg"
+name = "glaredb_ext_delta"
 version.workspace = true
 edition.workspace = true
 
@@ -10,9 +10,8 @@ workspace = true
 glaredb_proto = { path = '../glaredb_proto' }
 glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
-glaredb_http = { path = '../glaredb_http' }
 
-ext_parquet = { path = '../ext_parquet' }
+glaredb_ext_parquet = { path = '../glaredb_ext_parquet' }
 
 futures = { workspace = true }
 tracing = { workspace = true }
@@ -21,5 +20,5 @@ url = { workspace = true }
 bytes = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-apache-avro = {version = "0.18.0", default-features = false }
-serde_bytes = "0.11.17"
+
+# TODO: zstd feature for parquet?

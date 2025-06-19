@@ -77,7 +77,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        ext_default::register_all(&engine.engine)?;
+        glaredb_ext_default::register_all(&engine.engine)?;
         Ok(engine)
     }
 }
@@ -91,7 +91,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        ext_default::register_all(&engine.engine)?;
+        glaredb_ext_default::register_all(&engine.engine)?;
 
         let tables = [
             "customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier",
@@ -119,7 +119,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        ext_default::register_all(&engine.engine)?;
+        glaredb_ext_default::register_all(&engine.engine)?;
 
         run_setup_query(
             &engine,
@@ -143,7 +143,7 @@ where
     R: SystemRuntime,
 {
     fn setup(engine: SingleUserEngine<E, R>) -> Result<SingleUserEngine<E, R>> {
-        ext_default::register_all(&engine.engine)?;
+        glaredb_ext_default::register_all(&engine.engine)?;
 
         run_setup_query(
             &engine,

@@ -24,7 +24,7 @@ impl WasmSession {
     pub fn try_new() -> Result<WasmSession> {
         let runtime = WasmSystemRuntime::try_new()?;
         let engine = SingleUserEngine::try_new(WasmExecutor, runtime.clone())?;
-        ext_default::register_all(&engine.engine)?;
+        glaredb_ext_default::register_all(&engine.engine)?;
 
         Ok(WasmSession { runtime, engine })
     }

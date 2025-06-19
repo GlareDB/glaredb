@@ -102,7 +102,7 @@ async fn inner(
     runtime: impl SystemRuntime,
 ) -> Result<()> {
     let engine = SingleUserEngine::try_new(executor, runtime.clone())?;
-    ext_default::register_all(&engine.engine)?;
+    glaredb_ext_default::register_all(&engine.engine)?;
 
     let mut stdout = BufWriter::new(std::io::stdout());
 

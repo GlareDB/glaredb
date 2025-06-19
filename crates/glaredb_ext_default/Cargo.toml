@@ -1,0 +1,17 @@
+[package]
+name = "glaredb_ext_default"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+glaredb_error = { path = '../glaredb_error' }
+glaredb_core = { path = '../glaredb_core' }
+
+glaredb_ext_spark = { path = '../glaredb_ext_spark' }
+glaredb_ext_csv = { path = '../glaredb_ext_csv' }
+glaredb_ext_parquet = { path = '../glaredb_ext_parquet' }
+glaredb_ext_tpch_gen = { path = '../glaredb_ext_tpch_gen' }
+glaredb_ext_iceberg = { path = '../glaredb_ext_iceberg' }
+
+[lints]
+workspace = true

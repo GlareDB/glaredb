@@ -1,5 +1,5 @@
 [package]
-name = "ext_delta"
+name = "glaredb_ext_csv"
 version.workspace = true
 edition.workspace = true
 
@@ -10,15 +10,10 @@ workspace = true
 glaredb_proto = { path = '../glaredb_proto' }
 glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
-
-ext_parquet = { path = '../ext_parquet' }
-
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }
 url = { workspace = true }
 bytes = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-
-# TODO: zstd feature for parquet?
+csv-core = "0.1.12"
+csv = "1.3.0"

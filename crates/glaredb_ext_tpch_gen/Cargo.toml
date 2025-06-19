@@ -1,5 +1,5 @@
 [package]
-name = "ext_spark"
+name = "glaredb_ext_tpch_gen"
 version.workspace = true
 edition.workspace = true
 
@@ -9,4 +9,4 @@ workspace = true
 [dependencies]
 glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
-
+tpchgen = "1.1.1"
