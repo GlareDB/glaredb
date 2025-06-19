@@ -2,6 +2,7 @@
 name = "glaredb_error"
 version = { workspace = true }
 edition = { workspace = true }
+license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Common errors across GlareDB crates"
