@@ -309,6 +309,21 @@ jobs:
               --generate-notes
 
   # ONLY RUNS ON 'main'
+  publish-crates:
+    name: Publish crates
+    needs: [release-gate]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: ./scripts/ci_publish_crates.sh
+
+  # ONLY RUNS ON 'main'
   python-pypi-upload:
     name: Upload to pypi
     needs: [release-gate]
