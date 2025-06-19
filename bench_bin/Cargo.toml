@@ -11,12 +11,12 @@ glaredb_core = { path = '../crates/glaredb_core' }
 glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_bench = { path = '../crates/glaredb_bench' }
 
-ext_default = { path = '../crates/ext_default' }
-ext_spark = { path = '../crates/ext_spark' }
-ext_csv = { path = '../crates/ext_csv' }
-ext_parquet = { path = '../crates/ext_parquet' }
-ext_tpch_gen = { path = '../crates/ext_tpch_gen' }
-ext_iceberg = { path = '../crates/ext_iceberg' }
+glaredb_ext_default = { path = '../crates/glaredb_ext_default' }
+glaredb_ext_spark = { path = '../crates/glaredb_ext_spark' }
+glaredb_ext_csv = { path = '../crates/glaredb_ext_csv' }
+glaredb_ext_parquet = { path = '../crates/glaredb_ext_parquet' }
+glaredb_ext_tpch_gen = { path = '../crates/glaredb_ext_tpch_gen' }
+glaredb_ext_iceberg = { path = '../crates/glaredb_ext_iceberg' }
 
 harness = { path = '../crates/harness' }
 

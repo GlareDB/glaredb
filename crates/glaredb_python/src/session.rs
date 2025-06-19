@@ -1,13 +1,13 @@
-use ext_csv::extension::CsvExtension;
-use ext_parquet::extension::ParquetExtension;
-use ext_spark::SparkExtension;
-use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::arrays::batch::Batch;
 use glaredb_core::arrays::field::ColumnSchema;
 use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::DbError;
+use glaredb_ext_csv::extension::CsvExtension;
+use glaredb_ext_parquet::extension::ParquetExtension;
+use glaredb_ext_spark::SparkExtension;
+use glaredb_ext_tpch_gen::TpchGenExtension;
 use glaredb_rt_native::runtime::{
     NativeSystemRuntime,
     ThreadedNativeExecutor,

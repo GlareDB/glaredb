@@ -15,10 +15,10 @@ glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 glaredb_rt_native = { path = '../glaredb_rt_native' }
 
-ext_spark = { path = '../ext_spark' }
-ext_csv = { path = '../ext_csv' }
-ext_parquet = { path = '../ext_parquet' }
-ext_tpch_gen = { path = '../ext_tpch_gen' }
+glaredb_ext_spark = { path = '../glaredb_ext_spark' }
+glaredb_ext_csv = { path = '../glaredb_ext_csv' }
+glaredb_ext_parquet = { path = '../glaredb_ext_parquet' }
+glaredb_ext_tpch_gen = { path = '../glaredb_ext_tpch_gen' }
 
 futures = { workspace = true }
 parking_lot = { workspace = true }

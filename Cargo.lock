@@ -197,15 +197,15 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 name = "bench_bin"
 version = "25.6.2"
 dependencies = [
- "ext_csv",
- "ext_default",
- "ext_iceberg",
- "ext_parquet",
- "ext_spark",
- "ext_tpch_gen",
  "glaredb_bench",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_ext_csv",
+ "glaredb_ext_default",
+ "glaredb_ext_iceberg",
+ "glaredb_ext_parquet",
+ "glaredb_ext_spark",
+ "glaredb_ext_tpch_gen",
  "glaredb_rt_native",
  "harness",
 ]
@@ -682,11 +682,11 @@ dependencies = [
 name = "docgen"
 version = "25.6.2"
 dependencies = [
- "ext_csv",
- "ext_delta",
- "ext_iceberg",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_ext_csv",
+ "glaredb_ext_delta",
+ "glaredb_ext_iceberg",
  "glaredb_rt_native",
  "logutil",
  "regex",
@@ -730,115 +730,6 @@ name = "escape8259"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5692dd7b5a1978a5aeb0ce83b7655c58ca8efdcb79d21036ea249da95afec2c6"
-
-[[package]]
-name = "ext_csv"
-version = "25.6.2"
-dependencies = [
- "bytes",
- "csv",
- "csv-core",
- "futures",
- "glaredb_core",
- "glaredb_error",
- "glaredb_proto",
- "regex",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "ext_default"
-version = "25.6.2"
-dependencies = [
- "ext_csv",
- "ext_iceberg",
- "ext_parquet",
- "ext_spark",
- "ext_tpch_gen",
- "glaredb_core",
- "glaredb_error",
-]
-
-[[package]]
-name = "ext_delta"
-version = "25.6.2"
-dependencies = [
- "bytes",
- "ext_parquet",
- "futures",
- "glaredb_core",
- "glaredb_error",
- "glaredb_proto",
- "regex",
- "serde",
- "serde_json",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "ext_iceberg"
-version = "25.6.2"
-dependencies = [
- "apache-avro",
- "bytes",
- "ext_parquet",
- "futures",
- "glaredb_core",
- "glaredb_error",
- "glaredb_http",
- "glaredb_proto",
- "regex",
- "serde",
- "serde_bytes",
- "serde_json",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "ext_parquet"
-version = "25.6.2"
-dependencies = [
- "ahash",
- "brotli",
- "bytes",
- "criterion",
- "flate2",
- "futures",
- "glaredb_core",
- "glaredb_error",
- "half",
- "hashbrown 0.14.5",
- "lz4_flex",
- "num",
- "rand",
- "seq-macro",
- "snap",
- "tempfile",
- "thrift",
- "tokio",
- "twox-hash 2.1.1",
- "zstd",
-]
-
-[[package]]
-name = "ext_spark"
-version = "25.6.2"
-dependencies = [
- "glaredb_core",
- "glaredb_error",
-]
-
-[[package]]
-name = "ext_tpch_gen"
-version = "25.6.2"
-dependencies = [
- "glaredb_core",
- "glaredb_error",
- "tpchgen",
-]
 
 [[package]]
 name = "fastrand"
@@ -1016,10 +907,10 @@ version = "25.6.2"
 dependencies = [
  "clap",
  "crossterm",
- "ext_default",
  "futures",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_ext_default",
  "glaredb_rt_native",
  "logutil",
  "tracing",
@@ -1079,6 +970,115 @@ name = "glaredb_error"
 version = "25.6.2"
 
 [[package]]
+name = "glaredb_ext_csv"
+version = "25.6.2"
+dependencies = [
+ "bytes",
+ "csv",
+ "csv-core",
+ "futures",
+ "glaredb_core",
+ "glaredb_error",
+ "glaredb_proto",
+ "regex",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "glaredb_ext_default"
+version = "25.6.2"
+dependencies = [
+ "glaredb_core",
+ "glaredb_error",
+ "glaredb_ext_csv",
+ "glaredb_ext_iceberg",
+ "glaredb_ext_parquet",
+ "glaredb_ext_spark",
+ "glaredb_ext_tpch_gen",
+]
+
+[[package]]
+name = "glaredb_ext_delta"
+version = "25.6.2"
+dependencies = [
+ "bytes",
+ "futures",
+ "glaredb_core",
+ "glaredb_error",
+ "glaredb_ext_parquet",
+ "glaredb_proto",
+ "regex",
+ "serde",
+ "serde_json",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "glaredb_ext_iceberg"
+version = "25.6.2"
+dependencies = [
+ "apache-avro",
+ "bytes",
+ "futures",
+ "glaredb_core",
+ "glaredb_error",
+ "glaredb_ext_parquet",
+ "glaredb_http",
+ "glaredb_proto",
+ "regex",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "glaredb_ext_parquet"
+version = "25.6.2"
+dependencies = [
+ "ahash",
+ "brotli",
+ "bytes",
+ "criterion",
+ "flate2",
+ "futures",
+ "glaredb_core",
+ "glaredb_error",
+ "half",
+ "hashbrown 0.14.5",
+ "lz4_flex",
+ "num",
+ "rand",
+ "seq-macro",
+ "snap",
+ "tempfile",
+ "thrift",
+ "tokio",
+ "twox-hash 2.1.1",
+ "zstd",
+]
+
+[[package]]
+name = "glaredb_ext_spark"
+version = "25.6.2"
+dependencies = [
+ "glaredb_core",
+ "glaredb_error",
+]
+
+[[package]]
+name = "glaredb_ext_tpch_gen"
+version = "25.6.2"
+dependencies = [
+ "glaredb_core",
+ "glaredb_error",
+ "tpchgen",
+]
+
+[[package]]
 name = "glaredb_http"
 version = "25.6.2"
 dependencies = [
@@ -1129,13 +1129,13 @@ dependencies = [
 name = "glaredb_python"
 version = "25.6.2"
 dependencies = [
- "ext_csv",
- "ext_parquet",
- "ext_spark",
- "ext_tpch_gen",
  "futures",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_ext_csv",
+ "glaredb_ext_parquet",
+ "glaredb_ext_spark",
+ "glaredb_ext_tpch_gen",
  "glaredb_rt_native",
  "parking_lot",
  "pyo3",
@@ -1182,11 +1182,11 @@ version = "25.6.2"
 dependencies = [
  "bytes",
  "console_error_panic_hook",
- "ext_default",
  "futures",
  "getrandom 0.3.3",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_ext_default",
  "glaredb_http",
  "js-sys",
  "parking_lot",
@@ -2723,12 +2723,12 @@ dependencies = [
 name = "test_bin"
 version = "25.6.2"
 dependencies = [
- "ext_csv",
- "ext_iceberg",
- "ext_parquet",
- "ext_tpch_gen",
  "glaredb_core",
  "glaredb_error",
+ "glaredb_ext_csv",
+ "glaredb_ext_iceberg",
+ "glaredb_ext_parquet",
+ "glaredb_ext_tpch_gen",
  "glaredb_rt_native",
  "glaredb_slt",
  "harness",
