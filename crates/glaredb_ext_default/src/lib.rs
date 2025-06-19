@@ -1,12 +1,12 @@
-use ext_csv::extension::CsvExtension;
-use ext_iceberg::extension::IcebergExtension;
-use ext_parquet::extension::ParquetExtension;
-use ext_spark::SparkExtension;
-use ext_tpch_gen::TpchGenExtension;
 use glaredb_core::engine::Engine;
 use glaredb_core::runtime::pipeline::PipelineRuntime;
 use glaredb_core::runtime::system::SystemRuntime;
 use glaredb_error::Result;
+use glaredb_ext_csv::extension::CsvExtension;
+use glaredb_ext_iceberg::extension::IcebergExtension;
+use glaredb_ext_parquet::extension::ParquetExtension;
+use glaredb_ext_spark::SparkExtension;
+use glaredb_ext_tpch_gen::TpchGenExtension;
 
 /// Registers all default extensions with the given engine.
 pub fn register_all<E, R>(engine: &Engine<E, R>) -> Result<()>

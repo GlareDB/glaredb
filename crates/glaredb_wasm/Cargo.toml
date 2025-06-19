@@ -35,7 +35,7 @@ glaredb_core = { path = '../glaredb_core' }
 glaredb_error = { path = '../glaredb_error' }
 glaredb_http = { path = '../glaredb_http' }
 
-ext_default = { path = '../ext_default' }
+glaredb_ext_default = { path = '../glaredb_ext_default' }
 
 futures = { workspace = true }
 parking_lot = { workspace = true }
