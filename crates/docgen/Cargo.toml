@@ -7,13 +7,13 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-logutil = { path = '../logutil' }
-glaredb_error = { path = '../glaredb_error' }
-glaredb_core = { path = '../glaredb_core' }
-glaredb_rt_native = { path = '../glaredb_rt_native' }
-glaredb_ext_csv = { path = '../glaredb_ext_csv' }
-glaredb_ext_delta = { path = '../glaredb_ext_delta' }
-glaredb_ext_iceberg = { path = '../glaredb_ext_iceberg' }
+logutil = { workspace = true }
+glaredb_error = { workspace = true }
+glaredb_core = { workspace = true }
+glaredb_rt_native = { workspace = true }
+glaredb_ext_csv = { workspace = true }
+glaredb_ext_delta = { workspace = true }
+glaredb_ext_iceberg = { workspace = true }
 regex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

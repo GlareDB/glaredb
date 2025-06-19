@@ -7,12 +7,12 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-glaredb_proto = { path = '../glaredb_proto' }
-glaredb_core = { path = '../glaredb_core' }
-glaredb_error = { path = '../glaredb_error' }
-glaredb_http = { path = '../glaredb_http' }
+glaredb_proto = { workspace = true }
+glaredb_core = { workspace = true }
+glaredb_error = { workspace = true }
+glaredb_http = { workspace = true }
 
-glaredb_ext_parquet = { path = '../glaredb_ext_parquet' }
+glaredb_ext_parquet = { workspace = true }
 
 futures = { workspace = true }
 tracing = { workspace = true }

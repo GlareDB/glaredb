@@ -7,12 +7,12 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-glaredb_error = { path = '../glaredb_error' }
-glaredb_core = { path = '../glaredb_core' }
-glaredb_rt_native = { path = '../glaredb_rt_native' }
+glaredb_error = { workspace = true }
+glaredb_core = { workspace = true }
+glaredb_rt_native = { workspace = true }
 
-harness = { path = '../harness' }
-logutil = { path = '../logutil' }
+harness = { workspace = true }
+logutil = { workspace = true }
 
 futures = { workspace = true }
 tokio = { workspace = true }

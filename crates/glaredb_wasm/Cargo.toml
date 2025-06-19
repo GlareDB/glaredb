@@ -31,11 +31,11 @@ web-sys = { version = "0.3.77", features = [
   "FileSystemReadWriteOptions"
 ] }
 
-glaredb_core = { path = '../glaredb_core' }
-glaredb_error = { path = '../glaredb_error' }
-glaredb_http = { path = '../glaredb_http' }
+glaredb_core = { workspace = true }
+glaredb_error = { workspace = true }
+glaredb_http = { workspace = true }
 
-glaredb_ext_default = { path = '../glaredb_ext_default' }
+glaredb_ext_default = { workspace = true }
 
 futures = { workspace = true }
 parking_lot = { workspace = true }

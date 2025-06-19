@@ -7,9 +7,9 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-glaredb_proto = { path = '../glaredb_proto' }
-glaredb_core = { path = '../glaredb_core' }
-glaredb_error = { path = '../glaredb_error' }
+glaredb_proto = { workspace = true }
+glaredb_core = { workspace = true }
+glaredb_error = { workspace = true }
 futures = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }

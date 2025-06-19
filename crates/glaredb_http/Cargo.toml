@@ -7,8 +7,8 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-glaredb_error = { path = '../glaredb_error' }
-glaredb_core = { path = '../glaredb_core' }
+glaredb_error = { workspace = true }
+glaredb_core = { workspace = true }
 reqwest = { version = "0.12.20", default-features = false, features = ["rustls-tls", "stream"] }
 url = { workspace = true, features = ["serde"] }
 bytes = { version = "1.10", default-features = false, features = ["std"] }

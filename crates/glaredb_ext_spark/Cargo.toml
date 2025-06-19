@@ -7,6 +7,6 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-glaredb_core = { path = '../glaredb_core' }
-glaredb_error = { path = '../glaredb_error' }
+glaredb_core = { workspace = true }
+glaredb_error = { workspace = true }
 

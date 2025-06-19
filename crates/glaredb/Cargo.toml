@@ -8,12 +8,12 @@ description = "GlareDB CLI"
 workspace = true
 
 [dependencies]
-logutil = { path = '../logutil' }
-glaredb_error = { path = '../glaredb_error' }
-glaredb_core = { path = '../glaredb_core' }
-glaredb_rt_native = { path = '../glaredb_rt_native' }
+logutil = { workspace = true }
+glaredb_error = { workspace = true }
+glaredb_core = { workspace = true }
+glaredb_rt_native = { workspace = true }
 
-glaredb_ext_default = { path = '../glaredb_ext_default' }
+glaredb_ext_default = { workspace = true }
 
 tracing = { workspace = true }
 tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }

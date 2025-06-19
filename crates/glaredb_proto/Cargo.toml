@@ -7,7 +7,7 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-glaredb_error = { path = "../glaredb_error" }
+glaredb_error = { workspace = true }
 prost = "0.14"
 uuid = { workspace = true }
 

@@ -7,9 +7,9 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
-glaredb_error = { path = "../glaredb_error" }
-glaredb_core = { path = "../glaredb_core" }
-glaredb_http = { path = "../glaredb_http" }
+glaredb_error = { workspace = true }
+glaredb_core = { workspace = true }
+glaredb_http = { workspace = true }
 
 rayon = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
