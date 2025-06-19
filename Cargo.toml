@@ -7,6 +7,8 @@ resolver = "2"
 version = "25.6.2"
 edition = "2024"
 license = "MIT"
+homepage = "https://glaredb.com"
+repository = "https://github.com/glaredb/glaredb"
 keywords = ["database", "sql", "analytics"]
 categories = ["database-implementations"]
 

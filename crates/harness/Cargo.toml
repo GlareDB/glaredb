@@ -3,6 +3,8 @@ name = "harness"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
 glaredb_error = { workspace = true }
