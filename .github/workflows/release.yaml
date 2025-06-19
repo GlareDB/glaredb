@@ -251,7 +251,10 @@ jobs:
   #
   # This job will only run when all cli/python builds have completed. This will
   # will also check that the version tag we're using matches the version found
-  # in Cargo.toml
+  # in Cargo.toml.
+  #
+  # If the tag matches the version found in Cargo.toml, we'll go ahead and
+  # create and push a git tag.
   #
   # All below 'publish' steps require this to pass.
   release-gate:
@@ -268,9 +271,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Allow pushing back via GITHUB_TOKEN.
+          persist-credentials: true
 
       - name: Check tag with Cargo.toml
         run: ./scripts/assert_cargo_version.sh ${{ github.event.inputs.tag }}
+
+      - name: Create and push tag
+        run: |
+          git tag ${{ github.event.inputs.tag }}
+          git push origin ${{ github.event.inputs.tag }}
 
   # ONLY RUNS ON 'main'
   create-github-release:
@@ -295,7 +306,6 @@ jobs:
         run: |
           gh release create ${{ github.event.inputs.tag }} \
               cli/* \
-              --draft \
               --generate-notes
 
   # ONLY RUNS ON 'main'
