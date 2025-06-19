@@ -4,7 +4,7 @@ default-members = ["crates/*", "test_bin", "bench_bin"]
 resolver = "2"
 
 [workspace.package]
-version = "25.6.2"
+version = "25.6.3"
 edition = "2024"
 license = "MIT"
 homepage = "https://glaredb.com"
@@ -44,36 +44,36 @@ ring = "0.17"
 clap = { version = "4.5.40", features = ["derive", "env"] }
 
 # Binaries
-glaredb = { path = "crates/glaredb", version = "25.6.2" }
-docgen = { path = "crates/docgen", version = "25.6.2" }
+glaredb = { path = "crates/glaredb", version = "25.6.3" }
+docgen = { path = "crates/docgen", version = "25.6.3" }
 
 # Core crates
-glaredb_core = { path = "crates/glaredb_core", version = "25.6.2" }
-glaredb_error = { path = "crates/glaredb_error", version = "25.6.2" }
-glaredb_http = { path = "crates/glaredb_http", version = "25.6.2" }
-glaredb_parser = { path = "crates/glaredb_parser", version = "25.6.2" }
+glaredb_core = { path = "crates/glaredb_core", version = "25.6.3" }
+glaredb_error = { path = "crates/glaredb_error", version = "25.6.3" }
+glaredb_http = { path = "crates/glaredb_http", version = "25.6.3" }
+glaredb_parser = { path = "crates/glaredb_parser", version = "25.6.3" }
 
 # Extensions
-glaredb_ext_csv = { path = "crates/glaredb_ext_csv", version = "25.6.2" }
-glaredb_ext_default = { path = "crates/glaredb_ext_default", version = "25.6.2" }
-glaredb_ext_delta = { path = "crates/glaredb_ext_delta", version = "25.6.2" }
-glaredb_ext_iceberg = { path = "crates/glaredb_ext_iceberg", version = "25.6.2" }
-glaredb_ext_parquet = { path = "crates/glaredb_ext_parquet", version = "25.6.2" }
-glaredb_ext_spark = { path = "crates/glaredb_ext_spark", version = "25.6.2" }
-glaredb_ext_tpch_gen = { path = "crates/glaredb_ext_tpch_gen", version = "25.6.2" }
+glaredb_ext_csv = { path = "crates/glaredb_ext_csv", version = "25.6.3" }
+glaredb_ext_default = { path = "crates/glaredb_ext_default", version = "25.6.3" }
+glaredb_ext_delta = { path = "crates/glaredb_ext_delta", version = "25.6.3" }
+glaredb_ext_iceberg = { path = "crates/glaredb_ext_iceberg", version = "25.6.3" }
+glaredb_ext_parquet = { path = "crates/glaredb_ext_parquet", version = "25.6.3" }
+glaredb_ext_spark = { path = "crates/glaredb_ext_spark", version = "25.6.3" }
+glaredb_ext_tpch_gen = { path = "crates/glaredb_ext_tpch_gen", version = "25.6.3" }
 
 # Bindings
-glaredb_python = { path = "crates/glaredb_python", version = "25.6.2" }
-glaredb_wasm = { path = "crates/glaredb_wasm", version = "25.6.2" } # Technically also runtime
+glaredb_python = { path = "crates/glaredb_python", version = "25.6.3" }
+glaredb_wasm = { path = "crates/glaredb_wasm", version = "25.6.3" } # Technically also runtime
 
 # Test/bench helpers
-harness = { path = "crates/harness", version = "25.6.2" }
-glaredb_bench = { path = "crates/glaredb_bench", version = "25.6.2" }
-glaredb_slt = { path = "crates/glaredb_slt", version = "25.6.2" }
+harness = { path = "crates/harness", version = "25.6.3" }
+glaredb_bench = { path = "crates/glaredb_bench", version = "25.6.3" }
+glaredb_slt = { path = "crates/glaredb_slt", version = "25.6.3" }
 
 # Runtimes
-glaredb_rt_native = { path = "crates/glaredb_rt_native", version = "25.6.2" }
+glaredb_rt_native = { path = "crates/glaredb_rt_native", version = "25.6.3" }
 
 # Misc
-glaredb_proto = { path = "crates/glaredb_proto", version = "25.6.2" }
-logutil = { path = "crates/logutil", version = "25.6.2" }
+glaredb_proto = { path = "crates/glaredb_proto", version = "25.6.3" }
+logutil = { path = "crates/logutil", version = "25.6.3" }
