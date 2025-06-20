@@ -131,6 +131,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     query_and_print("SELECT custom.double_sum(a) FROM generate_series(1, 10) g(a) WHERE false")
         .await?;
 
+    query_and_print(
+        "SELECT a % 2 AS group, custom.double_sum(a) FROM generate_series(1, 5) g(a) GROUP BY a%2",
+    )
+    .await?;
+
     query_and_print("SELECT custom.double_sum_alias(a) FROM generate_series(1, 3) g(a)").await?;
 
     query_and_print("SELECT custom.double_sum(a) FROM VALUES (4), (5), (NULL), (7) v(a)").await?;
