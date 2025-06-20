@@ -69,7 +69,7 @@ Now that we have our extensions registered, we can begin querying:
 ```rust
 let mut query_result = engine
     .session()
-    .query("SELECT avg(salary), count(*) FROM 's3://glaredb-public/userdata0.parquet")
+    .query("SELECT avg(salary), count(*) FROM 's3://glaredb-public/userdata0.parquet'")
     .await
     .unwrap();
 
