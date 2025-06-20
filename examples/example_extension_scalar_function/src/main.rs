@@ -48,7 +48,7 @@ pub const FUNCTION_SET_DOUBLE_IT: ScalarFunctionSet = ScalarFunctionSet {
     // Name of the function.
     name: "double_it",
     // Optional set of aliases for this function.
-    aliases: &[],
+    aliases: &["double_it_alias"],
     // Optional documentation objects. These are used when producing out of the
     // `list_functions` table function.
     doc: &[&Documentation {
@@ -134,6 +134,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // registration.
     query_and_print("SELECT a, custom.double_it(a) FROM generate_series(1, 5) g(a)").await?;
 
+    // Can also call our function with the alias.
+    query_and_print("SELECT a, custom.double_it_alias(a) FROM generate_series(1, 5) g(a)").await?;
+
     // NULLs are automatically handled for us.
     query_and_print("SELECT a, custom.double_it(a) FROM VALUES (4), (5), (NULL), (7) v(a)").await?;
 
@@ -144,7 +147,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     .await?;
 
     // Get information about our custom function.
-    query_and_print("SELECT function_name, description, example, example_output FROM list_functions() WHERE schema_name = 'custom'").await?;
+    query_and_print("SELECT function_name, alias_of, description, example, example_output FROM list_functions() WHERE schema_name = 'custom'").await?;
 
     Ok(())
 }
