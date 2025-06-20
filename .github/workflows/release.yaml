@@ -33,9 +33,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install protoc
-        run: ./scripts/install_protoc_linux.sh
-
       - name: Install Rust toolchain
         run: |
           # Install rustup
@@ -70,9 +67,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install protoc
-        run: ./scripts/install_protoc_linux_arm.sh
-
       - name: Install Rust toolchain
         run: |
           # Install rustup
@@ -101,11 +95,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       # TODO: Also build version for x86_64, then use `lipo -create -output glaredb-macos-universal glaredb-macos-arm6 glaredb macos-x86_64`
       # We'd to upload all three versions of the binary.
@@ -150,11 +139,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup python
         uses: actions/setup-python@v5
         with:
@@ -184,7 +168,6 @@ jobs:
       - name: Maturin build
         uses: PyO3/maturin-action@v1
         with:
-          before-script-linux: "../../scripts/install_protoc_linux.sh" # Relative to working dir
           args: --release --out dist
           working-directory: crates/glaredb_python
           manylinux: 'auto'
@@ -206,7 +189,6 @@ jobs:
       - name: Maturin build
         uses: PyO3/maturin-action@v1
         with:
-          before-script-linux: "../../scripts/install_protoc_linux_arm.sh" # Relative to working dir
           args: --release --out dist
           working-directory: crates/glaredb_python
           # Typically we'd want to use 2.17, but the combination of 2.17 with
@@ -320,11 +302,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
@@ -365,11 +342,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
