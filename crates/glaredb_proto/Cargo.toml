@@ -5,15 +5,11 @@ edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-description = "Protobuf definitions for GlareDB"
+description = "Protobuf definitions for GlareDB (stub)"
 
 [lints]
 workspace = true
 
 [dependencies]
 glaredb_error = { workspace = true }
-prost = "0.14"
-uuid = { workspace = true }
 
-[build-dependencies]
-prost-build = "0.14"

@@ -2,7 +2,6 @@ use std::fmt;
 
 use glaredb_error::{DbError, Result};
 use glaredb_parser::ast::{self};
-use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use super::resolved_cte::ResolvedCte;
@@ -242,19 +241,5 @@ impl From<Vec<String>> for ItemReference {
 impl fmt::Display for ItemReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.join(","))
-    }
-}
-
-impl ProtoConv for ItemReference {
-    type ProtoType = glaredb_proto::generated::resolver::ItemReference;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            idents: self.0.clone(),
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self(proto.idents))
     }
 }

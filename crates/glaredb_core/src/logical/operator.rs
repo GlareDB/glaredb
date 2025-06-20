@@ -1,7 +1,6 @@
 use std::fmt;
 
 use glaredb_error::{DbError, Result};
-use glaredb_proto::ProtoConv;
 
 use super::binder::bind_context::BindContext;
 use super::binder::table_list::TableRef;
@@ -54,29 +53,6 @@ pub enum LocationRequirement {
     /// An optimization pass will walk the plan an flip this to either local or
     /// remote depending on where the node sits in the plan.
     Any,
-}
-
-impl ProtoConv for LocationRequirement {
-    type ProtoType = glaredb_proto::generated::logical::LocationRequirement;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(match self {
-            Self::ClientLocal => Self::ProtoType::ClientLocal,
-            Self::Remote => Self::ProtoType::Remote,
-            Self::Any => Self::ProtoType::Any,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(match proto {
-            Self::ProtoType::InvalidLocationRequirement => {
-                return Err(DbError::new("invalid"));
-            }
-            Self::ProtoType::ClientLocal => Self::ClientLocal,
-            Self::ProtoType::Remote => Self::Remote,
-            Self::ProtoType::Any => Self::Any,
-        })
-    }
 }
 
 impl fmt::Display for LocationRequirement {

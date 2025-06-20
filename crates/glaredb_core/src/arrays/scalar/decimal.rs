@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use glaredb_error::{DbError, Result, ResultExt};
-use glaredb_proto::ProtoConv;
+use glaredb_error::{DbError, Result};
 use num_traits::{AsPrimitive, FromPrimitive, PrimInt, Signed, Zero};
 use serde::{Deserialize, Serialize};
 
@@ -152,57 +151,6 @@ pub struct DecimalScalar<T: DecimalType> {
 
 pub type Decimal64Scalar = DecimalScalar<Decimal64Type>;
 pub type Decimal128Scalar = DecimalScalar<Decimal128Type>;
-
-impl ProtoConv for Decimal64Scalar {
-    type ProtoType = glaredb_proto::generated::expr::Decimal64Scalar;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            precision: self.precision as i32,
-            scale: self.scale as i32,
-            value: self.value,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            precision: proto
-                .precision
-                .try_into()
-                .context("precision doens't fit")?,
-            scale: proto.scale.try_into().context("scale doens't fit")?,
-            value: proto.value,
-        })
-    }
-}
-
-impl ProtoConv for Decimal128Scalar {
-    type ProtoType = glaredb_proto::generated::expr::Decimal128Scalar;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            precision: self.precision as i32,
-            scale: self.scale as i32,
-            value: self.value.to_le_bytes().to_vec(),
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            precision: proto
-                .precision
-                .try_into()
-                .context("precision doens't fit")?,
-            scale: proto.scale.try_into().context("scale doens't fit")?,
-            value: i128::from_le_bytes(
-                proto
-                    .value
-                    .try_into()
-                    .map_err(|_| DbError::new("byte buffer not 16 bytes"))?,
-            ),
-        })
-    }
-}
 
 #[cfg(test)]
 mod tests {
