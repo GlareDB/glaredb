@@ -122,6 +122,10 @@ jobs:
         if: success() || failure()
         run: ./scripts/ci_run_cli_non_interactive.sh
 
+      - name: Run example binaries
+        if: success() || failure()
+        run: ./scripts/ci_run_examples.sh
+
   python-tests:
     name: Python Tests
     runs-on: ubuntu-latest

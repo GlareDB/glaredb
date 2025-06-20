@@ -1,6 +1,17 @@
 [workspace]
-members = ["crates/*", "test_bin", "bench_bin"]
-default-members = ["crates/*", "test_bin", "bench_bin"]
+members = [
+  "crates/*",
+  "test_bin",
+  "bench_bin",
+  "examples/*",
+]
+# TODO: What's the difference?
+default-members = [
+  "crates/*",
+  "test_bin",
+  "bench_bin",
+  "examples/*",
+]
 resolver = "2"
 
 [workspace.package]
