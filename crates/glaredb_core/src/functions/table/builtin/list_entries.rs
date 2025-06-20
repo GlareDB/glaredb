@@ -155,7 +155,6 @@ impl TableScanFunction for ListTables {
     type PartitionState = ListEntriesPartitionState;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
@@ -271,7 +270,6 @@ impl TableScanFunction for ListViews {
     type PartitionState = ListEntriesPartitionState;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
@@ -430,7 +428,6 @@ impl TableScanFunction for ListFunctions {
     type PartitionState = ListFunctionsPartitionState;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {

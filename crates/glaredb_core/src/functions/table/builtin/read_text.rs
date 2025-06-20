@@ -90,7 +90,6 @@ impl TableScanFunction for ReadText {
     type PartitionState = ReadTextPartitionState;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {

@@ -535,7 +535,6 @@ where
     type PartitionState = ParquetMetadataPartitionState<T>;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {

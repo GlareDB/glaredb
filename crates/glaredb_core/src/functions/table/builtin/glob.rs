@@ -64,7 +64,6 @@ impl TableScanFunction for Glob {
     type PartitionState = GlobPartitionState;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {

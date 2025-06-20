@@ -106,7 +106,6 @@ pub struct AnyTablePartitionState(Box<dyn Any + Sync + Send>);
 
 #[derive(Debug, Clone, Copy)]
 pub struct RawTableFunction {
-    function: *const (),
     signature: &'static Signature,
     vtable: &'static RawTableFunctionVTable,
     function_type: TableFunctionType,
@@ -115,27 +114,24 @@ pub struct RawTableFunction {
 unsafe impl Send for RawTableFunction {}
 unsafe impl Sync for RawTableFunction {}
 
+// TODO: Remove `function` args.
 impl RawTableFunction {
-    pub const fn new_execute<F>(sig: &'static Signature, function: &'static F) -> Self
+    pub const fn new_execute<F>(sig: &'static Signature, _function: &'static F) -> Self
     where
         F: TableExecuteFunction,
     {
-        let function = (function as *const F).cast();
         RawTableFunction {
-            function,
             signature: sig,
             vtable: TableExecuteVTable::<F>::VTABLE,
             function_type: TableExecuteVTable::<F>::FUNCTION_TYPE,
         }
     }
 
-    pub const fn new_scan<F>(sig: &'static Signature, function: &'static F) -> Self
+    pub const fn new_scan<F>(sig: &'static Signature, _function: &'static F) -> Self
     where
         F: TableScanFunction,
     {
-        let function = (function as *const F).cast();
         RawTableFunction {
-            function,
             signature: sig,
             vtable: TableScanVTable::<F>::VTABLE,
             function_type: TableScanVTable::<F>::FUNCTION_TYPE,
@@ -149,7 +145,7 @@ impl RawTableFunction {
     ) -> Result<RawTableFunctionBindState> {
         // SAFETY: The pointer we pass to the bind fn is the pointer we get from
         // the static reference we use to construct this object.
-        let fut = unsafe { (self.vtable.scan_bind_fn)(self.function, scan_context, input)? };
+        let fut = unsafe { (self.vtable.scan_bind_fn)(scan_context, input)? };
         fut.await
     }
 
@@ -157,7 +153,7 @@ impl RawTableFunction {
         &self,
         input: TableFunctionInput,
     ) -> Result<RawTableFunctionBindState> {
-        unsafe { (self.vtable.execute_bind_fn)(self.function, input) }
+        unsafe { (self.vtable.execute_bind_fn)(input) }
     }
 
     pub fn call_create_pull_operator_state(
@@ -266,16 +262,10 @@ type ScanBindFut<'a> = Pin<Box<dyn Future<Output = Result<RawTableFunctionBindSt
 
 #[derive(Debug, Clone, Copy)]
 pub struct RawTableFunctionVTable {
-    scan_bind_fn: unsafe fn(
-        function: *const (),
-        scan_context: ScanContext,
-        input: TableFunctionInput,
-    ) -> Result<ScanBindFut>,
+    scan_bind_fn:
+        unsafe fn(scan_context: ScanContext, input: TableFunctionInput) -> Result<ScanBindFut>,
 
-    execute_bind_fn: unsafe fn(
-        function: *const (),
-        input: TableFunctionInput,
-    ) -> Result<RawTableFunctionBindState>,
+    execute_bind_fn: unsafe fn(input: TableFunctionInput) -> Result<RawTableFunctionBindState>,
 
     create_pull_operator_state_fn: unsafe fn(
         bind_state: &dyn Any,
@@ -323,8 +313,7 @@ pub struct RawTableFunctionVTable {
     ) -> Result<PollPull>,
 }
 
-// TODO: Seal
-pub trait TableFunctionVTable {
+trait TableFunctionVTable {
     const FUNCTION_TYPE: TableFunctionType;
     const VTABLE: &'static RawTableFunctionVTable;
 }
@@ -338,10 +327,9 @@ where
     const FUNCTION_TYPE: TableFunctionType = TableFunctionType::Execute;
 
     const VTABLE: &'static RawTableFunctionVTable = &RawTableFunctionVTable {
-        scan_bind_fn: |_function, _db_context, _input| Err(DbError::new("Not a scan function")),
-        execute_bind_fn: |function, input| {
-            let function = unsafe { function.cast::<F>().as_ref().unwrap() };
-            let state = function.bind(input)?;
+        scan_bind_fn: |_db_context, _input| Err(DbError::new("Not a scan function")),
+        execute_bind_fn: |input| {
+            let state = F::bind(input)?;
 
             Ok(RawTableFunctionBindState {
                 state: Arc::new(state.state),
@@ -411,10 +399,9 @@ where
     const FUNCTION_TYPE: TableFunctionType = TableFunctionType::Scan;
 
     const VTABLE: &'static RawTableFunctionVTable = &RawTableFunctionVTable {
-        scan_bind_fn: |function, scan_context, input| {
-            let function = unsafe { function.cast::<F>().as_ref().unwrap() };
+        scan_bind_fn: |scan_context, input| {
             Ok(Box::pin(async move {
-                let state = function.bind(scan_context, input).await?;
+                let state = F::bind(scan_context, input).await?;
 
                 Ok(RawTableFunctionBindState {
                     state: Arc::new(state.state),
@@ -425,7 +412,7 @@ where
                 })
             }))
         },
-        execute_bind_fn: |_function, _input| Err(DbError::new("Not an execute function")),
+        execute_bind_fn: |_input| Err(DbError::new("Not an execute function")),
         create_pull_operator_state_fn: |bind_state, projections, filters, props| {
             let bind_state = bind_state
                 .downcast_ref::<<F as TableScanFunction>::BindState>()

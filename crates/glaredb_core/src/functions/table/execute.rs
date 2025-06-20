@@ -14,7 +14,7 @@ pub trait TableExecuteFunction: Debug + Copy + Send + Sync + 'static {
     type OperatorState: Sync + Send;
     type PartitionState: Sync + Send;
 
-    fn bind(&self, input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>>;
+    fn bind(input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>>;
 
     fn create_execute_operator_state(
         bind_state: &Self::BindState,

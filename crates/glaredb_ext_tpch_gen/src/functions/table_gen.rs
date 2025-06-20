@@ -100,7 +100,6 @@ where
     type PartitionState = TableGenPartitionState<T>;
 
     async fn bind(
-        &'static self,
         _scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {

@@ -119,10 +119,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
     type OperatorState = ();
     type PartitionState = GenerateSeriesI64PartitionState;
 
-    fn bind(
-        &self,
-        mut input: TableFunctionInput,
-    ) -> Result<TableFunctionBindState<Self::BindState>> {
+    fn bind(mut input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>> {
         if input.positional.len() == 2 {
             // Push constant step value.
             input.positional.push(expr::lit(1_i64).into());

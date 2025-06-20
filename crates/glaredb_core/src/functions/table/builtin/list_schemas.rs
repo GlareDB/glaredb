@@ -66,7 +66,6 @@ impl TableScanFunction for ListSchemas {
     type PartitionState = ListSchemasPartitionState;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {

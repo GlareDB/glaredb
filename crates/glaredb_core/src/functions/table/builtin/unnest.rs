@@ -57,7 +57,7 @@ impl TableExecuteFunction for UnnestList {
     type OperatorState = UnnestListOperatorState;
     type PartitionState = UnnestListPartitionState;
 
-    fn bind(&self, input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>> {
+    fn bind(input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>> {
         let datatype = input.positional[0].datatype()?;
         let meta = datatype.try_get_list_type_meta()?;
         let out_type = meta.datatype.as_ref().clone();

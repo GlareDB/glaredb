@@ -59,7 +59,6 @@ impl TableScanFunction for ListDatabases {
     type PartitionState = ListDatabasePartitionState;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
