@@ -1,5 +1,4 @@
 mod errors;
-mod event_loop;
 mod session;
 
 use napi_derive::napi;
