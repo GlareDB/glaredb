@@ -9,18 +9,19 @@ use crate::arrays::batch::Batch;
 use crate::catalog::context::DatabaseContext;
 use crate::execution::operators::{ExecutionProperties, PollPull};
 use crate::runtime::filesystem::dispatch::FileSystemDispatch;
+use crate::runtime::system::SystemRuntime;
 use crate::storage::projections::Projections;
 use crate::storage::scan_filter::PhysicalScanFilter;
 
 /// Context providing dependencies for a scan.
 #[derive(Debug, Clone, Copy)]
-pub struct ScanContext<'a> {
-    pub database_context: &'a DatabaseContext,
+pub struct ScanContext<'a, R: SystemRuntime> {
+    pub database_context: &'a DatabaseContext<R>,
     pub dispatch: &'a FileSystemDispatch,
 }
 
 /// Scan function that produces batches.
-pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
+pub trait TableScanFunction<R: SystemRuntime>: Debug + Copy + Send + Sync + 'static {
     type BindState: Sync + Send;
 
     type OperatorState: Sync + Send;
@@ -32,7 +33,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
     // TODO: Probably remove `&self`.
     fn bind(
         &'static self,
-        scan_context: ScanContext,
+        scan_context: ScanContext<R>,
         input: TableFunctionInput,
     ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Send;
 

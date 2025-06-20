@@ -27,6 +27,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::optimizer::expr_rewrite::ExpressionRewriteRule;
 use crate::optimizer::expr_rewrite::const_fold::ConstFold;
+use crate::runtime::system::SystemRuntime;
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
@@ -549,9 +550,10 @@ where
     }
 }
 
-impl<T> TableScanFunction for ProfileTableGen<T>
+impl<R, T> TableScanFunction<R> for ProfileTableGen<T>
 where
     T: ProfileTable,
+    R: SystemRuntime,
 {
     type BindState = ProfileTableGenBindState;
     type OperatorState = ProfileTableGenOperatorState;
@@ -559,7 +561,7 @@ where
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let db_context = scan_context.database_context;

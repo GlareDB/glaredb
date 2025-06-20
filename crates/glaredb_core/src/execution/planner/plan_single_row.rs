@@ -5,8 +5,12 @@ use crate::execution::operators::single_row::PhysicalSingleRow;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_single_row::LogicalSingleRow;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_single_row(
         &mut self,
         _: Node<LogicalSingleRow>,
@@ -19,7 +23,7 @@ impl OperatorPlanState<'_> {
         // the expression `1+1` with the input being the batch with 1 row and no
         // columns.
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_pull(self.id_gen.next_id(), PhysicalSingleRow),
+            operator: PlannedOperator::new_pull::<_, R>(self.id_gen.next_id(), PhysicalSingleRow),
             children: Vec::new(),
         })
     }

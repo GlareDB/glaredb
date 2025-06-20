@@ -21,6 +21,7 @@ use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
 use crate::runtime::filesystem::file_provider::{MultiFileData, MultiFileProvider};
 use crate::runtime::filesystem::{AnyFile, FileSystemFuture, FileSystemWithState, OpenFlags};
+use crate::runtime::system::SystemRuntime;
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
@@ -84,14 +85,17 @@ enum ReadState {
     Scanning { file: AnyFile, buf_offset: usize },
 }
 
-impl TableScanFunction for ReadText {
+impl<R> TableScanFunction<R> for ReadText
+where
+    R: SystemRuntime,
+{
     type BindState = ReadTextBindState;
     type OperatorState = ReadTextOperatorState;
     type PartitionState = ReadTextPartitionState;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let (mut provider, fs) =

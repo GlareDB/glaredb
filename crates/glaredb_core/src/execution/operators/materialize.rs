@@ -24,6 +24,7 @@ use crate::arrays::collection::concurrent::{
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::logical::binder::bind_context::MaterializationRef;
+use crate::runtime::system::SystemRuntime;
 use crate::storage::projections::Projections;
 
 #[derive(Debug)]
@@ -73,7 +74,7 @@ pub struct PhysicalMaterialize {
     pub(crate) materialization_ref: MaterializationRef,
 }
 
-impl BaseOperator for PhysicalMaterialize {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalMaterialize {
     const OPERATOR_NAME: &str = "Materialize";
 
     type OperatorState = MaterializeOperatorState;
@@ -97,13 +98,13 @@ impl BaseOperator for PhysicalMaterialize {
     }
 }
 
-impl MaterializingOperator for PhysicalMaterialize {
+impl<R: SystemRuntime> MaterializingOperator<R> for PhysicalMaterialize {
     fn materialization_ref(&self) -> MaterializationRef {
         self.materialization_ref
     }
 }
 
-impl PullOperator for PhysicalMaterialize {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalMaterialize {
     type PartitionPullState = MaterializePullPartitionState;
 
     fn create_partition_pull_states(
@@ -192,7 +193,7 @@ impl PullOperator for PhysicalMaterialize {
     }
 }
 
-impl PushOperator for PhysicalMaterialize {
+impl<R: SystemRuntime> PushOperator<R> for PhysicalMaterialize {
     type PartitionPushState = MaterializePushPartitionState;
 
     fn create_partition_push_states(
@@ -259,7 +260,7 @@ impl PushOperator for PhysicalMaterialize {
 
 impl Explainable for PhysicalMaterialize {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("Materialize", conf)
             .with_value("materialization_ref", self.materialization_ref)
             .build()
     }

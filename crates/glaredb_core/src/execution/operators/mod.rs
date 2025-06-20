@@ -32,8 +32,15 @@ use super::pipeline::{ExecutablePipeline, ExecutablePipelineGraph};
 use super::planner::OperatorId;
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
-use crate::explain::explainable::{ExplainConfig, ExplainEntry, ExplainValue, Explainable};
+use crate::explain::explainable::{
+    EntryBuilder,
+    ExplainConfig,
+    ExplainEntry,
+    ExplainValue,
+    Explainable,
+};
 use crate::logical::binder::bind_context::MaterializationRef;
+use crate::runtime::system::SystemRuntime;
 
 /// Poll result for operator execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,7 +166,7 @@ impl OperatorType {
     }
 }
 
-pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
+pub trait BaseOperator<R: SystemRuntime>: Sync + Send + Debug + Explainable + 'static {
     /// Name of the operator.
     ///
     /// Should be unique among all operators.
@@ -261,13 +268,13 @@ pub trait BaseOperator: Sync + Send + Debug + Explainable + 'static {
     }
 }
 
-pub trait MaterializingOperator: PushOperator + PullOperator {
+pub trait MaterializingOperator<R: SystemRuntime>: PushOperator<R> + PullOperator<R> {
     /// Return the materialization reference associated with this
     /// materialization.
     fn materialization_ref(&self) -> MaterializationRef;
 }
 
-pub trait ExecuteOperator: BaseOperator {
+pub trait ExecuteOperator<R: SystemRuntime>: BaseOperator<R> {
     type PartitionExecuteState: Sync + Send;
 
     fn create_partition_execute_states(
@@ -294,7 +301,7 @@ pub trait ExecuteOperator: BaseOperator {
     ) -> Result<PollFinalize>;
 }
 
-pub trait PullOperator: BaseOperator {
+pub trait PullOperator<R: SystemRuntime>: BaseOperator<R> {
     type PartitionPullState: Sync + Send;
 
     fn create_partition_pull_states(
@@ -313,7 +320,7 @@ pub trait PullOperator: BaseOperator {
     ) -> Result<PollPull>;
 }
 
-pub trait PushOperator: BaseOperator {
+pub trait PushOperator<R: SystemRuntime>: BaseOperator<R> {
     type PartitionPushState: Sync + Send;
 
     fn create_partition_push_states(
@@ -377,68 +384,73 @@ pub struct PlannedOperator {
 }
 
 impl PlannedOperator {
-    pub fn new_execute<O>(id: OperatorId, op: O) -> Self
+    pub fn new_execute<O, R>(id: OperatorId, op: O) -> Self
     where
-        O: ExecuteOperator,
+        O: ExecuteOperator<R>,
+        R: SystemRuntime,
     {
         PlannedOperator {
             operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
-            vtable: ExecuteOperatorVTable::<O>::VTABLE,
-            operator_type: ExecuteOperatorVTable::<O>::OPERATOR_TYPE,
+            vtable: ExecuteOperatorVTable::<O, R>::VTABLE,
+            operator_type: ExecuteOperatorVTable::<O, R>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_push<O>(id: OperatorId, op: O) -> Self
+    pub fn new_push<O, R>(id: OperatorId, op: O) -> Self
     where
-        O: PushOperator,
+        O: PushOperator<R>,
+        R: SystemRuntime,
     {
         PlannedOperator {
             operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
-            vtable: PushOperatorVTable::<O>::VTABLE,
-            operator_type: PushOperatorVTable::<O>::OPERATOR_TYPE,
+            vtable: PushOperatorVTable::<O, R>::VTABLE,
+            operator_type: PushOperatorVTable::<O, R>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_push_execute<O>(id: OperatorId, op: O) -> Self
+    pub fn new_push_execute<O, R>(id: OperatorId, op: O) -> Self
     where
-        O: PushOperator + ExecuteOperator,
+        O: PushOperator<R> + ExecuteOperator<R>,
+        R: SystemRuntime,
     {
         PlannedOperator {
             operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
-            vtable: PushExecuteOperatorVTable::<O>::VTABLE,
-            operator_type: PushExecuteOperatorVTable::<O>::OPERATOR_TYPE,
+            vtable: PushExecuteOperatorVTable::<O, R>::VTABLE,
+            operator_type: PushExecuteOperatorVTable::<O, R>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_pull<O>(id: OperatorId, op: O) -> Self
+    pub fn new_pull<O, R>(id: OperatorId, op: O) -> Self
     where
-        O: PullOperator,
+        O: PullOperator<R>,
+        R: SystemRuntime,
     {
         PlannedOperator {
             operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
-            vtable: PullOperatorVTable::<O>::VTABLE,
-            operator_type: PullOperatorVTable::<O>::OPERATOR_TYPE,
+            vtable: PullOperatorVTable::<O, R>::VTABLE,
+            operator_type: PullOperatorVTable::<O, R>::OPERATOR_TYPE,
         }
     }
 
-    pub fn new_materializing<O>(id: OperatorId, op: O) -> Self
+    pub fn new_materializing<O, R>(id: OperatorId, op: O) -> Self
     where
-        O: MaterializingOperator,
+        O: MaterializingOperator<R>,
+        R: SystemRuntime,
     {
         PlannedOperator {
             operator_name: O::OPERATOR_NAME,
             id,
             operator: Arc::new(op),
-            vtable: MaterializingOperatorVTable::<O>::VTABLE,
-            operator_type: MaterializingOperatorVTable::<O>::OPERATOR_TYPE,
+            vtable: MaterializingOperatorVTable::<O, R>::VTABLE,
+            operator_type: MaterializingOperatorVTable::<O, R>::OPERATOR_TYPE,
         }
     }
 
@@ -693,11 +705,14 @@ trait OperatorVTable {
 //
 // It may make sense to condense this down if necessary.
 
-struct ExecuteOperatorVTable<O: ExecuteOperator>(PhantomData<O>);
+struct ExecuteOperatorVTable<O: ExecuteOperator<R>, R: SystemRuntime>(
+    (PhantomData<O>, PhantomData<R>),
+);
 
-impl<O> OperatorVTable for ExecuteOperatorVTable<O>
+impl<O, R> OperatorVTable for ExecuteOperatorVTable<O, R>
 where
-    O: ExecuteOperator,
+    O: ExecuteOperator<R>,
+    R: SystemRuntime,
 {
     const OPERATOR_TYPE: OperatorType = OperatorType::Execute;
 
@@ -722,7 +737,7 @@ where
         create_partition_execute_states_fn: |operator, op_state, props, partitions| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             let states = operator.create_partition_execute_states(op_state, props, partitions)?;
             Ok(states
@@ -747,10 +762,10 @@ where
         poll_execute_fn: |operator, cx, op_state, partition_state, input, output| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .downcast_mut::<<O as ExecuteOperator<R>>::PartitionExecuteState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             operator.poll_execute(cx, op_state, state, input, output)
         },
@@ -761,10 +776,10 @@ where
         poll_finalize_execute_fn: |operator, cx, op_state, partition_state| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .downcast_mut::<<O as ExecuteOperator<R>>::PartitionExecuteState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             operator.poll_finalize_execute(cx, op_state, state)
         },
@@ -776,11 +791,12 @@ where
     };
 }
 
-struct PushOperatorVTable<O: PushOperator>(PhantomData<O>);
+struct PushOperatorVTable<O: PushOperator<R>, R: SystemRuntime>((PhantomData<O>, PhantomData<R>));
 
-impl<O> OperatorVTable for PushOperatorVTable<O>
+impl<O, R> OperatorVTable for PushOperatorVTable<O, R>
 where
-    O: PushOperator,
+    O: PushOperator<R>,
+    R: SystemRuntime,
 {
     const OPERATOR_TYPE: OperatorType = OperatorType::Push;
 
@@ -812,7 +828,7 @@ where
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             let states = operator.create_partition_push_states(op_state, props, partitions)?;
             Ok(states
@@ -827,10 +843,10 @@ where
         poll_push_fn: |operator, cx, op_state, partition_state, input| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .downcast_mut::<<O as PushOperator<R>>::PartitionPushState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             operator.poll_push(cx, op_state, state, input)
         },
@@ -841,10 +857,10 @@ where
         poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .downcast_mut::<<O as PushOperator<R>>::PartitionPushState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             operator.poll_finalize_push(cx, op_state, state)
         },
@@ -859,11 +875,14 @@ where
     };
 }
 
-struct PushExecuteOperatorVTable<O: ExecuteOperator + PushOperator>(PhantomData<O>);
+struct PushExecuteOperatorVTable<O: ExecuteOperator<R> + PushOperator<R>, R: SystemRuntime>(
+    (PhantomData<O>, PhantomData<R>),
+);
 
-impl<O> OperatorVTable for PushExecuteOperatorVTable<O>
+impl<O, R> OperatorVTable for PushExecuteOperatorVTable<O, R>
 where
-    O: ExecuteOperator + PushOperator,
+    O: ExecuteOperator<R> + PushOperator<R>,
+    R: SystemRuntime,
 {
     const OPERATOR_TYPE: OperatorType = OperatorType::PushExecute;
 
@@ -888,7 +907,7 @@ where
         create_partition_execute_states_fn: |operator, op_state, props, partitions| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             let states = operator.create_partition_execute_states(op_state, props, partitions)?;
             Ok(states
@@ -903,7 +922,7 @@ where
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             let states = operator.create_partition_push_states(op_state, props, partitions)?;
             Ok(states
@@ -918,10 +937,10 @@ where
         poll_push_fn: |operator, cx, op_state, partition_state, input| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .downcast_mut::<<O as PushOperator<R>>::PartitionPushState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
 
             operator.poll_push(cx, op_state, state, input)
@@ -929,10 +948,10 @@ where
         poll_execute_fn: |operator, cx, op_state, partition_state, input, output| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .downcast_mut::<<O as ExecuteOperator<R>>::PartitionExecuteState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             operator.poll_execute(cx, op_state, state, input, output)
         },
@@ -940,10 +959,10 @@ where
         poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .downcast_mut::<<O as PushOperator<R>>::PartitionPushState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
 
             operator.poll_finalize_push(cx, op_state, state)
@@ -951,10 +970,10 @@ where
         poll_finalize_execute_fn: |operator, cx, op_state, partition_state| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as ExecuteOperator>::PartitionExecuteState>()
+                .downcast_mut::<<O as ExecuteOperator<R>>::PartitionExecuteState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
 
             operator.poll_finalize_execute(cx, op_state, state)
@@ -967,11 +986,12 @@ where
     };
 }
 
-struct PullOperatorVTable<O: PullOperator>(PhantomData<O>);
+struct PullOperatorVTable<O: PullOperator<R>, R: SystemRuntime>((PhantomData<O>, PhantomData<R>));
 
-impl<O> OperatorVTable for PullOperatorVTable<O>
+impl<O, R> OperatorVTable for PullOperatorVTable<O, R>
 where
-    O: PullOperator,
+    O: PullOperator<R>,
+    R: SystemRuntime,
 {
     const OPERATOR_TYPE: OperatorType = OperatorType::Pull;
 
@@ -1000,7 +1020,7 @@ where
         create_partition_pull_states_fn: |operator, op_state, props, partitions| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             let states = operator.create_partition_pull_states(op_state, props, partitions)?;
             Ok(states
@@ -1015,10 +1035,10 @@ where
         poll_pull_fn: |operator, cx, op_state, partition_state, output| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PullOperator>::PartitionPullState>()
+                .downcast_mut::<<O as PullOperator<R>>::PartitionPullState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             operator.poll_pull(cx, op_state, state, output)
         },
@@ -1043,11 +1063,14 @@ where
     };
 }
 
-struct MaterializingOperatorVTable<O: MaterializingOperator>(PhantomData<O>);
+struct MaterializingOperatorVTable<O: MaterializingOperator<R>, R: SystemRuntime>(
+    (PhantomData<O>, PhantomData<R>),
+);
 
-impl<O> OperatorVTable for MaterializingOperatorVTable<O>
+impl<O, R> OperatorVTable for MaterializingOperatorVTable<O, R>
 where
-    O: MaterializingOperator,
+    O: MaterializingOperator<R>,
+    R: SystemRuntime,
 {
     const OPERATOR_TYPE: OperatorType = OperatorType::Materializing;
 
@@ -1079,7 +1102,7 @@ where
         create_partition_pull_states_fn: |operator, op_state, props, partitions| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             let states = operator.create_partition_pull_states(op_state, props, partitions)?;
             Ok(states
@@ -1090,7 +1113,7 @@ where
         create_partition_push_states_fn: |operator, op_state, props, partitions| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             let states = operator.create_partition_push_states(op_state, props, partitions)?;
             Ok(states
@@ -1102,20 +1125,20 @@ where
         poll_pull_fn: |operator, cx, op_state, partition_state, output| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PullOperator>::PartitionPullState>()
+                .downcast_mut::<<O as PullOperator<R>>::PartitionPullState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
             operator.poll_pull(cx, op_state, state, output)
         },
         poll_push_fn: |operator, cx, op_state, partition_state, input| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .downcast_mut::<<O as PushOperator<R>>::PartitionPushState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
 
             operator.poll_push(cx, op_state, state, input)
@@ -1126,10 +1149,10 @@ where
         poll_finalize_push_fn: |operator, cx, op_state, partition_state| {
             let operator = operator.downcast_ref::<O>().unwrap();
             let state = partition_state
-                .downcast_mut::<<O as PushOperator>::PartitionPushState>()
+                .downcast_mut::<<O as PushOperator<R>>::PartitionPushState>()
                 .unwrap();
             let op_state = op_state
-                .downcast_ref::<<O as BaseOperator>::OperatorState>()
+                .downcast_ref::<<O as BaseOperator<R>>::OperatorState>()
                 .unwrap();
 
             operator.poll_finalize_push(cx, op_state, state)

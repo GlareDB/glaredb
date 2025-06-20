@@ -10,6 +10,7 @@ use crate::catalog::create::CreateViewInfo;
 use crate::catalog::memory::MemorySchema;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CreateViewPartitionState {
@@ -23,7 +24,7 @@ pub struct PhysicalCreateView {
     pub(crate) info: CreateViewInfo,
 }
 
-impl BaseOperator for PhysicalCreateView {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalCreateView {
     const OPERATOR_NAME: &str = "CreateView";
 
     type OperatorState = ();
@@ -37,7 +38,7 @@ impl BaseOperator for PhysicalCreateView {
     }
 }
 
-impl PullOperator for PhysicalCreateView {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalCreateView {
     type PartitionPullState = CreateViewPartitionState;
 
     fn create_partition_pull_states(
@@ -70,6 +71,6 @@ impl PullOperator for PhysicalCreateView {
 
 impl Explainable for PhysicalCreateView {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("CreateView", conf).build()
     }
 }

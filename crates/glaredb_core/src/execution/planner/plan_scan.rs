@@ -5,9 +5,13 @@ use crate::execution::operators::scan::PhysicalScan;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_scan::LogicalScan;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 use crate::storage::projections::Projections;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_scan(&mut self, scan: Node<LogicalScan>) -> Result<PlannedOperatorWithChildren> {
         let _location = scan.location;
 
@@ -42,7 +46,7 @@ impl OperatorPlanState<'_> {
         let operator = PhysicalScan::new(projections, filters, function);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_pull(self.id_gen.next_id(), operator),
+            operator: PlannedOperator::new_pull::<_, R>(self.id_gen.next_id(), operator),
             children: Vec::new(),
         })
     }

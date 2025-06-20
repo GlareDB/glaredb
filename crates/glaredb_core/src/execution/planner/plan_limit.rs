@@ -5,8 +5,12 @@ use crate::execution::operators::limit::PhysicalLimit;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_limit::LogicalLimit;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_limit(
         &mut self,
         mut limit: Node<LogicalLimit>,
@@ -22,7 +26,7 @@ impl OperatorPlanState<'_> {
         );
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator),
             children: vec![child],
         })
     }

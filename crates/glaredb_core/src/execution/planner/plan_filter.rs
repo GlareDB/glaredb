@@ -5,8 +5,12 @@ use crate::execution::operators::filter::PhysicalFilter;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_filter::LogicalFilter;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_filter(
         &mut self,
         mut filter: Node<LogicalFilter>,
@@ -30,7 +34,7 @@ impl OperatorPlanState<'_> {
         };
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator),
             children: vec![input],
         })
     }

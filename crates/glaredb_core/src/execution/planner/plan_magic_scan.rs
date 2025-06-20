@@ -7,8 +7,12 @@ use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_materialization::LogicalMagicMaterializationScan;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_magic_materialize_scan(
         &mut self,
         scan: Node<LogicalMagicMaterializationScan>,
@@ -46,7 +50,7 @@ impl OperatorPlanState<'_> {
             .collect();
 
         let proj_op = PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(
+            operator: PlannedOperator::new_execute::<_, R>(
                 self.id_gen.next_id(),
                 PhysicalProject::new(projections),
             ),
@@ -64,7 +68,7 @@ impl OperatorPlanState<'_> {
         let agg = PhysicalHashAggregate::new(aggregates, vec![grouping_set]);
 
         let agg_op = PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), agg),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), agg),
             children: vec![proj_op],
         };
 

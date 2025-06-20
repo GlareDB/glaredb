@@ -20,6 +20,7 @@ use crate::functions::documentation::{Category, Documentation};
 use crate::functions::function_set::{FunctionSet, TableFunctionSet};
 use crate::functions::table::scan::{ScanContext, TableScanFunction};
 use crate::functions::table::{RawTableFunction, TableFunctionBindState, TableFunctionInput};
+use crate::runtime::system::SystemRuntime;
 use crate::statistics::value::StatisticsValue;
 use crate::storage::projections::{ProjectedColumn, Projections};
 use crate::storage::scan_filter::PhysicalScanFilter;
@@ -78,12 +79,15 @@ impl ListEntriesBindState {
     // TODO: Unsure if we're fine with doing the loading up front, but it's
     // easiest for now. `poll_pull` could handle this, but it'd introduce a bit
     // of code complexity.
-    async fn load_entries(
-        databases: Vec<Arc<Database>>,
-        db_filter: impl Fn(&Database) -> bool,
+    async fn load_entries<R>(
+        databases: Vec<Arc<Database<R>>>,
+        db_filter: impl Fn(&Database<R>) -> bool,
         schema_filter: impl Fn(&CatalogEntry) -> bool,
         entry_filter: impl Fn(&CatalogEntry) -> bool,
-    ) -> Result<Self> {
+    ) -> Result<Self>
+    where
+        R: SystemRuntime,
+    {
         let mut filtered_entries = Vec::new();
         for database in databases {
             if !db_filter(&database) {
@@ -149,14 +153,17 @@ struct NamespacedEntry {
 #[derive(Debug, Clone, Copy)]
 pub struct ListTables;
 
-impl TableScanFunction for ListTables {
+impl<R> TableScanFunction<R> for ListTables
+where
+    R: SystemRuntime,
+{
     type BindState = ListEntriesBindState;
     type OperatorState = ListEntriesOperatorState;
     type PartitionState = ListEntriesPartitionState;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases: Vec<_> = scan_context
@@ -265,14 +272,17 @@ impl TableScanFunction for ListTables {
 #[derive(Debug, Clone, Copy)]
 pub struct ListViews;
 
-impl TableScanFunction for ListViews {
+impl<R> TableScanFunction<R> for ListViews
+where
+    R: SystemRuntime,
+{
     type BindState = ListEntriesBindState;
     type OperatorState = ListEntriesOperatorState;
     type PartitionState = ListEntriesPartitionState;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases: Vec<_> = scan_context
@@ -424,14 +434,17 @@ impl ListFunctions {
     }
 }
 
-impl TableScanFunction for ListFunctions {
+impl<R> TableScanFunction<R> for ListFunctions
+where
+    R: SystemRuntime,
+{
     type BindState = ListEntriesBindState;
     type OperatorState = ListEntriesOperatorState;
     type PartitionState = ListFunctionsPartitionState;
 
     async fn bind(
         &'static self,
-        scan_context: ScanContext<'_>,
+        scan_context: ScanContext<'_, R>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
         let databases: Vec<_> = scan_context

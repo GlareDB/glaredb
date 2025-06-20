@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Wake, Waker};
@@ -16,6 +17,7 @@ use crate::execution::operators::{
     PullOperator,
     PushOperator,
 };
+use crate::runtime::system::SystemRuntime;
 
 /// Waker containing a count that gets incremented by one on every wake.
 #[derive(Debug, Default)]
@@ -39,26 +41,30 @@ impl Wake for CountingWaker {
 /// plate.
 ///
 /// All `poll_` helper method currently shared the same counting waker.
-pub struct OperatorWrapper<O: BaseOperator> {
+pub struct OperatorWrapper<O: BaseOperator<R>, R: SystemRuntime> {
     pub waker: Arc<CountingWaker>,
     pub operator: O,
+    _r: PhantomData<R>,
 }
 
-impl<O> OperatorWrapper<O>
+impl<O, R> OperatorWrapper<O, R>
 where
-    O: BaseOperator,
+    O: BaseOperator<R>,
+    R: SystemRuntime,
 {
     pub fn new(operator: O) -> Self {
         OperatorWrapper {
             waker: Arc::new(CountingWaker::default()),
             operator,
+            _r: PhantomData,
         }
     }
 }
 
-impl<O> OperatorWrapper<O>
+impl<O, R> OperatorWrapper<O, R>
 where
-    O: ExecuteOperator,
+    O: ExecuteOperator<R>,
+    R: SystemRuntime,
 {
     #[track_caller]
     pub fn poll_execute(
@@ -87,9 +93,10 @@ where
     }
 }
 
-impl<O> OperatorWrapper<O>
+impl<O, R> OperatorWrapper<O, R>
 where
-    O: PullOperator,
+    O: PullOperator<R>,
+    R: SystemRuntime,
 {
     #[track_caller]
     pub fn poll_pull(
@@ -105,9 +112,10 @@ where
     }
 }
 
-impl<O> OperatorWrapper<O>
+impl<O, R> OperatorWrapper<O, R>
 where
-    O: PushOperator,
+    O: PushOperator<R>,
+    R: SystemRuntime,
 {
     #[track_caller]
     pub fn poll_push(

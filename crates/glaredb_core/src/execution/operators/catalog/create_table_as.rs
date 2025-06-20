@@ -19,6 +19,7 @@ use crate::execution::operators::{
     PollFinalize,
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 use crate::storage::datatable::{DataTable, DataTableAppendState};
 use crate::storage::storage_manager::StorageManager;
 
@@ -73,7 +74,7 @@ impl PhysicalCreateTableAs {
     }
 }
 
-impl BaseOperator for PhysicalCreateTableAs {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalCreateTableAs {
     const OPERATOR_NAME: &str = "CreateTableAs";
 
     type OperatorState = CreateTableAsOperatorState;
@@ -94,7 +95,7 @@ impl BaseOperator for PhysicalCreateTableAs {
     }
 }
 
-impl ExecuteOperator for PhysicalCreateTableAs {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalCreateTableAs {
     type PartitionExecuteState = CreateTableAsPartitionState;
 
     fn create_partition_execute_states(
@@ -215,6 +216,6 @@ impl ExecuteOperator for PhysicalCreateTableAs {
 
 impl Explainable for PhysicalCreateTableAs {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("CreateTableAs", conf).build()
     }
 }

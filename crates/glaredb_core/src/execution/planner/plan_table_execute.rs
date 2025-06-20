@@ -7,8 +7,12 @@ use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::expr::physical::column_expr::PhysicalColumnExpr;
 use crate::logical::logical_inout::LogicalTableExecute;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_table_execute(
         &mut self,
         mut inout: Node<LogicalTableExecute>,
@@ -46,7 +50,7 @@ impl OperatorPlanState<'_> {
 
         // Project function inputs first.
         let child = PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(
+            operator: PlannedOperator::new_execute::<_, R>(
                 self.id_gen.next_id(),
                 PhysicalProject::new(projections),
             ),
@@ -59,7 +63,7 @@ impl OperatorPlanState<'_> {
             PhysicalTableExecute::new(inout.node.function, additional_projections, input_types);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), operator),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), operator),
             children: vec![child],
         })
     }

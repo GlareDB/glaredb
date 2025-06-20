@@ -5,8 +5,12 @@ use crate::execution::operators::values::PhysicalValues;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_expression_list::LogicalExpressionList;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_expression_list(
         &mut self,
         mut list: Node<LogicalExpressionList>,
@@ -27,7 +31,7 @@ impl OperatorPlanState<'_> {
         let values = PhysicalValues::new(rows);
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_execute(self.id_gen.next_id(), values),
+            operator: PlannedOperator::new_execute::<_, R>(self.id_gen.next_id(), values),
             children: vec![child],
         })
     }

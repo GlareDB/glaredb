@@ -4,8 +4,12 @@ use super::OperatorPlanState;
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_drop::LogicalDrop;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_drop(&mut self, drop: Node<LogicalDrop>) -> Result<PlannedOperatorWithChildren> {
         let _location = drop.location;
 

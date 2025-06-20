@@ -6,6 +6,7 @@ use super::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::arrays::batch::Batch;
 use crate::arrays::datatype::DataType;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SingleRowScanPartitionState {
@@ -17,7 +18,7 @@ pub enum SingleRowScanPartitionState {
 #[derive(Debug)]
 pub struct PhysicalSingleRow;
 
-impl BaseOperator for PhysicalSingleRow {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalSingleRow {
     const OPERATOR_NAME: &str = "SingleRow";
 
     type OperatorState = ();
@@ -31,7 +32,7 @@ impl BaseOperator for PhysicalSingleRow {
     }
 }
 
-impl PullOperator for PhysicalSingleRow {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalSingleRow {
     type PartitionPullState = SingleRowScanPartitionState;
 
     fn create_partition_pull_states(
@@ -65,6 +66,6 @@ impl PullOperator for PhysicalSingleRow {
 
 impl Explainable for PhysicalSingleRow {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("SingleRow", conf).build()
     }
 }

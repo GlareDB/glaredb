@@ -25,6 +25,7 @@ use crate::buffer::buffer_manager::DefaultBufferManager;
 use crate::buffer::db_vec::DbVec;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::physical::PhysicalAggregateExpression;
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub enum UngroupedAggregatePartitionState {
@@ -159,7 +160,7 @@ impl PhysicalUngroupedAggregate {
     }
 }
 
-impl BaseOperator for PhysicalUngroupedAggregate {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalUngroupedAggregate {
     const OPERATOR_NAME: &str = "UngroupedAggregate";
 
     type OperatorState = UngroupedAggregateOperatorState;
@@ -195,7 +196,7 @@ impl BaseOperator for PhysicalUngroupedAggregate {
     }
 }
 
-impl ExecuteOperator for PhysicalUngroupedAggregate {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalUngroupedAggregate {
     type PartitionExecuteState = UngroupedAggregatePartitionState;
 
     fn create_partition_execute_states(
@@ -553,7 +554,7 @@ impl ExecuteOperator for PhysicalUngroupedAggregate {
 
 impl Explainable for PhysicalUngroupedAggregate {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("UngroupedAggregate", conf)
             .with_values(
                 "aggregates",
                 self.layout.aggregates.iter().map(|agg| agg.function.name),

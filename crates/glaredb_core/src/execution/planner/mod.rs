@@ -25,6 +25,7 @@ mod plan_unnest;
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::marker::PhantomData;
 
 use glaredb_error::{DbError, Result, not_implemented};
 use uuid::Uuid;
@@ -37,6 +38,7 @@ use crate::execution::operators::PlannedOperator;
 use crate::expr::physical::planner::PhysicalExpressionPlanner;
 use crate::logical::binder::bind_context::{BindContext, MaterializationRef};
 use crate::logical::operator::{self, LogicalNode, LogicalOperator};
+use crate::runtime::system::SystemRuntime;
 
 /// Output of physical planning.
 #[derive(Debug)]
@@ -87,15 +89,16 @@ impl OperatorPlanner {
     }
 
     /// Plan the intermediate pipelines.
-    pub fn plan<O>(
+    pub fn plan<O, R>(
         &self,
         root: operator::LogicalOperator,
-        db_context: &DatabaseContext,
+        db_context: &DatabaseContext<R>,
         bind_context: BindContext,
         sink: O,
     ) -> Result<PlannedQueryGraph>
     where
-        O: PushOperator,
+        O: PushOperator<R>,
+        R: SystemRuntime,
     {
         // Get the plans making up materializations.
         let mut mat_plans: Vec<(MaterializationRef, LogicalOperator)> = Vec::new();
@@ -104,7 +107,7 @@ impl OperatorPlanner {
             mat_plans.push((mat.mat_ref, plan));
         }
 
-        let mut state = OperatorPlanState::new(&self.config, db_context, &bind_context);
+        let mut state = OperatorPlanState::<R>::new(&self.config, db_context, &bind_context);
 
         // Plan materializations first.
         state.plan_materializations(mat_plans)?;
@@ -127,10 +130,10 @@ impl OperatorPlanner {
 }
 
 #[derive(Debug)]
-struct OperatorPlanState<'a> {
+struct OperatorPlanState<'a, R: SystemRuntime> {
     config: &'a OperatorPlanConfig,
     /// Session database context.
-    db_context: &'a DatabaseContext,
+    db_context: &'a DatabaseContext<R>,
     /// Bind context used during logical planning.
     ///
     /// Used to generate physical expressions, and determined data types
@@ -155,10 +158,13 @@ struct OperatorPlanState<'a> {
     id_gen: OperatorIdGen,
 }
 
-impl<'a> OperatorPlanState<'a> {
+impl<'a, R> OperatorPlanState<'a, R>
+where
+    R: SystemRuntime,
+{
     fn new(
         config: &'a OperatorPlanConfig,
-        db_context: &'a DatabaseContext,
+        db_context: &'a DatabaseContext<R>,
         bind_context: &'a BindContext,
     ) -> Self {
         let expr_planner = PhysicalExpressionPlanner::new(bind_context.get_table_list());
@@ -193,7 +199,10 @@ impl<'a> OperatorPlanState<'a> {
             };
 
             let operator = PlannedOperatorWithChildren {
-                operator: PlannedOperator::new_materializing(self.id_gen.next_id(), operator),
+                operator: PlannedOperator::new_materializing::<_, R>(
+                    self.id_gen.next_id(),
+                    operator,
+                ),
                 children: vec![mat_root],
             };
 

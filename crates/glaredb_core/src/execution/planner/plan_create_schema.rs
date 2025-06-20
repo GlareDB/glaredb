@@ -5,8 +5,12 @@ use crate::catalog::create::CreateSchemaInfo;
 use crate::execution::operators::PlannedOperatorWithChildren;
 use crate::logical::logical_create::LogicalCreateSchema;
 use crate::logical::operator::Node;
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_create_schema(
         &mut self,
         create: Node<LogicalCreateSchema>,

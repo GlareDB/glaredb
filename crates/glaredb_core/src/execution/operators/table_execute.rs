@@ -13,6 +13,7 @@ use crate::functions::table::{
     AnyTablePartitionState,
     PlannedTableFunction,
 };
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct TableExecuteOperatorState {
@@ -106,7 +107,7 @@ impl PhysicalTableExecute {
     }
 }
 
-impl BaseOperator for PhysicalTableExecute {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalTableExecute {
     const OPERATOR_NAME: &str = "TableExecute";
 
     type OperatorState = TableExecuteOperatorState;
@@ -127,7 +128,7 @@ impl BaseOperator for PhysicalTableExecute {
     }
 }
 
-impl ExecuteOperator for PhysicalTableExecute {
+impl<R: SystemRuntime> ExecuteOperator<R> for PhysicalTableExecute {
     type PartitionExecuteState = TableExecutePartitionState;
 
     fn create_partition_execute_states(
@@ -264,7 +265,7 @@ impl ExecuteOperator for PhysicalTableExecute {
 
 impl Explainable for PhysicalTableExecute {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf)
+        EntryBuilder::new("TableExecute", conf)
             .with_value("function", self.function.name)
             .with_values_if_verbose("input_types", &self.input_types)
             .build()

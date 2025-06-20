@@ -5,8 +5,12 @@ use crate::execution::operators::no_rows::PhysicalNoRows;
 use crate::execution::operators::{PlannedOperator, PlannedOperatorWithChildren};
 use crate::logical::logical_no_rows::LogicalNoRows;
 use crate::logical::operator::{LogicalNode, Node};
+use crate::runtime::system::SystemRuntime;
 
-impl OperatorPlanState<'_> {
+impl<R> OperatorPlanState<'_, R>
+where
+    R: SystemRuntime,
+{
     pub fn plan_no_rows(
         &mut self,
         node: Node<LogicalNoRows>,
@@ -18,7 +22,7 @@ impl OperatorPlanState<'_> {
         }
 
         Ok(PlannedOperatorWithChildren {
-            operator: PlannedOperator::new_pull(
+            operator: PlannedOperator::new_pull::<_, R>(
                 self.id_gen.next_id(),
                 PhysicalNoRows { datatypes },
             ),

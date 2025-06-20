@@ -17,6 +17,7 @@ use crate::execution::operators::{
     PushOperator,
 };
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 
 #[derive(Debug)]
 pub struct MaterializedResultsOperatorState {
@@ -33,7 +34,7 @@ pub struct PhysicalMaterializedResults {
     pub(crate) collection: Arc<ConcurrentColumnCollection>,
 }
 
-impl BaseOperator for PhysicalMaterializedResults {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalMaterializedResults {
     const OPERATOR_NAME: &str = "MaterializedResults";
 
     type OperatorState = MaterializedResultsOperatorState;
@@ -49,7 +50,7 @@ impl BaseOperator for PhysicalMaterializedResults {
     }
 }
 
-impl PushOperator for PhysicalMaterializedResults {
+impl<R: SystemRuntime> PushOperator<R> for PhysicalMaterializedResults {
     type PartitionPushState = MaterializedResultsPartitionState;
 
     fn create_partition_push_states(
@@ -95,6 +96,6 @@ impl PushOperator for PhysicalMaterializedResults {
 
 impl Explainable for PhysicalMaterializedResults {
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("MaterializedResults", conf).build()
     }
 }

@@ -11,6 +11,7 @@ use crate::catalog::entry::CatalogEntryInner;
 use crate::catalog::memory::MemoryCatalog;
 use crate::execution::operators::{BaseOperator, ExecutionProperties, PollPull, PullOperator};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
+use crate::runtime::system::SystemRuntime;
 use crate::storage::storage_manager::StorageManager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,13 +21,13 @@ pub enum DropPartitionState {
 }
 
 #[derive(Debug)]
-pub struct PhysicalDrop {
+pub struct PhysicalDrop<R: SystemRuntime> {
     pub(crate) storage: Arc<StorageManager>,
-    pub(crate) catalog: Arc<MemoryCatalog>,
+    pub(crate) catalog: Arc<MemoryCatalog<R>>,
     pub(crate) info: DropInfo,
 }
 
-impl BaseOperator for PhysicalDrop {
+impl<R: SystemRuntime> BaseOperator<R> for PhysicalDrop<R> {
     const OPERATOR_NAME: &str = "Drop";
 
     type OperatorState = ();
@@ -40,7 +41,7 @@ impl BaseOperator for PhysicalDrop {
     }
 }
 
-impl PullOperator for PhysicalDrop {
+impl<R: SystemRuntime> PullOperator<R> for PhysicalDrop<R> {
     type PartitionPullState = DropPartitionState;
 
     fn create_partition_pull_states(
@@ -80,8 +81,11 @@ impl PullOperator for PhysicalDrop {
     }
 }
 
-impl Explainable for PhysicalDrop {
+impl<R> Explainable for PhysicalDrop<R>
+where
+    R: SystemRuntime,
+{
     fn explain_entry(&self, conf: ExplainConfig) -> ExplainEntry {
-        EntryBuilder::new(Self::OPERATOR_NAME, conf).build()
+        EntryBuilder::new("Drop", conf).build()
     }
 }
