@@ -1,7 +1,6 @@
 use std::fmt::{self, Debug};
 
-use glaredb_error::{DbError, Result};
-use glaredb_proto::ProtoConv;
+use glaredb_error::Result;
 use half::f16;
 
 use super::array_buffer::{
@@ -72,61 +71,6 @@ impl PhysicalType {
 impl fmt::Display for PhysicalType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
-    }
-}
-
-impl ProtoConv for PhysicalType {
-    type ProtoType = glaredb_proto::generated::physical_type::PhysicalType;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(match self {
-            Self::UntypedNull => Self::ProtoType::UntypedNull,
-            Self::Boolean => Self::ProtoType::Boolean,
-            Self::Int8 => Self::ProtoType::Int8,
-            Self::Int16 => Self::ProtoType::Int16,
-            Self::Int32 => Self::ProtoType::Int32,
-            Self::Int64 => Self::ProtoType::Int64,
-            Self::Int128 => Self::ProtoType::Int128,
-            Self::UInt8 => Self::ProtoType::Uint8,
-            Self::UInt16 => Self::ProtoType::Uint16,
-            Self::UInt32 => Self::ProtoType::Uint32,
-            Self::UInt64 => Self::ProtoType::Uint64,
-            Self::UInt128 => Self::ProtoType::Uint128,
-            Self::Float16 => Self::ProtoType::Float16,
-            Self::Float32 => Self::ProtoType::Float32,
-            Self::Float64 => Self::ProtoType::Float64,
-            Self::Interval => Self::ProtoType::Interval,
-            Self::Utf8 => Self::ProtoType::Utf8,
-            Self::Binary => Self::ProtoType::Binary,
-            Self::List => Self::ProtoType::List,
-            Self::Struct => Self::ProtoType::Struct,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(match proto {
-            Self::ProtoType::InvalidPhysicalType => return Err(DbError::new("invalid")),
-            Self::ProtoType::UntypedNull => Self::UntypedNull,
-            Self::ProtoType::Boolean => Self::Boolean,
-            Self::ProtoType::Int8 => Self::Int8,
-            Self::ProtoType::Int16 => Self::Int16,
-            Self::ProtoType::Int32 => Self::Int32,
-            Self::ProtoType::Int64 => Self::Int64,
-            Self::ProtoType::Int128 => Self::Int128,
-            Self::ProtoType::Uint8 => Self::UInt8,
-            Self::ProtoType::Uint16 => Self::UInt16,
-            Self::ProtoType::Uint32 => Self::UInt32,
-            Self::ProtoType::Uint64 => Self::UInt64,
-            Self::ProtoType::Uint128 => Self::UInt128,
-            Self::ProtoType::Float16 => Self::Float16,
-            Self::ProtoType::Float32 => Self::Float32,
-            Self::ProtoType::Float64 => Self::Float64,
-            Self::ProtoType::Interval => Self::Interval,
-            Self::ProtoType::Utf8 => Self::Utf8,
-            Self::ProtoType::Binary => Self::Binary,
-            Self::ProtoType::List => Self::List,
-            Self::ProtoType::Struct => Self::Struct,
-        })
     }
 }
 

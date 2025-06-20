@@ -1,7 +1,5 @@
 use std::fmt;
 
-use glaredb_error::Result;
-use glaredb_proto::ProtoConv;
 use serde::{Deserialize, Serialize};
 
 use crate::functions::cast::format::{Formatter, IntervalFormatter};
@@ -88,25 +86,5 @@ impl Interval {
 impl fmt::Display for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         IntervalFormatter.write(self, f)
-    }
-}
-
-impl ProtoConv for Interval {
-    type ProtoType = glaredb_proto::generated::expr::IntervalScalar;
-
-    fn to_proto(&self) -> Result<Self::ProtoType> {
-        Ok(Self::ProtoType {
-            months: self.months,
-            days: self.days,
-            nanos: self.nanos,
-        })
-    }
-
-    fn from_proto(proto: Self::ProtoType) -> Result<Self> {
-        Ok(Self {
-            months: proto.months,
-            days: proto.days,
-            nanos: proto.nanos,
-        })
     }
 }
