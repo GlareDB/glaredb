@@ -112,10 +112,11 @@ impl BaseOperator for PhysicalTableExecute {
     type OperatorState = TableExecuteOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
-        let op_state = self
-            .function
-            .raw
-            .call_create_execute_operator_state(&self.function.bind_state, props)?;
+        let op_state = unsafe {
+            self.function
+                .raw
+                .call_create_execute_operator_state(&self.function.bind_state, props)?
+        };
 
         Ok(TableExecuteOperatorState {
             function_op_state: op_state,
@@ -136,12 +137,14 @@ impl ExecuteOperator for PhysicalTableExecute {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionExecuteState>> {
-        let states = self.function.raw.call_create_execute_partition_states(
-            &self.function.bind_state,
-            &operator_state.function_op_state,
-            props,
-            partitions,
-        )?;
+        let states = unsafe {
+            self.function.raw.call_create_execute_partition_states(
+                &self.function.bind_state,
+                &operator_state.function_op_state,
+                props,
+                partitions,
+            )?
+        };
 
         let states = if self.additional_projections.is_empty() {
             // No additional projections, just need to wrap the function's states.
@@ -185,14 +188,16 @@ impl ExecuteOperator for PhysicalTableExecute {
 
         if self.additional_projections.is_empty() {
             // Simple case, just delegate to table function.
-            return self.function.raw.call_poll_execute(
-                cx,
-                &self.function.bind_state,
-                &operator_state.function_op_state,
-                &mut state.function_state,
-                input,
-                output,
-            );
+            return unsafe {
+                self.function.raw.call_poll_execute(
+                    cx,
+                    &self.function.bind_state,
+                    &operator_state.function_op_state,
+                    &mut state.function_state,
+                    input,
+                    output,
+                )
+            };
         }
 
         // Otherwise we need to handle each row separately to properly expand
@@ -216,14 +221,16 @@ impl ExecuteOperator for PhysicalTableExecute {
             }
 
             // Call table func with an input batch containing only a single row.
-            let poll = self.function.raw.call_poll_execute(
-                cx,
-                &self.function.bind_state,
-                &operator_state.function_op_state,
-                &mut state.function_state,
-                &mut state.row_batch,
-                output,
-            )?;
+            let poll = unsafe {
+                self.function.raw.call_poll_execute(
+                    cx,
+                    &self.function.bind_state,
+                    &operator_state.function_op_state,
+                    &mut state.function_state,
+                    &mut state.row_batch,
+                    output,
+                )?
+            };
 
             if poll == PollExecute::NeedsMore {
                 // Need to go to next row for meaningful output.
@@ -257,12 +264,14 @@ impl ExecuteOperator for PhysicalTableExecute {
         operator_state: &Self::OperatorState,
         state: &mut Self::PartitionExecuteState,
     ) -> Result<PollFinalize> {
-        self.function.raw.call_poll_finalize_execute(
-            cx,
-            &self.function.bind_state,
-            &operator_state.function_op_state,
-            &mut state.function_state,
-        )
+        unsafe {
+            self.function.raw.call_poll_finalize_execute(
+                cx,
+                &self.function.bind_state,
+                &operator_state.function_op_state,
+                &mut state.function_state,
+            )
+        }
     }
 }
 

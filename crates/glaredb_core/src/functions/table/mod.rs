@@ -47,11 +47,11 @@ impl TableFunctionInput {
 // Should we just arc all of it?
 #[derive(Debug, Clone)]
 pub struct RawTableFunctionBindState {
-    pub state: Arc<dyn Any + Sync + Send>,
-    pub input: TableFunctionInput,
-    pub data_schema: ColumnSchema,
-    pub meta_schema: Option<ColumnSchema>,
-    pub cardinality: StatisticsValue<usize>,
+    pub(crate) state: Arc<dyn Any + Sync + Send>,
+    pub(crate) input: TableFunctionInput,
+    pub(crate) data_schema: ColumnSchema,
+    pub(crate) meta_schema: Option<ColumnSchema>,
+    pub(crate) cardinality: StatisticsValue<usize>,
 }
 
 #[derive(Debug)]
@@ -104,6 +104,16 @@ pub struct AnyTableOperatorState(Arc<dyn Any + Sync + Send>);
 #[derive(Debug)]
 pub struct AnyTablePartitionState(Box<dyn Any + Sync + Send>);
 
+/// A raw table function contains the vtable for the function implementation
+/// alongside a signature.
+///
+/// # Safety
+///
+/// All public methods are safe.
+///
+/// All crate visible methods that accept various states (bind state, op state,
+/// partition state) are unsafe as they require the states passed to the methods
+/// to be the correct underlying type.
 #[derive(Debug, Clone, Copy)]
 pub struct RawTableFunction {
     signature: &'static Signature,
@@ -115,7 +125,6 @@ unsafe impl Send for RawTableFunction {}
 unsafe impl Sync for RawTableFunction {}
 
 // TODO: Remove `function` args.
-// TODO: Make the functions accepting state unsafe.
 impl RawTableFunction {
     pub const fn new_execute<F>(sig: &'static Signature, _function: &'static F) -> Self
     where
@@ -139,7 +148,15 @@ impl RawTableFunction {
         }
     }
 
-    pub async fn call_scan_bind(
+    pub const fn function_type(&self) -> TableFunctionType {
+        self.function_type
+    }
+
+    pub const fn signature(&self) -> &Signature {
+        self.signature
+    }
+
+    pub(crate) async fn call_scan_bind(
         &self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
@@ -150,14 +167,14 @@ impl RawTableFunction {
         fut.await
     }
 
-    pub fn call_execute_bind(
+    pub(crate) fn call_execute_bind(
         &self,
         input: TableFunctionInput,
     ) -> Result<RawTableFunctionBindState> {
         unsafe { (self.vtable.execute_bind_fn)(input) }
     }
 
-    pub fn call_create_pull_operator_state(
+    pub(crate) unsafe fn call_create_pull_operator_state(
         &self,
         bind_state: &RawTableFunctionBindState,
         projections: Projections,
@@ -174,7 +191,7 @@ impl RawTableFunction {
         }
     }
 
-    pub fn call_create_pull_partition_states(
+    pub(crate) unsafe fn call_create_pull_partition_states(
         &self,
         bind_state: &RawTableFunctionBindState,
         op_state: &AnyTableOperatorState,
@@ -191,7 +208,7 @@ impl RawTableFunction {
         }
     }
 
-    pub fn call_create_execute_operator_state(
+    pub(crate) unsafe fn call_create_execute_operator_state(
         &self,
         bind_state: &RawTableFunctionBindState,
         props: ExecutionProperties,
@@ -199,7 +216,7 @@ impl RawTableFunction {
         unsafe { (self.vtable.create_execute_operator_state_fn)(bind_state.state.as_ref(), props) }
     }
 
-    pub fn call_create_execute_partition_states(
+    pub(crate) unsafe fn call_create_execute_partition_states(
         &self,
         bind_state: &RawTableFunctionBindState,
         op_state: &AnyTableOperatorState,
@@ -216,7 +233,7 @@ impl RawTableFunction {
         }
     }
 
-    pub fn call_poll_execute(
+    pub(crate) unsafe fn call_poll_execute(
         &self,
         cx: &mut Context,
         bind_state: &RawTableFunctionBindState,
@@ -237,7 +254,7 @@ impl RawTableFunction {
         }
     }
 
-    pub fn call_poll_pull(
+    pub(crate) unsafe fn call_poll_pull(
         &self,
         cx: &mut Context,
         bind_state: &RawTableFunctionBindState,
@@ -256,7 +273,7 @@ impl RawTableFunction {
         }
     }
 
-    pub fn call_poll_finalize_execute(
+    pub(crate) unsafe fn call_poll_finalize_execute(
         &self,
         cx: &mut Context,
         bind_state: &RawTableFunctionBindState,
@@ -272,20 +289,13 @@ impl RawTableFunction {
             )
         }
     }
-
-    pub fn function_type(&self) -> TableFunctionType {
-        self.function_type
-    }
-
-    pub fn signature(&self) -> &Signature {
-        self.signature
-    }
 }
 
 type ScanBindFut<'a> = Pin<Box<dyn Future<Output = Result<RawTableFunctionBindState>> + Send + 'a>>;
 
 #[derive(Debug, Clone, Copy)]
-pub struct RawTableFunctionVTable {
+#[allow(clippy::type_complexity)]
+struct RawTableFunctionVTable {
     scan_bind_fn:
         unsafe fn(scan_context: ScanContext, input: TableFunctionInput) -> Result<ScanBindFut>,
 
