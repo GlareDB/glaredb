@@ -1,3 +1,5 @@
+//! Basic end-to-end example of running a query and pretty printing the results.
+
 use std::error::Error;
 
 use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
