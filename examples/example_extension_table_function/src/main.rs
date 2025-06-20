@@ -18,7 +18,7 @@ use glaredb_core::error::Result;
 use glaredb_core::execution::operators::{ExecutionProperties, PollPull};
 use glaredb_core::extension::{Extension, ExtensionFunctions, ExtensionTableFunction};
 use glaredb_core::functions::Signature;
-use glaredb_core::functions::documentation::{Category, Documentation, Example};
+use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::TableFunctionSet;
 use glaredb_core::functions::table::scan::{ScanContext, TableScanFunction};
 use glaredb_core::functions::table::{
