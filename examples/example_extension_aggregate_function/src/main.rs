@@ -17,7 +17,7 @@ use glaredb_core::functions::Signature;
 use glaredb_core::functions::aggregate::RawAggregateFunction;
 use glaredb_core::functions::aggregate::simple::{SimpleUnaryAggregate, UnaryAggregate};
 use glaredb_core::functions::bind_state::BindState;
-use glaredb_core::functions::documentation::{Category, Documentation, Example};
+use glaredb_core::functions::documentation::{Category, Documentation};
 use glaredb_core::functions::function_set::AggregateFunctionSet;
 use glaredb_rt_native::runtime::{NativeSystemRuntime, ThreadedNativeExecutor};
 
@@ -29,38 +29,35 @@ impl Extension for MyCustomExtension {
     const FUNCTIONS: Option<&'static ExtensionFunctions> = Some(&ExtensionFunctions {
         namespace: "custom",
         scalar: &[],
-        aggregate: &[&FUNCTION_SET_CUSTOM_SUM],
+        aggregate: &[&FUNCTION_SET_DOUBLE_SUM],
         table: &[],
     });
 }
 
-pub const FUNCTION_SET_CUSTOM_SUM: AggregateFunctionSet = AggregateFunctionSet {
-    name: "custom_sum",
-    aliases: &["custom_sum_alias"],
+pub const FUNCTION_SET_DOUBLE_SUM: AggregateFunctionSet = AggregateFunctionSet {
+    name: "double_sum",
+    aliases: &["double_sum_alias"],
     doc: &[&Documentation {
         category: Category::GENERAL_PURPOSE_AGGREGATE,
-        description: "Computes the sum of all non-NULL integer inputs.",
+        description: "Computes the sum of all non-NULL integer inputs and doubles the result.",
         arguments: &["input"],
-        example: Some(Example {
-            example: "custom_sum(column_name)",
-            output: "sum of all values",
-        }),
+        example: None,
     }],
     functions: &[RawAggregateFunction::new(
         &Signature::new(&[DataTypeId::Int64], DataTypeId::Int64),
-        &SimpleUnaryAggregate::new(&CustomSum),
+        &SimpleUnaryAggregate::new(&DoubleSum),
     )],
 };
 
 #[derive(Debug, Clone, Copy)]
-pub struct CustomSum;
+pub struct DoubleSum;
 
-impl UnaryAggregate for CustomSum {
+impl UnaryAggregate for DoubleSum {
     type Input = PhysicalI64;
     type Output = PhysicalI64;
 
     type BindState = ();
-    type GroupState = CustomSumState;
+    type GroupState = DoubleSumState;
 
     fn bind(&self, inputs: Vec<Expression>) -> Result<BindState<Self::BindState>> {
         Ok(BindState {
@@ -76,12 +73,12 @@ impl UnaryAggregate for CustomSum {
 }
 
 #[derive(Debug, Default)]
-pub struct CustomSumState {
+pub struct DoubleSumState {
     sum: i64,
     valid: bool,
 }
 
-impl AggregateState<&i64, i64> for CustomSumState {
+impl AggregateState<&i64, i64> for DoubleSumState {
     type BindState = ();
 
     fn merge(&mut self, _state: &(), other: &mut Self) -> Result<()> {
@@ -90,8 +87,8 @@ impl AggregateState<&i64, i64> for CustomSumState {
         Ok(())
     }
 
-    fn update(&mut self, _state: &(), input: &i64) -> Result<()> {
-        self.sum = self.sum.wrapping_add(*input);
+    fn update(&mut self, _state: &(), &input: &i64) -> Result<()> {
+        self.sum = self.sum.wrapping_add(input);
         self.valid = true;
         Ok(())
     }
@@ -101,7 +98,8 @@ impl AggregateState<&i64, i64> for CustomSumState {
         M: AddressableMut<T = i64>,
     {
         if self.valid {
-            output.put(&self.sum);
+            let double = self.sum * 2;
+            output.put(&double);
         } else {
             output.put_null();
         }
@@ -128,15 +126,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Ok(())
     };
 
-    query_and_print("SELECT custom.custom_sum(a) FROM generate_series(1, 5) g(a)").await?;
+    query_and_print("SELECT custom.double_sum(a) FROM generate_series(1, 5) g(a)").await?;
 
-    query_and_print("SELECT custom.custom_sum(a) FROM generate_series(1, 10) g(a)").await?;
+    query_and_print("SELECT custom.double_sum(a) FROM generate_series(1, 10) g(a) WHERE false")
+        .await?;
 
-    query_and_print("SELECT custom.custom_sum_alias(a) FROM generate_series(1, 3) g(a)").await?;
+    query_and_print("SELECT custom.double_sum_alias(a) FROM generate_series(1, 3) g(a)").await?;
 
-    query_and_print("SELECT custom.custom_sum(a) FROM VALUES (4), (5), (NULL), (7) v(a)").await?;
+    query_and_print("SELECT custom.double_sum(a) FROM VALUES (4), (5), (NULL), (7) v(a)").await?;
 
-    query_and_print("SELECT function_name, alias_of, description, example, example_output FROM list_functions() WHERE schema_name = 'custom'").await?;
+    query_and_print("SELECT function_name, alias_of, description FROM list_functions() WHERE schema_name = 'custom'").await?;
 
     Ok(())
 }
