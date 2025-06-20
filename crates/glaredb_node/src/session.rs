@@ -4,10 +4,6 @@ use glaredb_core::arrays::format::pretty::components::PRETTY_COMPONENTS;
 use glaredb_core::arrays::format::pretty::table::PrettyTable;
 use glaredb_core::engine::single_user::SingleUserEngine;
 use glaredb_error::DbError;
-use glaredb_ext_csv::extension::CsvExtension;
-use glaredb_ext_parquet::extension::ParquetExtension;
-use glaredb_ext_spark::SparkExtension;
-use glaredb_ext_tpch_gen::TpchGenExtension;
 use glaredb_rt_native::runtime::{
     NativeSystemRuntime,
     ThreadedNativeExecutor,
@@ -29,17 +25,7 @@ pub fn connect() -> napi::Result<NodeSession> {
     let engine = SingleUserEngine::try_new(executor, runtime.clone())
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
 
-    engine
-        .register_extension(SparkExtension)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    engine
-        .register_extension(TpchGenExtension)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    engine
-        .register_extension(CsvExtension)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    engine
-        .register_extension(ParquetExtension)
+    glaredb_ext_default::register_all(&engine.engine)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
 
     Ok(NodeSession {
@@ -59,12 +45,12 @@ pub struct NodeSession {
 #[napi]
 impl NodeSession {
     #[napi]
-    pub async unsafe fn sql(&mut self, sql: String) -> napi::Result<NodeQueryResult> {
-        unsafe { self.query(sql).await }
+    pub async fn sql(&self, sql: String) -> napi::Result<NodeQueryResult> {
+        self.query(sql).await
     }
 
     #[napi]
-    pub async unsafe fn query(&mut self, sql: String) -> napi::Result<NodeQueryResult> {
+    pub async fn query(&self, sql: String) -> napi::Result<NodeQueryResult> {
         let session = self.try_get_engine()?.session().clone();
 
         let mut q_res = session
