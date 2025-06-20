@@ -732,6 +732,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5692dd7b5a1978a5aeb0ce83b7655c58ca8efdcb79d21036ea249da95afec2c6"
 
 [[package]]
+name = "example_basic"
+version = "25.6.3"
+dependencies = [
+ "glaredb_core",
+ "glaredb_ext_default",
+ "glaredb_rt_native",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
