@@ -93,3 +93,6 @@ let table = PrettyTable::try_new(
 ).unwrap();
 println!("{table}");
 ```
+
+See [Examples](https://github.com/GlareDB/glaredb/tree/main/examples) for
+end-to-end Rust examples.

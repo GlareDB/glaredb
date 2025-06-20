@@ -18,3 +18,7 @@ pub mod storage;
 pub mod util;
 
 pub mod testutil;
+
+// Re-export the error crate so that user's can just depend on `glaredb_core`
+// for the types.
+pub use glaredb_error as error;
