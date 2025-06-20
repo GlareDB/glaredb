@@ -1,0 +1,68 @@
+statement ok
+SET verify_optimized_plan TO true;
+
+# Test basic repeat functionality
+query I
+SELECT * FROM repeat(5, 3)
+----
+5
+5
+5
+
+# Test repeat with zero count
+query I
+SELECT * FROM repeat(10, 0)
+----
+
+# Test repeat with negative value
+query I
+SELECT * FROM repeat(-7, 2)
+----
+-7
+-7
+
+# Test repeat with large count
+query I
+SELECT * FROM repeat(1, 10)
+----
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+
+# Test repeat in WHERE clause
+query I
+SELECT * FROM repeat(42, 5) WHERE repeat = 42
+----
+42
+42
+42
+42
+42
+
+# Test repeat with aggregation
+query I
+SELECT COUNT(*) FROM repeat(100, 7)
+----
+7
+
+# Test repeat with SUM
+query I
+SELECT SUM(repeat) FROM repeat(3, 4)
+----
+12
+
+# Test multiple repeat calls in same query
+query II
+SELECT a.repeat, b.repeat FROM repeat(1, 2) a, repeat(2, 2) b
+----
+1 2
+1 2
+1 2
+1 2

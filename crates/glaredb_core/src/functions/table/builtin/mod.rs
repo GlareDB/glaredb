@@ -5,6 +5,7 @@ pub mod list_schemas;
 pub mod memory_scan;
 pub mod profile;
 pub mod read_text;
+pub mod repeat;
 pub mod series;
 pub mod unnest;
 
@@ -24,6 +25,7 @@ use profile::{
     FUNCTION_SET_QUERY_INFO,
 };
 use read_text::FUNCTION_SET_READ_TEXT;
+use repeat::FUNCTION_SET_REPEAT;
 use series::FUNCTION_SET_GENERATE_SERIES;
 use unnest::FUNCTION_SET_UNNEST;
 
@@ -31,6 +33,7 @@ use crate::functions::function_set::TableFunctionSet;
 
 pub const BUILTIN_TABLE_FUNCTION_SETS: &[TableFunctionSet] = &[
     FUNCTION_SET_GENERATE_SERIES,
+    FUNCTION_SET_REPEAT,
     FUNCTION_SET_UNNEST,
     // System functions.
     FUNCTION_SET_LIST_DATABASES,
