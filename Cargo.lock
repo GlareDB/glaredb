@@ -1114,6 +1114,7 @@ dependencies = [
  "glaredb_rt_native",
  "napi",
  "napi-derive",
+ "serde_json",
  "tokio",
 ]
 

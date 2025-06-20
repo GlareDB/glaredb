@@ -1,13 +1,24 @@
 {
-  "name": "@glaredb/glaredb",
-  "version": "25.6.3",
   "description": "GlareDB Node.js bindings",
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  },
+  "engines": {
+    "node": ">= 10"
+  },
+  "homepage": "https://glaredb.com",
+  "keywords": [
+    "database",
+    "sql",
+    "analytics",
+    "glaredb"
+  ],
+  "license": "MIT",
   "main": "index.js",
-  "types": "index.d.ts",
+  "name": "@glaredb/glaredb",
   "napi": {
     "name": "glaredb",
     "triples": {
-      "defaults": true,
       "additional": [
         "x86_64-unknown-linux-musl",
         "aarch64-unknown-linux-gnu",
@@ -16,15 +27,13 @@
         "aarch64-apple-darwin",
         "aarch64-pc-windows-msvc",
         "aarch64-unknown-linux-musl"
-      ]
+      ],
+      "defaults": true
     }
   },
-  "license": "MIT",
-  "devDependencies": {
-    "@napi-rs/cli": "^2.18.4"
-  },
-  "engines": {
-    "node": ">= 10"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/glaredb/glaredb.git"
   },
   "scripts": {
     "artifacts": "napi artifacts",
@@ -35,15 +44,6 @@
     "universal": "napi universal",
     "version": "napi version"
   },
-  "keywords": [
-    "database",
-    "sql",
-    "analytics",
-    "glaredb"
-  ],
-  "homepage": "https://glaredb.com",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/glaredb/glaredb.git"
-  }
+  "types": "index.d.ts",
+  "version": "25.6.3"
 }
