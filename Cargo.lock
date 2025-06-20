@@ -194,12 +194,7 @@ dependencies = [
  "glaredb_bench",
  "glaredb_core",
  "glaredb_error",
- "glaredb_ext_csv",
  "glaredb_ext_default",
- "glaredb_ext_iceberg",
- "glaredb_ext_parquet",
- "glaredb_ext_spark",
- "glaredb_ext_tpch_gen",
  "glaredb_rt_native",
  "harness",
 ]
@@ -678,9 +673,6 @@ version = "25.6.3"
 dependencies = [
  "glaredb_core",
  "glaredb_error",
- "glaredb_ext_csv",
- "glaredb_ext_delta",
- "glaredb_ext_iceberg",
  "glaredb_rt_native",
  "logutil",
  "regex",
@@ -922,14 +914,12 @@ version = "25.6.3"
 dependencies = [
  "clap",
  "crossterm",
- "futures",
  "glaredb_core",
  "glaredb_error",
  "glaredb_ext_default",
  "glaredb_rt_native",
  "logutil",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -937,13 +927,10 @@ name = "glaredb_bench"
 version = "25.6.3"
 dependencies = [
  "clap",
- "futures",
  "glaredb_core",
  "glaredb_error",
  "glaredb_rt_native",
  "harness",
- "logutil",
- "parking_lot",
  "tokio",
 ]
 
@@ -956,27 +943,22 @@ dependencies = [
  "futures",
  "glaredb_error",
  "glaredb_parser",
- "glaredb_proto",
  "globset",
  "half",
  "hashbrown 0.14.5",
  "indexmap",
  "md5",
  "num-traits",
- "num_cpus",
  "parking_lot",
  "rand",
  "rand_chacha",
- "rayon",
  "regex",
  "scc",
  "serde",
  "serde_json",
  "strsim",
  "textwrap",
- "tokio",
  "tracing",
- "url",
  "uuid",
 ]
 
@@ -988,16 +970,11 @@ version = "25.6.3"
 name = "glaredb_ext_csv"
 version = "25.6.3"
 dependencies = [
- "bytes",
  "csv",
  "csv-core",
  "futures",
  "glaredb_core",
  "glaredb_error",
- "glaredb_proto",
- "regex",
- "tracing",
- "url",
 ]
 
 [[package]]
@@ -1017,17 +994,10 @@ dependencies = [
 name = "glaredb_ext_delta"
 version = "25.6.3"
 dependencies = [
- "bytes",
- "futures",
- "glaredb_core",
  "glaredb_error",
- "glaredb_ext_parquet",
- "glaredb_proto",
- "regex",
  "serde",
  "serde_json",
  "tracing",
- "url",
 ]
 
 [[package]]
@@ -1035,18 +1005,14 @@ name = "glaredb_ext_iceberg"
 version = "25.6.3"
 dependencies = [
  "apache-avro",
- "bytes",
  "futures",
  "glaredb_core",
  "glaredb_error",
- "glaredb_ext_parquet",
  "glaredb_http",
- "glaredb_proto",
  "regex",
  "serde",
  "serde_bytes",
  "serde_json",
- "tracing",
  "url",
 ]
 
@@ -1104,10 +1070,8 @@ dependencies = [
  "glaredb_core",
  "glaredb_error",
  "hmac",
- "parking_lot",
  "percent-encoding",
  "quick-xml",
- "rand",
  "reqwest",
  "ring",
  "rustls-pemfile",
@@ -1123,7 +1087,6 @@ name = "glaredb_parser"
 version = "25.6.3"
 dependencies = [
  "glaredb_error",
- "glaredb_proto",
  "pretty_assertions",
  "serde",
  "tracing",
@@ -1133,15 +1096,11 @@ dependencies = [
 [[package]]
 name = "glaredb_proto"
 version = "25.6.3"
-dependencies = [
- "glaredb_error",
-]
 
 [[package]]
 name = "glaredb_python"
 version = "25.6.3"
 dependencies = [
- "futures",
  "glaredb_core",
  "glaredb_error",
  "glaredb_ext_csv",
@@ -1149,10 +1108,8 @@ dependencies = [
  "glaredb_ext_spark",
  "glaredb_ext_tpch_gen",
  "glaredb_rt_native",
- "parking_lot",
  "pyo3",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -1170,7 +1127,6 @@ dependencies = [
  "reqwest",
  "tokio",
  "tracing",
- "url",
 ]
 
 [[package]]
@@ -1183,9 +1139,7 @@ dependencies = [
  "glaredb_error",
  "glaredb_rt_native",
  "harness",
- "rand",
  "tokio",
- "uuid",
 ]
 
 [[package]]

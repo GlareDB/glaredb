@@ -14,9 +14,6 @@ logutil = { workspace = true }
 glaredb_error = { workspace = true }
 glaredb_core = { workspace = true }
 glaredb_rt_native = { workspace = true }
-glaredb_ext_csv = { workspace = true }
-glaredb_ext_delta = { workspace = true }
-glaredb_ext_iceberg = { workspace = true }
 regex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }

@@ -13,17 +13,8 @@ description = "DeltaLake extension for GlareDB"
 workspace = true
 
 [dependencies]
-glaredb_proto = { workspace = true }
-glaredb_core = { workspace = true }
 glaredb_error = { workspace = true }
-
-glaredb_ext_parquet = { workspace = true }
-
-futures = { workspace = true }
 tracing = { workspace = true }
-regex = { workspace = true }
-url = { workspace = true }
-bytes = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

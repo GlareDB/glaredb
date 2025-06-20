@@ -11,5 +11,4 @@ description = "Protobuf definitions for GlareDB (stub)"
 workspace = true
 
 [dependencies]
-glaredb_error = { workspace = true }
 

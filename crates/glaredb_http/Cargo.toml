@@ -21,7 +21,6 @@ bytes = { version = "1.10", default-features = false, features = ["std"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = { version = "0.7" }
-parking_lot = { workspace = true }
 chrono = { version = "0.4.41", features = ["serde"] }
 futures = { workspace = true }
 hmac = "0.12.1"
@@ -30,7 +29,6 @@ percent-encoding = "2.3.1"
 quick-xml = { version = "0.37.5", default-features = false, features = ["serialize"] }
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 rustls-pemfile = "2.2.0"
-rand = { workspace = true }
 # Sets the 'js' feature flag for getrandom 2.*
 #
 # Elsewhere we're using getrandom 3.* but ring still on the old version.

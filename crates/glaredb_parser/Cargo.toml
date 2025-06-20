@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 glaredb_error = { workspace = true }
-glaredb_proto = { workspace = true }
 unicase = "2.8.1"
 tracing = { workspace = true }
 serde = { workspace = true }
