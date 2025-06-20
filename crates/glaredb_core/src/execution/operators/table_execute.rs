@@ -137,6 +137,7 @@ impl ExecuteOperator for PhysicalTableExecute {
         partitions: usize,
     ) -> Result<Vec<Self::PartitionExecuteState>> {
         let states = self.function.raw.call_create_execute_partition_states(
+            &self.function.bind_state,
             &operator_state.function_op_state,
             props,
             partitions,
@@ -186,6 +187,7 @@ impl ExecuteOperator for PhysicalTableExecute {
             // Simple case, just delegate to table function.
             return self.function.raw.call_poll_execute(
                 cx,
+                &self.function.bind_state,
                 &operator_state.function_op_state,
                 &mut state.function_state,
                 input,
@@ -216,6 +218,7 @@ impl ExecuteOperator for PhysicalTableExecute {
             // Call table func with an input batch containing only a single row.
             let poll = self.function.raw.call_poll_execute(
                 cx,
+                &self.function.bind_state,
                 &operator_state.function_op_state,
                 &mut state.function_state,
                 &mut state.row_batch,
@@ -256,6 +259,7 @@ impl ExecuteOperator for PhysicalTableExecute {
     ) -> Result<PollFinalize> {
         self.function.raw.call_poll_finalize_execute(
             cx,
+            &self.function.bind_state,
             &operator_state.function_op_state,
             &mut state.function_state,
         )

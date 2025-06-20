@@ -111,6 +111,7 @@ impl PullOperator for PhysicalScan {
         partitions: usize,
     ) -> Result<Vec<Self::PartitionPullState>> {
         let states = self.function.raw.call_create_pull_partition_states(
+            &self.function.bind_state,
             &operator_state.state,
             props,
             partitions,
@@ -140,6 +141,7 @@ impl PullOperator for PhysicalScan {
 
         let poll = self.function.raw.call_poll_pull(
             cx,
+            &self.function.bind_state,
             &operator_state.state,
             &mut state.state,
             output,

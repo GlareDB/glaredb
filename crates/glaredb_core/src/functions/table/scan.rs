@@ -45,6 +45,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
 
     // TODO: Pass bind state here too. This will reduce some extra cloning.
     fn create_pull_partition_states(
+        bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
@@ -52,6 +53,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
 
     fn poll_pull(
         cx: &mut Context,
+        bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,

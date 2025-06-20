@@ -115,6 +115,7 @@ unsafe impl Send for RawTableFunction {}
 unsafe impl Sync for RawTableFunction {}
 
 // TODO: Remove `function` args.
+// TODO: Make the functions accepting state unsafe.
 impl RawTableFunction {
     pub const fn new_execute<F>(sig: &'static Signature, _function: &'static F) -> Self
     where
@@ -175,12 +176,18 @@ impl RawTableFunction {
 
     pub fn call_create_pull_partition_states(
         &self,
+        bind_state: &RawTableFunctionBindState,
         op_state: &AnyTableOperatorState,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyTablePartitionState>> {
         unsafe {
-            (self.vtable.create_pull_partition_states_fn)(op_state.0.as_ref(), props, partitions)
+            (self.vtable.create_pull_partition_states_fn)(
+                bind_state.state.as_ref(),
+                op_state.0.as_ref(),
+                props,
+                partitions,
+            )
         }
     }
 
@@ -194,18 +201,25 @@ impl RawTableFunction {
 
     pub fn call_create_execute_partition_states(
         &self,
+        bind_state: &RawTableFunctionBindState,
         op_state: &AnyTableOperatorState,
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<AnyTablePartitionState>> {
         unsafe {
-            (self.vtable.create_execute_partition_states_fn)(op_state.0.as_ref(), props, partitions)
+            (self.vtable.create_execute_partition_states_fn)(
+                bind_state.state.as_ref(),
+                op_state.0.as_ref(),
+                props,
+                partitions,
+            )
         }
     }
 
     pub fn call_poll_execute(
         &self,
         cx: &mut Context,
+        bind_state: &RawTableFunctionBindState,
         op_state: &AnyTableOperatorState,
         partition_state: &mut AnyTablePartitionState,
         input: &mut Batch,
@@ -214,6 +228,7 @@ impl RawTableFunction {
         unsafe {
             (self.vtable.poll_execute_fn)(
                 cx,
+                bind_state.state.as_ref(),
                 op_state.0.as_ref(),
                 partition_state.0.as_mut(),
                 input,
@@ -225,24 +240,33 @@ impl RawTableFunction {
     pub fn call_poll_pull(
         &self,
         cx: &mut Context,
+        bind_state: &RawTableFunctionBindState,
         op_state: &AnyTableOperatorState,
         partition_state: &mut AnyTablePartitionState,
         output: &mut Batch,
     ) -> Result<PollPull> {
         unsafe {
-            (self.vtable.poll_pull_fn)(cx, op_state.0.as_ref(), partition_state.0.as_mut(), output)
+            (self.vtable.poll_pull_fn)(
+                cx,
+                bind_state.state.as_ref(),
+                op_state.0.as_ref(),
+                partition_state.0.as_mut(),
+                output,
+            )
         }
     }
 
     pub fn call_poll_finalize_execute(
         &self,
         cx: &mut Context,
+        bind_state: &RawTableFunctionBindState,
         op_state: &AnyTableOperatorState,
         partition_state: &mut AnyTablePartitionState,
     ) -> Result<PollFinalize> {
         unsafe {
             (self.vtable.poll_finalize_execute_fn)(
                 cx,
+                bind_state.state.as_ref(),
                 op_state.0.as_ref(),
                 partition_state.0.as_mut(),
             )
@@ -275,6 +299,7 @@ pub struct RawTableFunctionVTable {
     ) -> Result<AnyTableOperatorState>,
 
     create_pull_partition_states_fn: unsafe fn(
+        bind_state: &dyn Any,
         op_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
@@ -286,6 +311,7 @@ pub struct RawTableFunctionVTable {
     ) -> Result<AnyTableOperatorState>,
 
     create_execute_partition_states_fn: unsafe fn(
+        bind_state: &dyn Any,
         op_state: &dyn Any,
         props: ExecutionProperties,
         partitions: usize,
@@ -293,6 +319,7 @@ pub struct RawTableFunctionVTable {
 
     poll_execute_fn: unsafe fn(
         cx: &mut Context,
+        bind_state: &dyn Any,
         op_state: &dyn Any,
         partition_state: &mut dyn Any,
         input: &mut Batch,
@@ -301,12 +328,14 @@ pub struct RawTableFunctionVTable {
 
     poll_finalize_execute_fn: unsafe fn(
         cx: &mut Context,
+        bind_state: &dyn Any,
         op_state: &dyn Any,
         partition_state: &mut dyn Any,
     ) -> Result<PollFinalize>,
 
     poll_pull_fn: unsafe fn(
         cx: &mut Context,
+        bind_state: &dyn Any,
         op_state: &dyn Any,
         partition_state: &mut dyn Any,
         output: &mut Batch,
@@ -342,7 +371,7 @@ where
         create_pull_operator_state_fn: |_bind_state, _projections, _filters, _props| {
             Err(DbError::new("Not a scan function"))
         },
-        create_pull_partition_states_fn: |_bind_state, _props, _partitions| {
+        create_pull_partition_states_fn: |_bind_state, _op_state, _props, _partitions| {
             Err(DbError::new("Not a scan function"))
         },
         create_execute_operator_state_fn: |bind_state, props| {
@@ -352,11 +381,15 @@ where
             let op_state = F::create_execute_operator_state(bind_state, props)?;
             Ok(AnyTableOperatorState(Arc::new(op_state)))
         },
-        create_execute_partition_states_fn: |op_state, props, partitions| {
+        create_execute_partition_states_fn: |bind_state, op_state, props, partitions| {
+            let bind_state = bind_state
+                .downcast_ref::<<F as TableExecuteFunction>::BindState>()
+                .unwrap();
             let op_state = op_state
                 .downcast_ref::<<F as TableExecuteFunction>::OperatorState>()
                 .unwrap();
-            let states = F::create_execute_partition_states(op_state, props, partitions)?;
+            let states =
+                F::create_execute_partition_states(bind_state, op_state, props, partitions)?;
             let states = states
                 .into_iter()
                 .map(|state| AnyTablePartitionState(Box::new(state)))
@@ -365,26 +398,32 @@ where
             Ok(states)
         },
 
-        poll_execute_fn: |cx, op_state, partition_state, input, output| {
+        poll_execute_fn: |cx, bind_state, op_state, partition_state, input, output| {
+            let bind_state = bind_state
+                .downcast_ref::<<F as TableExecuteFunction>::BindState>()
+                .unwrap();
             let op_state = op_state
                 .downcast_ref::<<F as TableExecuteFunction>::OperatorState>()
                 .unwrap();
             let partition_state = partition_state
                 .downcast_mut::<<F as TableExecuteFunction>::PartitionState>()
                 .unwrap();
-            F::poll_execute(cx, op_state, partition_state, input, output)
+            F::poll_execute(cx, bind_state, op_state, partition_state, input, output)
         },
-        poll_finalize_execute_fn: |cx, op_state, partition_state| {
+        poll_finalize_execute_fn: |cx, bind_state, op_state, partition_state| {
+            let bind_state = bind_state
+                .downcast_ref::<<F as TableExecuteFunction>::BindState>()
+                .unwrap();
             let op_state = op_state
                 .downcast_ref::<<F as TableExecuteFunction>::OperatorState>()
                 .unwrap();
             let partition_state = partition_state
                 .downcast_mut::<<F as TableExecuteFunction>::PartitionState>()
                 .unwrap();
-            F::poll_finalize_execute(cx, op_state, partition_state)
+            F::poll_finalize_execute(cx, bind_state, op_state, partition_state)
         },
 
-        poll_pull_fn: |_cx, _op_state, _partition_state, _output| {
+        poll_pull_fn: |_cx, _bind_state, _op_state, _partition_state, _output| {
             Err(DbError::new("Not a scan functions"))
         },
     };
@@ -420,11 +459,14 @@ where
             let op_state = F::create_pull_operator_state(bind_state, projections, filters, props)?;
             Ok(AnyTableOperatorState(Arc::new(op_state)))
         },
-        create_pull_partition_states_fn: |op_state, props, partitions| {
+        create_pull_partition_states_fn: |bind_state, op_state, props, partitions| {
+            let bind_state = bind_state
+                .downcast_ref::<<F as TableScanFunction>::BindState>()
+                .unwrap();
             let op_state = op_state
                 .downcast_ref::<<F as TableScanFunction>::OperatorState>()
                 .unwrap();
-            let states = F::create_pull_partition_states(op_state, props, partitions)?;
+            let states = F::create_pull_partition_states(bind_state, op_state, props, partitions)?;
             let states = states
                 .into_iter()
                 .map(|state| AnyTablePartitionState(Box::new(state)))
@@ -435,25 +477,28 @@ where
         create_execute_operator_state_fn: |_bind_state, _props| {
             Err(DbError::new("Not an execute function"))
         },
-        create_execute_partition_states_fn: |_op_state, _props, _partitions| {
+        create_execute_partition_states_fn: |_bind_state, _op_state, _props, _partitions| {
             Err(DbError::new("Not an execute function"))
         },
 
-        poll_execute_fn: |_cx, _op_state, _partition_state, _input, _output| {
+        poll_execute_fn: |_cx, _bind_state, _op_state, _partition_state, _input, _output| {
             Err(DbError::new("Not an execute function"))
         },
-        poll_finalize_execute_fn: |_cx, _op_state, _partition_state| {
+        poll_finalize_execute_fn: |_cx, _bind_state, _op_state, _partition_state| {
             Err(DbError::new("Not an execute function"))
         },
 
-        poll_pull_fn: |cx, op_state, partition_state, output| {
+        poll_pull_fn: |cx, bind_state, op_state, partition_state, output| {
+            let bind_state = bind_state
+                .downcast_ref::<<F as TableScanFunction>::BindState>()
+                .unwrap();
             let op_state = op_state
                 .downcast_ref::<<F as TableScanFunction>::OperatorState>()
                 .unwrap();
             let partition_state = partition_state
                 .downcast_mut::<<F as TableScanFunction>::PartitionState>()
                 .unwrap();
-            F::poll_pull(cx, op_state, partition_state, output)
+            F::poll_pull(cx, bind_state, op_state, partition_state, output)
         },
     };
 }

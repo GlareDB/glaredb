@@ -113,6 +113,7 @@ impl TableScanFunction for MemoryScan {
     }
 
     fn create_pull_partition_states(
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         _props: ExecutionProperties,
         partitions: usize,
@@ -128,6 +129,7 @@ impl TableScanFunction for MemoryScan {
 
     fn poll_pull(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,

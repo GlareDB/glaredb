@@ -125,6 +125,7 @@ impl TableScanFunction for ReadText {
     }
 
     fn create_pull_partition_states(
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         _props: ExecutionProperties,
         partitions: usize,
@@ -154,6 +155,7 @@ impl TableScanFunction for ReadText {
 
     fn poll_pull(
         cx: &mut Context,
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,

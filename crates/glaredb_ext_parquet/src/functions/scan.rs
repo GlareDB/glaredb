@@ -164,6 +164,7 @@ impl TableScanFunction for ReadParquet {
     }
 
     fn create_pull_partition_states(
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         _props: ExecutionProperties,
         partitions: usize,
@@ -233,6 +234,7 @@ impl TableScanFunction for ReadParquet {
 
     fn poll_pull(
         cx: &mut Context,
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,

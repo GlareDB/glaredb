@@ -197,6 +197,7 @@ impl TableScanFunction for ListTables {
     }
 
     fn create_pull_partition_states(
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
@@ -213,6 +214,7 @@ impl TableScanFunction for ListTables {
 
     fn poll_pull(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,
@@ -312,6 +314,7 @@ impl TableScanFunction for ListViews {
     }
 
     fn create_pull_partition_states(
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
@@ -328,6 +331,7 @@ impl TableScanFunction for ListViews {
 
     fn poll_pull(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,
@@ -487,6 +491,7 @@ impl TableScanFunction for ListFunctions {
     }
 
     fn create_pull_partition_states(
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
@@ -550,6 +555,7 @@ impl TableScanFunction for ListFunctions {
 
     fn poll_pull(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,
