@@ -15,9 +15,5 @@ glaredb_core = { workspace = true }
 glaredb_rt_native = { workspace = true }
 
 harness = { workspace = true }
-logutil = { workspace = true }
-
-futures = { workspace = true }
 tokio = { workspace = true }
-parking_lot = { workspace = true }
 clap = { workspace = true }

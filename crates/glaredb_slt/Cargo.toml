@@ -17,7 +17,5 @@ glaredb_rt_native = { workspace = true }
 harness = { workspace = true }
 
 tokio = { version = "1", features = ["full"] }
-rand = { workspace = true }
 crossterm = "0.29.0"
-uuid = { workspace = true }
 clap = { workspace = true }

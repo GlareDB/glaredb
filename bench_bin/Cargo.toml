@@ -12,11 +12,6 @@ glaredb_rt_native = { path = '../crates/glaredb_rt_native' }
 glaredb_bench = { path = '../crates/glaredb_bench' }
 
 glaredb_ext_default = { path = '../crates/glaredb_ext_default' }
-glaredb_ext_spark = { path = '../crates/glaredb_ext_spark' }
-glaredb_ext_csv = { path = '../crates/glaredb_ext_csv' }
-glaredb_ext_parquet = { path = '../crates/glaredb_ext_parquet' }
-glaredb_ext_tpch_gen = { path = '../crates/glaredb_ext_tpch_gen' }
-glaredb_ext_iceberg = { path = '../crates/glaredb_ext_iceberg' }
 
 harness = { path = '../crates/harness' }
 

@@ -21,7 +21,5 @@ glaredb_rt_native = { workspace = true }
 glaredb_ext_default = { workspace = true }
 
 tracing = { workspace = true }
-tracing-subscriber = {version = "0.3", features = ["std", "fmt", "json", "env-filter"] }
-futures = { workspace = true }
 crossterm = "0.29.0"
 clap = { workspace = true }

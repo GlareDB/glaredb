@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 glaredb_error = { workspace = true }
-glaredb_proto = { workspace = true }
 glaredb_parser = { workspace = true }
 
 ahash = { workspace = true }
@@ -22,13 +21,9 @@ chrono = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true, features = ["raw"] }
 num-traits = "0.2.19"
-num_cpus = "1.17.0"
 parking_lot = { workspace = true }
-rayon = { workspace = true }
 tracing = { workspace = true }
-tokio = { workspace = true, default-features = false }
 regex = { workspace = true }
-url = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 rand = { workspace = true }
