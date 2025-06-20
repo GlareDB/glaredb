@@ -86,12 +86,14 @@ impl BaseOperator for PhysicalScan {
     type OperatorState = ScanOperatorState;
 
     fn create_operator_state(&self, props: ExecutionProperties) -> Result<Self::OperatorState> {
-        let op_state = self.function.raw.call_create_pull_operator_state(
-            &self.function.bind_state,
-            self.projections.clone(),
-            &self.filters,
-            props,
-        )?;
+        let op_state = unsafe {
+            self.function.raw.call_create_pull_operator_state(
+                &self.function.bind_state,
+                self.projections.clone(),
+                &self.filters,
+                props,
+            )?
+        };
 
         Ok(ScanOperatorState { state: op_state })
     }
@@ -110,11 +112,14 @@ impl PullOperator for PhysicalScan {
         props: ExecutionProperties,
         partitions: usize,
     ) -> Result<Vec<Self::PartitionPullState>> {
-        let states = self.function.raw.call_create_pull_partition_states(
-            &operator_state.state,
-            props,
-            partitions,
-        )?;
+        let states = unsafe {
+            self.function.raw.call_create_pull_partition_states(
+                &self.function.bind_state,
+                &operator_state.state,
+                props,
+                partitions,
+            )?
+        };
         let states = states
             .into_iter()
             .map(|state| ScanPartitionState {
@@ -138,12 +143,15 @@ impl PullOperator for PhysicalScan {
             state.reset_batch = false;
         }
 
-        let poll = self.function.raw.call_poll_pull(
-            cx,
-            &operator_state.state,
-            &mut state.state,
-            output,
-        )?;
+        let poll = unsafe {
+            self.function.raw.call_poll_pull(
+                cx,
+                &self.function.bind_state,
+                &operator_state.state,
+                &mut state.state,
+                output,
+            )?
+        };
 
         // We want to keep the batch state the same for Pending since that's
         // logically re-executing on the same state. Only trigger a reset for

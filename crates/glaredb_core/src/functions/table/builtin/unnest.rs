@@ -57,7 +57,7 @@ impl TableExecuteFunction for UnnestList {
     type OperatorState = UnnestListOperatorState;
     type PartitionState = UnnestListPartitionState;
 
-    fn bind(&self, input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>> {
+    fn bind(input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>> {
         let datatype = input.positional[0].datatype()?;
         let meta = datatype.try_get_list_type_meta()?;
         let out_type = meta.datatype.as_ref().clone();
@@ -79,6 +79,7 @@ impl TableExecuteFunction for UnnestList {
     }
 
     fn create_execute_partition_states(
+        _bind_state: &Self::BindState,
         _op_state: &Self::OperatorState,
         _props: ExecutionProperties,
         partitions: usize,
@@ -95,6 +96,7 @@ impl TableExecuteFunction for UnnestList {
 
     fn poll_execute(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         _operator_state: &Self::OperatorState,
         _state: &mut Self::PartitionState,
         _input: &mut Batch,
@@ -188,6 +190,7 @@ impl TableExecuteFunction for UnnestList {
 
     fn poll_finalize_execute(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         _operator_state: &Self::OperatorState,
         _state: &mut Self::PartitionState,
     ) -> Result<PollFinalize> {

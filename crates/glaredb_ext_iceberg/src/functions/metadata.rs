@@ -526,7 +526,6 @@ where
     type PartitionState = MetadataFunctionPartitionState<F>;
 
     async fn bind(
-        &'static self,
         scan_context: ScanContext<'_>,
         input: TableFunctionInput,
     ) -> Result<TableFunctionBindState<Self::BindState>> {
@@ -570,6 +569,7 @@ where
     }
 
     fn create_pull_partition_states(
+        _bind_state: &Self::BindState,
         _op_state: &Self::OperatorState,
         _props: ExecutionProperties,
         partitions: usize,
@@ -586,6 +586,7 @@ where
 
     fn poll_pull(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,

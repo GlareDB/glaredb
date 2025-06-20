@@ -119,10 +119,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
     type OperatorState = ();
     type PartitionState = GenerateSeriesI64PartitionState;
 
-    fn bind(
-        &self,
-        mut input: TableFunctionInput,
-    ) -> Result<TableFunctionBindState<Self::BindState>> {
+    fn bind(mut input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>> {
         if input.positional.len() == 2 {
             // Push constant step value.
             input.positional.push(expr::lit(1_i64).into());
@@ -149,6 +146,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
     }
 
     fn create_execute_partition_states(
+        _bind_state: &Self::BindState,
         _op_state: &Self::OperatorState,
         _props: ExecutionProperties,
         partitions: usize,
@@ -165,6 +163,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
 
     fn poll_execute(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         _operator_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         input: &mut Batch,
@@ -206,6 +205,7 @@ impl TableExecuteFunction for GenerateSeriesI64 {
 
     fn poll_finalize_execute(
         _cx: &mut Context,
+        _bind_state: &Self::BindState,
         _operator_state: &Self::OperatorState,
         _state: &mut Self::PartitionState,
     ) -> Result<PollFinalize> {
@@ -231,6 +231,7 @@ mod tests {
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
+            &(),
             &mut state,
             &mut input,
             &mut output,
@@ -243,6 +244,7 @@ mod tests {
 
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
+            &(),
             &(),
             &mut state,
             &mut input,
@@ -265,6 +267,7 @@ mod tests {
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
+            &(),
             &mut state,
             &mut input,
             &mut output,
@@ -277,6 +280,7 @@ mod tests {
 
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
+            &(),
             &(),
             &mut state,
             &mut input,
@@ -301,6 +305,7 @@ mod tests {
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
+            &(),
             &mut state,
             &mut input,
             &mut output,
@@ -313,6 +318,7 @@ mod tests {
 
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
+            &(),
             &(),
             &mut state,
             &mut input,
@@ -337,6 +343,7 @@ mod tests {
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
+            &(),
             &mut state,
             &mut input,
             &mut output,
@@ -349,6 +356,7 @@ mod tests {
 
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
+            &(),
             &(),
             &mut state,
             &mut input,
@@ -372,6 +380,7 @@ mod tests {
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
             &(),
+            &(),
             &mut state,
             &mut input,
             &mut output,
@@ -391,6 +400,7 @@ mod tests {
         let mut output = Batch::new([DataType::int64()], 5).unwrap();
         let poll = GenerateSeriesI64::poll_execute(
             &mut noop_context(),
+            &(),
             &(),
             &mut state,
             &mut input,

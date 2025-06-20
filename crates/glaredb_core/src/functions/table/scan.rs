@@ -12,6 +12,8 @@ use crate::runtime::filesystem::dispatch::FileSystemDispatch;
 use crate::storage::projections::Projections;
 use crate::storage::scan_filter::PhysicalScanFilter;
 
+// TODO: `pre_bind` (resolve), consolidate `TableScanFunction` and `TableExecuteFunction`.
+
 /// Context providing dependencies for a scan.
 #[derive(Debug, Clone, Copy)]
 pub struct ScanContext<'a> {
@@ -29,9 +31,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
     /// Binds the table function.
     ///
     /// This should determine the output schema of the table.
-    // TODO: Probably remove `&self`.
     fn bind(
-        &'static self,
         scan_context: ScanContext,
         input: TableFunctionInput,
     ) -> impl Future<Output = Result<TableFunctionBindState<Self::BindState>>> + Send;
@@ -45,6 +45,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
 
     // TODO: Pass bind state here too. This will reduce some extra cloning.
     fn create_pull_partition_states(
+        bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
@@ -52,6 +53,7 @@ pub trait TableScanFunction: Debug + Copy + Send + Sync + 'static {
 
     fn poll_pull(
         cx: &mut Context,
+        bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         output: &mut Batch,

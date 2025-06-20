@@ -14,7 +14,7 @@ pub trait TableExecuteFunction: Debug + Copy + Send + Sync + 'static {
     type OperatorState: Sync + Send;
     type PartitionState: Sync + Send;
 
-    fn bind(&self, input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>>;
+    fn bind(input: TableFunctionInput) -> Result<TableFunctionBindState<Self::BindState>>;
 
     fn create_execute_operator_state(
         bind_state: &Self::BindState,
@@ -22,6 +22,7 @@ pub trait TableExecuteFunction: Debug + Copy + Send + Sync + 'static {
     ) -> Result<Self::OperatorState>;
 
     fn create_execute_partition_states(
+        bind_state: &Self::BindState,
         op_state: &Self::OperatorState,
         props: ExecutionProperties,
         partitions: usize,
@@ -31,6 +32,7 @@ pub trait TableExecuteFunction: Debug + Copy + Send + Sync + 'static {
     /// output batch.
     fn poll_execute(
         cx: &mut Context,
+        bind_state: &Self::BindState,
         operator_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
         input: &mut Batch,
@@ -39,6 +41,7 @@ pub trait TableExecuteFunction: Debug + Copy + Send + Sync + 'static {
 
     fn poll_finalize_execute(
         cx: &mut Context,
+        bind_state: &Self::BindState,
         operator_state: &Self::OperatorState,
         state: &mut Self::PartitionState,
     ) -> Result<PollFinalize>;
