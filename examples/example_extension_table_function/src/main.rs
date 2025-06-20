@@ -59,10 +59,7 @@ pub const FUNCTION_SET_REPEAT: TableFunctionSet = TableFunctionSet {
         category: Category::Table,
         description: "Repeat a value the specified number of times.",
         arguments: &["value", "count"],
-        example: Some(Example {
-            example: "repeat(5, 3)",
-            output: "5\n5\n5",
-        }),
+        example: None,
     }],
     // The function implementations.
     functions: &[RawTableFunction::new_scan(
