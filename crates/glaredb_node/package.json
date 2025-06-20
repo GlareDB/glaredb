@@ -1,0 +1,49 @@
+{
+  "name": "@glaredb/glaredb",
+  "version": "25.6.3",
+  "description": "GlareDB Node.js bindings",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "glaredb",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "i686-pc-windows-msvc",
+        "armv7-unknown-linux-gnueabihf",
+        "aarch64-apple-darwin",
+        "aarch64-pc-windows-msvc",
+        "aarch64-unknown-linux-musl"
+      ]
+    }
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  },
+  "engines": {
+    "node": ">= 10"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "node test.js",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "keywords": [
+    "database",
+    "sql",
+    "analytics",
+    "glaredb"
+  ],
+  "homepage": "https://glaredb.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/glaredb/glaredb.git"
+  }
+}

@@ -75,6 +75,7 @@ glaredb_ext_tpch_gen = { path = "crates/glaredb_ext_tpch_gen", version = "25.6.3
 
 # Bindings
 glaredb_python = { path = "crates/glaredb_python", version = "25.6.3" }
+glaredb_node = { path = "crates/glaredb_node", version = "25.6.3" }
 glaredb_wasm = { path = "crates/glaredb_wasm", version = "25.6.3" } # Technically also runtime
 
 # Test/bench helpers
