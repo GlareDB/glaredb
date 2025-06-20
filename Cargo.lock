@@ -1107,10 +1107,7 @@ version = "25.6.3"
 dependencies = [
  "glaredb_core",
  "glaredb_error",
- "glaredb_ext_csv",
- "glaredb_ext_parquet",
- "glaredb_ext_spark",
- "glaredb_ext_tpch_gen",
+ "glaredb_ext_default",
  "glaredb_rt_native",
  "napi",
  "napi-derive",
