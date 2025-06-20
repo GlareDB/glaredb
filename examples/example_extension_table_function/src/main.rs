@@ -164,6 +164,7 @@ impl TableScanFunction for Repeat {
         let count = usize::min(state.remaining, out_cap);
 
         if count == 0 {
+            output.set_num_rows(0)?;
             return Ok(PollPull::Exhausted);
         }
 
