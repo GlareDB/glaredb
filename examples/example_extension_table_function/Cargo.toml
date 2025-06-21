@@ -1,0 +1,17 @@
+[package]
+name = "example_extension_table_function"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+glaredb_core = { workspace = true }
+glaredb_rt_native = { workspace = true }
+tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net", "macros"] }
+
+[lints]
+workspace = true

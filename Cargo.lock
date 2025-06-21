@@ -745,6 +745,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "example_extension_table_function"
+version = "25.6.3"
+dependencies = [
+ "glaredb_core",
+ "glaredb_rt_native",
+ "tokio",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
