@@ -213,6 +213,7 @@ define_keywords!(
     SORT,
     STRING,
     SUBSTRING,
+    SUMMARIZE,
     TABLE,
     TABLES,
     TEMP,

@@ -1,0 +1,8 @@
+# Tests for the SUMMARIZE statement.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query ?
+SUMMARIZE SELECT 4 AS a;
+----

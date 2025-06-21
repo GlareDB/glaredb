@@ -16,6 +16,7 @@ use crate::ast::{
     ResetVariable,
     SetVariable,
     Show,
+    Summarize,
 };
 use crate::meta::{AstMeta, Raw};
 
@@ -34,6 +35,10 @@ pub enum Statement<T: AstMeta> {
     /// DESCRIBE <table>
     /// DESCRIBE <query>
     Describe(Describe<T>),
+
+    /// SUMMARIZE <table>
+    /// SUMMARIZE <query>
+    Summarize(Summarize<T>),
 
     /// SELECT/VALUES
     Query(QueryNode<T>),

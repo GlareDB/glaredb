@@ -12,6 +12,7 @@ pub mod bind_insert;
 pub mod bind_query;
 pub mod bind_set;
 pub mod bind_statement;
+pub mod bind_summarize;
 pub mod column_binder;
 pub mod constant_binder;
 pub mod expr_binder;

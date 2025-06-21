@@ -1,5 +1,7 @@
 // TODO: The auto formatting for this isn't good.
 pub mod copy;
+pub mod summarize;
+pub use summarize::*;
 pub mod discard;
 pub use discard::*;
 pub mod show;

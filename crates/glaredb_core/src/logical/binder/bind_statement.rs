@@ -122,6 +122,7 @@ impl StatementBinder<'_> {
             Statement::Discard(discard) => BoundStatement::Discard(
                 DiscardBinder::new(root_scope, self.session_config).bind_discard(discard)?,
             ),
+            Statement::Summarize(_) => unimplemented!(),
         };
 
         Ok((statement, context))
