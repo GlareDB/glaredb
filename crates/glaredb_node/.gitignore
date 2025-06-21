@@ -1,0 +1,9 @@
+# Node.js build artifacts
+*.node
+index.js
+index.d.ts
+node_modules/
+package-lock.json
+
+# Rust build artifacts
+target/
