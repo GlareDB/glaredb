@@ -204,6 +204,101 @@ jobs:
           name: wheels-linux-arm64
           path: crates/glaredb_python/dist
 
+  node-macos-arm64:
+    name: Build Node.js (macOS arm64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Build Node.js bindings
+        working-directory: crates/glaredb_node
+        run: |
+          npm install
+          npm run build
+
+      - name: Upload Node.js bindings
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: node-macos-arm64
+          path: crates/glaredb_node
+
+  node-manylinux-x86_64:
+    name: Build Node.js (Linux x86-64)
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/pypa/manylinux_2_28_x86_64
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Rust toolchain
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          source $HOME/.cargo/env
+          rustc --version
+
+      - name: Build Node.js bindings
+        working-directory: crates/glaredb_node
+        run: |
+          source $HOME/.cargo/env
+          npm install
+          npm run build
+
+      - name: Upload Node.js bindings
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: node-linux-x86_64
+          path: crates/glaredb_node
+
+  node-manylinux-arm64:
+    name: Build Node.js (Linux arm64)
+    runs-on: ubuntu-2404-arm-4-core
+    container:
+      image: ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Rust toolchain
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          . $HOME/.cargo/env
+          rustc --version
+
+      - name: Build Node.js bindings
+        working-directory: crates/glaredb_node
+        run: |
+          . $HOME/.cargo/env
+          npm install
+          npm run build
+
+      - name: Upload Node.js bindings
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: node-linux-arm64
+          path: crates/glaredb_node
+
   # Debug job that lists the binaries using the same path that's used in the gh
   # release job.
   #
@@ -229,6 +324,27 @@ jobs:
       - name: List binaries
         run: ls -R cli
 
+  list_node:
+    name: List Node.js artifacts
+    needs:
+      - node-macos-arm64
+      - node-manylinux-x86_64
+      - node-manylinux-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Node.js artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: node
+          pattern: node-*
+          merge-multiple: true
+
+      - name: List Node.js artifacts
+        run: ls -R node
+
   # ONLY RUNS ON 'main'
   #
   # This job will only run when all cli/python builds have completed. This will
@@ -248,6 +364,9 @@ jobs:
       - python-macos-arm64
       - python-manylinux-x86_64
       - python-manylinux-arm64
+      - node-macos-arm64
+      - node-manylinux-x86_64
+      - node-manylinux-arm64
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     permissions: write-all
