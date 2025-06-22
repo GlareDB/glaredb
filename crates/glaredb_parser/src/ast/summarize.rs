@@ -16,6 +16,17 @@ pub enum Summarize<T: AstMeta> {
     FromNode(FromNode<T>),
 }
 
+impl Summarize<Raw> {
+    pub fn is_summarize_start(parser: &mut Parser) -> bool {
+        let start = parser.idx;
+        let result = parser.next_keyword();
+        let is_start = matches!(result, Ok(Keyword::SUMMARIZE));
+        parser.idx = start;
+
+        is_start
+    }
+}
+
 impl AstParseable for Summarize<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
         parser.expect_keyword(Keyword::SUMMARIZE)?;
