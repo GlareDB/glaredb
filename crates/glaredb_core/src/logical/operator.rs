@@ -104,7 +104,7 @@ pub trait LogicalNode {
 
 /// Wrapper around nodes in the logical plan to holds additional metadata for
 /// the node.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node<N> {
     /// Node specific logic.
     pub node: N,
@@ -245,7 +245,7 @@ impl<N> AsMut<N> for Node<N> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LogicalOperator {
     Invalid,
     Project(Node<LogicalProject>),

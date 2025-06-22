@@ -17,9 +17,12 @@ use glaredb_error::{DbError, Result, not_implemented};
 use glaredb_parser::ast;
 
 use super::bind_context::{BindContext, BindScopeRef};
+use super::bind_describe::DescribeBinder;
 use super::ident::BinderIdent;
 use super::table_list::TableRef;
 use crate::logical::binder::bind_context::BoundCte;
+use crate::logical::logical_describe::LogicalDescribe;
+use crate::logical::operator::Node;
 use crate::logical::resolver::ResolvedMeta;
 use crate::logical::resolver::resolve_context::ResolveContext;
 
@@ -29,6 +32,7 @@ pub enum BoundQuery {
     Select(BoundSelect),
     Setop(BoundSetOp),
     Values(BoundValues),
+    Describe(Node<LogicalDescribe>),
 }
 
 impl BoundQuery {
@@ -38,7 +42,8 @@ impl BoundQuery {
                 Some(pruned) => pruned.table,
                 None => select.select_list.projections_table,
             },
-            Self::Setop(setop) => setop.setop_table,
+            BoundQuery::Setop(setop) => setop.setop_table,
+            BoundQuery::Describe(describe) => describe.node.table_ref,
             BoundQuery::Values(values) => values.expressions_table,
         }
     }
@@ -90,6 +95,11 @@ impl<'a> QueryBinder<'a> {
                 let binder = ValuesBinder::new(self.current, self.resolve_context);
                 let values = binder.bind(bind_context, values, order_by, limit)?;
                 Ok(BoundQuery::Values(values))
+            }
+            ast::QueryNodeBody::Describe(describe) => {
+                let binder = DescribeBinder::new(self.current, self.resolve_context);
+                let describe = binder.bind_describe(bind_context, *describe)?;
+                Ok(BoundQuery::Describe(describe))
             }
             ast::QueryNodeBody::Set(setop) => {
                 let binder = SetOpBinder::new(self.current, self.resolve_context);

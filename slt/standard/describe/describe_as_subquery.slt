@@ -1,0 +1,38 @@
+# Allow using DESCRIBE inside a query.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+query TT
+DESCRIBE (DESCRIBE SELECT 4 AS my_col);
+----
+column_name  Utf8
+datatype     Utf8
+
+query TT
+SELECT * FROM (DESCRIBE SELECT 4 AS my_col);
+----
+my_col  Int32
+
+query T
+SELECT datatype FROM (DESCRIBE SELECT 4 AS my_col);
+----
+Int32
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT, c INT, d INT);
+
+query T
+SELECT column_name FROM (DESCRIBE t1) WHERE datatype = 'Int32' ORDER BY 1;
+----
+a
+c
+d
+
+# TODO
+# query TT
+# WITH my_cte AS (
+#   SELECT 4 AS a, 5 AS b
+# )
+# DESCRIBE my_cte;
+# ----

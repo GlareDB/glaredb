@@ -289,7 +289,7 @@ impl LogicalNode for Node<LogicalArbitraryJoin> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalCrossJoin;
 
 impl Explainable for LogicalCrossJoin {

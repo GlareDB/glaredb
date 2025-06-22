@@ -25,7 +25,7 @@ impl fmt::Display for SetOpKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalSetop {
     pub kind: SetOpKind,
     pub all: bool,

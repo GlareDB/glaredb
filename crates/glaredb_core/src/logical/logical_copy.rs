@@ -7,7 +7,7 @@ use crate::arrays::field::ColumnSchema;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalCopyTo {
     /// Schema of input operator.
     ///

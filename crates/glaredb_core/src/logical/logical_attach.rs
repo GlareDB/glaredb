@@ -9,7 +9,7 @@ use crate::arrays::scalar::ScalarValue;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalAttachDatabase {
     pub datasource: String,
     pub name: String,
@@ -46,7 +46,7 @@ impl LogicalNode for Node<LogicalAttachDatabase> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalDetachDatabase {
     pub name: String,
 }
