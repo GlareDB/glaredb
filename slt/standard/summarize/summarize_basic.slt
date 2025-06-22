@@ -1,0 +1,16 @@
+# Tests for the SUMMARIZE statement.
+
+statement ok
+SET verify_optimized_plan TO true;
+
+statement ok
+CREATE TEMP TABLE t1 (a INT, b TEXT);
+
+statement ok
+INSERT INTO t1 VALUES (3, 'mmm'), (4, 'nnn'), (NULL, 'ooo'), (5, NULL);
+
+# TODO
+query ??????
+SUMMARIZE t1;
+----
+[a, b] [Int32, Utf8] [3, 3] [4, NULL] [3, NULL] [5, NULL]

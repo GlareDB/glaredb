@@ -19,6 +19,7 @@ use crate::ast::{
     ResetVariable,
     SetVariable,
     Show,
+    Summarize,
 };
 use crate::keywords::{Keyword, RESERVED_FOR_COLUMN_ALIAS};
 use crate::meta::Raw;
@@ -114,6 +115,7 @@ impl<'a> Parser<'a> {
                     Keyword::RESET => Ok(RawStatement::ResetVariable(ResetVariable::parse(self)?)),
                     Keyword::SHOW => Ok(RawStatement::Show(Show::parse(self)?)),
                     Keyword::DESCRIBE => Ok(RawStatement::Describe(Describe::parse(self)?)),
+                    Keyword::SUMMARIZE => Ok(RawStatement::Summarize(Summarize::parse(self)?)),
                     Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
                         Ok(RawStatement::Query(QueryNode::parse(self)?))
                     }

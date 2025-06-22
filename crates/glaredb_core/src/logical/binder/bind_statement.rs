@@ -14,6 +14,7 @@ use super::bind_explain::{BoundExplain, ExplainBinder};
 use super::bind_insert::{BoundInsert, InsertBinder};
 use super::bind_query::BoundQuery;
 use super::bind_set::SetVarBinder;
+use super::bind_summarize::SummarizeBinder;
 use crate::config::session::SessionConfig;
 use crate::logical::binder::bind_query::QueryBinder;
 use crate::logical::logical_create::{LogicalCreateSchema, LogicalCreateView};
@@ -121,6 +122,10 @@ impl StatementBinder<'_> {
             ),
             Statement::Discard(discard) => BoundStatement::Discard(
                 DiscardBinder::new(root_scope, self.session_config).bind_discard(discard)?,
+            ),
+            Statement::Summarize(summarize) => BoundStatement::Query(
+                SummarizeBinder::new(root_scope, self.resolve_context)
+                    .bind_summarize(&mut context, summarize)?,
             ),
         };
 

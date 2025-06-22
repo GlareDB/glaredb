@@ -169,6 +169,14 @@ where
                     self.resolve_from(from, &mut resolve_context).await?,
                 )),
             },
+            Statement::Summarize(summarize) => match summarize {
+                ast::Summarize::Query(query) => Statement::Summarize(ast::Summarize::Query(
+                    self.resolve_query(query, &mut resolve_context).await?,
+                )),
+                ast::Summarize::FromNode(from) => Statement::Summarize(ast::Summarize::FromNode(
+                    self.resolve_from(from, &mut resolve_context).await?,
+                )),
+            },
             Statement::Query(query) => {
                 Statement::Query(self.resolve_query(query, &mut resolve_context).await?)
             }

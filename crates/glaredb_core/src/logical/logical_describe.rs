@@ -9,6 +9,7 @@ use crate::expr::Expression;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LogicalDescribe {
+    /// Schema of the input into the DESCRIBE.
     pub schema: ColumnSchema,
     pub table_ref: TableRef,
 }
