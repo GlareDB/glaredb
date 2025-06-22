@@ -2,7 +2,6 @@ use glaredb_error::Result;
 use serde::{Deserialize, Serialize};
 
 use super::{AstParseable, FromNode, QueryNode};
-use crate::keywords::Keyword;
 use crate::meta::{AstMeta, Raw};
 use crate::parser::Parser;
 
@@ -18,8 +17,6 @@ pub enum Describe<T: AstMeta> {
 
 impl AstParseable for Describe<Raw> {
     fn parse(parser: &mut Parser) -> Result<Self> {
-        parser.expect_keyword(Keyword::DESCRIBE)?;
-
         if QueryNode::is_query_node_start(parser) {
             let query = QueryNode::parse(parser)?;
             Ok(Describe::Query(query))

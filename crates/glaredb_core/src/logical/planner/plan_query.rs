@@ -20,6 +20,7 @@ impl QueryPlanner {
         match query {
             BoundQuery::Select(select) => SelectPlanner.plan(bind_context, select),
             BoundQuery::Setop(setop) => SetOpPlanner.plan(bind_context, setop),
+            BoundQuery::Describe(describe) => Ok(LogicalOperator::Describe(describe)),
             BoundQuery::Values(values) => {
                 let table = bind_context.get_table(values.expressions_table)?;
                 let card = values.rows.len();

@@ -41,6 +41,10 @@ use crate::functions::table::scan::ScanContext;
 use crate::logical::operator::LocationRequirement;
 use crate::runtime::system::SystemRuntime;
 
+// TODO: Lots of Box::pin calls for recursive async resolves. These don't seem
+// to affect performance, but it does look "off". There may be a way to avoid
+// it.
+
 /// An AST statement with references bound to data inside of the `resolve_context`.
 pub type ResolvedStatement = Statement<ResolvedMeta>;
 
@@ -161,14 +165,6 @@ where
             Statement::CopyTo(copy_to) => {
                 Statement::CopyTo(self.resolve_copy_to(copy_to, &mut resolve_context).await?)
             }
-            Statement::Describe(describe) => match describe {
-                ast::Describe::Query(query) => Statement::Describe(ast::Describe::Query(
-                    self.resolve_query(query, &mut resolve_context).await?,
-                )),
-                ast::Describe::FromNode(from) => Statement::Describe(ast::Describe::FromNode(
-                    self.resolve_from(from, &mut resolve_context).await?,
-                )),
-            },
             Statement::Query(query) => {
                 Statement::Query(self.resolve_query(query, &mut resolve_context).await?)
             }
@@ -608,9 +604,8 @@ where
                 None => None,
             };
 
-            let body = resolver
-                .resolve_query_node_body(query.body, resolve_context)
-                .await?;
+            let body =
+                Box::pin(resolver.resolve_query_node_body(query.body, resolve_context)).await?;
 
             // Resolve ORDER BY
             let order_by = match query.order_by {
@@ -673,6 +668,17 @@ where
             )),
             ast::QueryNodeBody::Values(values) => {
                 ast::QueryNodeBody::Values(self.resolve_values(values, resolve_context).await?)
+            }
+            ast::QueryNodeBody::Describe(describe) => {
+                let describe = match *describe {
+                    ast::Describe::Query(query) => {
+                        ast::Describe::Query(self.resolve_query(query, resolve_context).await?)
+                    }
+                    ast::Describe::FromNode(from) => {
+                        ast::Describe::FromNode(self.resolve_from(from, resolve_context).await?)
+                    }
+                };
+                ast::QueryNodeBody::Describe(Box::new(describe))
             }
             ast::QueryNodeBody::Set(ast::SetOp {
                 left,

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     AstParseable,
     CommonTableExprs,
+    Describe,
     Expr,
     LimitModifier,
     OrderByModifier,
@@ -76,6 +77,7 @@ pub enum QueryNodeBody<T: AstMeta> {
     Nested(Box<QueryNode<T>>),
     Set(SetOp<T>),
     Values(Values<T>),
+    Describe(Box<Describe<T>>),
 }
 
 impl AstParseable for QueryNodeBody<Raw> {
@@ -90,6 +92,8 @@ impl QueryNodeBody<Raw> {
             QueryNodeBody::Select(Box::new(SelectNode::parse(parser)?))
         } else if parser.parse_keyword(Keyword::VALUES) {
             QueryNodeBody::Values(Values::parse(parser)?)
+        } else if parser.parse_keyword(Keyword::DESCRIBE) {
+            QueryNodeBody::Describe(Box::new(Describe::parse(parser)?))
         } else if parser.consume_token(&Token::LeftParen) {
             let nested = QueryNode::parse(parser)?;
             parser.expect_token(&Token::RightParen)?;

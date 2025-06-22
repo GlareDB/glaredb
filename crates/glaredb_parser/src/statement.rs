@@ -6,7 +6,6 @@ use crate::ast::{
     CreateSchema,
     CreateTable,
     CreateView,
-    Describe,
     Detach,
     DiscardStatement,
     DropStatement,
@@ -31,11 +30,7 @@ pub enum Statement<T: AstMeta> {
     /// COPY <table> TO <file>
     CopyTo(CopyTo<T>),
 
-    /// DESCRIBE <table>
-    /// DESCRIBE <query>
-    Describe(Describe<T>),
-
-    /// SELECT/VALUES
+    /// SELECT/VALUES/DESCRIBE
     Query(QueryNode<T>),
 
     /// CREATE TABLE ...
