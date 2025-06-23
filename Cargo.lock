@@ -1119,6 +1119,7 @@ dependencies = [
  "glaredb_ext_default",
  "glaredb_rt_native",
  "napi",
+ "napi-build",
  "napi-derive",
  "serde_json",
  "tokio",
@@ -1800,6 +1801,12 @@ dependencies = [
  "once_cell",
  "tokio",
 ]
+
+[[package]]
+name = "napi-build"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44e0e3177307063d3e7e55b7dd7b648cca9d7f46daa35422c0d98cc2bf48c2c1"
 
 [[package]]
 name = "napi-derive"
