@@ -11,7 +11,7 @@ use crate::expr::Expression;
 /// Does not introduce a new table ref.
 // TODO: It might introduce a new table ref with ON, not sure if we'd want those
 // expressions to be referencable anywhere else.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalDistinct {}
 
 impl Explainable for LogicalDistinct {

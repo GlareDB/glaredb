@@ -7,7 +7,7 @@ use crate::arrays::scalar::ScalarValue;
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalSetVar {
     pub name: String,
     pub value: ScalarValue,
@@ -43,13 +43,13 @@ impl LogicalNode for Node<LogicalSetVar> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VariableOrAll {
     Variable(String),
     All,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalResetVar {
     pub var: VariableOrAll,
 }
@@ -84,7 +84,7 @@ impl LogicalNode for Node<LogicalResetVar> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalShowVar {
     pub name: String,
     pub value: ScalarValue,

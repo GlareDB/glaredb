@@ -7,7 +7,7 @@ use super::operator::{LogicalNode, Node};
 use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Explainable};
 use crate::expr::Expression;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalOrder {
     /// Sort expressions.
     pub exprs: Vec<BoundOrderByExpr>,

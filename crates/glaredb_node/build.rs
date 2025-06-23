@@ -2,6 +2,8 @@ use std::path::Path;
 use std::{env, fs};
 
 fn main() {
+    napi_build::setup();
+
     let version = env!("CARGO_PKG_VERSION");
     let package_json_path = Path::new("package.json");
 

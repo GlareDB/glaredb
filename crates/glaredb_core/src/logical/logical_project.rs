@@ -7,7 +7,7 @@ use crate::explain::explainable::{EntryBuilder, ExplainConfig, ExplainEntry, Exp
 use crate::expr::Expression;
 
 /// Simple projection.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalProject {
     pub projections: Vec<Expression>,
     pub projection_table: TableRef,

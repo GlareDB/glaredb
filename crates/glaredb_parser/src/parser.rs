@@ -8,7 +8,6 @@ use crate::ast::{
     CreateSchema,
     CreateTable,
     CreateView,
-    Describe,
     Detach,
     DiscardStatement,
     DropStatement,
@@ -113,8 +112,7 @@ impl<'a> Parser<'a> {
                     Keyword::SET => Ok(RawStatement::SetVariable(SetVariable::parse(self)?)),
                     Keyword::RESET => Ok(RawStatement::ResetVariable(ResetVariable::parse(self)?)),
                     Keyword::SHOW => Ok(RawStatement::Show(Show::parse(self)?)),
-                    Keyword::DESCRIBE => Ok(RawStatement::Describe(Describe::parse(self)?)),
-                    Keyword::SELECT | Keyword::WITH | Keyword::VALUES => {
+                    Keyword::SELECT | Keyword::WITH | Keyword::VALUES | Keyword::DESCRIBE => {
                         Ok(RawStatement::Query(QueryNode::parse(self)?))
                     }
                     Keyword::INSERT => Ok(RawStatement::Insert(Insert::parse(self)?)),
