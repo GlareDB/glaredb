@@ -460,6 +460,40 @@ jobs:
           args: ./*.whl
 
   # ONLY RUNS ON 'main'
+  node-npm-upload:
+    name: Upload to npm
+    needs: [release-gate]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Node.js artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: node
+          pattern: node-*
+          merge-multiple: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: List Node.js artifacts
+        run: ls -R node
+
+      - name: Prepare and publish to npm
+        working-directory: node
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm run prepublishOnly
+          npm publish
+
+  # ONLY RUNS ON 'main'
   wasm:
     name: Build and Publish WASM
     needs: [release-gate]
