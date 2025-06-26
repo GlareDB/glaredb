@@ -216,16 +216,9 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Install Rust toolchain
-        run: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y
-          source $HOME/.cargo/env
-          rustc --version
-
       - name: Build Node.js bindings
         working-directory: crates/glaredb_node
         run: |
-          source $HOME/.cargo/env
           npm install
           npm run build
 
@@ -251,16 +244,9 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Install Rust toolchain
-        run: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y
-          source $HOME/.cargo/env
-          rustc --version
-
       - name: Build Node.js bindings
         working-directory: crates/glaredb_node
         run: |
-          source $HOME/.cargo/env
           npm install
           npm run build
 
@@ -286,16 +272,9 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Install Rust toolchain
-        run: |
-          curl https://sh.rustup.rs -sSf | sh -s -- -y
-          . $HOME/.cargo/env
-          rustc --version
-
       - name: Build Node.js bindings
         working-directory: crates/glaredb_node
         run: |
-          . $HOME/.cargo/env
           npm install
           npm run build
 
