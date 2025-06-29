@@ -96,7 +96,7 @@ impl ContextDisplay for WindowExpr {
             .map(|expr| ContextDisplayWrapper::with_mode(expr, mode).to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "({}) OVER (", inputs)?;
+        write!(f, "({inputs}) OVER (")?;
 
         if !self.partition_by.is_empty() {
             write!(

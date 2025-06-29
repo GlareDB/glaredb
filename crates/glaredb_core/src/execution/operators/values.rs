@@ -261,8 +261,8 @@ mod tests {
         assert_eq!(poll, PollExecute::HasMore);
 
         let expected1 = generate_batch!(
-            std::iter::repeat("a").take(513),
-            std::iter::repeat(2).take(513)
+            std::iter::repeat_n("a", 513),
+            std::iter::repeat_n(2, 513)
         );
         assert_batches_eq(&expected1, &output);
 
@@ -272,8 +272,8 @@ mod tests {
         assert_eq!(poll, PollExecute::Ready);
 
         let expected2 = generate_batch!(
-            std::iter::repeat("b").take(513),
-            std::iter::repeat(3).take(513)
+            std::iter::repeat_n("b", 513),
+            std::iter::repeat_n(3, 513)
         );
         assert_batches_eq(&expected2, &output);
     }

@@ -70,8 +70,7 @@ impl<'a> Parser<'a> {
                 };
 
                 return Err(DbError::new(format!(
-                    "Expected semicolon between statements. Unparsed SQL: '{}'",
-                    unparsed,
+                    "Expected semicolon between statements. Unparsed SQL: '{unparsed}'",
                 )));
             }
 

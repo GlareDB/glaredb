@@ -218,7 +218,7 @@ mod tests {
         let mut s2 = c2.init_append_state();
 
         for idx in 0..4 {
-            let b1 = generate_batch!(std::iter::repeat(idx).take(4096));
+            let b1 = generate_batch!(std::iter::repeat_n(idx, 4096));
             c1.append_batch(&mut s1, &b1).unwrap();
             c2.append_batch(&mut s2, &b1).unwrap();
 
@@ -283,7 +283,7 @@ mod tests {
         let mut s2 = c2.init_append_state();
 
         for idx in 0..4 {
-            let b1 = generate_batch!(std::iter::repeat(idx).take(1024));
+            let b1 = generate_batch!(std::iter::repeat_n(idx, 1024));
             c1.append_batch(&mut s1, &b1).unwrap();
             c2.append_batch(&mut s2, &b1).unwrap();
 
@@ -308,7 +308,7 @@ mod tests {
         let mut s2 = c2.init_append_state();
 
         for idx in 0..4 {
-            let b = generate_batch!(std::iter::repeat(idx).take(1024));
+            let b = generate_batch!(std::iter::repeat_n(idx, 1024));
             c1.append_batch(&mut s1, &b).unwrap();
             c2.append_batch(&mut s2, &b).unwrap();
 

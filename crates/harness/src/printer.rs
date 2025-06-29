@@ -96,12 +96,11 @@ impl Printer {
                 let plural_s = if num_tests == 1 { "" } else { "s" };
 
                 writeln!(self.out).unwrap();
-                writeln!(self.out, "running {} test{}", num_tests, plural_s).unwrap();
+                writeln!(self.out, "running {num_tests} test{plural_s}").unwrap();
             }
             FormatSetting::Json => writeln!(
                 self.out,
-                r#"{{ "type": "suite", "event": "started", "test_count": {} }}"#,
-                num_tests
+                r#"{{ "type": "suite", "event": "started", "test_count": {num_tests} }}"#
             )
             .unwrap(),
         }
@@ -116,7 +115,7 @@ impl Printer {
                 let kind = if kind.is_empty() {
                     String::new()
                 } else {
-                    format!("[{}] ", kind)
+                    format!("[{kind}] ")
                 };
 
                 write!(
@@ -165,7 +164,7 @@ impl Printer {
                 };
 
                 let style = color_of_outcome(outcome);
-                write!(self.out, "{style}{}{style:#}", c).unwrap();
+                write!(self.out, "{style}{c}{style:#}").unwrap();
             }
             FormatSetting::Json => {
                 if let Outcome::Measured(measurement) = outcome {
@@ -306,7 +305,7 @@ impl Printer {
         for (test_info, msg) in fails {
             writeln!(self.out, "---- {} ----", test_info.name).unwrap();
             if let Some(msg) = msg {
-                writeln!(self.out, "{}", msg).unwrap();
+                writeln!(self.out, "{msg}").unwrap();
             }
             writeln!(self.out).unwrap();
         }
@@ -329,7 +328,7 @@ impl Printer {
         };
 
         let style = color_of_outcome(outcome);
-        write!(self.out, "{style}{}{style:#}", s).unwrap();
+        write!(self.out, "{style}{s}{style:#}").unwrap();
 
         if let Outcome::Measured(measurement) = outcome {
             write!(
@@ -351,7 +350,7 @@ pub fn fmt_with_thousand_sep(mut v: u64) -> String {
         out = format!(",{:03}{}", v % 1000, out);
         v /= 1000;
     }
-    out = format!("{}{}", v, out);
+    out = format!("{v}{out}");
 
     out
 }

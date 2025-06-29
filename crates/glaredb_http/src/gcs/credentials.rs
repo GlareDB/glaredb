@@ -79,7 +79,7 @@ impl ServiceAccount {
             .encode(serde_json::to_string(&header).context("Failed to encode jwt header")?);
         let claims_b64 = BASE64_URL_SAFE_NO_PAD
             .encode(serde_json::to_string(&claims).context("Failed to encode jwt claims")?);
-        let signing_input = format!("{}.{}", header_b64, claims_b64);
+        let signing_input = format!("{header_b64}.{claims_b64}");
 
         let mut reader = std::io::Cursor::new(self.private_key.as_bytes());
         let key = rustls_pemfile::read_one(&mut reader).context("invalid PEM private key")?;
@@ -107,7 +107,7 @@ impl ServiceAccount {
             .map_err(|_| DbError::new("Failed to sign payload"))?;
 
         let sig_b64 = BASE64_URL_SAFE_NO_PAD.encode(&signature);
-        let jwt = format!("{}.{}", signing_input, sig_b64);
+        let jwt = format!("{signing_input}.{sig_b64}");
 
         // Exchange the JWT for an access token
         let params = [

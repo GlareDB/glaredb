@@ -79,8 +79,7 @@ impl<T: DataType> Encoder<T> for ByteStreamSplitEncoder<T> {
             8 => split_streams_const::<8>(&self.buffer, &mut encoded),
             _ => {
                 return Err(DbError::new(format!(
-                    "byte stream split unsupported for data types of size {} bytes",
-                    type_size
+                    "byte stream split unsupported for data types of size {type_size} bytes"
                 )));
             }
         }

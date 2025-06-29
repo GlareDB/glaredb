@@ -39,9 +39,9 @@ impl ContextDisplay for AggregateExpr {
             .collect::<Vec<_>>()
             .join(", ");
         if self.distinct {
-            write!(f, "(DISTINCT {})", inputs)?;
+            write!(f, "(DISTINCT {inputs})")?;
         } else {
-            write!(f, "({})", inputs)?;
+            write!(f, "({inputs})")?;
         }
 
         if let Some(filter) = self.filter.as_ref() {

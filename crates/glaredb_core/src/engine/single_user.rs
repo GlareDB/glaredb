@@ -75,7 +75,7 @@ where
         let statement = match statements.len() {
             1 => statements.pop().unwrap(),
             other => {
-                return Err(DbError::new(format!("Expected 1 statement, got {}", other)));
+                return Err(DbError::new(format!("Expected 1 statement, got {other}")));
             }
         };
 

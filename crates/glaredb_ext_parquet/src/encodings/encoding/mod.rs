@@ -93,7 +93,7 @@ pub fn get_encoder<T: DataType>(encoding: Encoding) -> Result<Box<dyn Encoder<T>
         Encoding::BYTE_STREAM_SPLIT => {
             Box::new(byte_stream_split_encoder::ByteStreamSplitEncoder::new())
         }
-        e => return Err(DbError::new(format!("Encoding {} is not supported", e))),
+        e => return Err(DbError::new(format!("Encoding {e} is not supported"))),
     };
     Ok(encoder)
 }

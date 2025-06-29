@@ -580,7 +580,7 @@ mod tests {
 
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::int64()).into()],
+            vec![expr::column((0, 0), DataType::int64())],
         )
         .unwrap();
         let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::int64())]);
@@ -621,7 +621,7 @@ mod tests {
 
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::int64()).into()],
+            vec![expr::column((0, 0), DataType::int64())],
         )
         .unwrap();
         let agg = PhysicalAggregateExpression::new(sum_agg, [(0, DataType::int64())]);
@@ -679,12 +679,12 @@ mod tests {
 
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let min_agg = bind_aggregate_function(
             &FUNCTION_SET_MIN,
-            vec![expr::column((0, 0), DataType::int64()).into()],
+            vec![expr::column((0, 0), DataType::int64())],
         )
         .unwrap();
 

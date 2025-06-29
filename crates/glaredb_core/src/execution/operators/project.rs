@@ -123,24 +123,24 @@ mod tests {
         let projections = plan_scalars(
             &list,
             [
-                &expr::column((t0, 1), DataType::int32()).into(),
+                &expr::column((t0, 1), DataType::int32()),
                 &expr::lit("lit").into(),
             ],
         );
 
         let props = ExecutionProperties { batch_size: 16 };
         let wrapper = OperatorWrapper::new(PhysicalProject::new(projections));
-        let op_state = wrapper.operator.create_operator_state(props).unwrap();
+        wrapper.operator.create_operator_state(props).unwrap();
         let mut states = wrapper
             .operator
-            .create_partition_execute_states(&op_state, props, 1)
+            .create_partition_execute_states(&(), props, 1)
             .unwrap();
 
         let mut out = Batch::new([DataType::int32(), DataType::utf8()], 4).unwrap();
         let mut in1 = generate_batch!([true, false, true, true], [8, 9, 7, 6]);
 
         let poll = wrapper
-            .poll_execute(&op_state, &mut states[0], &mut in1, &mut out)
+            .poll_execute(&(), &mut states[0], &mut in1, &mut out)
             .unwrap();
         assert_eq!(PollExecute::Ready, poll);
 
@@ -150,7 +150,7 @@ mod tests {
         let mut in2 = generate_batch!([true, false, true, true], [Some(4), Some(5), None, Some(7)]);
 
         let poll = wrapper
-            .poll_execute(&op_state, &mut states[0], &mut in2, &mut out)
+            .poll_execute(&(), &mut states[0], &mut in2, &mut out)
             .unwrap();
         assert_eq!(PollExecute::Ready, poll);
 

@@ -113,17 +113,17 @@ mod tests {
 
         // h1 estimates ~10_000
         let c1 = h1.count();
-        assert!((9000.0..11000.0).contains(&c1), "c1: {}", c1);
+        assert!((9000.0..11000.0).contains(&c1), "c1: {c1}");
 
         // h2 estimates ~10_000
         let c2 = h2.count();
-        assert!((9000.0..11000.0).contains(&c2), "c2: {}", c2);
+        assert!((9000.0..11000.0).contains(&c2), "c2: {c2}");
 
         // union
         h1.merge(&h2);
         // true union size = 15_000
         let cu = h1.count();
-        assert!((14000.0..16000.0).contains(&cu), "cu: {}", cu);
+        assert!((14000.0..16000.0).contains(&cu), "cu: {cu}");
     }
 
     // Simple (portable) hash for testing.

@@ -66,7 +66,7 @@ impl DocFile {
                         })?;
 
                     // Write original line + extra newline
-                    writeln!(buf, "{}", line)?;
+                    writeln!(buf, "{line}")?;
                     writeln!(buf)?;
 
                     // Write out section.
@@ -85,13 +85,13 @@ impl DocFile {
 
                         // Write extra newline + original line
                         writeln!(buf)?;
-                        writeln!(buf, "{}", line)?;
+                        writeln!(buf, "{line}")?;
                     } else {
                         // Only write out stuff outside of the docgen section.
                         // We already wrote the new output, so we need to
                         // discard the old stuff.
                         if !in_docsgen_section {
-                            writeln!(buf, "{}", line)?;
+                            writeln!(buf, "{line}")?;
                         }
                     }
                 }

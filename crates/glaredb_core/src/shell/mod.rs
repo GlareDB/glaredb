@@ -272,7 +272,7 @@ impl DotCommand for DotCommandHelp {
         )?;
         for (name, args, help) in DOT_COMMAND_LINES {
             let name_and_args = format!(".{name} {args}");
-            writeln!(writer, "{:<20} {}", name_and_args, help)?
+            writeln!(writer, "{name_and_args:<20} {help}")?
         }
         writeln!(
             writer,

@@ -94,8 +94,7 @@ impl ViewDecoder {
             // }
             _ => {
                 return Err(DbError::new(format!(
-                    "unsupported encoding for byte array: {}",
-                    encoding
+                    "unsupported encoding for byte array: {encoding}"
                 )));
             }
         };

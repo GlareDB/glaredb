@@ -289,13 +289,13 @@ impl BindContext {
     ) -> Result<&mut PlanMaterialization> {
         self.materializations
             .get_mut(mat_ref.0)
-            .ok_or_else(|| DbError::new(format!("Missing materialization for idx {}", mat_ref)))
+            .ok_or_else(|| DbError::new(format!("Missing materialization for idx {mat_ref}")))
     }
 
     pub fn get_materialization(&self, mat_ref: MaterializationRef) -> Result<&PlanMaterialization> {
         self.materializations
             .get(mat_ref.0)
-            .ok_or_else(|| DbError::new(format!("Missing materialization for idx {}", mat_ref)))
+            .ok_or_else(|| DbError::new(format!("Missing materialization for idx {mat_ref}")))
     }
 
     /// Iterates plan materializations in the order they were planned, returning
@@ -353,8 +353,7 @@ impl BindContext {
         {
             if left_aliases.contains(right_alias) {
                 return Err(DbError::new(format!(
-                    "Duplicate table name: {}",
-                    right_alias
+                    "Duplicate table name: {right_alias}"
                 )));
             }
         }

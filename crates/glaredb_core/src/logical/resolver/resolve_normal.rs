@@ -56,8 +56,7 @@ pub fn create_user_facing_resolve_err(
             formatted_object_types, name, similar.name,
         )),
         None => DbError::new(format!(
-            "Cannot resolve {} with name '{}'",
-            formatted_object_types, name
+            "Cannot resolve {formatted_object_types} with name '{name}'"
         )),
     }
 }
@@ -140,8 +139,7 @@ where
     ) -> Result<&'static TableFunctionSet> {
         self.resolve_table_function(reference)?.ok_or_else(|| {
             DbError::new(format!(
-                "Missing table function for reference '{}'",
-                reference
+                "Missing table function for reference '{reference}'"
             ))
         })
     }
@@ -302,8 +300,7 @@ where
         {
             MaybeResolvedTable::Resolved(table) => Ok(table),
             _ => Err(DbError::new(format!(
-                "Missing table or view for reference '{}'",
-                reference
+                "Missing table or view for reference '{reference}'"
             ))),
         }
     }

@@ -65,7 +65,7 @@ impl CsvEncoder {
                     .format_array_value(col, row)
                     .expect("row to exist");
                 self.format_buf.clear();
-                write!(&mut self.format_buf, "{}", scalar).expect("write to succeed");
+                write!(&mut self.format_buf, "{scalar}").expect("write to succeed");
 
                 self.record.push_field(&self.format_buf);
             }

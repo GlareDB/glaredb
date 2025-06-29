@@ -826,8 +826,7 @@ impl Expr<Raw> {
             })
         } else {
             Err(DbError::new(format!(
-                "Unable to parse token {:?} as an expression",
-                tok
+                "Unable to parse token {tok:?} as an expression",
             )))
         }
     }

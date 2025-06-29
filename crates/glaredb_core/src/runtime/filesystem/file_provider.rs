@@ -187,8 +187,7 @@ impl MultiFileProvider {
                 Ok((provider, fs))
             }
             other => Err(DbError::new(format!(
-                "Cannot use {} as a file path. Provider either a string or list of strings.",
-                other,
+                "Cannot use {other} as a file path. Provider either a string or list of strings.",
             ))),
         }
     }

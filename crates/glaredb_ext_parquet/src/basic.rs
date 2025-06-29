@@ -336,7 +336,7 @@ impl FromStr for Encoding {
             "DELTA_BYTE_ARRAY" | "delta_byte_array" => Ok(Encoding::DELTA_BYTE_ARRAY),
             "RLE_DICTIONARY" | "rle_dictionary" => Ok(Encoding::RLE_DICTIONARY),
             "BYTE_STREAM_SPLIT" | "byte_stream_split" => Ok(Encoding::BYTE_STREAM_SPLIT),
-            _ => Err(DbError::new(format!("unknown encoding: {}", s))),
+            _ => Err(DbError::new(format!("unknown encoding: {s}"))),
         }
     }
 }
@@ -379,7 +379,7 @@ fn split_compression_string(str_setting: &str) -> Result<(&str, Option<u32>)> {
         Some((codec, level_str)) => {
             let level = &level_str[..level_str.len() - 1]
                 .parse::<u32>()
-                .map_err(|_| DbError::new(format!("invalid compression level: {}", level_str)))?;
+                .map_err(|_| DbError::new(format!("invalid compression level: {level_str}")))?;
             Ok((codec, Some(*level)))
         }
         None => Ok((str_setting, None)),
@@ -395,7 +395,7 @@ fn check_level_is_none(level: &Option<u32>) -> Result<()> {
 }
 
 fn require_level(codec: &str, level: Option<u32>) -> Result<u32> {
-    level.ok_or(DbError::new(format!("{} require level", codec)))
+    level.ok_or(DbError::new(format!("{codec} require level")))
 }
 
 impl FromStr for Compression {
@@ -1070,8 +1070,7 @@ impl str::FromStr for Repetition {
             "OPTIONAL" => Ok(Repetition::OPTIONAL),
             "REPEATED" => Ok(Repetition::REPEATED),
             other => Err(DbError::new(format!(
-                "Invalid parquet repetition {}",
-                other
+                "Invalid parquet repetition {other}"
             ))),
         }
     }
@@ -1090,7 +1089,7 @@ impl str::FromStr for Type {
             "DOUBLE" => Ok(Type::DOUBLE),
             "BYTE_ARRAY" | "BINARY" => Ok(Type::BYTE_ARRAY),
             "FIXED_LEN_BYTE_ARRAY" => Ok(Type::FIXED_LEN_BYTE_ARRAY),
-            other => Err(DbError::new(format!("Invalid parquet type {}", other))),
+            other => Err(DbError::new(format!("Invalid parquet type {other}"))),
         }
     }
 }
@@ -1124,8 +1123,7 @@ impl str::FromStr for ConvertedType {
             "BSON" => Ok(ConvertedType::BSON),
             "INTERVAL" => Ok(ConvertedType::INTERVAL),
             other => Err(DbError::new(format!(
-                "Invalid parquet converted type {}",
-                other
+                "Invalid parquet converted type {other}"
             ))),
         }
     }
@@ -1167,8 +1165,7 @@ impl str::FromStr for LogicalType {
             )),
             "FLOAT16" => Ok(LogicalType::Float16),
             other => Err(DbError::new(format!(
-                "Invalid parquet logical type {}",
-                other
+                "Invalid parquet logical type {other}"
             ))),
         }
     }

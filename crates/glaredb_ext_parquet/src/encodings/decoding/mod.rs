@@ -68,10 +68,9 @@ pub(crate) mod private {
             | Encoding::DELTA_BINARY_PACKED
             | Encoding::DELTA_BYTE_ARRAY
             | Encoding::DELTA_LENGTH_BYTE_ARRAY => Err(DbError::new(format!(
-                "Encoding {} is not supported for type",
-                encoding,
+                "Encoding {encoding} is not supported for type",
             ))),
-            e => Err(DbError::new(format!("Encoding {} is not supported", e))),
+            e => Err(DbError::new(format!("Encoding {e} is not supported"))),
         }
     }
 
@@ -215,8 +214,7 @@ pub trait Decoder<T: DataType>: Send + Debug {
         let values_read = self.read(buffer)?;
         if values_read != values_to_read {
             return Err(DbError::new(format!(
-                "Number of values read: {}, doesn't match expected: {}",
-                values_read, values_to_read
+                "Number of values read: {values_read}, doesn't match expected: {values_to_read}"
             )));
         }
         let mut values_to_move = values_read;
@@ -732,8 +730,7 @@ where
 
             if batch_read != batch_to_read {
                 return Err(DbError::new(format!(
-                    "Expected to read {} values from miniblock got {}",
-                    batch_to_read, batch_read
+                    "Expected to read {batch_to_read} values from miniblock got {batch_read}"
                 )));
             }
 
@@ -802,8 +799,7 @@ where
 
             if skip_count != mini_block_to_skip {
                 return Err(DbError::new(format!(
-                    "Expected to skip {} values from mini block got {}.",
-                    mini_block_batch_size, skip_count
+                    "Expected to skip {mini_block_batch_size} values from mini block got {skip_count}."
                 )));
             }
 
@@ -950,8 +946,7 @@ impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
                 Ok(num_values)
             }
             other_type => Err(DbError::new(format!(
-                "DeltaLengthByteArrayDecoder not support {}, only support byte array",
-                other_type
+                "DeltaLengthByteArrayDecoder not support {other_type}, only support byte array"
             ))),
         }
     }

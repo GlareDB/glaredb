@@ -8,8 +8,7 @@ pub fn drop_page_cache() -> Result<()> {
         let status = Command::new("sync").status()?;
         if !status.success() {
             return Err(DbError::new(format!(
-                "'sync' failed with status {}",
-                status
+                "'sync' failed with status {status}"
             )));
         }
 
@@ -27,8 +26,7 @@ pub fn drop_page_cache() -> Result<()> {
         let status = Command::new("purge").status()?;
         if !status.success() {
             return Err(DbError::new(format!(
-                "'purge' failed with status {}",
-                status
+                "'purge' failed with status {status}"
             )));
         }
 

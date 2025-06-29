@@ -6,19 +6,19 @@
 use std::io;
 
 pub fn cursor_up(w: &mut impl io::Write, n: usize) -> io::Result<()> {
-    write!(w, "\x1b[{}A", n)
+    write!(w, "\x1b[{n}A")
 }
 
 pub fn cursor_down(w: &mut impl io::Write, n: usize) -> io::Result<()> {
-    write!(w, "\x1b[{}B", n)
+    write!(w, "\x1b[{n}B")
 }
 
 pub fn cursor_left(w: &mut impl io::Write, n: usize) -> io::Result<()> {
-    write!(w, "\x1b[{}D", n)
+    write!(w, "\x1b[{n}D")
 }
 
 pub fn cursor_right(w: &mut impl io::Write, n: usize) -> io::Result<()> {
-    write!(w, "\x1b[{}C", n)
+    write!(w, "\x1b[{n}C")
 }
 
 pub const CLEAR_LINE_CURSOR_RIGHT: &str = "\x1b[0K";
