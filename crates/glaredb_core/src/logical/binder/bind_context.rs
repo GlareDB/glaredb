@@ -352,9 +352,7 @@ impl BindContext {
             .filter_map(|t| t.alias.as_ref())
         {
             if left_aliases.contains(right_alias) {
-                return Err(DbError::new(format!(
-                    "Duplicate table name: {right_alias}"
-                )));
+                return Err(DbError::new(format!("Duplicate table name: {right_alias}")));
             }
         }
 

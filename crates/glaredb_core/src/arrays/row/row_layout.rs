@@ -710,7 +710,7 @@ mod tests {
         let layout = RowLayout::try_new(vec![DataType::int32(); 9]).unwrap();
 
         // +2 for validity
-        assert_eq!(((9 * 4 + 2)), layout.buffer_size(1));
+        assert_eq!((9 * 4 + 2), layout.buffer_size(1));
         assert_eq!((9 * 4 + 2) * 2, layout.buffer_size(2));
         assert_eq!((9 * 4 + 2) * 3, layout.buffer_size(3));
     }

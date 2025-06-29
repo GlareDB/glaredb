@@ -1069,9 +1069,7 @@ impl str::FromStr for Repetition {
             "REQUIRED" => Ok(Repetition::REQUIRED),
             "OPTIONAL" => Ok(Repetition::OPTIONAL),
             "REPEATED" => Ok(Repetition::REPEATED),
-            other => Err(DbError::new(format!(
-                "Invalid parquet repetition {other}"
-            ))),
+            other => Err(DbError::new(format!("Invalid parquet repetition {other}"))),
         }
     }
 }
