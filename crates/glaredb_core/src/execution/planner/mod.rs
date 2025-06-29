@@ -199,8 +199,7 @@ impl<'a> OperatorPlanState<'a> {
 
             if self.materializations.insert(mat_ref, operator).is_some() {
                 return Err(DbError::new(format!(
-                    "Duplicate materialization ref: {}",
-                    mat_ref
+                    "Duplicate materialization ref: {mat_ref}"
                 )));
             }
         }

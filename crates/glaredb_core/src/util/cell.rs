@@ -61,6 +61,11 @@ impl<T> UnsafeSyncOnceCell<T> {
     /// There must not be any active references to the inner cell value.
     ///
     /// Cannot be called concurrently with pretty much all other methods.
+    ///
+    /// `clippy::mut_from_ref` is a valid lint, but with the above invariants,
+    /// it's safe to get a mut ref here since we're getting a reference to the
+    /// inner pointer, and not from the reference itself.
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut(&self) -> Option<&mut T> {
         unsafe { &mut *self.0.get() }.as_mut()
     }

@@ -326,8 +326,8 @@ impl fmt::Display for BorrowedScalarValue<'_> {
                 TimeUnit::Nanosecond => TimestampNanosecondsFormatter::default().write(&v.value, f),
             },
             Self::Interval(v) => IntervalFormatter.write(v, f),
-            Self::Utf8(v) => write!(f, "{}", v),
-            Self::Binary(v) => write!(f, "{:X?}", v),
+            Self::Utf8(v) => write!(f, "{v}"),
+            Self::Binary(v) => write!(f, "{v:X?}"),
             Self::Struct(fields) => write!(
                 f,
                 "{{{}}}",

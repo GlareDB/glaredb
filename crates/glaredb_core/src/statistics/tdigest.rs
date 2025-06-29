@@ -279,15 +279,13 @@ mod tests {
         let median = td.quantile(0.5).unwrap();
         assert!(
             (median - 499.5).abs() < 20.0,
-            "median estimate was {}, expected ~499.5",
-            median
+            "median estimate was {median}, expected ~499.5"
         );
         // The 90th percentile should be near 899.0
         let p90 = td.quantile(0.9).unwrap();
         assert!(
             (p90 - 899.0).abs() < 20.0,
-            "90th percentile was {}, expected ~899.0",
-            p90
+            "90th percentile was {p90}, expected ~899.0"
         );
     }
 
@@ -306,8 +304,7 @@ mod tests {
         let median = td1.quantile(0.5).unwrap();
         assert!(
             (median - 499.5).abs() < 20.0,
-            "merged median = {}, expected ~499.5",
-            median
+            "merged median = {median}, expected ~499.5"
         );
     }
 

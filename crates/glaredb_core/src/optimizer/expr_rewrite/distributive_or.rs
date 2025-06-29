@@ -172,10 +172,10 @@ mod tests {
 
     #[test]
     fn distribute_none() {
-        let c0: Expression = column((0, 0), DataType::boolean()).into();
-        let c1: Expression = column((0, 1), DataType::boolean()).into();
-        let c2: Expression = column((0, 2), DataType::boolean()).into();
-        let c3: Expression = column((0, 3), DataType::boolean()).into();
+        let c0: Expression = column((0, 0), DataType::boolean());
+        let c1: Expression = column((0, 1), DataType::boolean());
+        let c2: Expression = column((0, 2), DataType::boolean());
+        let c3: Expression = column((0, 3), DataType::boolean());
 
         // '(c0 AND c1) OR (c2 AND c3)'
         let expr = or([
@@ -196,8 +196,8 @@ mod tests {
 
     #[test]
     fn distribute_eliminate_redundant_or() {
-        let c0: Expression = column((0, 0), DataType::boolean()).into();
-        let c1: Expression = column((0, 1), DataType::boolean()).into();
+        let c0: Expression = column((0, 0), DataType::boolean());
+        let c1: Expression = column((0, 1), DataType::boolean());
 
         // '(c0 AND c1) OR (c0 AND c1)' => '(c0 AND c1)'
         let expr = or([
@@ -214,8 +214,8 @@ mod tests {
 
     #[test]
     fn distribute_eliminate_or_with_single_remaining() {
-        let c0: Expression = column((0, 0), DataType::boolean()).into();
-        let c1: Expression = column((0, 1), DataType::boolean()).into();
+        let c0: Expression = column((0, 0), DataType::boolean());
+        let c1: Expression = column((0, 1), DataType::boolean());
 
         // '(c0) OR (c0 AND c1)' => '(c0 AND c1)'
         let expr = or([c0.clone(), and([c0.clone(), c1.clone()]).unwrap().into()]).unwrap();
@@ -228,11 +228,11 @@ mod tests {
 
     #[test]
     fn distribute_or_keep_inner_and() {
-        let c0: Expression = column((0, 0), DataType::boolean()).into();
-        let c1: Expression = column((0, 1), DataType::boolean()).into();
-        let c2: Expression = column((0, 2), DataType::boolean()).into();
-        let c3: Expression = column((0, 3), DataType::boolean()).into();
-        let c4: Expression = column((0, 4), DataType::boolean()).into();
+        let c0: Expression = column((0, 0), DataType::boolean());
+        let c1: Expression = column((0, 1), DataType::boolean());
+        let c2: Expression = column((0, 2), DataType::boolean());
+        let c3: Expression = column((0, 3), DataType::boolean());
+        let c4: Expression = column((0, 4), DataType::boolean());
 
         // '(c0 AND c1 AND c2 AND c3) OR (c0 AND c4)
         // =>

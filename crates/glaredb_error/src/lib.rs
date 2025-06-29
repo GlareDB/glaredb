@@ -134,7 +134,7 @@ impl fmt::Display for DbError {
         }
 
         if let Some(source) = &self.inner.source {
-            write!(f, "\nError source: {}", source)?;
+            write!(f, "\nError source: {source}")?;
         }
 
         if self.inner.backtrace.status() == BacktraceStatus::Captured {
@@ -149,7 +149,7 @@ impl fmt::Display for DbError {
 // read.
 impl fmt::Debug for DbError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 

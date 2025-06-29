@@ -689,13 +689,13 @@ mod tests {
     #[test]
     fn string_view_buffer_push_referenced() {
         let mut buffer = StringViewBuffer::with_capacity(&DefaultBufferManager, 0).unwrap();
-        let m1 = buffer.push_bytes_as_row(&vec![4; 32]).unwrap();
+        let m1 = buffer.push_bytes_as_row(&[4; 32]).unwrap();
         assert!(!m1.is_inline());
 
         let got = buffer.get(&m1);
         assert_eq!(&vec![4; 32], got);
 
-        let m2 = buffer.push_bytes_as_row(&vec![5; 32]).unwrap();
+        let m2 = buffer.push_bytes_as_row(&[5; 32]).unwrap();
         assert!(!m2.is_inline());
 
         let got = buffer.get(&m2);

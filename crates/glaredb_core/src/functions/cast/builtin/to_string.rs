@@ -120,7 +120,7 @@ where
             OutBuffer::from_array(out)?,
             |v, buf| {
                 s_buf.clear();
-                match write!(s_buf, "{}", v) {
+                match write!(s_buf, "{v}") {
                     Ok(_) => buf.put(s_buf.as_str()),
                     Err(_) => {
                         error_state.set_error(|| DbError::new("Failed to cast to utf8"));

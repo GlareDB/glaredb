@@ -630,7 +630,7 @@ mod tests {
         // AGG_INPUT (col0): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::int64()).into()],
+            vec![expr::column((0, 0), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -667,7 +667,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -711,7 +711,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -729,7 +729,7 @@ mod tests {
 
         let groups = generate_batch!(0..num_unique_groups as i32);
         // All inputs just have the same value.
-        let inputs = generate_batch!(std::iter::repeat(4_i64).take(num_unique_groups));
+        let inputs = generate_batch!(std::iter::repeat_n(4_i64, num_unique_groups));
 
         hash_and_insert(&mut table, &mut state, &[0], &groups, &inputs);
 
@@ -739,7 +739,7 @@ mod tests {
         assert_arrays_eq(&expected_groups, &out_groups.arrays[0]);
         // Skip second groups array, contains hashes.
 
-        let expected_results = generate_batch!(std::iter::repeat(4_i64).take(num_unique_groups));
+        let expected_results = generate_batch!(std::iter::repeat_n(4_i64, num_unique_groups));
         assert_batches_eq(&expected_results, &out_results);
     }
 
@@ -750,7 +750,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -792,7 +792,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -834,7 +834,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -876,7 +876,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -914,7 +914,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(

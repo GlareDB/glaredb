@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn vec_push_slice() {
-        let mut vec = DbVec::<i32>::new_from_slice(&DefaultBufferManager, &[1, 2, 3]).unwrap();
+        let mut vec = DbVec::<i32>::new_from_slice(&DefaultBufferManager, [1, 2, 3]).unwrap();
         vec.push_slice(&[4, 5, 6]).unwrap();
 
         let s = vec.as_slice();

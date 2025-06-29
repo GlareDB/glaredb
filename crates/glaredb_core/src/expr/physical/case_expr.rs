@@ -180,7 +180,7 @@ impl fmt::Display for PhysicalCaseExpr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CASE ")?;
         for case in &self.cases {
-            write!(f, "{} ", case)?;
+            write!(f, "{case} ")?;
         }
         write!(f, "ELSE {}", self.else_expr)?;
 
@@ -447,7 +447,7 @@ mod tests {
             &table_list,
             expr::scalar_function(
                 &FUNCTION_SET_IS_NULL,
-                vec![expr::column((t0, 0), DataType::int32()).into()],
+                vec![expr::column((t0, 0), DataType::int32())],
             )
             .unwrap(),
         );

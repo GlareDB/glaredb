@@ -178,8 +178,8 @@ impl fmt::Display for PrettyValues {
                         f.write_char(' ')?;
                         let val = col_lines[col_idx].next().unwrap_or("");
                         match self.alignments[col_idx] {
-                            Alignment::Left => write!(f, "{:<width$}", val)?,
-                            Alignment::Right => write!(f, "{:>width$}", val)?,
+                            Alignment::Left => write!(f, "{val:<width$}")?,
+                            Alignment::Right => write!(f, "{val:>width$}")?,
                         }
                         f.write_char(' ')?;
 

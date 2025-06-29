@@ -95,8 +95,7 @@ impl<T: DataType> Decoder<T> for ByteStreamSplitDecoder<T> {
             ),
             _ => {
                 return Err(DbError::new(format!(
-                    "byte stream split unsupported for data types of size {} bytes",
-                    type_size
+                    "byte stream split unsupported for data types of size {type_size} bytes"
                 )));
             }
         }

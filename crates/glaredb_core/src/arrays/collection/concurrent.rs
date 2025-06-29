@@ -354,7 +354,7 @@ mod tests {
         // batch 1: [[1, 1, 1, 1]]
         // ...
         for idx in 0..16 {
-            let batch = generate_batch!(std::iter::repeat(idx).take(4));
+            let batch = generate_batch!(std::iter::repeat_n(idx, 4));
             collection.append_batch(&mut append_state, &batch).unwrap();
         }
         collection.flush(&mut append_state).unwrap();

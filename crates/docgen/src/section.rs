@@ -49,18 +49,18 @@ impl<const HEADER_LEVEL: usize> SectionWriter for FunctionSectionWriter<HEADER_L
                 let alias_of = batch.arrays()[1].get_value(row)?;
                 let description = FORMATTER.format_array_value(&batch.arrays()[2], row)?;
 
-                writeln!(output, "{header_prefix} `{}`\n", function_name)?;
+                writeln!(output, "{header_prefix} `{function_name}`\n")?;
                 if !alias_of.is_null() {
                     writeln!(output, "**Alias of `{alias_of}`**\n")?;
                 }
 
-                writeln!(output, "{}\n", description)?;
+                writeln!(output, "{description}\n")?;
 
                 let example = batch.arrays()[3].get_value(row)?;
                 let example_output = batch.arrays()[4].get_value(row)?;
                 if !example.is_null() {
-                    writeln!(output, "**Example**: `{}`\n", example)?;
-                    writeln!(output, "**Output**: `{}`\n", example_output)?;
+                    writeln!(output, "**Example**: `{example}`\n")?;
+                    writeln!(output, "**Output**: `{example_output}`\n")?;
                 }
             }
         }

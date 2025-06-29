@@ -512,9 +512,9 @@ where
     // Executor with a the default number of threads (auto-detected).
     run_with_executor::<S>(
         args,
-        || ThreadedNativeExecutor::try_new(),
+        ThreadedNativeExecutor::try_new,
         path,
-        &format!("{}/default", tag),
+        &format!("{tag}/default"),
     )?;
 
     // Executor using a single thread.
@@ -522,7 +522,7 @@ where
         args,
         || ThreadedNativeExecutor::try_new_with_num_threads(1),
         path,
-        &format!("{}/single", tag),
+        &format!("{tag}/single"),
     )?;
 
     // Executor using a hardcode number of threads.
@@ -530,7 +530,7 @@ where
         args,
         || ThreadedNativeExecutor::try_new_with_num_threads(16),
         path,
-        &format!("{}/multi", tag),
+        &format!("{tag}/multi"),
     )?;
 
     Ok(())

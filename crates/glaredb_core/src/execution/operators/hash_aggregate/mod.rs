@@ -777,7 +777,7 @@ mod tests {
         // GROUP     (col1): Utf8
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 0), DataType::int64()).into()],
+            vec![expr::column((0, 0), DataType::int64())],
         )
         .unwrap();
 

@@ -315,8 +315,7 @@ where
                             }
                             MaybeResolvedTable::Unresolved => {
                                 return Err(DbError::new(format!(
-                                    "Missing table or view for reference '{}'",
-                                    reference
+                                    "Missing table or view for reference '{reference}'"
                                 )));
                             }
                         }

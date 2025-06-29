@@ -923,8 +923,8 @@ mod tests {
     #[test]
     fn get_column_refs_simple() {
         let expr: Expression = and([
-            column((0, 0), DataType::boolean()).into(),
-            column((0, 1), DataType::boolean()).into(),
+            column((0, 0), DataType::boolean()),
+            column((0, 1), DataType::boolean()),
             or([
                 column((1, 4), DataType::boolean()),
                 column((1, 2), DataType::boolean()),

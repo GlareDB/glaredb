@@ -218,7 +218,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(
@@ -266,7 +266,7 @@ mod tests {
         // AGG_INPUT (col1): Int64
         let sum_agg = bind_aggregate_function(
             &FUNCTION_SET_SUM,
-            vec![expr::column((0, 1), DataType::int64()).into()],
+            vec![expr::column((0, 1), DataType::int64())],
         )
         .unwrap();
         let aggs = [PhysicalAggregateExpression::new(

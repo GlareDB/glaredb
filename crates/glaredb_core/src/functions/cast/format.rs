@@ -246,10 +246,10 @@ impl Formatter for IntervalFormatter {
                 write!(buf, " ")?;
             }
 
-            write!(buf, "{:02}:{:02}:{:02}", hours, minutes, seconds)?;
+            write!(buf, "{hours:02}:{minutes:02}:{seconds:02}")?;
 
             if millis > 0 {
-                write!(buf, ".{:.6}", millis)?;
+                write!(buf, ".{millis:.6}")?;
             }
         }
 

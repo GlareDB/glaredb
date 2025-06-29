@@ -110,8 +110,7 @@ pub fn create_codec(codec: CodecType, options: &CodecOptions) -> Result<Option<B
         CodecType::LZ4_RAW => Ok(Some(Box::new(LZ4RawCodec::new()))),
         CodecType::UNCOMPRESSED => Ok(None),
         _ => Err(DbError::new(format!(
-            "The codec type {} is not supported yet",
-            codec
+            "The codec type {codec} is not supported yet"
         ))),
     }
 }

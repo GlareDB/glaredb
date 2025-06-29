@@ -728,8 +728,8 @@ mod tests {
     ) -> Batch {
         let cap = left.num_rows() + right.num_rows();
 
-        let left_block = TestSortedRowBlock::from_batch(&left, left_keys);
-        let right_block = TestSortedRowBlock::from_batch(&right, right_keys);
+        let left_block = TestSortedRowBlock::from_batch(left, left_keys);
+        let right_block = TestSortedRowBlock::from_batch(right, right_keys);
 
         let left_run = SortedSegment::from_sorted_block(left_block.sorted_block);
         let right_run = SortedSegment::from_sorted_block(right_block.sorted_block);

@@ -139,7 +139,7 @@ mod tests {
 
         impl io::Write for PickyWriter {
             fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-                if buf.len() > 0 {
+                if !buf.is_empty() {
                     self.val.push(buf[0]);
                     Ok(1)
                 } else {

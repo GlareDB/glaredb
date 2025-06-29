@@ -36,8 +36,7 @@ impl ScalarValueUnwrap for UnwrapUntypedNull {
         match scalar {
             BorrowedScalarValue::Null => Ok(NullableValue::Null),
             other => Err(DbError::new(format!(
-                "Cannot unwrap '{other}' using {:?}",
-                Self,
+                "Cannot unwrap '{other}' using {Self:?}",
             ))),
         }
     }
@@ -101,8 +100,7 @@ impl ScalarValueUnwrap for UnwrapI32 {
             BorrowedScalarValue::Int32(v) => Ok(NullableValue::Value(v)),
             BorrowedScalarValue::Date32(v) => Ok(NullableValue::Value(v)),
             other => Err(DbError::new(format!(
-                "Cannot unwrap '{other}' using {:?}",
-                Self,
+                "Cannot unwrap '{other}' using {Self:?}",
             ))),
         }
     }
@@ -124,8 +122,7 @@ impl ScalarValueUnwrap for UnwrapI64 {
             BorrowedScalarValue::Decimal64(v) => Ok(NullableValue::Value(&v.value)),
             BorrowedScalarValue::Timestamp(v) => Ok(NullableValue::Value(&v.value)),
             other => Err(DbError::new(format!(
-                "Cannot unwrap '{other}' using {:?}",
-                Self,
+                "Cannot unwrap '{other}' using {Self:?}",
             ))),
         }
     }
@@ -145,8 +142,7 @@ impl ScalarValueUnwrap for UnwrapI128 {
             BorrowedScalarValue::Int128(v) => Ok(NullableValue::Value(v)),
             BorrowedScalarValue::Decimal128(v) => Ok(NullableValue::Value(&v.value)),
             other => Err(DbError::new(format!(
-                "Cannot unwrap '{other}' using {:?}",
-                Self,
+                "Cannot unwrap '{other}' using {Self:?}",
             ))),
         }
     }

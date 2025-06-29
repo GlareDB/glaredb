@@ -383,12 +383,12 @@ mod tests {
         // MAX_INPUT (col1): Int32
         let min_agg = bind_aggregate_function(
             &FUNCTION_SET_MIN,
-            vec![expr::column((0, 0), DataType::int32()).into()],
+            vec![expr::column((0, 0), DataType::int32())],
         )
         .unwrap();
         let max_agg = bind_aggregate_function(
             &FUNCTION_SET_MAX,
-            vec![expr::column((0, 1), DataType::int32()).into()],
+            vec![expr::column((0, 1), DataType::int32())],
         )
         .unwrap();
 

@@ -118,12 +118,10 @@ fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
     match token {
         Some(value) if value == expected => Ok(()),
         Some(other) => Err(DbError::new(format!(
-            "Expected '{}', found token '{}'",
-            expected, other
+            "Expected '{expected}', found token '{other}'"
         ))),
         None => Err(DbError::new(format!(
-            "Expected '{}', but no token found (None)",
-            expected
+            "Expected '{expected}', but no token found (None)"
         ))),
     }
 }
@@ -402,23 +400,20 @@ impl Parser<'_> {
                                     8 | 16 | 32 => {}
                                     _ => {
                                         return Err(DbError::new(format!(
-                                            "Incorrect bit width {} for INT32",
-                                            bit_width
+                                            "Incorrect bit width {bit_width} for INT32"
                                         )));
                                     }
                                 },
                                 PhysicalType::INT64 => {
                                     if bit_width != 64 {
                                         return Err(DbError::new(format!(
-                                            "Incorrect bit width {} for INT64",
-                                            bit_width
+                                            "Incorrect bit width {bit_width} for INT64"
                                         )));
                                     }
                                 }
                                 _ => {
                                     return Err(DbError::new(format!(
-                                        "Logical type Integer cannot be used with physical type {}",
-                                        physical_type
+                                        "Logical type Integer cannot be used with physical type {physical_type}"
                                     )));
                                 }
                             }

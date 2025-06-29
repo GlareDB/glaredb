@@ -60,8 +60,7 @@ impl CaseExpr {
             // as we can.
             if case_datatype != datatype {
                 return Err(DbError::new(format!(
-                    "Case expression produces two different types: {} and {}",
-                    datatype, case_datatype
+                    "Case expression produces two different types: {datatype} and {case_datatype}"
                 )));
             }
         }
