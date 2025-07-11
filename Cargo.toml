@@ -52,7 +52,7 @@ scc = "2.3.4"
 half = { version = "2.6.0", features = ["num-traits", "serde"] }
 getrandom = { version = "0.3" }
 ring = "0.17"
-clap = { version = "4.5.40", features = ["derive", "env"] }
+clap = { version = "4.5.41", features = ["derive", "env"] }
 
 # Binaries
 glaredb = { path = "crates/glaredb", version = "25.6.3" }
