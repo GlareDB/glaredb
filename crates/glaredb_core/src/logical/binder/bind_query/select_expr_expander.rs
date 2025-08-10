@@ -258,11 +258,12 @@ impl<'a> SelectExprExpander<'a> {
 
         exprs.retain(|expr| {
             if let ExpandedSelectExpr::Column { name, .. } = expr
-                && let Some(visited) = normalized_excluded.get_mut(name) {
-                    // Column excluded.
-                    *visited = true;
-                    return false; // Don't retain.
-                }
+                && let Some(visited) = normalized_excluded.get_mut(name)
+            {
+                // Column excluded.
+                *visited = true;
+                return false; // Don't retain.
+            }
             true
         });
 
@@ -285,22 +286,23 @@ impl<'a> SelectExprExpander<'a> {
 
         for expr in exprs {
             if let ExpandedSelectExpr::Column { name, .. } = expr
-                && let Some((ast_expr, visited)) = normalized_replaces.get_mut(name) {
-                    // Column should be replaced, just clone the replacement ast
-                    // expr.
-                    //
-                    // While we may end up replacing multiple cols with the same
-                    // ast expr, we don't want to check for that here. It'll
-                    // eventually go through the same ambiguity/duplicate name
-                    // checks during planning.
-                    *expr = ExpandedSelectExpr::Expr {
-                        expr: ast_expr.clone(),
-                        alias: Some(name.clone()),
-                    };
+                && let Some((ast_expr, visited)) = normalized_replaces.get_mut(name)
+            {
+                // Column should be replaced, just clone the replacement ast
+                // expr.
+                //
+                // While we may end up replacing multiple cols with the same
+                // ast expr, we don't want to check for that here. It'll
+                // eventually go through the same ambiguity/duplicate name
+                // checks during planning.
+                *expr = ExpandedSelectExpr::Expr {
+                    expr: ast_expr.clone(),
+                    alias: Some(name.clone()),
+                };
 
-                    // Mark visited.
-                    *visited = true;
-                }
+                // Mark visited.
+                *visited = true;
+            }
         }
 
         for (name, (_, visited)) in normalized_replaces {

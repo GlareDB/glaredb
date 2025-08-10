@@ -68,10 +68,11 @@ impl PullOperator for PhysicalDrop {
             let ent = self.catalog.drop_entry(&self.info)?;
 
             if let Some(ent) = ent
-                && let CatalogEntryInner::Table(table) = &ent.entry {
-                    // TODO: Drop on commit instead of here.
-                    self.storage.drop_table(table.storage_id)?;
-                }
+                && let CatalogEntryInner::Table(table) = &ent.entry
+            {
+                // TODO: Drop on commit instead of here.
+                self.storage.drop_table(table.storage_id)?;
+            }
         }
 
         output.set_num_rows(0)?;

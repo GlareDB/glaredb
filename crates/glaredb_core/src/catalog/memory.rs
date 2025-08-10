@@ -329,9 +329,10 @@ impl Schema for MemorySchema {
         for (_, ent) in self.table_functions.entries.iter(&guard) {
             let fn_ent = ent.try_as_table_function_entry()?;
             if let Some(infer) = fn_ent.infer_scan
-                && (infer.can_handle)(path) {
-                    return Ok(Some(ent.clone()));
-                }
+                && (infer.can_handle)(path)
+            {
+                return Ok(Some(ent.clone()));
+            }
         }
         Ok(None)
     }

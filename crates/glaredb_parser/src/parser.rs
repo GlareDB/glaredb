@@ -224,9 +224,9 @@ impl<'a> Parser<'a> {
                         && RESERVED_FOR_COLUMN_ALIAS
                             .iter()
                             .any(|reserved| reserved == kw)
-                        {
-                            break;
-                        }
+                    {
+                        break;
+                    }
                 }
                 _ => (),
             }
@@ -270,9 +270,10 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_keyword(&mut self, keyword: Keyword) -> bool {
         let idx = self.idx;
         if let Some(tok) = self.next()
-            && tok.is_keyword(keyword) {
-                return true;
-            }
+            && tok.is_keyword(keyword)
+        {
+            return true;
+        }
 
         // Keyword doesn't match. Reset index and return.
         self.idx = idx;
@@ -287,9 +288,10 @@ impl<'a> Parser<'a> {
         let idx = self.idx;
         for keyword in keywords {
             if let Some(tok) = self.next()
-                && tok.is_keyword(*keyword) {
-                    continue;
-                }
+                && tok.is_keyword(*keyword)
+            {
+                continue;
+            }
 
             // Keyword doesn't match. Reset index and return.
             self.idx = idx;

@@ -591,9 +591,10 @@ impl Graph {
         // Check to see if this cost is lower than existing cost. Returns early
         // if not.
         if let Some(existing) = self.best_plans.get(&new_set)
-            && existing.cost < cost {
-                return Ok(());
-            }
+            && existing.cost < cost
+        {
+            return Ok(());
+        }
 
         // New node is better. Create it and insert into plans.
 

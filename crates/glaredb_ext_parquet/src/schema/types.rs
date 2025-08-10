@@ -75,7 +75,10 @@ pub struct GroupType {
 impl SchemaType {
     /// Creates primitive type builder with provided field name and physical
     /// type.
-    pub fn primitive_type_builder(name: &str, physical_type: PhysicalType) -> PrimitiveTypeBuilder<'_> {
+    pub fn primitive_type_builder(
+        name: &str,
+        physical_type: PhysicalType,
+    ) -> PrimitiveTypeBuilder<'_> {
         PrimitiveTypeBuilder::new(name, physical_type)
     }
 
