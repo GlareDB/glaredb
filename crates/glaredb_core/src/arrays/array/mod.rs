@@ -433,7 +433,7 @@ impl Array {
         copy_rows_array(self, mapping, dest)
     }
 
-    pub fn get_value(&self, idx: usize) -> Result<BorrowedScalarValue> {
+    pub fn get_value(&self, idx: usize) -> Result<BorrowedScalarValue<'_>> {
         if idx >= self.logical_len() {
             return Err(DbError::new("Index out of bounds")
                 .with_field("idx", idx)

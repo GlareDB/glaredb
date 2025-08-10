@@ -257,13 +257,12 @@ impl<'a> SelectExprExpander<'a> {
             .collect();
 
         exprs.retain(|expr| {
-            if let ExpandedSelectExpr::Column { name, .. } = expr {
-                if let Some(visited) = normalized_excluded.get_mut(name) {
+            if let ExpandedSelectExpr::Column { name, .. } = expr
+                && let Some(visited) = normalized_excluded.get_mut(name) {
                     // Column excluded.
                     *visited = true;
                     return false; // Don't retain.
                 }
-            }
             true
         });
 
@@ -285,8 +284,8 @@ impl<'a> SelectExprExpander<'a> {
                 .collect();
 
         for expr in exprs {
-            if let ExpandedSelectExpr::Column { name, .. } = expr {
-                if let Some((ast_expr, visited)) = normalized_replaces.get_mut(name) {
+            if let ExpandedSelectExpr::Column { name, .. } = expr
+                && let Some((ast_expr, visited)) = normalized_replaces.get_mut(name) {
                     // Column should be replaced, just clone the replacement ast
                     // expr.
                     //
@@ -302,7 +301,6 @@ impl<'a> SelectExprExpander<'a> {
                     // Mark visited.
                     *visited = true;
                 }
-            }
         }
 
         for (name, (_, visited)) in normalized_replaces {

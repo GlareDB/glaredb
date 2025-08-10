@@ -232,8 +232,8 @@ impl FromNode<Raw> {
                 }),
             })
         } else {
-            if let Some(tok) = parser.peek().cloned() {
-                if let Token::SingleQuotedString(s) = tok.token {
+            if let Some(tok) = parser.peek().cloned()
+                && let Token::SingleQuotedString(s) = tok.token {
                     // `FROM 'my/file/path.paquet'
                     let _ = parser.next();
 
@@ -245,7 +245,6 @@ impl FromNode<Raw> {
                         }),
                     });
                 }
-            }
 
             // Table or table function.
             let reference = ObjectReference::parse(parser)?;

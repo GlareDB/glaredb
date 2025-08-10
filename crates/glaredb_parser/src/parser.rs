@@ -220,14 +220,13 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 Token::Word(w) => {
-                    if let Some(kw) = &w.keyword {
-                        if RESERVED_FOR_COLUMN_ALIAS
+                    if let Some(kw) = &w.keyword
+                        && RESERVED_FOR_COLUMN_ALIAS
                             .iter()
                             .any(|reserved| reserved == kw)
                         {
                             break;
                         }
-                    }
                 }
                 _ => (),
             }
@@ -270,11 +269,10 @@ impl<'a> Parser<'a> {
     /// Parse a single keyword.
     pub(crate) fn parse_keyword(&mut self, keyword: Keyword) -> bool {
         let idx = self.idx;
-        if let Some(tok) = self.next() {
-            if tok.is_keyword(keyword) {
+        if let Some(tok) = self.next()
+            && tok.is_keyword(keyword) {
                 return true;
             }
-        }
 
         // Keyword doesn't match. Reset index and return.
         self.idx = idx;
@@ -288,11 +286,10 @@ impl<'a> Parser<'a> {
     pub(crate) fn parse_keyword_sequence(&mut self, keywords: &[Keyword]) -> bool {
         let idx = self.idx;
         for keyword in keywords {
-            if let Some(tok) = self.next() {
-                if tok.is_keyword(*keyword) {
+            if let Some(tok) = self.next()
+                && tok.is_keyword(*keyword) {
                     continue;
                 }
-            }
 
             // Keyword doesn't match. Reset index and return.
             self.idx = idx;

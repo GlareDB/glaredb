@@ -127,8 +127,8 @@ impl ExplainNode {
                 }
 
                 // Also include metadata columns if we have it.
-                if let Some(meta_scan) = &n.node.meta_scan {
-                    if let Ok(meta_table) = bind_context.get_table(meta_scan.table_ref) {
+                if let Some(meta_scan) = &n.node.meta_scan
+                    && let Ok(meta_table) = bind_context.get_table(meta_scan.table_ref) {
                         ent.items.insert(
                             "meta_column_types".to_string(),
                             ExplainValue::Values(
@@ -150,7 +150,6 @@ impl ExplainNode {
                             ),
                         );
                     }
-                }
 
                 (ent, &n.children)
             }

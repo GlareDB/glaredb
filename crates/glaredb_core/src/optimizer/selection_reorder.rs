@@ -31,12 +31,11 @@ impl OptimizeRule for SelectionReorder {
 }
 
 fn optimize_inner(plan: &mut LogicalOperator) -> Result<()> {
-    if let LogicalOperator::Filter(filter) = plan {
-        if let Expression::Conjunction(conj) = &mut filter.node.filter {
+    if let LogicalOperator::Filter(filter) = plan
+        && let Expression::Conjunction(conj) = &mut filter.node.filter {
             // We have a conjunction, reorder!
             reorder_conj(conj);
         }
-    }
 
     for child in plan.children_mut() {
         optimize_inner(child)?;

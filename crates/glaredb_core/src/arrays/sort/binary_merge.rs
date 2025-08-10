@@ -121,15 +121,14 @@ impl<'a> BinaryMerger<'a> {
                 break;
             }
 
-            if let Some(limit_hint) = limit_hint {
-                if total_scan_count >= limit_hint {
+            if let Some(limit_hint) = limit_hint
+                && total_scan_count >= limit_hint {
                     // We've scanned at least the requested number of rows.
                     //
                     // Return whatever we have in the segment now. All other
                     // remaining blocks will be dropped.
                     break;
                 }
-            }
 
             // Fill which sides to scan from for each row.
             //

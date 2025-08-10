@@ -616,7 +616,7 @@ impl ColumnValues {
         self.indices.len() - 1
     }
 
-    pub fn iter(&self) -> ColumnValuesIter {
+    pub fn iter(&self) -> ColumnValuesIter<'_> {
         ColumnValuesIter {
             buffer: &self.buffer,
             indices: &self.indices,

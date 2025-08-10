@@ -122,6 +122,7 @@ impl FileHandle for OriginFileHandle {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct OriginFileSystem {}
 
 impl OriginFileSystem {
@@ -129,6 +130,7 @@ impl OriginFileSystem {
     ///
     /// Public for tests. Once we have write support, that should be used
     /// instead for dogfooding.
+    #[allow(dead_code)]
     pub async fn open_sync_access_handle(
         &self,
         path: &str,

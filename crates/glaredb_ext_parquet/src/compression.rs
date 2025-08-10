@@ -33,6 +33,7 @@ pub trait Codec: Debug + Sync + Send {
     ///
     /// Note that you'll need to call `clear()` before reusing the same
     /// `output_buf` across different `compress` calls.
+    #[allow(dead_code)]
     fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()>;
 
     /// Decompresses data stored in slice `input_buf` and place the decompressed
@@ -124,6 +125,7 @@ mod snappy_codec {
     /// Codec for Snappy compression format.
     #[derive(Debug)]
     pub struct SnappyCodec {
+        #[allow(dead_code)]
         encoder: Encoder,
     }
 
@@ -172,6 +174,7 @@ mod gzip_codec {
     /// Codec for GZIP compression algorithm.
     #[derive(Debug)]
     pub struct GZipCodec {
+        #[allow(dead_code)]
         level: GzipLevel,
     }
 
@@ -237,12 +240,15 @@ mod brotli_codec {
     use super::BrotliLevel;
     use crate::compression::Codec;
 
+    #[allow(dead_code)]
     const BROTLI_DEFAULT_BUFFER_SIZE: usize = 4096;
+    #[allow(dead_code)]
     const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
 
     /// Codec for Brotli compression algorithm.
     #[derive(Debug)]
     pub struct BrotliCodec {
+        #[allow(dead_code)]
         level: BrotliLevel,
     }
 
@@ -310,6 +316,7 @@ mod lz4_codec {
 
     use crate::compression::Codec;
 
+    #[allow(dead_code)]
     const LZ4_BUFFER_SIZE: usize = 4096;
 
     /// Codec for LZ4 compression algorithm.
@@ -362,6 +369,7 @@ mod zstd_codec {
     /// Codec for Zstandard compression algorithm.
     #[derive(Debug)]
     pub struct ZSTDCodec {
+        #[allow(dead_code)]
         level: ZstdLevel,
     }
 

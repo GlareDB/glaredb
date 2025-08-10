@@ -110,11 +110,10 @@ impl StructReader {
 
         for (&proj, col_reader) in projections.data_indices().iter().zip(&self.readers) {
             let col_meta = &row_group.columns[proj];
-            if let Some(stats) = &col_meta.statistics {
-                if col_reader.should_prune(stats)? {
+            if let Some(stats) = &col_meta.statistics
+                && col_reader.should_prune(stats)? {
                     return Ok(true);
                 }
-            }
         }
 
         Ok(false)

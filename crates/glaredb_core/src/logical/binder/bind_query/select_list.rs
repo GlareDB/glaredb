@@ -447,8 +447,8 @@ impl SelectList {
     fn update_group_by_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
         // Update group expressions to be the base for any aliased expressions.
         for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
-            if let Expression::Column(col) = expr {
-                if col.reference.table_scope == self.projections_table {
+            if let Expression::Column(col) = expr
+                && col.reference.table_scope == self.projections_table {
                     let proj_expr = self
                         .projections
                         .get_mut(col.reference.column)
@@ -471,7 +471,6 @@ impl SelectList {
 
                     *expr = orig;
                 }
-            }
         }
 
         fn update_projection_expr(

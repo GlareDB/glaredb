@@ -761,9 +761,9 @@ impl Expr<Raw> {
                         })
                     }
                     other => {
-                        return Err(DbError::new(format!(
+                        Err(DbError::new(format!(
                             "Unexpected keyword after NOT: {other}"
-                        )));
+                        )))
                     }
                 },
                 Keyword::IN => {
@@ -808,9 +808,9 @@ impl Expr<Raw> {
                     })
                 }
                 other => {
-                    return Err(DbError::new(format!(
+                    Err(DbError::new(format!(
                         "Unexpected keyword in infix expression: {other}"
-                    )));
+                    )))
                 }
             }
         } else if tok == &Token::LeftBracket {
