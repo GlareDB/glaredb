@@ -108,7 +108,7 @@ impl ByteRecords {
         self.record_boundaries.clear();
     }
 
-    pub fn get_record(&self, idx: usize) -> ByteRecord {
+    pub fn get_record(&self, idx: usize) -> ByteRecord<'_> {
         let (buf, ends) = if idx == 0 {
             let rec_boundary = self.record_boundaries[idx];
             let buf = &self.buf[0..rec_boundary.end_offset];
@@ -130,7 +130,7 @@ impl ByteRecords {
         ByteRecord { buf, ends }
     }
 
-    pub fn iter_records(&self) -> impl Iterator<Item = ByteRecord> + '_ {
+    pub fn iter_records(&self) -> impl Iterator<Item = ByteRecord<'_>> + '_ {
         (0..self.num_records()).map(|idx| self.get_record(idx))
     }
 
@@ -168,7 +168,7 @@ impl ByteRecord<'_> {
         }
     }
 
-    pub fn iter_fields(&self) -> FieldIter {
+    pub fn iter_fields(&self) -> FieldIter<'_> {
         FieldIter {
             offset: 0,
             buf: self.buf,

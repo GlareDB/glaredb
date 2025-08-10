@@ -81,7 +81,7 @@ where
         }
     }
 
-    pub fn row_mut_ptr_iter(&self) -> RowMutPtrIter<I> {
+    pub fn row_mut_ptr_iter(&self) -> RowMutPtrIter<'_, I> {
         RowMutPtrIter {
             blocks: self,
             block_idx: 0,

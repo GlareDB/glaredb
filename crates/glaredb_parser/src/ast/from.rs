@@ -232,19 +232,19 @@ impl FromNode<Raw> {
                 }),
             })
         } else {
-            if let Some(tok) = parser.peek().cloned() {
-                if let Token::SingleQuotedString(s) = tok.token {
-                    // `FROM 'my/file/path.paquet'
-                    let _ = parser.next();
+            if let Some(tok) = parser.peek().cloned()
+                && let Token::SingleQuotedString(s) = tok.token
+            {
+                // `FROM 'my/file/path.paquet'
+                let _ = parser.next();
 
-                    let alias = Self::maybe_parse_alias(parser)?;
-                    return Ok(FromNode {
-                        alias,
-                        body: FromNodeBody::File(FromFilePath {
-                            path: s.to_string(),
-                        }),
-                    });
-                }
+                let alias = Self::maybe_parse_alias(parser)?;
+                return Ok(FromNode {
+                    alias,
+                    body: FromNodeBody::File(FromFilePath {
+                        path: s.to_string(),
+                    }),
+                });
             }
 
             // Table or table function.

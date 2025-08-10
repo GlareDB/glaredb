@@ -127,29 +127,29 @@ impl ExplainNode {
                 }
 
                 // Also include metadata columns if we have it.
-                if let Some(meta_scan) = &n.node.meta_scan {
-                    if let Ok(meta_table) = bind_context.get_table(meta_scan.table_ref) {
-                        ent.items.insert(
-                            "meta_column_types".to_string(),
-                            ExplainValue::Values(
-                                meta_table
-                                    .column_types
-                                    .iter()
-                                    .map(|d| d.to_string())
-                                    .collect(),
-                            ),
-                        );
-                        ent.items.insert(
-                            "meta_column_names".to_string(),
-                            ExplainValue::Values(
-                                meta_table
-                                    .column_names
-                                    .iter()
-                                    .map(|n| n.as_raw_str().to_string())
-                                    .collect(),
-                            ),
-                        );
-                    }
+                if let Some(meta_scan) = &n.node.meta_scan
+                    && let Ok(meta_table) = bind_context.get_table(meta_scan.table_ref)
+                {
+                    ent.items.insert(
+                        "meta_column_types".to_string(),
+                        ExplainValue::Values(
+                            meta_table
+                                .column_types
+                                .iter()
+                                .map(|d| d.to_string())
+                                .collect(),
+                        ),
+                    );
+                    ent.items.insert(
+                        "meta_column_names".to_string(),
+                        ExplainValue::Values(
+                            meta_table
+                                .column_names
+                                .iter()
+                                .map(|n| n.as_raw_str().to_string())
+                                .collect(),
+                        ),
+                    );
                 }
 
                 (ent, &n.children)

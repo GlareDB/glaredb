@@ -33,10 +33,10 @@ pub fn implicit_cast_score(have: DataTypeId, want: DataTypeId) -> Option<u32> {
     for cast_set in BUILTIN_CAST_FUNCTION_SETS {
         if cast_set.target == want {
             for cast_fn in cast_set.functions {
-                if cast_fn.src == have {
-                    if let CastRule::Implicit(score) = cast_fn.rule {
-                        return Some(score);
-                    }
+                if cast_fn.src == have
+                    && let CastRule::Implicit(score) = cast_fn.rule
+                {
+                    return Some(score);
                 }
             }
         }

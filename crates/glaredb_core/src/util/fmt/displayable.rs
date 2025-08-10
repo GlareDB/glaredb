@@ -5,14 +5,14 @@ use std::fmt::{self, Display};
 pub trait IntoDisplayableSlice<T: Display> {
     /// Displays a slice wrapped with '[' and ']' with each element separated by
     /// a comma.
-    fn display_with_brackets(&self) -> DisplayableSlice<T>;
+    fn display_with_brackets(&self) -> DisplayableSlice<'_, T>;
 
     /// Displays a slice as a comma separated list.
-    fn display_as_list(&self) -> DisplayableSlice<T>;
+    fn display_as_list(&self) -> DisplayableSlice<'_, T>;
 }
 
 impl<T: Display> IntoDisplayableSlice<T> for &[T] {
-    fn display_with_brackets(&self) -> DisplayableSlice<T> {
+    fn display_with_brackets(&self) -> DisplayableSlice<'_, T> {
         DisplayableSlice {
             left_delim: "[",
             right_delim: "]",
@@ -20,7 +20,7 @@ impl<T: Display> IntoDisplayableSlice<T> for &[T] {
         }
     }
 
-    fn display_as_list(&self) -> DisplayableSlice<T> {
+    fn display_as_list(&self) -> DisplayableSlice<'_, T> {
         DisplayableSlice {
             left_delim: "",
             right_delim: "",
@@ -30,7 +30,7 @@ impl<T: Display> IntoDisplayableSlice<T> for &[T] {
 }
 
 impl<T: Display> IntoDisplayableSlice<T> for [T] {
-    fn display_with_brackets(&self) -> DisplayableSlice<T> {
+    fn display_with_brackets(&self) -> DisplayableSlice<'_, T> {
         DisplayableSlice {
             left_delim: "[",
             right_delim: "]",
@@ -38,7 +38,7 @@ impl<T: Display> IntoDisplayableSlice<T> for [T] {
         }
     }
 
-    fn display_as_list(&self) -> DisplayableSlice<T> {
+    fn display_as_list(&self) -> DisplayableSlice<'_, T> {
         DisplayableSlice {
             left_delim: "",
             right_delim: "",
@@ -48,7 +48,7 @@ impl<T: Display> IntoDisplayableSlice<T> for [T] {
 }
 
 impl<T: Display> IntoDisplayableSlice<T> for Vec<T> {
-    fn display_with_brackets(&self) -> DisplayableSlice<T> {
+    fn display_with_brackets(&self) -> DisplayableSlice<'_, T> {
         DisplayableSlice {
             left_delim: "[",
             right_delim: "]",
@@ -56,7 +56,7 @@ impl<T: Display> IntoDisplayableSlice<T> for Vec<T> {
         }
     }
 
-    fn display_as_list(&self) -> DisplayableSlice<T> {
+    fn display_as_list(&self) -> DisplayableSlice<'_, T> {
         DisplayableSlice {
             left_delim: "",
             right_delim: "",

@@ -178,7 +178,7 @@ where
         &mut self.writer
     }
 
-    pub fn consume_key(&mut self, key: KeyEvent) -> Result<Signal> {
+    pub fn consume_key(&mut self, key: KeyEvent) -> Result<Signal<'_>> {
         if matches!(key, KeyEvent::CtrlC) {
             if self.did_ctrl_c {
                 write!(self.writer, "{}", vt100::CRLF)?;
@@ -753,7 +753,7 @@ impl TextBuffer {
         }
     }
 
-    fn lines(&self) -> LineIter {
+    fn lines(&self) -> LineIter<'_> {
         LineIter {
             buffer: self,
             curr: 0,

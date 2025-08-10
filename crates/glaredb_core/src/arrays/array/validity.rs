@@ -82,7 +82,7 @@ impl Validity {
         }
     }
 
-    pub fn iter(&self) -> ValidityIter {
+    pub fn iter(&self) -> ValidityIter<'_> {
         ValidityIter {
             idx: 0,
             validity: self,

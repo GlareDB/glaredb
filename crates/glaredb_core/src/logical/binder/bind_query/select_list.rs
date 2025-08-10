@@ -447,30 +447,30 @@ impl SelectList {
     fn update_group_by_dependencies(&mut self, group_by: &mut BoundGroupBy) -> Result<()> {
         // Update group expressions to be the base for any aliased expressions.
         for (idx, expr) in group_by.expressions.iter_mut().enumerate() {
-            if let Expression::Column(col) = expr {
-                if col.reference.table_scope == self.projections_table {
-                    let proj_expr = self
-                        .projections
-                        .get_mut(col.reference.column)
-                        .ok_or_else(|| DbError::new(format!("Missing projection column: {col}")))?;
+            if let Expression::Column(col) = expr
+                && col.reference.table_scope == self.projections_table
+            {
+                let proj_expr = self
+                    .projections
+                    .get_mut(col.reference.column)
+                    .ok_or_else(|| DbError::new(format!("Missing projection column: {col}")))?;
 
-                    let datatype = proj_expr.datatype()?;
+                let datatype = proj_expr.datatype()?;
 
-                    // Point projection to GROUP BY expression, replace GROUP BY
-                    // expression with original expression.
-                    let orig = std::mem::replace(
-                        proj_expr,
-                        Expression::Column(ColumnExpr {
-                            reference: ColumnReference {
-                                table_scope: group_by.group_exprs_table,
-                                column: idx,
-                            },
-                            datatype,
-                        }),
-                    );
+                // Point projection to GROUP BY expression, replace GROUP BY
+                // expression with original expression.
+                let orig = std::mem::replace(
+                    proj_expr,
+                    Expression::Column(ColumnExpr {
+                        reference: ColumnReference {
+                            table_scope: group_by.group_exprs_table,
+                            column: idx,
+                        },
+                        datatype,
+                    }),
+                );
 
-                    *expr = orig;
-                }
+                *expr = orig;
             }
         }
 

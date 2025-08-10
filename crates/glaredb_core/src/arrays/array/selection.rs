@@ -31,7 +31,7 @@ impl<'a> Selection<'a> {
         matches!(self, Selection::Linear { .. })
     }
 
-    pub fn iter(&self) -> FlatSelectionIter {
+    pub fn iter(&self) -> FlatSelectionIter<'_> {
         FlatSelectionIter { idx: 0, sel: *self }
     }
 

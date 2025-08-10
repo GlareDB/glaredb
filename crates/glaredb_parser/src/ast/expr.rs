@@ -760,11 +760,9 @@ impl Expr<Raw> {
                             high: Box::new(high),
                         })
                     }
-                    other => {
-                        return Err(DbError::new(format!(
-                            "Unexpected keyword after NOT: {other}"
-                        )));
-                    }
+                    other => Err(DbError::new(format!(
+                        "Unexpected keyword after NOT: {other}"
+                    ))),
                 },
                 Keyword::IN => {
                     parser.expect_token(&Token::LeftParen)?;
@@ -807,11 +805,9 @@ impl Expr<Raw> {
                         high: Box::new(high),
                     })
                 }
-                other => {
-                    return Err(DbError::new(format!(
-                        "Unexpected keyword in infix expression: {other}"
-                    )));
-                }
+                other => Err(DbError::new(format!(
+                    "Unexpected keyword in infix expression: {other}"
+                ))),
             }
         } else if tok == &Token::LeftBracket {
             let subscript = ArraySubscript::parse(parser)?;

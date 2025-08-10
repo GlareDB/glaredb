@@ -159,12 +159,11 @@ impl<'a> BaseExpressionBinder<'a> {
                 // the expression.
                 //
                 // Fallback to normal literal binding.
-                if recur.is_root {
-                    if let Some(expr) =
+                if recur.is_root
+                    && let Some(expr) =
                         column_binder.bind_from_root_literal(self.current, bind_context, literal)?
-                    {
-                        return Ok(expr);
-                    }
+                {
+                    return Ok(expr);
                 }
                 Self::bind_literal(literal)
             }
