@@ -49,7 +49,7 @@ half = { workspace = true, features = ["num-traits"] }
 futures = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.6", default-features = false }
+criterion = { version = "0.7", default-features = false }
 tempfile = { version = "3.20", default-features = false }
 zstd = { version = "0.13", default-features = false }
 # TODO: ?
