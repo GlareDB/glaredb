@@ -18,7 +18,7 @@ glaredb_error = { workspace = true }
 glaredb_rt_native = { workspace = true }
 
 glaredb_ext_default = { workspace = true }
-napi = { version = "2.16", default-features = false, features = ["napi4", "async"] }
+napi = { version = "3.1", default-features = false, features = ["napi4", "async"] }
 napi-derive = "2.16"
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
 
