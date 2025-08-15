@@ -40,7 +40,7 @@ jobs:
       GCP_RESULTS_NAMESPACE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.results_namespace || 'main' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Authenticate GCP
         uses: google-github-actions/auth@v2
