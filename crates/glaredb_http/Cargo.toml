@@ -15,7 +15,7 @@ workspace = true
 [dependencies]
 glaredb_error = { workspace = true }
 glaredb_core = { workspace = true }
-reqwest = { version = "0.12.22", default-features = false, features = ["rustls-tls", "stream"] }
+reqwest = { version = "0.12.23", default-features = false, features = ["rustls-tls", "stream"] }
 url = { workspace = true, features = ["serde"] }
 bytes = { version = "1.10", default-features = false, features = ["std"] }
 serde = { workspace = true }
