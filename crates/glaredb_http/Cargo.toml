@@ -26,7 +26,7 @@ futures = { workspace = true }
 hmac = "0.12.1"
 sha2 = "0.10.9"
 percent-encoding = "2.3.1"
-quick-xml = { version = "0.38.1", default-features = false, features = ["serialize"] }
+quick-xml = { version = "0.38.2", default-features = false, features = ["serialize"] }
 base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 rustls-pemfile = "2.2.0"
 # Sets the 'js' feature flag for getrandom 2.*
