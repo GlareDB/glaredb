@@ -22,5 +22,5 @@ glaredb_ext_spark = { workspace = true }
 glaredb_ext_csv = { workspace = true }
 glaredb_ext_parquet = { workspace = true }
 glaredb_ext_tpch_gen = { workspace = true }
-pyo3 = { version = "0.25.1", features = ["abi3-py37", "extension-module"] }
+pyo3 = { version = "0.26.0", features = ["abi3-py37", "extension-module"] }
 tokio = { workspace = true, default-features = false, features = ["rt", "rt-multi-thread", "time", "net"] }
