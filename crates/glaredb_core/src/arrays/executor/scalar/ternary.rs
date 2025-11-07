@@ -111,7 +111,7 @@ impl TernaryExecutor {
                     ExecutionFormat::Selection(a3) => a3,
                 };
 
-                Self::execute_selection_format::<S1, S2, S3, _, _>(
+                Self::execute_selection_format::<S1, S2, S3, O, _>(
                     &array1.validity,
                     a1,
                     sel1,
