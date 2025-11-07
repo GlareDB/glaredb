@@ -12,7 +12,7 @@ glaredb_error = { workspace = true }
 clap = { workspace = true }
 escape8259 = "0.5.3"
 anstream = "0.6.20"
-anstyle = "1.0.11"
+anstyle = "1.0.13"
 rand = { workspace = true }
 
 [lints]
