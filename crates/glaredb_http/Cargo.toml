@@ -21,7 +21,7 @@ bytes = { version = "1.10", default-features = false, features = ["std"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = { version = "0.7" }
-chrono = { version = "0.4.41", features = ["serde"] }
+chrono = { version = "0.4.42", features = ["serde"] }
 futures = { workspace = true }
 hmac = "0.12.1"
 sha2 = "0.10.9"
