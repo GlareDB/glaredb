@@ -33,7 +33,7 @@ scc = { workspace = true }
 indexmap = "2.10.0"
 half = { workspace = true }
 textwrap = { version = "0.16.1", default-features = false, features = ["unicode-width"] }
-globset = { version = "0.4.16", default-features = false }
+globset = { version = "0.4.18", default-features = false }
 md5 = "0.8.0"
 
 [dev-dependencies]
