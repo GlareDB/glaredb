@@ -2462,6 +2462,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f98d2aa92eebf49b69786be48e4477826b256916e84a57ff2a4f21923b48eb4c"
 
 [[package]]
+name = "saa"
+version = "5.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dfac11c0cd0606aaf7eb9ef66f82c119438a96dc487715abb8b57fdf08ad4fe"
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2472,10 +2478,11 @@ dependencies = [
 
 [[package]]
 name = "scc"
-version = "2.3.4"
+version = "3.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22b2d775fb28f245817589471dd49c5edf64237f4a19d10ce9a92ff4651a27f4"
+checksum = "3904515dbe9c10a126a54faa1d44fd40b893224247a1198d8c5dab6ef028bbdc"
 dependencies = [
+ "saa",
  "sdd",
 ]
 
@@ -2487,9 +2494,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "sdd"
-version = "3.0.2"
+version = "4.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0495e4577c672de8254beb68d01a9b62d0e8a13c099edecdbedccce3223cd29f"
+checksum = "19556830bd73d11d6961adaf20b1725fbb5b74c8cc32888a4dcd7049c56b6c35"
 
 [[package]]
 name = "semver"
