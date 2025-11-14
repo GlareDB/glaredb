@@ -16,5 +16,5 @@ workspace = true
 glaredb_core = { workspace = true }
 glaredb_error = { workspace = true }
 futures = { workspace = true }
-csv-core = "0.1.12"
+csv-core = "0.1.13"
 csv = "1.3.0"
